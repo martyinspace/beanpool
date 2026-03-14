@@ -1,0 +1,42 @@
+{
+    "expo": {
+        "name": "BeanPool Pillar",
+        "slug": "beanpool-pillar",
+        "version": "1.0.0",
+        "orientation": "portrait",
+        "icon": "./assets/icon.png",
+        "scheme": "beanpool",
+        "userInterfaceStyle": "dark",
+        "newArchEnabled": true,
+        "splash": {
+            "backgroundColor": "#0a0a0a"
+        },
+        "ios": {
+            "supportsTablet": false,
+            "bundleIdentifier": "org.beanpool.pillar",
+            "infoPlist": {
+                "UIBackgroundModes": [
+                    "fetch",
+                    "processing"
+                ]
+            }
+        },
+        "android": {
+            "package": "org.beanpool.pillar",
+            "adaptiveIcon": {
+                "backgroundColor": "#0a0a0a"
+            }
+        },
+        "plugins": [
+            "expo-router",
+            [
+                "expo-build-properties",
+                {
+                    "android": {
+                        "usesCleartextTraffic": true
+                    }
+                }
+            ]
+        ]
+    }
+}
