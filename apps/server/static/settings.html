@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeanPool — Node Settings</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+
+        .container {
+            max-width: 520px;
+            margin: 0 auto;
+        }
+
+        /* Glass panels */
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .glass h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #e2e8f0;
+            margin-bottom: 1rem;
+        }
+
+        /* Inputs */
+        input[type="text"],
+        input[type="search"],
+        input[type="password"],
+        select {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 0.6rem 0.75rem;
+            color: #f8fafc;
+            font-size: 0.875rem;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
+        }
+
+        label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #94a3b8;
+            margin-bottom: 0.4rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .field {
+            margin-bottom: 1rem;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.6rem 1.25rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-sm {
+            padding: 0.35rem 0.75rem;
+            font-size: 0.75rem;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #334155;
+            color: #cbd5e1;
+        }
+
+        .btn-outline:hover {
+            border-color: #64748b;
+            color: #f1f5f9;
+        }
+
+        .btn-danger {
+            background: transparent;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #f87171;
+        }
+
+        .btn-danger:hover {
+            border-color: rgba(239, 68, 68, 0.5);
+            color: #fca5a5;
+        }
+
+        .btn-full {
+            width: 100%;
+        }
+
+        /* Status messages */
+        .status-msg {
+            font-size: 0.75rem;
+            text-align: center;
+            margin-top: 0.5rem;
+            display: none;
+        }
+
+        .status-msg.show {
+            display: block;
+        }
+
+        .status-msg.success {
+            color: #10b981;
+        }
+
+        .status-msg.error {
+            color: #f87171;
+        }
+
+        /* Map */
+        #settings-map {
+            height: 240px;
+            border-radius: 12px;
+            z-index: 1;
+            margin-top: 0.5rem;
+        }
+
+        /* Location search */
+        .search-wrapper {
+            position: relative;
+        }
+
+        .search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            display: none;
+        }
+
+        .search-results.active {
+            display: block;
+        }
+
+        .search-results .item {
+            padding: 0.6rem 0.75rem;
+            cursor: pointer;
+            border-bottom: 1px solid #1e293b;
+            font-size: 0.85rem;
+            transition: background 0.15s;
+        }
+
+        .search-results .item:hover {
+            background: #1e293b;
+        }
+
+        .search-results .item .type {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+
+        /* Connector cards */
+        .connector-card {
+            background: #0f172a80;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .connector-card .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .connector-card .name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #e2e8f0;
+        }
+
+        .connector-card .addr {
+            font-size: 0.75rem;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            color: #64748b;
+        }
+
+        .connector-card .meta {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.5rem;
+            font-size: 0.7rem;
+            color: #94a3b8;
+        }
+
+        .connector-card .actions {
+            display: flex;
+            gap: 0.4rem;
+            margin-top: 0.5rem;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.65rem;
+            font-weight: 600;
+        }
+
+        .badge-mutual {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .badge-outbound {
+            background: rgba(234, 179, 8, 0.15);
+            color: #facc15;
+            border: 1px solid rgba(234, 179, 8, 0.3);
+        }
+
+        .badge-disconnected {
+            background: rgba(100, 116, 139, 0.15);
+            color: #94a3b8;
+            border: 1px solid rgba(100, 116, 139, 0.3);
+        }
+
+        /* Password input */
+        .pwd-wrapper {
+            position: relative;
+        }
+
+        .pwd-wrapper input {
+            padding-right: 2.5rem;
+        }
+
+        .pwd-eye {
+            position: absolute;
+            right: 0.5rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0.25rem;
+        }
+
+        .pwd-eye:hover {
+            color: #cbd5e1;
+        }
+
+        /* Header */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .page-header h1 span {
+            color: #10b981;
+        }
+
+        .page-header .peer-id {
+            font-size: 0.65rem;
+            font-family: 'SF Mono', monospace;
+            color: #475569;
+        }
+
+        /* Hide views */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Separator */
+        hr {
+            border: none;
+            border-top: 1px solid #1e293b;
+            margin: 1.5rem 0;
+        }
+
+        /* Trust level select */
+        select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            padding-right: 2rem;
+        }
+
+        /* Add connector form */
+        .add-form {
+            display: grid;
+            gap: 0.75rem;
+        }
+
+        .add-form .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="page-header">
+            <div>
+                <h1>🫘 Node <span>Settings</span></h1>
+                <div class="peer-id" id="hdr-peer-id"></div>
+            </div>
+            <a href="/" class="btn btn-outline btn-sm">← Back</a>
+        </div>
+
+        <!-- ========== LOGIN VIEW ========== -->
+        <div id="view-login">
+            <div class="glass">
+                <h3>🔒 Admin Login</h3>
+                <div class="field">
+                    <label>Password</label>
+                    <div class="pwd-wrapper">
+                        <input type="password" id="login-password" placeholder="Enter admin password">
+                        <button class="pwd-eye" tabindex="-1">👁</button>
+                    </div>
+                </div>
+                <button class="btn btn-primary btn-full" id="login-btn">Unlock Settings</button>
+                <div class="status-msg" id="login-status"></div>
+            </div>
+        </div>
+
+        <!-- ========== SETTINGS VIEW ========== -->
+        <div id="view-settings" class="hidden">
+
+            <!-- Node Identity -->
+            <div class="glass">
+                <h3>📡 Node Identity</h3>
+                <div class="field">
+                    <label>Callsign</label>
+                    <input type="text" id="cfg-callsign" maxlength="20" placeholder="e.g. Sydney">
+                </div>
+                <div class="field">
+                    <label>Operating Region</label>
+                    <div class="search-wrapper">
+                        <input type="search" id="location-search" placeholder="Search for a location..."
+                            autocomplete="off">
+                        <div class="search-results" id="location-results"></div>
+                    </div>
+                    <div id="settings-map"></div>
+                    <input type="hidden" id="cfg-lat">
+                    <input type="hidden" id="cfg-lng">
+                </div>
+                <button class="btn btn-primary btn-full" id="save-identity-btn">Save Changes</button>
+                <div class="status-msg" id="identity-status"></div>
+            </div>
+
+            <!-- Trusted Connectors -->
+            <div class="glass">
+                <h3>🔗 Trusted Connectors</h3>
+                <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">
+                    Both nodes must add each other as connectors for mutual trust.
+                </p>
+
+                <div id="connectors-list"></div>
+
+                <hr>
+
+                <h3 style="font-size: 0.85rem;">Add New Connector</h3>
+                <div class="add-form">
+                    <div class="field" style="margin-bottom:0">
+                        <label>Address</label>
+                        <input type="text" id="new-addr" placeholder="e.g. us.beanpool.org:4001">
+                    </div>
+                    <div class="row">
+                        <div class="field" style="margin-bottom:0">
+                            <label>Trust Level</label>
+                            <select id="new-trust">
+                                <option value="credit_verification">Credit Verification</option>
+                                <option value="read_only">Read Only</option>
+                                <option value="full_sync">Full Sync</option>
+                            </select>
+                        </div>
+                        <div class="field" style="margin-bottom:0">
+                            <label>Callsign (optional)</label>
+                            <input type="text" id="new-callsign" placeholder="e.g. US Node" maxlength="20">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="add-connector-btn">Add Connector</button>
+                    <div class="status-msg" id="connector-status"></div>
+                </div>
+            </div>
+
+            <!-- Change Password -->
+            <div class="glass">
+                <h3>🔑 Change Password</h3>
+                <div class="field">
+                    <div class="pwd-wrapper">
+                        <input type="password" id="new-pwd" placeholder="New password">
+                        <button class="pwd-eye" tabindex="-1">👁</button>
+                    </div>
+                </div>
+                <div class="field">
+                    <div class="pwd-wrapper">
+                        <input type="password" id="new-pwd-confirm" placeholder="Confirm new password">
+                        <button class="pwd-eye" tabindex="-1">👁</button>
+                    </div>
+                </div>
+                <button class="btn btn-outline btn-full" id="change-pwd-btn">Update Password</button>
+                <div class="status-msg" id="pwd-status"></div>
+            </div>
+
+            <!-- Software Updates -->
+            <div class="glass">
+                <h3>📦 Software Updates</h3>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                    <div>
+                        <div style="font-size:0.8rem;color:#94a3b8;">Current Version</div>
+                        <div id="current-version" style="font-size:1.1rem;font-weight:700;color:#10b981;">—</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:0.8rem;color:#94a3b8;">Latest</div>
+                        <div id="latest-version" style="font-size:1.1rem;font-weight:700;color:#64748b;">—</div>
+                    </div>
+                </div>
+                <div id="update-release-notes" style="display:none;background:#0f172a;border-radius:8px;padding:0.75rem;margin-bottom:0.75rem;font-size:0.8rem;color:#cbd5e1;max-height:120px;overflow-y:auto;border:1px solid #334155;"></div>
+                <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem;">
+                    <button class="btn btn-outline" id="check-update-btn" style="flex:1;">🔍 Check for Updates</button>
+                    <button class="btn btn-primary" id="do-update-btn" style="flex:1;display:none;">⬆️ Update Now</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:0.5rem;">
+                    <label style="margin:0;font-size:0.75rem;cursor:pointer;display:flex;align-items:center;gap:0.4rem;">
+                        <input type="checkbox" id="auto-check-updates" style="width:auto;accent-color:#10b981;">
+                        Auto-check every 6 hours
+                    </label>
+                </div>
+                <div class="status-msg" id="update-status"></div>
+            </div>
+
+            <!-- Reset Node -->
+            <div class="glass">
+                <h3>⚠️ Reset Node</h3>
+                <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.75rem;">
+                    Erases identity and all configuration. You'll need to restart the container to reconfigure.
+                </p>
+                <button class="btn btn-danger btn-full" id="reset-btn">Reset Configuration</button>
+                <div class="status-msg" id="reset-status"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = '/api/local';
+        let authToken = null;
+        let settingsMap, settingsMarker;
+
+        // ======================== PASSWORD EYE TOGGLE ========================
+        document.querySelectorAll('.pwd-eye').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const input = btn.closest('.pwd-wrapper').querySelector('input');
+                input.type = input.type === 'password' ? 'text' : 'password';
+            });
+        });
+
+        function showStatus(id, msg, type) {
+            const el = document.getElementById(id);
+            el.textContent = msg;
+            el.className = `status-msg show ${type}`;
+        }
+
+        function showView(name) {
+            document.getElementById('view-login').classList.toggle('hidden', name !== 'login');
+            document.getElementById('view-settings').classList.toggle('hidden', name !== 'settings');
+        }
+
+        // ======================== LEAFLET MAP ========================
+        const nodeIcon = L.divIcon({
+            html: '<div style="width:14px;height:14px;background:#10b981;border-radius:50%;border:2px solid #064e3b;box-shadow:0 0 10px rgba(16,185,129,0.6)"></div>',
+            className: '', iconSize: [14, 14], iconAnchor: [7, 7]
+        });
+
+        function initMap(lat, lng) {
+            if (settingsMap) { settingsMap.invalidateSize(); return; }
+            const center = (lat && lng) ? [lat, lng] : [0, 0];
+            const zoom = (lat && lng) ? 10 : 2;
+            settingsMap = L.map('settings-map').setView(center, zoom);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap', maxZoom: 18
+            }).addTo(settingsMap);
+            if (lat && lng) {
+                settingsMarker = L.marker([lat, lng], { icon: nodeIcon }).addTo(settingsMap);
+            }
+            settingsMap.on('click', (e) => {
+                document.getElementById('cfg-lat').value = e.latlng.lat;
+                document.getElementById('cfg-lng').value = e.latlng.lng;
+                if (settingsMarker) settingsMarker.setLatLng(e.latlng);
+                else settingsMarker = L.marker(e.latlng, { icon: nodeIcon }).addTo(settingsMap);
+            });
+        }
+
+        // ======================== LOCATION SEARCH (NOMINATIM) ========================
+        const searchInput = document.getElementById('location-search');
+        const searchResults = document.getElementById('location-results');
+        let searchTimeout;
+
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            const q = e.target.value.trim();
+            if (q.length < 3) { searchResults.classList.remove('active'); return; }
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5`);
+                    const data = await res.json();
+                    searchResults.innerHTML = data.map(r => `
+                        <div class="item" data-lat="${r.lat}" data-lng="${r.lon}">
+                            <div style="color:#e2e8f0">${r.display_name}</div>
+                            <div class="type">${r.type}</div>
+                        </div>
+                    `).join('');
+                    searchResults.classList.add('active');
+                    searchResults.querySelectorAll('.item').forEach(item => {
+                        item.addEventListener('click', () => {
+                            const lat = parseFloat(item.dataset.lat);
+                            const lng = parseFloat(item.dataset.lng);
+                            document.getElementById('cfg-lat').value = lat;
+                            document.getElementById('cfg-lng').value = lng;
+                            searchInput.value = item.querySelector('div').textContent;
+                            searchResults.classList.remove('active');
+                            settingsMap.setView([lat, lng], 12);
+                            if (settingsMarker) settingsMarker.setLatLng([lat, lng]);
+                            else settingsMarker = L.marker([lat, lng], { icon: nodeIcon }).addTo(settingsMap);
+                        });
+                    });
+                } catch (err) { console.error('Geocoding failed:', err); }
+            }, 350);
+        });
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.search-wrapper')) searchResults.classList.remove('active');
+        });
+
+        // ======================== LOGIN ========================
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            const password = document.getElementById('login-password').value;
+            if (!password) { showStatus('login-status', 'Enter your password', 'error'); return; }
+            try {
+                const res = await fetch(`${API}/verify-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    showStatus('login-status', err.error || 'Invalid password', 'error');
+                    return;
+                }
+                authToken = password;
+                const dashRes = await fetch(`${API}/dashboard`);
+                if (dashRes.ok) {
+                    const data = await dashRes.json();
+                    hydrateSettings(data);
+                }
+                showView('settings');
+                loadVersionInfo();
+                setTimeout(() => {
+                    initMap(
+                        parseFloat(document.getElementById('cfg-lat').value) || null,
+                        parseFloat(document.getElementById('cfg-lng').value) || null
+                    );
+                    maybeAutoCheck();
+                }, 150);
+            } catch (err) {
+                showStatus('login-status', 'Login failed', 'error');
+            }
+        });
+
+        // Enter key submits login
+        document.getElementById('login-password').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') document.getElementById('login-btn').click();
+        });
+
+        // ======================== HYDRATE SETTINGS ========================
+        function hydrateSettings(data) {
+            document.getElementById('hdr-peer-id').textContent = `PeerId: ${data.identity.peerId}`;
+            document.getElementById('cfg-callsign').value = data.identity.callsign || '';
+            if (data.identity.location) {
+                document.getElementById('cfg-lat').value = data.identity.location.lat;
+                document.getElementById('cfg-lng').value = data.identity.location.lng;
+            }
+            renderConnectors(data.connectors || []);
+        }
+
+        // ======================== CONNECTORS ========================
+        function renderConnectors(connectors) {
+            const list = document.getElementById('connectors-list');
+            if (connectors.length === 0) {
+                list.innerHTML = '<p style="font-size:0.8rem;color:#475569;text-align:center;padding:1rem;">No connectors configured. Add one below.</p>';
+                return;
+            }
+            list.innerHTML = connectors.map(c => {
+                const trustLabels = { full_sync: 'Full Sync', credit_verification: 'Credit Verification', read_only: 'Read Only' };
+                let badge;
+                if (c.connected && c.mutualTrust) {
+                    badge = `<span class="badge badge-mutual">● Mutual Trust</span>`;
+                } else if (c.connected) {
+                    badge = `<span class="badge badge-outbound">◐ Outbound Only</span>`;
+                } else {
+                    badge = `<span class="badge badge-disconnected">○ Disconnected</span>`;
+                }
+                const latency = c.latencyMs !== null && c.latencyMs > 0 ? `${c.latencyMs}ms` : '—';
+                const lastVerified = c.lastVerified ? `${Math.round((Date.now() - c.lastVerified) / 1000)}s ago` : '—';
+                const remoteTrust = c.remoteTrustLevel ? trustLabels[c.remoteTrustLevel] || c.remoteTrustLevel : '—';
+
+                return `
+                    <div class="connector-card">
+                        <div class="header">
+                            <div>
+                                <div class="name">${c.callsign || c.address}</div>
+                                <div class="addr">${c.address}</div>
+                            </div>
+                            ${badge}
+                        </div>
+                        <div class="meta">
+                            <span>You → ${trustLabels[c.trustLevel] || c.trustLevel}</span>
+                            <span>Them → ${remoteTrust}</span>
+                            <span>RTT: ${latency}</span>
+                        </div>
+                        <div class="actions">
+                            ${c.connected
+                        ? `<button class="btn btn-outline btn-sm" onclick="doDisconnect('${c.address}')">Disconnect</button>`
+                        : `<button class="btn btn-outline btn-sm" onclick="doConnect('${c.address}')">Connect</button>`
+                    }
+                            <button class="btn btn-danger btn-sm" onclick="doRemove('${c.address}')">Remove</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function refreshConnectors() {
+            try {
+                const res = await fetch(`${API}/connectors`);
+                if (res.ok) renderConnectors(await res.json());
+            } catch (e) { /* ignore */ }
+        }
+
+        window.doConnect = async function (address) {
+            try {
+                await fetch(`${API}/connectors/connect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken, address })
+                });
+                await refreshConnectors();
+            } catch (e) { showStatus('connector-status', 'Connection failed', 'error'); }
+        };
+
+        window.doDisconnect = async function (address) {
+            try {
+                await fetch(`${API}/connectors/disconnect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken, address })
+                });
+                await refreshConnectors();
+            } catch (e) { showStatus('connector-status', 'Disconnect failed', 'error'); }
+        };
+
+        window.doRemove = async function (address) {
+            if (!confirm(`Remove connector ${address}?`)) return;
+            try {
+                await fetch(`${API}/connectors/remove`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken, address })
+                });
+                await refreshConnectors();
+            } catch (e) { showStatus('connector-status', 'Remove failed', 'error'); }
+        };
+
+        // Add connector
+        document.getElementById('add-connector-btn').addEventListener('click', async () => {
+            const address = document.getElementById('new-addr').value.trim();
+            const trustLevel = document.getElementById('new-trust').value;
+            const callsign = document.getElementById('new-callsign').value.trim();
+            if (!address) { showStatus('connector-status', 'Address is required', 'error'); return; }
+            try {
+                const res = await fetch(`${API}/connectors`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken, address, trustLevel, callsign: callsign || undefined })
+                });
+                if (res.ok) {
+                    document.getElementById('new-addr').value = '';
+                    document.getElementById('new-callsign').value = '';
+                    showStatus('connector-status', 'Connector added!', 'success');
+                    await refreshConnectors();
+                } else {
+                    const err = await res.json();
+                    showStatus('connector-status', err.error || 'Failed', 'error');
+                }
+            } catch (e) { showStatus('connector-status', 'Failed', 'error'); }
+        });
+
+        // ======================== SAVE IDENTITY ========================
+        document.getElementById('save-identity-btn').addEventListener('click', async () => {
+            try {
+                const res = await fetch(`${API}/update-identity`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        password: authToken,
+                        callsign: document.getElementById('cfg-callsign').value,
+                        lat: document.getElementById('cfg-lat').value ? parseFloat(document.getElementById('cfg-lat').value) : null,
+                        lng: document.getElementById('cfg-lng').value ? parseFloat(document.getElementById('cfg-lng').value) : null,
+                    })
+                });
+                if (res.ok) showStatus('identity-status', 'Saved!', 'success');
+                else showStatus('identity-status', 'Save failed', 'error');
+            } catch (e) { showStatus('identity-status', 'Save failed', 'error'); }
+        });
+
+        // ======================== CHANGE PASSWORD ========================
+        document.getElementById('change-pwd-btn').addEventListener('click', async () => {
+            const np = document.getElementById('new-pwd').value;
+            const nc = document.getElementById('new-pwd-confirm').value;
+            if (!np) { showStatus('pwd-status', 'Enter a new password', 'error'); return; }
+            if (np !== nc) { showStatus('pwd-status', 'Passwords do not match', 'error'); return; }
+            try {
+                const res = await fetch(`${API}/change-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ currentPassword: authToken, newPassword: np })
+                });
+                if (res.ok) {
+                    authToken = np;
+                    showStatus('pwd-status', 'Password updated!', 'success');
+                    document.getElementById('new-pwd').value = '';
+                    document.getElementById('new-pwd-confirm').value = '';
+                } else {
+                    const err = await res.json();
+                    showStatus('pwd-status', err.error || 'Failed', 'error');
+                }
+            } catch (e) { showStatus('pwd-status', 'Failed', 'error'); }
+        });
+
+        // ======================== RESET ========================
+        document.getElementById('reset-btn').addEventListener('click', async () => {
+            if (!confirm('Are you sure? This erases your node identity and connectors.')) return;
+            try {
+                const res = await fetch(`${API}/reset`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken })
+                });
+                const d = await res.json();
+                if (d.success) {
+                    showStatus('reset-status', 'Reset complete. Restart the container to reconfigure.', 'success');
+                } else {
+                    showStatus('reset-status', d.error || 'Reset failed', 'error');
+                }
+            } catch (e) { showStatus('reset-status', 'Failed', 'error'); }
+        });
+
+        // ======================== SOFTWARE UPDATES ========================
+        // Load current version on login
+        async function loadVersionInfo() {
+            try {
+                const res = await fetch('/api/version');
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('current-version').textContent = `v${data.version}`;
+                }
+            } catch { /* offline */ }
+        }
+
+        async function checkForUpdates() {
+            showStatus('update-status', 'Checking...', 'success');
+            try {
+                const res = await fetch('/api/admin/check-update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    showStatus('update-status', data.error || 'Check failed', 'error');
+                    return;
+                }
+                document.getElementById('current-version').textContent = `v${data.currentVersion}`;
+                const latestEl = document.getElementById('latest-version');
+                if (data.latestVersion) {
+                    latestEl.textContent = `v${data.latestVersion}`;
+                    latestEl.style.color = data.updateAvailable ? '#f59e0b' : '#10b981';
+                } else {
+                    latestEl.textContent = '—';
+                }
+                if (data.updateAvailable) {
+                    document.getElementById('do-update-btn').style.display = '';
+                    showStatus('update-status', '🆕 Update available!', 'success');
+                    // Show release notes if available
+                    if (data.releaseNotes) {
+                        const notesEl = document.getElementById('update-release-notes');
+                        notesEl.textContent = data.releaseNotes;
+                        notesEl.style.display = 'block';
+                    }
+                } else {
+                    document.getElementById('do-update-btn').style.display = 'none';
+                    document.getElementById('update-release-notes').style.display = 'none';
+                    showStatus('update-status', '✓ You are up to date', 'success');
+                }
+                localStorage.setItem('beanpool-last-update-check', Date.now().toString());
+            } catch (e) {
+                showStatus('update-status', 'Check failed — offline?', 'error');
+            }
+        }
+
+        document.getElementById('check-update-btn').addEventListener('click', checkForUpdates);
+
+        document.getElementById('do-update-btn').addEventListener('click', async () => {
+            if (!confirm('This will pull the latest code and rebuild the container. The node will restart. Continue?')) return;
+            showStatus('update-status', '⏳ Updating... this may take a few minutes', 'success');
+            document.getElementById('do-update-btn').disabled = true;
+            try {
+                const res = await fetch('/api/admin/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showStatus('update-status', '✅ Update complete! Node is restarting...', 'success');
+                    document.getElementById('do-update-btn').style.display = 'none';
+                } else {
+                    showStatus('update-status', data.error || 'Update failed', 'error');
+                }
+            } catch (e) {
+                showStatus('update-status', 'Update may have started — node might be restarting', 'success');
+            }
+            document.getElementById('do-update-btn').disabled = false;
+        });
+
+        // Auto-check for updates
+        const autoCheckEl = document.getElementById('auto-check-updates');
+        autoCheckEl.checked = localStorage.getItem('beanpool-auto-check') === 'true';
+        autoCheckEl.addEventListener('change', () => {
+            localStorage.setItem('beanpool-auto-check', autoCheckEl.checked.toString());
+        });
+
+        // Run auto-check if enabled and last check was > 6 hours ago
+        function maybeAutoCheck() {
+            if (!autoCheckEl.checked || !authToken) return;
+            const lastCheck = parseInt(localStorage.getItem('beanpool-last-update-check') || '0');
+            const SIX_HOURS = 6 * 60 * 60 * 1000;
+            if (Date.now() - lastCheck > SIX_HOURS) {
+                checkForUpdates();
+            }
+        }
+
+        // ======================== INIT ========================
+        async function init() {
+            try {
+                const res = await fetch(`${API}/status`);
+                const data = await res.json();
+                if (data.isLocked) {
+                    showView('login');
+                } else {
+                    // Node not locked — show message
+                    showView('login');
+                    showStatus('login-status', 'Node not configured. Set ADMIN_PASSWORD and restart.', 'error');
+                }
+            } catch (err) {
+                showView('login');
+                showStatus('login-status', 'Cannot reach server API', 'error');
+            }
+        }
+
+        // Auto-refresh connectors every 10s while on settings view
+        setInterval(() => {
+            if (!document.getElementById('view-settings').classList.contains('hidden') && authToken) {
+                refreshConnectors();
+            }
+        }, 10000);
+
+        init();
+    </script>
+</body>
+
+</html>
