@@ -13,6 +13,8 @@ BeanPool is an open protocol for building a **post-extraction economy**. It conn
 
 **Live network:** [sydney.beanpool.org](https://sydney.beanpool.org) · [korea.beanpool.org](https://korea.beanpool.org) — connected via libp2p with ~570ms handshake latency and 15-minute lazy state sync.
 
+*(Update Test v0.2.2: Verifying OTA update pull)*
+
 ---
 
 ## Features
