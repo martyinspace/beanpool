@@ -591,6 +591,18 @@ export async function startHttpsServer(port: number): Promise<void> {
         };
     });
 
+
+    // Semver comparison: returns true if a > b
+    function semverGreater(a: string, b: string): boolean {
+        const pa = a.split('.').map(Number);
+        const pb = b.split('.').map(Number);
+        for (let i = 0; i < 3; i++) {
+            if ((pa[i] || 0) > (pb[i] || 0)) return true;
+            if ((pa[i] || 0) < (pb[i] || 0)) return false;
+        }
+        return false;
+    }
+
     router.post('/api/admin/check-update', async (ctx) => {
         const config = getLocalConfig();
         const { password } = (ctx as any).requestBody || {};
@@ -609,10 +621,11 @@ export async function startHttpsServer(port: number): Promise<void> {
                 const release = await response.json() as any;
                 const latestVersion = (release.tag_name || '').replace(/^v/, '');
                 const currentVersion = getVersion();
+                const isNewer = semverGreater(latestVersion, currentVersion);
                 ctx.body = {
                     currentVersion,
                     latestVersion,
-                    updateAvailable: latestVersion !== currentVersion && latestVersion !== '',
+                    updateAvailable: isNewer,
                     releaseUrl: release.html_url || '',
                     releaseNotes: release.body || '',
                     publishedAt: release.published_at || '',
@@ -630,7 +643,7 @@ export async function startHttpsServer(port: number): Promise<void> {
                     ctx.body = {
                         currentVersion,
                         latestVersion: latestTag,
-                        updateAvailable: latestTag !== '' && latestTag !== currentVersion,
+                        updateAvailable: semverGreater(latestTag, currentVersion),
                         releaseUrl: '',
                         releaseNotes: '',
                         publishedAt: '',
