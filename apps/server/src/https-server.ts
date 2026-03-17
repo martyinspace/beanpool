@@ -17,6 +17,7 @@
 import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 import Koa from 'koa';
 import Router from '@koa/router';
 import serve from 'koa-static';
@@ -584,7 +585,6 @@ export async function startHttpsServer(port: number): Promise<void> {
     // Get git commit hash
     function getCommitHash(): string {
         try {
-            const { execSync } = require('child_process');
             return execSync('git rev-parse --short HEAD 2>/dev/null').toString().trim();
         } catch { return 'unknown'; }
     }
@@ -709,7 +709,6 @@ export async function startHttpsServer(port: number): Promise<void> {
             return;
         }
         try {
-            const { execSync } = require('child_process');
             // Pull latest code and rebuild
             const output = execSync(
                 'cd /home/azureuser/BeanPool && git pull origin main 2>&1 && ' +
