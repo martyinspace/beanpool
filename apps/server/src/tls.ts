@@ -123,12 +123,12 @@ async function tryLetsEncrypt(): Promise<boolean> {
 async function requestLetsEncryptCert(): Promise<boolean> {
     console.log(`🔐 Requesting Let's Encrypt cert for ${CF_RECORD_NAME}...`);
 
-    // Wrap the entire ACME flow in a 2-minute timeout so the server
+    // Wrap the entire ACME flow in a 5-minute timeout so the server
     // doesn't hang indefinitely if the ACME challenge stalls
-    const ACME_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+    const ACME_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
     const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('ACME cert request timed out after 2 minutes')), ACME_TIMEOUT_MS);
+        setTimeout(() => reject(new Error('ACME cert request timed out after 5 minutes')), ACME_TIMEOUT_MS);
     });
 
     const certPromise = (async () => {
