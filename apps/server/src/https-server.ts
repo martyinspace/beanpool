@@ -570,7 +570,13 @@ export async function startHttpsServer(port: number): Promise<void> {
     // Read version from root package.json
     function getVersion(): string {
         try {
-            const rootPkg = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf-8'));
+            // In Docker, cwd is /app/apps/server, so root is ../../package.json
+            let pkgPath = path.resolve('../../package.json');
+            if (!fs.existsSync(pkgPath)) {
+                // Fallback for local dev if cwd is already root or something else
+                pkgPath = path.resolve('package.json');
+            }
+            const rootPkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
             return rootPkg.version || '0.0.0';
         } catch { return '0.0.0'; }
     }
