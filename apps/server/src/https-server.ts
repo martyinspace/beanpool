@@ -709,16 +709,22 @@ export async function startHttpsServer(port: number): Promise<void> {
             return;
         }
         try {
-            // Pull latest code and rebuild
-            const output = execSync(
-                'cd /home/azureuser/BeanPool && git pull origin main 2>&1 && ' +
-                'docker compose -p beanpool up -d --build 2>&1',
-                { timeout: 120_000, encoding: 'utf-8' }
-            );
-            ctx.body = { success: true, output: output.slice(-500) };
+            // Signal-file approach: write a marker to the shared /data volume.
+            // The host-side update.sh (running as a cron job) detects this file,
+            // runs `docker pull` for the latest GHCR image, and restarts the container.
+            const dataDir = process.env.BEANPOOL_DATA_DIR || '/data';
+            const signalPath = path.join(dataDir, '.update-requested');
+            fs.writeFileSync(signalPath, JSON.stringify({
+                requestedAt: new Date().toISOString(),
+                currentVersion: getVersion(),
+            }));
+            ctx.body = {
+                success: true,
+                message: 'Update requested. The node will pull the latest image and restart within 60 seconds.',
+            };
         } catch (e: any) {
             ctx.status = 500;
-            ctx.body = { success: false, error: e.message || 'Update failed' };
+            ctx.body = { success: false, error: e.message || 'Update request failed' };
         }
     });
 

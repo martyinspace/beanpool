@@ -1072,8 +1072,8 @@
         document.getElementById('check-update-btn').addEventListener('click', checkForUpdates);
 
         document.getElementById('do-update-btn').addEventListener('click', async () => {
-            if (!confirm('This will pull the latest code and rebuild the container. The node will restart. Continue?')) return;
-            showStatus('update-status', '⏳ Updating... this may take a few minutes', 'success');
+            if (!confirm('This will pull the latest Docker image and restart the node. Continue?')) return;
+            showStatus('update-status', '⏳ Requesting update...', 'success');
             document.getElementById('do-update-btn').disabled = true;
             try {
                 const res = await fetch('/api/admin/update', {
@@ -1083,8 +1083,27 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    showStatus('update-status', '✅ Update complete! Node is restarting...', 'success');
+                    showStatus('update-status', '✅ Update requested! Node will pull the latest image and restart within 60 seconds. This page will reload automatically.', 'success');
                     document.getElementById('do-update-btn').style.display = 'none';
+                    // Poll until the node comes back with the new version
+                    const oldVersion = document.getElementById('current-version').textContent;
+                    let attempts = 0;
+                    const poll = setInterval(async () => {
+                        attempts++;
+                        if (attempts > 30) { clearInterval(poll); return; } // give up after 5 min
+                        try {
+                            const vr = await fetch('/api/version');
+                            if (vr.ok) {
+                                const vd = await vr.json();
+                                const newV = `v${vd.version}`;
+                                if (newV !== oldVersion) {
+                                    clearInterval(poll);
+                                    showStatus('update-status', `✅ Updated to ${newV}! Reloading...`, 'success');
+                                    setTimeout(() => location.reload(), 2000);
+                                }
+                            }
+                        } catch { /* node restarting */ }
+                    }, 10000);
                 } else {
                     showStatus('update-status', data.error || 'Update failed', 'error');
                 }
