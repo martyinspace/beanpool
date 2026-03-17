@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { generateInvite, getMyInvites, getInviteTree, getCommunityHealth, type InviteCode } from '../lib/api';
+import { generateInvite, getMyInvites, getInviteTree, type InviteCode } from '../lib/api';
 import { type BeanPoolIdentity } from '../lib/identity';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -24,29 +24,6 @@ interface TreeNode {
     children: TreeNode[];
 }
 
-interface HealthData {
-    tree: {
-        totalMembers: number;
-        maxDepth: number;
-        widestBranch: { callsign: string; children: number };
-        avgBranchSize: number;
-    };
-    activity: {
-        totalTransactions: number;
-        last7Days: number;
-        last30Days: number;
-        activeMemberCount: number;
-        inactiveMemberCount: number;
-        commonsBalance: number;
-    };
-    flags: {
-        type: string;
-        severity: 'warning' | 'alert';
-        description: string;
-        members: string[];
-    }[];
-}
-
 export function InvitePage({ identity }: Props) {
     const [invites, setInvites] = useState<InviteCode[]>([]);
     const [generating, setGenerating] = useState(false);
@@ -54,15 +31,13 @@ export function InvitePage({ identity }: Props) {
     const [copied, setCopied] = useState(false);
     const [showQR, setShowQR] = useState(false);
 
-    // Tree + Health
+    // Tree
     const [tree, setTree] = useState<TreeNode[]>([]);
-    const [health, setHealth] = useState<HealthData | null>(null);
-    const [activeSection, setActiveSection] = useState<'invites' | 'tree' | 'health'>('invites');
+    const [activeSection, setActiveSection] = useState<'invites' | 'tree'>('invites');
 
     useEffect(() => {
         loadInvites();
         loadTree();
-        loadHealth();
     }, []);
 
     async function loadInvites() {
@@ -79,12 +54,6 @@ export function InvitePage({ identity }: Props) {
         } catch { /* offline */ }
     }
 
-    async function loadHealth() {
-        try {
-            const result = await getCommunityHealth();
-            setHealth(result);
-        } catch { /* offline */ }
-    }
 
     async function handleGenerate() {
         setGenerating(true);
@@ -164,9 +133,6 @@ export function InvitePage({ identity }: Props) {
                 </button>
                 <button onClick={() => setActiveSection('tree')} style={tabStyle(activeSection === 'tree')}>
                     🌳 Tree
-                </button>
-                <button onClick={() => setActiveSection('health')} style={tabStyle(activeSection === 'health')}>
-                    💚 Health
                 </button>
             </div>
 
@@ -283,107 +249,11 @@ export function InvitePage({ identity }: Props) {
                     )}
                 </>
             )}
-
-            {/* =================== HEALTH SECTION =================== */}
-            {activeSection === 'health' && (
-                <>
-                    <h2 style={{ fontSize: '1.3rem', marginBottom: '0.5rem' }}>💚 Community Health</h2>
-                    <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
-                        Metrics and alerts for node operators.
-                    </p>
-
-                    {!health ? (
-                        <p style={{ color: '#555', textAlign: 'center', padding: '2rem' }}>Loading...</p>
-                    ) : (
-                        <>
-                            {/* Summary cards */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
-                                <StatCard label="Members" value={health.tree.totalMembers} emoji="👥" />
-                                <StatCard label="Tree Depth" value={health.tree.maxDepth} emoji="🌳" />
-                                <StatCard label="Txns (7d)" value={health.activity.last7Days} emoji="📈" />
-                                <StatCard label="Txns (30d)" value={health.activity.last30Days} emoji="📊" />
-                                <StatCard label="Active" value={health.activity.activeMemberCount} emoji="🟢" color="#22c55e" />
-                                <StatCard label="Inactive" value={health.activity.inactiveMemberCount} emoji="⚪" color="#666" />
-                                <StatCard label="Commons" value={`${health.activity.commonsBalance}Ʀ`} emoji="🏦" color="#f59e0b" />
-                                <StatCard label="Total Txns" value={health.activity.totalTransactions} emoji="💸" />
-                            </div>
-
-                            {/* Tree info */}
-                            {health.tree.widestBranch.children > 0 && (
-                                <div style={{ ...cardStyle, background: '#0f1729', border: '1px solid #1e3a5f' }}>
-                                    <p style={{ fontSize: '0.75rem', color: '#666', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.25rem' }}>
-                                        Widest Branch
-                                    </p>
-                                    <p style={{ fontSize: '1rem', fontWeight: 600, margin: 0 }}>
-                                        🌿 {health.tree.widestBranch.callsign} — {health.tree.widestBranch.children} invitee{health.tree.widestBranch.children !== 1 ? 's' : ''}
-                                    </p>
-                                </div>
-                            )}
-
-                            {/* Flags */}
-                            <h3 style={{ fontSize: '0.9rem', color: '#aaa', marginTop: '1rem', marginBottom: '0.5rem' }}>
-                                🚩 Flags ({health.flags.length})
-                            </h3>
-                            {health.flags.length === 0 ? (
-                                <div style={{ ...cardStyle, textAlign: 'center', border: '1px solid #1a3a1a' }}>
-                                    <p style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>✅</p>
-                                    <p style={{ color: '#22c55e', fontSize: '0.9rem', margin: 0 }}>No issues detected</p>
-                                </div>
-                            ) : (
-                                health.flags.map((flag, i) => (
-                                    <div
-                                        key={i}
-                                        style={{
-                                            ...cardStyle,
-                                            border: `1px solid ${flag.severity === 'alert' ? '#ef444466' : '#f59e0b44'}`,
-                                            background: flag.severity === 'alert' ? '#1a0f0f' : '#1a1a0f',
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                                            <span style={{ fontSize: '1rem' }}>
-                                                {flag.type === 'wash_trading' ? '🔄' : flag.type === 'isolated_branch' ? '🏝️' : '💤'}
-                                            </span>
-                                            <span style={{
-                                                fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase',
-                                                letterSpacing: '0.05em',
-                                                color: flag.severity === 'alert' ? '#ef4444' : '#f59e0b',
-                                            }}>
-                                                {flag.type.replace(/_/g, ' ')}
-                                            </span>
-                                        </div>
-                                        <p style={{ fontSize: '0.85rem', color: '#ccc', margin: 0 }}>
-                                            {flag.description}
-                                        </p>
-                                    </div>
-                                ))
-                            )}
-                        </>
-                    )}
-                </>
-            )}
         </div>
     );
 }
 
 // =================== SUB-COMPONENTS ===================
-
-function StatCard({ label, value, emoji, color }: { label: string; value: string | number; emoji: string; color?: string }) {
-    return (
-        <div style={{
-            background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px',
-            padding: '0.75rem', textAlign: 'center',
-        }}>
-            <p style={{ fontSize: '1.2rem', margin: '0 0 0.15rem' }}>{emoji}</p>
-            <p style={{ fontSize: '1.3rem', fontWeight: 700, margin: '0 0 0.1rem', color: color || '#fff', fontFamily: 'monospace' }}>
-                {value}
-            </p>
-            <p style={{ fontSize: '0.7rem', color: '#666', margin: 0, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                {label}
-            </p>
-        </div>
-    );
-}
-
 function TreeNodeView({ node, depth, identity }: { node: TreeNode; depth: number; identity: BeanPoolIdentity }) {
     const [expanded, setExpanded] = useState(depth < 2);
     const isMe = node.publicKey === identity.publicKey;

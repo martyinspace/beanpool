@@ -494,6 +494,16 @@
                 <div class="status-msg" id="update-status"></div>
             </div>
 
+            <!-- Community Health -->
+            <div class="glass">
+                <h3>💚 Community Health</h3>
+                <div id="health-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:1rem;"></div>
+                <div id="health-widest" style="display:none;background:#0f172a;border:1px solid #1e3a5f;border-radius:8px;padding:0.75rem;margin-bottom:1rem;"></div>
+                <h4 style="font-size:0.8rem;color:#94a3b8;margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.05em;">🚩 Flags</h4>
+                <div id="health-flags"></div>
+                <button class="btn btn-outline btn-full" id="refresh-health-btn" style="margin-top:0.75rem;">🔄 Refresh</button>
+            </div>
+
             <!-- Reset Node -->
             <div class="glass">
                 <h3>⚠️ Reset Node</h3>
@@ -618,6 +628,7 @@
                 }
                 showView('settings');
                 loadVersionInfo();
+                loadHealthDashboard();
                 setTimeout(() => {
                     initMap(
                         parseFloat(document.getElementById('cfg-lat').value) || null,
@@ -829,6 +840,60 @@
                 }
             } catch { /* offline */ }
         }
+
+        // Community Health dashboard
+        async function loadHealthDashboard() {
+            try {
+                const res = await fetch('/api/community/health');
+                if (!res.ok) return;
+                const h = await res.json();
+
+                // Stat cards
+                const stats = [
+                    { emoji: '👥', value: h.tree.totalMembers, label: 'Members' },
+                    { emoji: '🌳', value: h.tree.maxDepth, label: 'Tree Depth' },
+                    { emoji: '📈', value: h.activity.last7Days, label: 'Txns (7d)' },
+                    { emoji: '📊', value: h.activity.last30Days, label: 'Txns (30d)' },
+                    { emoji: '🟢', value: h.activity.activeMemberCount, label: 'Active', color: '#22c55e' },
+                    { emoji: '⚪', value: h.activity.inactiveMemberCount, label: 'Inactive', color: '#64748b' },
+                    { emoji: '🏦', value: h.activity.commonsBalance + 'Ʀ', label: 'Commons', color: '#f59e0b' },
+                    { emoji: '💸', value: h.activity.totalTransactions, label: 'Total Txns' },
+                ];
+                const grid = document.getElementById('health-grid');
+                grid.innerHTML = stats.map(s => `
+                    <div style="background:#1e293b;border:1px solid #334155;border-radius:10px;padding:0.6rem;text-align:center;">
+                        <div style="font-size:1.1rem;">${s.emoji}</div>
+                        <div style="font-size:1.2rem;font-weight:700;font-family:monospace;color:${s.color || '#f8fafc'};">${s.value}</div>
+                        <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.03em;">${s.label}</div>
+                    </div>
+                `).join('');
+
+                // Widest branch
+                const wEl = document.getElementById('health-widest');
+                if (h.tree.widestBranch.children > 0) {
+                    wEl.style.display = '';
+                    wEl.innerHTML = `<div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.2rem;">Widest Branch</div><div style="font-size:0.95rem;font-weight:600;">🌿 ${h.tree.widestBranch.callsign} — ${h.tree.widestBranch.children} invitee${h.tree.widestBranch.children !== 1 ? 's' : ''}</div>`;
+                } else {
+                    wEl.style.display = 'none';
+                }
+
+                // Flags
+                const fEl = document.getElementById('health-flags');
+                if (h.flags.length === 0) {
+                    fEl.innerHTML = '<div style="text-align:center;padding:0.75rem;border:1px solid #1a3a1a;border-radius:10px;background:rgba(34,197,94,0.05);"><div style="font-size:1.2rem;margin-bottom:0.15rem;">✅</div><div style="color:#22c55e;font-size:0.85rem;">No issues detected</div></div>';
+                } else {
+                    fEl.innerHTML = h.flags.map(f => {
+                        const icon = f.type === 'wash_trading' ? '🔄' : f.type === 'isolated_branch' ? '🏝️' : '💤';
+                        const borderColor = f.severity === 'alert' ? '#ef444466' : '#f59e0b44';
+                        const bgColor = f.severity === 'alert' ? 'rgba(239,68,68,0.05)' : 'rgba(245,158,11,0.05)';
+                        const labelColor = f.severity === 'alert' ? '#ef4444' : '#f59e0b';
+                        return `<div style="border:1px solid ${borderColor};background:${bgColor};border-radius:10px;padding:0.75rem;margin-bottom:0.5rem;"><div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.2rem;"><span>${icon}</span><span style="font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:${labelColor};">${f.type.replace(/_/g, ' ')}</span></div><div style="font-size:0.8rem;color:#cbd5e1;">${f.description}</div></div>`;
+                    }).join('');
+                }
+            } catch { /* offline */ }
+        }
+
+        document.getElementById('refresh-health-btn').addEventListener('click', loadHealthDashboard);
 
         async function checkForUpdates() {
             showStatus('update-status', 'Checking...', 'success');
