@@ -681,3 +681,156 @@ export function importRemoteState(remote: SyncPayload): { newMembers: number; ne
 
     return { newMembers, newPosts };
 }
+
+// ===================== COMMUNITY HEALTH =====================
+
+export interface HealthFlag {
+    type: 'wash_trading' | 'isolated_branch' | 'inactive_member';
+    severity: 'warning' | 'alert';
+    description: string;
+    members: string[];
+}
+
+export interface CommunityHealth {
+    tree: {
+        totalMembers: number;
+        maxDepth: number;
+        widestBranch: { callsign: string; children: number };
+        avgBranchSize: number;
+    };
+    activity: {
+        totalTransactions: number;
+        last7Days: number;
+        last30Days: number;
+        activeMemberCount: number;
+        inactiveMemberCount: number;
+        commonsBalance: number;
+    };
+    flags: HealthFlag[];
+}
+
+export function getCommunityHealth(): CommunityHealth {
+    const now = Date.now();
+    const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+    const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+
+    // --- Tree stats ---
+    const tree = getInviteTree();
+    function getDepth(nodes: InviteTreeNode[]): number {
+        if (nodes.length === 0) return 0;
+        return 1 + Math.max(...nodes.map(n => getDepth(n.children)));
+    }
+    function countChildren(node: InviteTreeNode): number {
+        return node.children.length + node.children.reduce((s, c) => s + countChildren(c), 0);
+    }
+
+    const maxDepth = getDepth(tree);
+    let widestBranch = { callsign: 'none', children: 0 };
+    for (const root of tree) {
+        const total = countChildren(root);
+        if (total > widestBranch.children) {
+            widestBranch = { callsign: root.callsign, children: total };
+        }
+    }
+    const avgBranchSize = tree.length > 0
+        ? Math.round((members.length / tree.length) * 10) / 10
+        : 0;
+
+    // --- Activity stats ---
+    const last7 = transactions.filter(t => now - new Date(t.timestamp).getTime() < SEVEN_DAYS);
+    const last30 = transactions.filter(t => now - new Date(t.timestamp).getTime() < THIRTY_DAYS);
+
+    const activeMembers = new Set<string>();
+    for (const t of last30) {
+        activeMembers.add(t.from);
+        activeMembers.add(t.to);
+    }
+
+    // --- Flags ---
+    const flags: HealthFlag[] = [];
+
+    // 1. Wash trading: A→B and B→A within 24h, more than 2 round-trips
+    const pairMap = new Map<string, number>();
+    for (const t of transactions) {
+        const age = now - new Date(t.timestamp).getTime();
+        if (age > TWENTY_FOUR_HOURS) continue;
+        const pair = [t.from, t.to].sort().join('|');
+        pairMap.set(pair, (pairMap.get(pair) || 0) + 1);
+    }
+    for (const [pair, count] of pairMap) {
+        if (count >= 4) { // 4 transactions = 2 round-trips
+            const [a, b] = pair.split('|');
+            const memberA = getMember(a);
+            const memberB = getMember(b);
+            flags.push({
+                type: 'wash_trading',
+                severity: 'alert',
+                description: `${memberA?.callsign || a.substring(0, 8)} ↔ ${memberB?.callsign || b.substring(0, 8)}: ${count} transactions in 24h`,
+                members: [a, b],
+            });
+        }
+    }
+
+    // 2. Inactive members: no transactions in 30 days
+    for (const m of members) {
+        if (!activeMembers.has(m.publicKey)) {
+            const joinAge = now - new Date(m.joinedAt).getTime();
+            if (joinAge > THIRTY_DAYS) {
+                flags.push({
+                    type: 'inactive_member',
+                    severity: 'warning',
+                    description: `${m.callsign} — no activity in 30+ days`,
+                    members: [m.publicKey],
+                });
+            }
+        }
+    }
+
+    // 3. Isolated branches: subtree where all transactions are internal
+    for (const root of tree) {
+        if (root.children.length === 0) continue;
+        const branchMembers = new Set<string>();
+        function collectMembers(node: InviteTreeNode) {
+            branchMembers.add(node.publicKey);
+            node.children.forEach(collectMembers);
+        }
+        collectMembers(root);
+        if (branchMembers.size < 2) continue;
+
+        const branchTxns = transactions.filter(
+            t => branchMembers.has(t.from) || branchMembers.has(t.to)
+        );
+        if (branchTxns.length < 3) continue; // need at least 3 transactions to flag
+
+        const allInternal = branchTxns.every(
+            t => branchMembers.has(t.from) && branchMembers.has(t.to)
+        );
+        if (allInternal) {
+            flags.push({
+                type: 'isolated_branch',
+                severity: 'warning',
+                description: `${root.callsign}'s branch (${branchMembers.size} members) only trades internally`,
+                members: Array.from(branchMembers),
+            });
+        }
+    }
+
+    return {
+        tree: {
+            totalMembers: members.length,
+            maxDepth,
+            widestBranch,
+            avgBranchSize,
+        },
+        activity: {
+            totalTransactions: transactions.length,
+            last7Days: last7.length,
+            last30Days: last30.length,
+            activeMemberCount: activeMembers.size,
+            inactiveMemberCount: members.length - activeMembers.size,
+            commonsBalance: Math.round(COMMONS_BALANCE * 100) / 100,
+        },
+        flags,
+    };
+}

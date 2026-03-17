@@ -72,6 +72,10 @@ export async function getInviteTree(): Promise<any[]> {
     return request('GET', '/api/invite/tree');
 }
 
+export async function getCommunityHealth(): Promise<any> {
+    return request('GET', '/api/community/health');
+}
+
 export async function getMyInvites(publicKey: string): Promise<{ invites: InviteCode[] }> {
     return request('GET', `/api/invite/mine/${encodeURIComponent(publicKey)}`);
 }

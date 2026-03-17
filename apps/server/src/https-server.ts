@@ -40,6 +40,7 @@ import {
     updateProfile, getProfile,
     createConversation, sendMessage, getConversationsByMember,
     getConversationMessages, getConversation,
+    getCommunityHealth,
 } from './state-engine.js';
 
 const PUBLIC_DIR = path.resolve('public');
@@ -333,6 +334,10 @@ export async function startHttpsServer(port: number): Promise<void> {
 
     router.get('/api/community/info', async (ctx) => {
         ctx.body = getCommunityInfo();
+    });
+
+    router.get('/api/community/health', async (ctx) => {
+        ctx.body = getCommunityHealth();
     });
 
     router.get('/api/community/members', async (ctx) => {
