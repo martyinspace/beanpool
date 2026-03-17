@@ -910,11 +910,13 @@
                 }
                 document.getElementById('current-version').textContent = `v${data.currentVersion}`;
                 const latestEl = document.getElementById('latest-version');
-                if (data.latestVersion) {
+                if (data.updateAvailable && data.latestVersion) {
                     latestEl.textContent = `v${data.latestVersion}`;
-                    latestEl.style.color = data.updateAvailable ? '#f59e0b' : '#10b981';
+                    latestEl.style.color = '#f59e0b';
                 } else {
-                    latestEl.textContent = '—';
+                    // Latest release is same or older — show current as latest
+                    latestEl.textContent = `v${data.currentVersion}`;
+                    latestEl.style.color = '#10b981';
                 }
                 if (data.updateAvailable) {
                     document.getElementById('do-update-btn').style.display = '';
