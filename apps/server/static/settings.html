@@ -493,6 +493,74 @@
                 </div>
                 <div class="status-msg" id="update-status"></div>
             </div>
+            <!-- Thresholds & Guardrails -->
+            <div class="glass">
+                <h3>⚙️ Thresholds & Guardrails</h3>
+                <p style="font-size:0.75rem;color:#64748b;margin-bottom:1rem;">Tune protocol parameters. Changes take effect immediately.</p>
+
+                <!-- Credit -->
+                <div style="font-size:0.7rem;color:#10b981;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin-bottom:0.5rem;">💰 Credit</div>
+                <div class="field">
+                    <label>Credit Floor (max debt, e.g. -100)</label>
+                    <input type="number" id="th-creditFloor" step="10">
+                </div>
+                <div class="field">
+                    <label>Demurrage Rate (per month, e.g. 0.005 = 0.5%)</label>
+                    <input type="number" id="th-demurrageRate" step="0.001">
+                </div>
+                <div class="field">
+                    <label>Demurrage Epoch (days per month)</label>
+                    <input type="number" id="th-demurrageEpochDays" step="1">
+                </div>
+
+                <!-- Network -->
+                <div style="font-size:0.7rem;color:#3b82f6;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin:1rem 0 0.5rem;">🌐 Network</div>
+                <div class="field">
+                    <label>Sync Interval (minutes)</label>
+                    <input type="number" id="th-syncIntervalMin" step="1">
+                </div>
+                <div class="field">
+                    <label>Initial Sync Delay (seconds after boot)</label>
+                    <input type="number" id="th-initialSyncDelaySec" step="5">
+                </div>
+                <div class="field">
+                    <label>Handshake Interval (seconds)</label>
+                    <input type="number" id="th-handshakeIntervalSec" step="1">
+                </div>
+                <div class="field">
+                    <label>Retry Interval (seconds)</label>
+                    <input type="number" id="th-retryIntervalSec" step="5">
+                </div>
+                <div class="field">
+                    <label>Max Retry Backoff (minutes)</label>
+                    <input type="number" id="th-maxRetryBackoffMin" step="1">
+                </div>
+
+                <!-- Health Flags -->
+                <div style="font-size:0.7rem;color:#f59e0b;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin:1rem 0 0.5rem;">🚩 Health Flags</div>
+                <div class="field">
+                    <label>Wash Trading Window (hours)</label>
+                    <input type="number" id="th-washTradingWindowHours" step="1">
+                </div>
+                <div class="field">
+                    <label>Wash Trading Min Txns (to flag)</label>
+                    <input type="number" id="th-washTradingMinTxns" step="1">
+                </div>
+                <div class="field">
+                    <label>Inactive Member (days)</label>
+                    <input type="number" id="th-inactiveMemberDays" step="1">
+                </div>
+                <div class="field">
+                    <label>Isolated Branch Min Txns</label>
+                    <input type="number" id="th-isolatedBranchMinTxns" step="1">
+                </div>
+
+                <div style="display:flex;gap:0.5rem;">
+                    <button class="btn btn-primary" id="save-thresholds-btn" style="flex:1;">💾 Save</button>
+                    <button class="btn btn-outline" id="reset-thresholds-btn" style="flex:1;">↩️ Defaults</button>
+                </div>
+                <div class="status-msg" id="thresholds-status"></div>
+            </div>
 
             <!-- Community Health -->
             <div class="glass">
@@ -629,6 +697,7 @@
                 showView('settings');
                 loadVersionInfo();
                 loadHealthDashboard();
+                loadThresholds();
                 setTimeout(() => {
                     initMap(
                         parseFloat(document.getElementById('cfg-lat').value) || null,
@@ -892,6 +961,68 @@
                 }
             } catch { /* offline */ }
         }
+
+        // ===================== THRESHOLDS =====================
+
+        const THRESHOLD_KEYS = [
+            'creditFloor', 'demurrageRate', 'demurrageEpochDays',
+            'syncIntervalMin', 'initialSyncDelaySec', 'handshakeIntervalSec',
+            'retryIntervalSec', 'maxRetryBackoffMin',
+            'washTradingWindowHours', 'washTradingMinTxns', 'inactiveMemberDays', 'isolatedBranchMinTxns'
+        ];
+
+        async function loadThresholds() {
+            try {
+                const res = await fetch('/api/admin/thresholds');
+                if (!res.ok) return;
+                const data = await res.json();
+                for (const key of THRESHOLD_KEYS) {
+                    const el = document.getElementById('th-' + key);
+                    if (el) el.value = data.thresholds[key];
+                }
+            } catch { /* offline */ }
+        }
+
+        async function saveThresholds() {
+            const updates = { password: authToken };
+            for (const key of THRESHOLD_KEYS) {
+                const el = document.getElementById('th-' + key);
+                if (el) updates[key] = parseFloat(el.value);
+            }
+            try {
+                const res = await fetch('/api/admin/thresholds', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+                if (res.ok) {
+                    showStatus('thresholds-status', '✅ Thresholds saved!', 'success');
+                    loadHealthDashboard(); // Refresh health with new thresholds
+                } else {
+                    const data = await res.json();
+                    showStatus('thresholds-status', data.error || 'Save failed', 'error');
+                }
+            } catch {
+                showStatus('thresholds-status', 'Failed to save', 'error');
+            }
+        }
+
+        async function resetThresholds() {
+            try {
+                const res = await fetch('/api/admin/thresholds');
+                if (!res.ok) return;
+                const data = await res.json();
+                // Fill with defaults
+                for (const key of THRESHOLD_KEYS) {
+                    const el = document.getElementById('th-' + key);
+                    if (el) el.value = data.defaults[key];
+                }
+                showStatus('thresholds-status', 'Defaults loaded — click Save to apply', 'success');
+            } catch { /* offline */ }
+        }
+
+        document.getElementById('save-thresholds-btn').addEventListener('click', saveThresholds);
+        document.getElementById('reset-thresholds-btn').addEventListener('click', resetThresholds);
 
         document.getElementById('refresh-health-btn').addEventListener('click', loadHealthDashboard);
 

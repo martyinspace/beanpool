@@ -23,6 +23,7 @@ import serve from 'koa-static';
 import { getCaCertPem, getServerCertPem, getServerKeyPem, isUsingLetsEncrypt } from './tls.js';
 import {
     getLocalConfig, saveLocalConfig, hashPassword, verifyPassword,
+    getThresholds, updateThresholds, DEFAULT_THRESHOLDS,
 } from './local-config.js';
 import {
     getConnectors, addConnector, removeConnector,
@@ -591,8 +592,33 @@ export async function startHttpsServer(port: number): Promise<void> {
         };
     });
 
+    // ===================== THRESHOLDS API =====================
 
-    // Semver comparison: returns true if a > b
+    router.post('/api/admin/thresholds', async (ctx) => {
+        const config = getLocalConfig();
+        const { password, ...updates } = (ctx as any).requestBody || {};
+        if (!password || !config.adminHash || !config.salt ||
+            !verifyPassword(password, config.adminHash, config.salt)) {
+            ctx.status = 401;
+            ctx.body = { error: 'Invalid password' };
+            return;
+        }
+        // Only allow known threshold keys
+        const allowed = Object.keys(DEFAULT_THRESHOLDS);
+        const filtered: Record<string, number> = {};
+        for (const [k, v] of Object.entries(updates)) {
+            if (allowed.includes(k) && typeof v === 'number') {
+                filtered[k] = v;
+            }
+        }
+        const result = updateThresholds(filtered);
+        ctx.body = { thresholds: result };
+    });
+
+    router.get('/api/admin/thresholds', async (ctx) => {
+        ctx.body = { thresholds: getThresholds(), defaults: DEFAULT_THRESHOLDS };
+    });
+
     function semverGreater(a: string, b: string): boolean {
         const pa = a.split('.').map(Number);
         const pb = b.split('.').map(Number);

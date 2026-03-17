@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { LedgerManager, COMMONS_BALANCE } from '@beanpool/core';
+import { getThresholds } from './local-config.js';
 
 const DATA_DIR = process.env.BEANPOOL_DATA_DIR || path.join(process.cwd(), 'data');
 const STATE_PATH = path.join(DATA_DIR, 'state.json');
@@ -400,9 +401,10 @@ export function getProfiles(): Record<string, MemberProfile> {
 
 export function getBalance(publicKey: string): { balance: number; floor: number; commonsBalance: number } {
     const account = ledger.getAccount(publicKey);
+    const t = getThresholds();
     return {
         balance: Math.round(account.balance * 100) / 100,
-        floor: -100,
+        floor: t.creditFloor,
         commonsBalance: Math.round(COMMONS_BALANCE * 100) / 100,
     };
 }
@@ -711,9 +713,10 @@ export interface CommunityHealth {
 
 export function getCommunityHealth(): CommunityHealth {
     const now = Date.now();
-    const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+    const t = getThresholds();
+    const THIRTY_DAYS = t.inactiveMemberDays * 24 * 60 * 60 * 1000;
     const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+    const WASH_WINDOW = t.washTradingWindowHours * 60 * 60 * 1000;
 
     // --- Tree stats ---
     const tree = getInviteTree();
@@ -754,12 +757,12 @@ export function getCommunityHealth(): CommunityHealth {
     const pairMap = new Map<string, number>();
     for (const t of transactions) {
         const age = now - new Date(t.timestamp).getTime();
-        if (age > TWENTY_FOUR_HOURS) continue;
+        if (age > WASH_WINDOW) continue;
         const pair = [t.from, t.to].sort().join('|');
         pairMap.set(pair, (pairMap.get(pair) || 0) + 1);
     }
     for (const [pair, count] of pairMap) {
-        if (count >= 4) { // 4 transactions = 2 round-trips
+        if (count >= t.washTradingMinTxns) {
             const [a, b] = pair.split('|');
             const memberA = getMember(a);
             const memberB = getMember(b);
@@ -801,7 +804,7 @@ export function getCommunityHealth(): CommunityHealth {
         const branchTxns = transactions.filter(
             t => branchMembers.has(t.from) || branchMembers.has(t.to)
         );
-        if (branchTxns.length < 3) continue; // need at least 3 transactions to flag
+        if (branchTxns.length < t.isolatedBranchMinTxns) continue;
 
         const allInternal = branchTxns.every(
             t => branchMembers.has(t.from) && branchMembers.has(t.to)
