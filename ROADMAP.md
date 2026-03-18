@@ -15,6 +15,14 @@
 - [ ] **Database Migration** — Move from JSON state file to SQLite for scalability (posts, photos, search, radius queries)
 - [ ] **Photo Compression Pipeline** — Server-side image optimisation for marketplace post photos
 
+## Data Lifecycle & Storage
+
+- [ ] **Post Completion Cleanup** — When a need/offer is marked as fulfilled, delete associated photos from the server after a grace period (e.g. 7 days)
+- [ ] **Stale Post Archival** — Auto-archive posts older than X days (configurable in admin settings), remove their photos to free disk space
+- [ ] **Storage Dashboard** — Show total data/photos disk usage in the admin System tab with warnings at configurable thresholds
+- [ ] **Photo Size Limits** — Enforce max file size per photo and max photos per post at upload time
+- [ ] **Message Retention Policy** — Auto-prune old messages/conversations beyond a configurable age
+
 ## Network & Sync
 
 - [ ] **Multi-Node Marketplace Sync** — Propagate marketplace posts across trusted connectors
