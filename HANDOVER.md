@@ -1,12 +1,13 @@
 # BeanPool Agent Handover
 
 > Context document for new agents working on the BeanPool project.
+> **Read this first** — then see `index.md` for a full documentation map.
 
 ---
 
-## Current State (2026-03-17)
+## Current State (2026-03-18)
 
-**BeanPool is a fully functional PWA** with invite-only membership, marketplace, E2E messaging, mutual credit ledger, member profiles, and lazy state sync — deployed on 2 sovereign nodes.
+**BeanPool is a fully functional PWA** with invite-only membership, marketplace, E2E messaging, mutual credit ledger, member profiles, and lazy state sync — deployed on **3 sovereign nodes** with Let's Encrypt TLS.
 
 ### What's Working
 - ✅ **Invite-only membership** — single-use invite codes, invite tree hierarchy, QR sharing
@@ -20,22 +21,39 @@
 - ✅ **Sovereign Connectors** — node-to-node trust with 3 levels
 - ✅ **Lazy State Sync** — Merkle hash comparison + delta exchange, 15-min intervals
 - ✅ **Handshake Protocol** — mutual trust + latency over yamux streams (~570ms Sydney↔Korea)
-- ✅ **Docker Deployment** — Let's Encrypt auto-TLS, Cloudflare DNS auto-registration
-- ✅ **2 Live Nodes** — [sydney.beanpool.org](https://sydney.beanpool.org) + [korea.beanpool.org](https://korea.beanpool.org)
+- ✅ **Let's Encrypt Auto-TLS** — DNS-01 challenge via Cloudflare API (acme-client v5)
+- ✅ **3 Live Nodes** — Sydney, Korea, Debian (local dev server)
 
-### Key Source Files
-| File | Purpose |
-|------|---------|
-| `apps/server/src/state-engine.ts` | In-memory state: members, posts, profiles, conversations, messages, invites, ledger, sync |
-| `apps/server/src/connector-manager.ts` | Sovereign connectors with 3 trust levels |
-| `apps/server/src/handshake.ts` | Mutual trust verification + latency via yamux streams |
-| `apps/server/src/sync-protocol.ts` | Lazy state sync — Merkle hash + delta exchange |
-| `apps/server/src/local-config.ts` | Admin auth (scrypt hashing) + node config |
-| `apps/pwa/src/lib/api.ts` | Typed API client for all 18 REST endpoints |
-| `apps/pwa/src/lib/e2e-crypto.ts` | Plaintext v1 encoding (E2E-ready for X25519/AES-256-GCM) |
-| `apps/pwa/src/pages/MapPage.tsx` | Leaflet/OSM map with pins, popups, "View in Market" navigation |
-| `apps/pwa/src/pages/MarketplacePage.tsx` | Marketplace list + post detail view (author profile, messaging) |
-| `apps/pwa/src/pages/MessagesPage.tsx` | Conversations list + chat view (DMs + groups) |
+---
+
+## ⚠️ Critical: Let's Encrypt Rate Limits
+
+> [!CAUTION]
+> **Do NOT rapid-fire deploy during cert debugging.** Each failed ACME request counts against the LE rate limit. After 5 failures in 1 hour, LE returns HTTP 429 with a `retry-after` of 60-90 minutes. The `acme-client` library **silently waits** for this period, making it look like a hang.
+
+### Rate Limits to Know
+
+| Limit | Value | Window |
+|-------|-------|--------|
+| Failed Validations | 5 per domain | 1 hour |
+| Duplicate Certificates | 5 per domain | 7 days |
+| New Orders | 300 per account | 3 hours |
+| Certificates per Domain | 50 per domain | 7 days |
+
+### How to Avoid Problems
+
+1. **Never wipe `data/tls/` between deploys** — `deploy.sh` preserves the `data/` directory. If a valid cert exists, the node reuses it (no LE request needed)
+2. **Use `DEBUG=acme-client` to diagnose** — add this env var to see all HTTP requests, responses, and retry-after headers
+3. **The `createOrder` hang is always a 429** — if Step 2 appears stuck, it's rate-limited, not a code bug
+4. **The 24-hour renewal scheduler** will automatically retry — no manual intervention needed after a rate limit
+
+### Key File
+
+`apps/server/src/tls.ts` — handles all TLS certificate management:
+- Let's Encrypt via `acme-client` with DNS-01 challenge (Cloudflare API)
+- Self-signed CA fallback if LE fails
+- 24-hour renewal scheduler
+- Certificate expiry checking (30-day threshold)
 
 ---
 
@@ -51,6 +69,7 @@
 - **Ed25519 keypairs** for all identity (community, node, user)
 - **4-port layout:** 4001 (TCP), 4002 (WS), 8080 (HTTP trust), 8443 (HTTPS PWA + API)
 - **Invite-only membership** — single-use codes, hierarchical accountability tree
+- **Node.js 22 required** — libp2p dependencies use `Promise.withResolvers()` (Node 22+ only)
 - **Docker image:** `ghcr.io/martyinspace/beanpool-node:latest`
 - **Public repo:** `github.com/martyinspace/beanpool`
 
@@ -65,29 +84,54 @@ pnpm build   # Builds all packages via Turborepo
 ```
 
 ### Deploy
+
 ```bash
-# Package, upload, rebuild Docker on both nodes:
-tar -czf /tmp/beanpool-deploy.tar.gz --exclude=... -C . .
-scp ... azureuser@<IP>:/tmp/
-ssh ... "cd BeanPool && tar xzf ... && sudo -E docker compose -p beanpool up -d --build"
+bash deploy.sh           # Deploy to all 3 nodes
+bash deploy.sh 1         # Sydney only
+bash deploy.sh 2         # Korea only
+bash deploy.sh 3         # Debian (local dev) only
+bash deploy.sh 1 2       # Sydney + Korea
 ```
 
 ### Live Nodes
-| Node | IP | DNS |
-|------|----|-----|
-| Sydney | 20.211.27.68 | sydney.beanpool.org |
-| Korea | 20.194.24.118 | korea.beanpool.org |
 
-SSH: `ssh -i ~/.ssh/id_azure_lattice azureuser@<IP>`
+| # | Node | IP | DNS | SSH User | SSH Key |
+|---|------|----|-----|----------|---------|
+| 1 | Sydney | `20.211.27.68` | `sydney.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` |
+| 2 | Korea | `20.194.24.118` | `korea.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` |
+| 3 | Debian | `192.168.1.219` | `debian.beanpool.org` | `marty` | default key |
+
+```bash
+ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68   # Sydney
+ssh -i ~/.ssh/id_azure_lattice azureuser@20.194.24.118  # Korea
+ssh marty@192.168.1.219                                  # Debian (LAN)
+```
+
+### Useful Debug Commands
+
+```bash
+# Check node logs
+ssh ... "docker logs beanpool-beanpool-node-1 2>&1"
+
+# Check LE cert status with debug tracing
+ssh ... "docker exec beanpool-beanpool-node-1 node -e \"
+  process.env.DEBUG='acme-client*';
+  // ... run acme flow
+\""
+
+# Check GH Actions build status
+gh run list --limit 3
+```
 
 ---
 
 ## Reading Order for New Agents
 
-1. `README.md` — Project overview, features, API table, status
-2. `HANDOVER.md` — This file (current state + architecture)
-3. `NETWORK.md` — Network topology, trust levels, connectors
-4. `SUMMARY.md` — Protocol concepts: mutual credit, identity, governance
+1. **`HANDOVER.md`** — This file (current state, gotchas, architecture)
+2. **`index.md`** — Full documentation map with all source files
+3. **`NETWORK.md`** — Network topology, trust levels, connectors, LE info
+4. **`README.md`** — Project overview, features, API table
+5. **`SUMMARY.md`** — Protocol concepts: mutual credit, identity, governance
 
 ---
 
@@ -100,4 +144,4 @@ SSH: `ssh -i ~/.ssh/id_azure_lattice azureuser@<IP>`
 
 ---
 
-_Last updated: 2026-03-17 14:00 AEDT_
+_Last updated: 2026-03-18 11:00 AEDT_

@@ -1,7 +1,21 @@
 # 📚 BeanPool Documentation Index
 
 > **Start here.** This is the master guide to all documentation in the BeanPool project.
-> Updated: 2026-03-17
+> Updated: 2026-03-18
+
+---
+
+## 🚀 Quick Start — For New Agents
+
+| # | Document | What You'll Learn |
+|---|----------|-------------------|
+| 1 | [HANDOVER.md](HANDOVER.md) | **Start here.** Current state, gotchas (LE rate limits!), architecture, deploy commands |
+| 2 | [NETWORK.md](NETWORK.md) | Live nodes, ports, DNS, TLS, connectors, sync |
+| 3 | [README.md](README.md) | Project overview, features, API reference |
+| 4 | [SUMMARY.md](SUMMARY.md) | Protocol concepts: mutual credit, identity, governance |
+
+> [!IMPORTANT]
+> **Read `HANDOVER.md` before making any changes.** It contains critical information about Let's Encrypt rate limits that can break deployments if ignored.
 
 ---
 
@@ -12,14 +26,14 @@
 | [README.md](README.md) | Project overview, features, quick start, API reference, status |
 | [SUMMARY.md](SUMMARY.md) | Protocol concepts: mutual credit, identity, governance, mesh design |
 | [SCALING.md](SCALING.md) | Scaling design: sharding, CRDTs, DHT, edge computing |
-| [NETWORK.md](NETWORK.md) | Live network reference — nodes, IPs, DNS, ports, trust levels, sync |
+| [NETWORK.md](NETWORK.md) | Live network reference — nodes, IPs, DNS, ports, TLS, trust levels, sync |
 
 ## Operations & Deployment
 
 | Document | Description |
 |----------|-------------|
-| [HANDOVER.md](HANDOVER.md) | Agent handover: current state, architecture, how to continue |
-| [deploy.sh](deploy.sh) | Deploy script for Azure VMs via SSH |
+| [HANDOVER.md](HANDOVER.md) | Agent handover: current state, LE rate limits, architecture, how to deploy |
+| [deploy.sh](deploy.sh) | Deploy script — `bash deploy.sh 1 2 3` for node-specific deploys |
 
 ## Contributing
 
@@ -31,8 +45,8 @@
 
 ## App Documentation
 
-| App | README | What It Does |
-|-----|--------|-------------|
+| App | Dir | What It Does |
+|-----|-----|-------------|
 | **BeanPool Node** | `apps/server/` | Gateway — genesis, admin, REST APIs, WebSocket, connectors, handshake, lazy sync, libp2p |
 | **PWA** | `apps/pwa/` | UI — map, marketplace, messaging, ledger, profiles, identity, privacy, install prompt |
 
@@ -56,6 +70,7 @@
 | File | Purpose |
 |------|---------|
 | `apps/server/src/index.ts` | Main boot orchestrator — 5-stage startup |
+| `apps/server/src/tls.ts` | **TLS certificate management** — LE via acme-client + self-signed fallback |
 | `apps/server/src/state-engine.ts` | In-memory state: members, posts, profiles, conversations, messages, invites, ledger |
 | `apps/server/src/connector-manager.ts` | Sovereign connectors with 3 trust levels |
 | `apps/server/src/handshake.ts` | Mutual trust verification + latency via yamux streams |
@@ -82,7 +97,12 @@
 | File | Purpose |
 |------|---------|
 | `docker-compose.yml` | Port mappings, env vars, volume mounts |
-| `.env` | Cloudflare + admin secrets (gitignored) |
+| `.env` | Cloudflare + admin secrets (**gitignored**) |
 | `Dockerfile` | Multi-stage build: core → PWA → BeanPool Node |
+| `deploy.sh` | Deploy script — Azure + Debian nodes, per-node SSH user |
 | `turbo.json` | Turborepo build pipeline |
 | `pnpm-workspace.yaml` | Monorepo workspace config |
+
+---
+
+_Last updated: 2026-03-18 11:00 AEDT_

@@ -11,9 +11,7 @@
 
 BeanPool is an open protocol for building a **post-extraction economy**. It connects communities through a decentralized mutual credit system where value is created through cooperation, not extraction. Nodes gossip state over a libp2p mesh, automatically applying demurrage (value decay) to prevent hoarding and fund a community Commons pool.
 
-**Live network:** [sydney.beanpool.org](https://sydney.beanpool.org) · [korea.beanpool.org](https://korea.beanpool.org) — connected via libp2p with ~570ms handshake latency and 15-minute lazy state sync.
-
-*(Update Test v0.2.3: Verifying OTA update pull)*
+**Live network:** [sydney.beanpool.org](https://sydney.beanpool.org) · [korea.beanpool.org](https://korea.beanpool.org) · [debian.beanpool.org](https://debian.beanpool.org:8443) — connected via libp2p with ~570ms handshake latency and 15-minute lazy state sync.
 
 ---
 
@@ -98,7 +96,7 @@ beanpool/
 ├── branding/          # Bean icon assets (16x16 → 512x512)
 ├── Dockerfile         # Multi-stage build for BeanPool Node container
 ├── docker-compose.yml # Docker orchestration
-└── deploy.sh          # Deploy to Azure VMs via SSH
+└── deploy.sh          # Deploy to all nodes via SSH (Azure + Debian)
 ```
 
 ---
@@ -188,9 +186,9 @@ All endpoints are served on port 8443 (HTTPS):
 
 | Document | Description |
 |----------|-------------|
-| [index.md](index.md) | Master documentation index |
-| [NETWORK.md](NETWORK.md) | Live network reference — nodes, IPs, DNS, ports, trust levels |
-| [HANDOVER.md](HANDOVER.md) | Agent handover: current state, architecture, how to continue |
+| [index.md](index.md) | Master documentation index — **start here** |
+| [HANDOVER.md](HANDOVER.md) | Agent handover: current state, LE rate limits, architecture |
+| [NETWORK.md](NETWORK.md) | Live network reference — nodes, IPs, DNS, ports, TLS, trust levels |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines, code of conduct, governance model |
 | [SUMMARY.md](SUMMARY.md) | Protocol concepts: mutual credit, identity, governance, mesh design |
 | [SCALING.md](SCALING.md) | Scaling design: sharding, CRDTs, DHT, edge computing |
@@ -199,7 +197,7 @@ All endpoints are served on port 8443 (HTTPS):
 
 ## Status
 
-BeanPool is in active development. The PWA is **fully functional** with invite-only membership, community map, marketplace with post detail views, E2E messaging (DMs + groups), mutual credit ledger, and member profiles — all connected to live server APIs. Two nodes (Sydney and Korea) are deployed with lazy state sync over libp2p.
+BeanPool is in active development (v0.2.10). The PWA is **fully functional** with invite-only membership, community map, marketplace with post detail views, E2E messaging (DMs + groups), mutual credit ledger, and member profiles — all connected to live server APIs. Three nodes (Sydney, Korea, Debian) are deployed with lazy state sync over libp2p.
 
 **What's working:**
 - ✅ Invite-only membership with single-use codes + invite tree
@@ -212,7 +210,8 @@ BeanPool is in active development. The PWA is **fully functional** with invite-o
 - ✅ Sovereign connectors with 3 trust levels
 - ✅ Lazy state sync (Merkle hash + delta exchange, 15-min intervals)
 - ✅ Handshake protocol (~570ms latency between continents)
-- ✅ Let's Encrypt auto-TLS + Cloudflare DNS auto-registration
+- ✅ Let's Encrypt auto-TLS via DNS-01 challenge (Cloudflare API)
+- ✅ 3 live nodes — Sydney (Azure), Korea (Azure), Debian (bare metal)
 
 **Coming next:**
 - Community health dashboard (invite tree visualisation, flagged patterns)

@@ -1,6 +1,6 @@
 # 🌐 BeanPool Network
 
-> A guide to the BeanPool live network — nodes, ports, DNS, connectors, and sync.
+> A guide to the BeanPool live network — nodes, ports, DNS, connectors, and TLS.
 
 ---
 
@@ -17,12 +17,13 @@ Every node runs the same software in a Docker container. Each one has:
 - A **DNS name** — a human-friendly alias (like `sydney.beanpool.org`)
 - A **callsign** — the name shown on the dashboard
 
-| # | Flag | Callsign | IP Address | DNS Name | PWA |
-|---|------|----------|-----------|----------|-----|
-| 1 | 🇦🇺 | Sydney | `20.211.27.68` | `sydney.beanpool.org` | [Open](https://sydney.beanpool.org) |
-| 2 | 🇰🇷 | Korea | `20.194.24.118` | `korea.beanpool.org` | [Open](https://korea.beanpool.org) |
+| # | Flag | Callsign | IP Address | DNS Name | Type | PWA |
+|---|------|----------|-----------|----------|------|-----|
+| 1 | 🇦🇺 | Sydney | `20.211.27.68` | `sydney.beanpool.org` | Azure VM | [Open](https://sydney.beanpool.org) |
+| 2 | 🇰🇷 | Korea | `20.194.24.118` | `korea.beanpool.org` | Azure VM | [Open](https://korea.beanpool.org) |
+| 3 | 🏠 | Debian | `192.168.1.219` | `debian.beanpool.org` | Bare Metal (LAN) | [Open](https://debian.beanpool.org:8443) |
 
-Both nodes are Azure cloud VMs running Docker containers with Let's Encrypt TLS.
+All nodes run Docker containers with Let's Encrypt TLS (auto-provisioned via DNS-01 challenge).
 
 ---
 
@@ -60,10 +61,47 @@ Instead of remembering `20.211.27.68`, you can use `sydney.beanpool.org`. DNS re
 This is controlled by 3 environment variables:
 
 | Env Var | What It Is |
-|---------|-----------|
+|---------|-----------| 
 | `CF_API_TOKEN` | Cloudflare API token with DNS edit permission |
 | `CF_ZONE_ID` | The zone ID for `beanpool.org` |
 | `CF_RECORD_NAME` | The subdomain this node claims (e.g. `sydney.beanpool.org`) |
+
+---
+
+## 🔒 TLS — Let's Encrypt Certificates
+
+Each node automatically provisions a Let's Encrypt certificate on first boot using the **DNS-01 challenge** via the Cloudflare API. The ACME flow is handled by `acme-client` v5 in `apps/server/src/tls.ts`.
+
+### How it works
+
+1. Node generates an ACME account key and server key
+2. Creates an order with Let's Encrypt for its domain
+3. Creates a `_acme-challenge.{domain}` TXT record via Cloudflare API
+4. Waits 30s for DNS propagation
+5. Completes the challenge and obtains the certificate
+6. Cleans up the DNS TXT record
+7. Certificate is saved to `data/tls/` and reused until 30 days before expiry
+
+### Fallback
+
+If Let's Encrypt fails for any reason, the node falls back to a **self-signed certificate**. The Trust Bootstrap page (port 8080) provides a CA cert download for users to manually trust.
+
+> [!CAUTION]
+> ### ⚠️ Let's Encrypt Rate Limits — READ THIS
+>
+> **Do NOT rapid-fire deploy or restart containers during cert debugging.** Each failed ACME request counts against the LE rate limit. After **5 failures in 1 hour**, LE returns HTTP 429 with a `retry-after` of 60-90 minutes. The `acme-client` library **silently waits** for this period, making it look like a hang.
+>
+> **How to avoid problems:**
+> 1. **Never wipe `data/tls/` between deploys** — `deploy.sh` preserves `data/`
+> 2. **Use `DEBUG=acme-client` env var** to see the 429 response and retry-after header
+> 3. If Step 2 ("Creating order...") hangs, it's **always a rate limit**, not a code bug
+> 4. The **24-hour renewal scheduler** will auto-retry — just wait
+>
+> | Limit | Value | Window |
+> |-------|-------|--------|
+> | Failed Validations | 5 per domain | 1 hour |
+> | Duplicate Certificates | 5 per domain | 7 days |
+> | New Orders | 300 per account | 3 hours |
 
 ---
 
@@ -93,18 +131,28 @@ When two nodes have `full_sync` trust + mutual trust confirmed via handshake:
 
 ## 🚀 Deployment
 
-### Deploy to both nodes
+### Deploy with deploy.sh
+
 ```bash
-cd /Users/marty/projects/beanpool
-tar -czf /tmp/beanpool-deploy.tar.gz --exclude='node_modules' --exclude='.git' ... -C . .
-scp -i ~/.ssh/id_azure_lattice /tmp/beanpool-deploy.tar.gz azureuser@<IP>:/tmp/
-ssh -i ~/.ssh/id_azure_lattice azureuser@<IP> "cd BeanPool && tar xzf /tmp/beanpool-deploy.tar.gz && sudo -E docker compose -p beanpool up -d --build"
+bash deploy.sh           # Deploy to all 3 nodes
+bash deploy.sh 1         # Sydney only
+bash deploy.sh 2         # Korea only
+bash deploy.sh 3         # Debian (local dev) only
+bash deploy.sh 1 2       # Sydney + Korea
 ```
 
 ### SSH Access
+
 ```bash
 ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68   # Sydney
 ssh -i ~/.ssh/id_azure_lattice azureuser@20.194.24.118  # Korea
+ssh marty@192.168.1.219                                  # Debian (LAN)
+```
+
+### Check Logs
+
+```bash
+ssh ... "docker logs beanpool-beanpool-node-1 2>&1"
 ```
 
 ---
@@ -115,10 +163,15 @@ ssh -i ~/.ssh/id_azure_lattice azureuser@20.194.24.118  # Korea
 |------|---------|
 | `docker-compose.yml` | Port mappings, env vars, volume mounts |
 | `Dockerfile` | Multi-stage build: core → PWA → server |
+| `deploy.sh` | Deploy script — supports Azure + Debian nodes |
 | `apps/server/src/index.ts` | Main BeanPool Node — 5-stage boot orchestrator |
+| `apps/server/src/tls.ts` | TLS certificate management — LE + self-signed fallback |
 | `apps/server/src/state-engine.ts` | In-memory state engine with JSON persistence |
 | `apps/server/src/sync-protocol.ts` | Lazy state sync via libp2p streams |
 | `apps/pwa/src/App.tsx` | PWA shell — identity gate, 5-tab bottom nav, header |
-| `deploy.sh` | Deploy script for Azure nodes |
 | `.env` | Cloudflare + admin secrets (gitignored) |
 | `data/genesis.json` | Community identity + genesis hash (auto-generated) |
+
+---
+
+_Last updated: 2026-03-18 11:00 AEDT_

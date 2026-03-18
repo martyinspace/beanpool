@@ -2,16 +2,15 @@
 set -e
 
 # BeanPool Global Mesh Deploy Script
-# Pulls pre-built image from GHCR and deploys to Azure VMs
+# Pulls pre-built image from GHCR and deploys to remote nodes
 #
 # Usage:
 #   bash deploy.sh           # Deploy to all nodes
-#   bash deploy.sh 1 3 7     # Deploy to specific nodes by number
+#   bash deploy.sh 1 3       # Deploy to specific nodes by number
 #
 # The Docker image is auto-built by GitHub Actions on push to main:
 #   ghcr.io/martyinspace/beanpool-node:latest
 
-KEY=~/.ssh/id_azure_lattice
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 IMAGE="ghcr.io/martyinspace/beanpool-node:latest"
 
@@ -23,10 +22,12 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
   set +a
 fi
 
-# Active nodes: number, name, IP, DNS subdomain
+# Active nodes: number:name:IP:DNS:user
+# Azure nodes use azureuser + SSH key; Debian uses marty + default key
 NODES=(
-  "1:beanpool-node-sydney:20.211.27.68:sydney.beanpool.org"
-  "2:bp-korea:20.194.24.118:korea.beanpool.org"
+  "1:beanpool-node-sydney:20.211.27.68:sydney.beanpool.org:azureuser"
+  "2:bp-korea:20.194.24.118:korea.beanpool.org:azureuser"
+  "3:bp-debian:192.168.1.219:debian.beanpool.org:marty"
 )
 
 # Package docker-compose.yml + data-preserving deploy config
@@ -67,24 +68,32 @@ for NODE in "${TARGETS[@]}"; do
   NAME=$(echo "$NODE" | cut -d: -f2)
   IP=$(echo "$NODE" | cut -d: -f3)
   DNS=$(echo "$NODE" | cut -d: -f4)
-  SSH="ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i $KEY azureuser@$IP"
+  USER=$(echo "$NODE" | cut -d: -f5)
+  HOME_DIR="/home/$USER"
+
+  # Azure nodes use the lattice SSH key; others use default
+  if [ "$USER" = "azureuser" ]; then
+    SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_azure_lattice"
+  else
+    SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=10"
+  fi
 
   echo "====================================="
   echo "🚀 Deploying $NAME ($IP) → $DNS"
   echo "====================================="
 
   # Upload
-  scp -o StrictHostKeyChecking=no -i $KEY /tmp/beanpool-deploy.tar.gz azureuser@$IP:/home/azureuser/
+  scp $SSH_OPTS /tmp/beanpool-deploy.tar.gz $USER@$IP:$HOME_DIR/
 
   # Stop, preserve data, extract, pull image, start
-  $SSH "
-    cd /home/azureuser/BeanPool 2>/dev/null && sudo docker compose -p beanpool down 2>/dev/null
-    sudo mv /home/azureuser/BeanPool/data /home/azureuser/beanpool-data-backup 2>/dev/null || true
-    sudo rm -rf /home/azureuser/BeanPool
-    mkdir -p /home/azureuser/BeanPool
-    tar -xzf /home/azureuser/beanpool-deploy.tar.gz -C /home/azureuser/BeanPool
-    sudo mv /home/azureuser/beanpool-data-backup /home/azureuser/BeanPool/data 2>/dev/null || true
-    cd /home/azureuser/BeanPool
+  ssh $SSH_OPTS $USER@$IP "
+    cd $HOME_DIR/BeanPool 2>/dev/null && sudo docker compose -p beanpool down 2>/dev/null
+    sudo mv $HOME_DIR/BeanPool/data $HOME_DIR/beanpool-data-backup 2>/dev/null || true
+    sudo rm -rf $HOME_DIR/BeanPool
+    mkdir -p $HOME_DIR/BeanPool
+    tar -xzf $HOME_DIR/beanpool-deploy.tar.gz -C $HOME_DIR/BeanPool
+    sudo mv $HOME_DIR/beanpool-data-backup $HOME_DIR/BeanPool/data 2>/dev/null || true
+    cd $HOME_DIR/BeanPool
     export PUBLIC_IP=\$(curl -s ifconfig.me)
     export CF_API_TOKEN='${CF_API_TOKEN}'
     export CF_ZONE_ID='${CF_ZONE_ID}'
@@ -102,3 +111,4 @@ done
 
 rm -f /tmp/beanpool-deploy.tar.gz
 echo "🎉 All ${#TARGETS[@]} node(s) deployed!"
+
