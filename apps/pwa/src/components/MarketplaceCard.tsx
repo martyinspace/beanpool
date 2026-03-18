@@ -16,7 +16,7 @@ export function MarketplaceCard({ post, authorRating, onTrade }: Props) {
 
     return (
         <div style={{
-            background: '#1a1a1a',
+            background: 'var(--bg-card)',
             border: `1px solid ${typeColor}33`,
             borderLeft: `3px solid ${typeColor}`,
             borderRadius: '12px',
@@ -29,7 +29,7 @@ export function MarketplaceCard({ post, authorRating, onTrade }: Props) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <span style={{ fontSize: '1.4rem' }}>{categoryConfig?.emoji ?? '🌐'}</span>
                     <div>
-                        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', margin: 0 }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
                             {post.title}
                         </h3>
                         <span style={{
@@ -48,7 +48,7 @@ export function MarketplaceCard({ post, authorRating, onTrade }: Props) {
                 <span style={{
                     fontSize: '1.1rem',
                     fontWeight: 700,
-                    color: '#fff',
+                    color: 'var(--text-primary)',
                     fontFamily: 'monospace',
                 }}>
                     {post.credits}Ʀ
@@ -67,7 +67,7 @@ export function MarketplaceCard({ post, authorRating, onTrade }: Props) {
                 />
             )}
 
-            <p style={{ fontSize: '0.85rem', color: '#aaa', marginTop: '0.5rem', lineHeight: 1.5 }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.5rem', lineHeight: 1.5 }}>
                 {post.description}
             </p>
 
@@ -77,7 +77,7 @@ export function MarketplaceCard({ post, authorRating, onTrade }: Props) {
                 alignItems: 'center',
                 marginTop: '0.75rem',
             }}>
-                <span style={{ fontSize: '0.8rem', color: '#666' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                     🤝 {post.authorCallsign}
                     {authorRating && (
                         <span style={{ marginLeft: '0.4rem', color: '#fbbf24', fontSize: '0.7rem' }}>
@@ -90,7 +90,7 @@ export function MarketplaceCard({ post, authorRating, onTrade }: Props) {
                         onClick={(e) => { e.stopPropagation(); onTrade(post); }}
                         style={{
                             background: typeColor,
-                            color: '#fff',
+                            color: 'var(--text-primary)',
                             border: 'none',
                             borderRadius: '8px',
                             padding: '0.4rem 1rem',

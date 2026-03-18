@@ -62,7 +62,7 @@ export function SyncStatus() {
                 {sync.connected ? '● Synced' : '● Offline'}
             </span>
             {sync.lastSyncTime && (
-                <span style={{ color: '#888', fontSize: '0.8rem' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                     — Last synced {formatTimeAgo(sync.lastSyncTime)}
                 </span>
             )}

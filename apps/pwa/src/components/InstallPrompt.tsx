@@ -101,7 +101,7 @@ export function InstallPrompt() {
                 onClick={handleDismiss}
                 style={{
                     position: 'absolute', top: '0.5rem', right: '0.75rem',
-                    background: 'none', border: 'none', color: '#666',
+                    background: 'none', border: 'none', color: 'var(--text-muted)',
                     fontSize: '1.2rem', cursor: 'pointer', padding: '0.25rem',
                 }}
                 aria-label="Dismiss"
@@ -110,7 +110,7 @@ export function InstallPrompt() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: showSteps ? '0.75rem' : 0 }}>
                 <span style={{ fontSize: '2rem' }}>📲</span>
                 <div style={{ flex: 1 }}>
-                    <p style={{ fontWeight: 700, fontSize: '0.95rem', color: '#fff', marginBottom: '0.2rem' }}>
+                    <p style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)', marginBottom: '0.2rem' }}>
                         Install BeanPool
                     </p>
                     <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
@@ -122,7 +122,7 @@ export function InstallPrompt() {
                         onClick={handleNativeInstall}
                         style={{
                             padding: '0.5rem 1rem', borderRadius: '10px',
-                            background: '#2563eb', color: '#fff', border: 'none',
+                            background: '#2563eb', color: 'var(--text-primary)', border: 'none',
                             fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
                             fontFamily: 'inherit', whiteSpace: 'nowrap',
                         }}
@@ -134,7 +134,7 @@ export function InstallPrompt() {
                         onClick={() => setShowSteps(!showSteps)}
                         style={{
                             padding: '0.5rem 1rem', borderRadius: '10px',
-                            background: showSteps ? '#333' : '#2563eb', color: '#fff',
+                            background: showSteps ? '#333' : '#2563eb', color: 'var(--text-primary)',
                             border: 'none', fontSize: '0.85rem', fontWeight: 600,
                             cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
                         }}
@@ -153,21 +153,21 @@ export function InstallPrompt() {
                 }}>
                     {ios ? (
                         <>
-                            <p style={{ fontWeight: 600, color: '#fff', marginBottom: '0.4rem' }}>iPhone / iPad:</p>
+                            <p style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>iPhone / iPad:</p>
                             <p>1. Tap the <strong style={{ color: '#60a5fa' }}>Share</strong> button <span style={{ fontSize: '1.1rem' }}>⬆</span> at the bottom</p>
                             <p>2. Scroll down and tap <strong style={{ color: '#60a5fa' }}>"Add to Home Screen"</strong></p>
                             <p>3. Tap <strong style={{ color: '#60a5fa' }}>"Add"</strong> in the top right</p>
                         </>
                     ) : android ? (
                         <>
-                            <p style={{ fontWeight: 600, color: '#fff', marginBottom: '0.4rem' }}>Android:</p>
+                            <p style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>Android:</p>
                             <p>1. Tap the <strong style={{ color: '#60a5fa' }}>⋮ menu</strong> in the top right</p>
                             <p>2. Tap <strong style={{ color: '#60a5fa' }}>"Add to Home screen"</strong></p>
                             <p>3. Tap <strong style={{ color: '#60a5fa' }}>"Add"</strong> to confirm</p>
                         </>
                     ) : (
                         <>
-                            <p style={{ fontWeight: 600, color: '#fff', marginBottom: '0.4rem' }}>Desktop:</p>
+                            <p style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>Desktop:</p>
                             <p>Look for the <strong style={{ color: '#60a5fa' }}>install icon</strong> (⊕) in your browser's address bar, or use your browser menu → "Install app"</p>
                         </>
                     )}

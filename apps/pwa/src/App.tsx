@@ -10,6 +10,7 @@
 import { useState, useEffect } from 'react';
 import { loadIdentity, type BeanPoolIdentity } from './lib/identity';
 import { connectToAnchor } from './lib/sync';
+import { useTheme } from './lib/useTheme';
 import { SyncStatus } from './components/SyncStatus';
 import { PrivacyBadge } from './components/PrivacyBadge';
 import { WelcomePage } from './pages/WelcomePage';
@@ -30,6 +31,7 @@ export function App() {
     const [showSettings, setShowSettings] = useState(false);
     const [openConversationId, setOpenConversationId] = useState<string | null>(null);
     const [openNewPost, setOpenNewPost] = useState(false);
+    const [theme, toggleTheme] = useTheme();
 
     function navigateToTab(tab: string, conversationId?: string) {
         if (tab === 'map-post') {
@@ -93,8 +95,8 @@ export function App() {
             flexDirection: 'column',
             height: '100vh',
             overflow: 'hidden',
-            background: '#0a0a0a',
-            color: '#e0e0e0',
+            background: 'var(--bg-primary)',
+            color: 'var(--text-primary)',
         }}>
             {/* Header — overlay on map, normal on other tabs */}
             <header style={{
@@ -102,8 +104,8 @@ export function App() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 padding: '0.75rem 1rem',
-                borderBottom: activeTab === 'map' ? 'none' : '1px solid #222',
-                background: activeTab === 'map' ? 'rgba(15, 15, 15, 0.7)' : '#0f0f0f',
+                borderBottom: activeTab === 'map' ? 'none' : '1px solid var(--border-secondary)',
+                background: activeTab === 'map' ? 'var(--header-overlay)' : 'var(--header-bg)',
                 position: activeTab === 'map' ? 'absolute' : 'sticky',
                 top: 0,
                 left: 0,
@@ -120,7 +122,7 @@ export function App() {
                         style={{
                             background: 'none',
                             border: 'none',
-                            color: '#666',
+                            color: 'var(--text-muted)',
                             fontSize: '1.2rem',
                             cursor: 'pointer',
                             padding: '0.25rem',
@@ -145,6 +147,8 @@ export function App() {
                         identity={identity}
                         onIdentityUpdated={(updated) => { setIdentity(updated); setShowSettings(false); }}
                         onBack={() => setShowSettings(false)}
+                        theme={theme}
+                        onToggleTheme={toggleTheme}
                     />
                 ) : (
                     <>
@@ -164,8 +168,8 @@ export function App() {
                 bottom: 0,
                 left: 0,
                 right: 0,
-                background: '#0f0f0f',
-                borderTop: '1px solid #222',
+                background: 'var(--nav-bg)',
+                borderTop: '1px solid var(--border-secondary)',
                 zIndex: 100,
             }}>
                 {TABS.map((tab) => (
@@ -187,7 +191,7 @@ export function App() {
                             alignItems: 'center',
                             gap: '0.2rem',
                             transition: 'color 0.2s',
-                            borderTop: activeTab === tab.id ? '2px solid #2563eb' : '2px solid transparent',
+                            borderTop: activeTab === tab.id ? '2px solid var(--accent)' : '2px solid transparent',
                         }}
                     >
                         <span style={{ fontSize: '1.2rem' }}>{tab.emoji}</span>

@@ -166,8 +166,8 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
     // ===================== RENDER =====================
 
     const cardStyle: React.CSSProperties = {
-        background: '#1a1a1a',
-        border: '1px solid #333',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-primary)',
         borderRadius: '12px',
         padding: '0.75rem 1rem',
         marginBottom: '0.5rem',
@@ -179,9 +179,9 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
         flex: 1,
         padding: '0.75rem 1rem',
         borderRadius: '20px',
-        border: '1px solid #444',
-        background: '#0f0f0f',
-        color: '#fff',
+        border: '1px solid var(--border-input)',
+        background: 'var(--bg-secondary)',
+        color: 'var(--text-primary)',
         fontSize: '0.95rem',
         fontFamily: 'inherit',
         outline: 'none',
@@ -213,7 +213,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                     />
                 )}
 
-                <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
                     {showNewGroup ? 'Select members to add:' : 'Choose someone to message:'}
                 </p>
                 {members.map(m => (
@@ -249,7 +249,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                         style={{
                             width: '100%', padding: '0.85rem', borderRadius: '10px',
                             border: 'none', background: groupName.trim() ? '#2563eb' : '#555',
-                            color: '#fff', fontSize: '1rem', fontWeight: 600,
+                            color: 'var(--text-primary)', fontSize: '1rem', fontWeight: 600,
                             cursor: groupName.trim() ? 'pointer' : 'not-allowed',
                             fontFamily: 'inherit', marginTop: '1rem',
                         }}
@@ -284,7 +284,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                             {getConversationTitle(activeConv)}
                         </div>
                         {activeConv.type === 'group' && (
-                            <div style={{ fontSize: '0.75rem', color: '#666' }}>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                 {activeConv.participants.length} members
                             </div>
                         )}
@@ -297,7 +297,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                     display: 'flex', flexDirection: 'column', gap: '0.5rem',
                 }}>
                     {messages.length === 0 && (
-                        <p style={{ textAlign: 'center', color: '#555', marginTop: '2rem' }}>
+                        <p style={{ textAlign: 'center', color: 'var(--text-faint)', marginTop: '2rem' }}>
                             No messages yet. Say hello! 👋
                         </p>
                     )}
@@ -312,7 +312,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                 }}
                             >
                                 {!isMe && activeConv.type === 'group' && (
-                                    <div style={{ fontSize: '0.7rem', color: '#666', marginBottom: '0.15rem' }}>
+                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.15rem' }}>
                                         {members.find(m => m.publicKey === msg.authorPubkey)?.callsign
                                             || msg.authorPubkey.substring(0, 8)}
                                     </div>
@@ -331,7 +331,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                     {decryptMessage(msg)}
                                 </div>
                                 <div style={{
-                                    fontSize: '0.65rem', color: '#555',
+                                    fontSize: '0.65rem', color: 'var(--text-faint)',
                                     marginTop: '0.15rem',
                                     textAlign: isMe ? 'right' : 'left',
                                 }}>
@@ -348,7 +348,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                     display: 'flex', gap: '0.5rem',
                     padding: '0.75rem 1rem',
                     borderTop: '1px solid #222',
-                    background: '#0f0f0f',
+                    background: 'var(--bg-secondary)',
                 }}>
                     <input
                         type="text"
@@ -367,7 +367,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                             borderRadius: '20px',
                             border: 'none',
                             background: draft.trim() ? '#2563eb' : '#333',
-                            color: '#fff',
+                            color: 'var(--text-primary)',
                             fontSize: '1rem',
                             cursor: draft.trim() ? 'pointer' : 'default',
                             fontFamily: 'inherit',
@@ -390,8 +390,8 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                         onClick={() => { setShowNewDm(true); loadMembers(); }}
                         style={{
                             padding: '0.4rem 0.75rem', borderRadius: '8px',
-                            border: '1px solid #444', background: '#222',
-                            color: '#fff', fontSize: '0.8rem', cursor: 'pointer',
+                            border: '1px solid var(--border-input)', background: 'var(--bg-hover)',
+                            color: 'var(--text-primary)', fontSize: '0.8rem', cursor: 'pointer',
                             fontFamily: 'inherit',
                         }}
                     >
@@ -401,8 +401,8 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                         onClick={() => { setShowNewGroup(true); loadMembers(); }}
                         style={{
                             padding: '0.4rem 0.75rem', borderRadius: '8px',
-                            border: '1px solid #444', background: '#222',
-                            color: '#fff', fontSize: '0.8rem', cursor: 'pointer',
+                            border: '1px solid var(--border-input)', background: 'var(--bg-hover)',
+                            color: 'var(--text-primary)', fontSize: '0.8rem', cursor: 'pointer',
                             fontFamily: 'inherit',
                         }}
                     >
@@ -412,7 +412,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
             </div>
 
             {conversations.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#555' }}>
+                <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-faint)' }}>
                     <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>💬</p>
                     <p>No conversations yet.</p>
                     <p style={{ fontSize: '0.85rem' }}>Start by sending a DM or creating a group.</p>
@@ -438,7 +438,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                     {getConversationTitle(conv)}
                                 </div>
                                 <div style={{
-                                    fontSize: '0.75rem', color: '#666',
+                                    fontSize: '0.75rem', color: 'var(--text-muted)',
                                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                                 }}>
                                     {conv.type === 'group'

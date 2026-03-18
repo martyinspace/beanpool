@@ -128,8 +128,8 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
     }
 
     const inputStyle: React.CSSProperties = {
-        width: '100%', padding: '0.5rem', background: '#0f0f0f',
-        border: '1px solid #333', borderRadius: '8px', color: '#fff',
+        width: '100%', padding: '0.5rem', background: 'var(--bg-secondary)',
+        border: '1px solid var(--border-primary)', borderRadius: '8px', color: 'var(--text-primary)',
         fontSize: '0.85rem', marginBottom: '0.5rem', fontFamily: 'inherit',
         boxSizing: 'border-box',
     };
@@ -159,7 +159,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
 
                 {/* Post card */}
                 <div style={{
-                    background: '#1a1a1a', borderRadius: '16px',
+                    background: 'var(--bg-card)', borderRadius: '16px',
                     border: `1px solid ${typeColor}44`,
                     overflow: 'hidden',
                 }}>
@@ -179,13 +179,13 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                 {selectedPost.type === 'offer' ? '🔵 Offer' : '🟠 Need'} · {cat?.label ?? selectedPost.category}
                             </span>
                         </div>
-                        <span style={{ fontSize: '0.75rem', color: '#666' }}>{ago}</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{ago}</span>
                     </div>
 
                     {/* Content */}
                     <div style={{ padding: '1rem' }}>
                         <h2 style={{
-                            fontSize: '1.25rem', fontWeight: 700, color: '#fff',
+                            fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)',
                             margin: '0 0 0.5rem',
                         }}>
                             {selectedPost.title}
@@ -214,7 +214,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                         style={{
                                             height: '140px', borderRadius: '10px',
                                             objectFit: 'cover', flexShrink: 0,
-                                            border: '1px solid #333',
+                                            border: '1px solid var(--border-primary)',
                                         }}
                                     />
                                 ))}
@@ -223,18 +223,18 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
 
                         {/* Credits */}
                         <div style={{
-                            background: '#0f0f0f', borderRadius: '12px',
+                            background: 'var(--bg-secondary)', borderRadius: '12px',
                             padding: '0.75rem 1rem', textAlign: 'center',
                             marginBottom: '1rem',
                         }}>
-                            <span style={{ fontSize: '0.75rem', color: '#888', display: 'block', marginBottom: '0.25rem' }}>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
                                 {selectedPost.type === 'offer' ? 'Asking' : 'Willing to pay'}
                             </span>
                             <span style={{
-                                fontSize: '1.8rem', fontWeight: 700, color: '#fff',
+                                fontSize: '1.8rem', fontWeight: 700, color: 'var(--text-primary)',
                                 fontFamily: 'monospace',
                             }}>
-                                {selectedPost.credits}<span style={{ fontSize: '1.2rem', color: '#888' }}>Ʀ</span>
+                                {selectedPost.credits}<span style={{ fontSize: '1.2rem', color: 'var(--text-muted)' }}>Ʀ</span>
                             </span>
                         </div>
                     </div>
@@ -242,11 +242,11 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
 
                 {/* Author section */}
                 <div style={{
-                    background: '#1a1a1a', borderRadius: '16px',
-                    border: '1px solid #333', padding: '1rem',
+                    background: 'var(--bg-card)', borderRadius: '16px',
+                    border: '1px solid var(--border-primary)', padding: '1rem',
                     marginTop: '0.75rem',
                 }}>
-                    <p style={{ fontSize: '0.7rem', color: '#666', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.5rem' }}>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.5rem' }}>
                         Posted by
                     </p>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -269,30 +269,30 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                             <div style={{
                                 width: '48px', height: '48px', borderRadius: '50%',
                                 background: '#2563eb', display: 'flex', alignItems: 'center',
-                                justifyContent: 'center', fontSize: '1.2rem', color: '#fff',
+                                justifyContent: 'center', fontSize: '1.2rem', color: 'var(--text-primary)',
                                 fontWeight: 700, flexShrink: 0,
                             }}>
                                 {selectedPost.authorCallsign.charAt(0).toUpperCase()}
                             </div>
                         )}
                         <div>
-                            <p style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', margin: '0 0 0.15rem' }}>
+                            <p style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 0.15rem' }}>
                                 🤝 {selectedPost.authorCallsign}
                             </p>
                             {/* Bean rating */}
                             <p style={{ fontSize: '0.8rem', color: '#fbbf24', margin: '0 0 0.15rem' }}>
                                 {'🫘'.repeat(Math.round(authorAvgRating.average))}{'○'.repeat(5 - Math.round(authorAvgRating.average))}
-                                <span style={{ color: '#888', marginLeft: '0.35rem' }}>
+                                <span style={{ color: 'var(--text-muted)', marginLeft: '0.35rem' }}>
                                     {authorAvgRating.count > 0 ? `${authorAvgRating.average}/5 (${authorAvgRating.count})` : 'No ratings yet'}
                                 </span>
                             </p>
                             {authorProfile?.bio && (
-                                <p style={{ fontSize: '0.8rem', color: '#888', margin: 0, lineHeight: 1.4 }}>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>
                                     {authorProfile.bio}
                                 </p>
                             )}
                             {authorProfile?.contact && authorProfile.contact.visibility !== 'hidden' && (
-                                <p style={{ fontSize: '0.75rem', color: '#666', margin: '0.25rem 0 0' }}>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
                                     📧 {authorProfile.contact.value}
                                 </p>
                             )}
@@ -311,7 +311,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                             disabled={messaging}
                             style={{
                                 width: '100%', padding: '0.85rem', borderRadius: '12px',
-                                background: '#2563eb', color: '#fff', border: 'none',
+                                background: '#2563eb', color: 'var(--text-primary)', border: 'none',
                                 fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer',
                                 fontFamily: 'inherit', opacity: messaging ? 0.6 : 1,
                             }}
@@ -325,7 +325,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                             }}
                             style={{
                                 width: '100%', padding: '0.85rem', borderRadius: '12px',
-                                background: typeColor, color: '#fff', border: 'none',
+                                background: typeColor, color: 'var(--text-primary)', border: 'none',
                                 fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer',
                                 fontFamily: 'inherit',
                             }}
@@ -338,7 +338,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                 width: '100%', padding: '0.7rem', borderRadius: '12px',
                                 background: showRatingForm ? '#92400e' : '#1a1a1a',
                                 color: showRatingForm ? '#fbbf24' : '#fbbf24',
-                                border: '1px solid #333',
+                                border: '1px solid var(--border-primary)',
                                 fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
                                 fontFamily: 'inherit',
                             }}
@@ -348,8 +348,8 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
 
                         {showRatingForm && (
                             <div style={{
-                                background: '#1a1a1a', borderRadius: '12px',
-                                border: '1px solid #333', padding: '1rem',
+                                background: 'var(--bg-card)', borderRadius: '12px',
+                                border: '1px solid var(--border-primary)', padding: '1rem',
                             }}>
                                 <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
                                     {[1, 2, 3, 4, 5].map(star => (
@@ -375,8 +375,8 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                     maxLength={200}
                                     style={{
                                         width: '100%', padding: '0.6rem', borderRadius: '8px',
-                                        border: '1px solid #444', background: '#0f0f0f',
-                                        color: '#fff', fontSize: '0.85rem', fontFamily: 'inherit',
+                                        border: '1px solid var(--border-input)', background: 'var(--bg-secondary)',
+                                        color: 'var(--text-primary)', fontSize: '0.85rem', fontFamily: 'inherit',
                                         minHeight: '60px', resize: 'none', outline: 'none',
                                         marginBottom: '0.5rem', boxSizing: 'border-box',
                                     }}
@@ -401,7 +401,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                     style={{
                                         width: '100%', padding: '0.6rem', borderRadius: '8px',
                                         background: myRating >= 1 ? '#2563eb' : '#333',
-                                        color: '#fff', border: 'none', fontSize: '0.85rem',
+                                        color: 'var(--text-primary)', border: 'none', fontSize: '0.85rem',
                                         fontWeight: 600, cursor: myRating >= 1 ? 'pointer' : 'not-allowed',
                                         fontFamily: 'inherit',
                                     }}
@@ -415,7 +415,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                             onClick={() => setShowReportForm(!showReportForm)}
                             style={{
                                 width: '100%', padding: '0.6rem', borderRadius: '12px',
-                                background: 'transparent', color: '#666', border: '1px solid #333',
+                                background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border-primary)',
                                 fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit',
                             }}
                         >
@@ -424,15 +424,15 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
 
                         {showReportForm && (
                             <div style={{
-                                background: '#1a1a1a', borderRadius: '12px',
-                                border: '1px solid #333', padding: '1rem',
+                                background: 'var(--bg-card)', borderRadius: '12px',
+                                border: '1px solid var(--border-primary)', padding: '1rem',
                             }}>
                                 <select
                                     value={reportReason}
                                     onChange={(e) => setReportReason(e.target.value)}
                                     style={{
                                         width: '100%', padding: '0.6rem', borderRadius: '8px',
-                                        background: '#0f0f0f', border: '1px solid #444',
+                                        background: 'var(--bg-secondary)', border: '1px solid var(--border-input)',
                                         color: '#ccc', fontSize: '0.85rem', fontFamily: 'inherit',
                                         cursor: 'pointer', marginBottom: '0.5rem',
                                     }}
@@ -463,7 +463,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                     style={{
                                         width: '100%', padding: '0.6rem', borderRadius: '8px',
                                         background: reportReason ? '#dc2626' : '#333',
-                                        color: '#fff', border: 'none', fontSize: '0.85rem',
+                                        color: 'var(--text-primary)', border: 'none', fontSize: '0.85rem',
                                         fontWeight: 600, cursor: reportReason ? 'pointer' : 'not-allowed',
                                         fontFamily: 'inherit',
                                     }}
@@ -481,10 +481,10 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                         marginTop: '0.75rem',
                     }}>
                         <div style={{
-                            background: '#1a1a1a', borderRadius: '12px',
-                            border: '1px solid #333', padding: '0.75rem',
+                            background: 'var(--bg-card)', borderRadius: '12px',
+                            border: '1px solid var(--border-primary)', padding: '0.75rem',
                             textAlign: 'center',
-                            color: '#666', fontSize: '0.85rem',
+                            color: 'var(--text-muted)', fontSize: '0.85rem',
                         }}>
                             This is your post
                         </div>
@@ -507,7 +507,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                             style={{
                                 width: '100%', padding: '0.7rem', borderRadius: '12px',
                                 background: deleting === selectedPost.id ? '#555' : '#dc2626',
-                                color: '#fff', border: 'none',
+                                color: 'var(--text-primary)', border: 'none',
                                 fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
                                 fontFamily: 'inherit',
                             }}
@@ -535,13 +535,13 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
         <div style={{ padding: '1rem' }}>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h2 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#fff', margin: 0 }}>🤝 Marketplace</h2>
+                <h2 style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>🤝 Marketplace</h2>
                 <button
                     onClick={() => onNavigate?.('map-post')}
                     style={{
                         padding: '0.4rem 0.8rem', borderRadius: '8px',
                         background: '#2563eb',
-                        border: 'none', color: '#fff', fontSize: '0.8rem',
+                        border: 'none', color: 'var(--text-primary)', fontSize: '0.8rem',
                         fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                     }}
                 >
@@ -612,15 +612,15 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
 
             {/* Posts */}
             {loading ? (
-                <p style={{ color: '#666', textAlign: 'center', padding: '2rem' }}>Loading...</p>
+                <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>Loading...</p>
             ) : (() => {
                 const filtered = showMine && identity
                     ? posts.filter(p => p.authorPublicKey === identity.publicKey)
                     : posts;
                 return filtered.length === 0 ? (
                     <div style={{
-                        background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px',
-                        padding: '2rem', textAlign: 'center', color: '#555', fontSize: '0.9rem',
+                        background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: '12px',
+                        padding: '2rem', textAlign: 'center', color: 'var(--text-faint)', fontSize: '0.9rem',
                     }}>
                         {showMine ? 'You haven\'t posted anything yet.' : 'No posts yet. Be the first to post!'}
                     </div>

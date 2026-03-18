@@ -79,9 +79,9 @@ export function LedgerPage({ identity }: Props) {
                 textAlign: 'center',
                 marginBottom: '1.5rem',
                 padding: '1.5rem',
-                background: '#1a1a1a',
+                background: 'var(--bg-card)',
                 borderRadius: '16px',
-                border: '1px solid #333',
+                border: '1px solid var(--border-primary)',
             }}>
                 <div style={{
                     width: '80px', height: '80px', borderRadius: '50%',
@@ -95,7 +95,7 @@ export function LedgerPage({ identity }: Props) {
                 <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '0.25rem' }}>
                     {identity.callsign}
                 </h2>
-                <p style={{ color: '#666', fontSize: '0.8rem', fontFamily: 'monospace' }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontFamily: 'monospace' }}>
                     {identity.publicKey.substring(0, 16)}...
                 </p>
             </div>
@@ -103,10 +103,10 @@ export function LedgerPage({ identity }: Props) {
             {/* Balance */}
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
                 <div style={{
-                    flex: 1, background: '#1a1a1a', border: '1px solid #333',
+                    flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
                     borderRadius: '12px', padding: '1.25rem', textAlign: 'center',
                 }}>
-                    <p style={{ color: '#888', fontSize: '0.8rem', marginBottom: '0.5rem' }}>Balance</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>Balance</p>
                     <p style={{
                         fontSize: '2rem', fontWeight: 700,
                         color: loading ? '#555' : balance >= 0 ? '#10b981' : '#ef4444',
@@ -114,20 +114,20 @@ export function LedgerPage({ identity }: Props) {
                     }}>
                         {loading ? '...' : `${balance >= 0 ? '+' : ''}${balance.toFixed(2)}Ʀ`}
                     </p>
-                    <p style={{ color: '#555', fontSize: '0.7rem', marginTop: '0.25rem' }}>
+                    <p style={{ color: 'var(--text-faint)', fontSize: '0.7rem', marginTop: '0.25rem' }}>
                         Floor: {balanceInfo?.floor ?? -100}Ʀ
                     </p>
                 </div>
 
                 <div style={{
-                    flex: 1, background: '#1a1a1a', border: '1px solid #333',
+                    flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
                     borderRadius: '12px', padding: '1.25rem', textAlign: 'center',
                 }}>
-                    <p style={{ color: '#888', fontSize: '0.8rem', marginBottom: '0.5rem' }}>Commons</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>Commons</p>
                     <p style={{ fontSize: '2rem', fontWeight: 700, color: '#f59e0b', fontFamily: 'monospace' }}>
                         {loading ? '...' : `${(balanceInfo?.commonsBalance ?? 0).toFixed(2)}Ʀ`}
                     </p>
-                    <p style={{ color: '#555', fontSize: '0.7rem', marginTop: '0.25rem' }}>
+                    <p style={{ color: 'var(--text-faint)', fontSize: '0.7rem', marginTop: '0.25rem' }}>
                         🌱 Community Pool
                     </p>
                 </div>
@@ -138,7 +138,7 @@ export function LedgerPage({ identity }: Props) {
                 onClick={() => setShowSend(!showSend)}
                 style={{
                     width: '100%', padding: '0.85rem', borderRadius: '12px',
-                    background: showSend ? '#333' : '#2563eb', color: '#fff',
+                    background: showSend ? '#333' : '#2563eb', color: 'var(--text-primary)',
                     border: 'none', fontSize: '1rem', fontWeight: 700,
                     cursor: 'pointer', marginBottom: '1rem', fontFamily: 'inherit',
                     transition: 'background 0.2s',
@@ -150,7 +150,7 @@ export function LedgerPage({ identity }: Props) {
             {/* Send Form */}
             {showSend && (
                 <div style={{
-                    background: '#1a1a1a', border: '1px solid #333',
+                    background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
                     borderRadius: '12px', padding: '1rem', marginBottom: '1.5rem',
                 }}>
                     <select
@@ -158,8 +158,8 @@ export function LedgerPage({ identity }: Props) {
                         onChange={(e) => setSendTo(e.target.value)}
                         style={{
                             width: '100%', padding: '0.6rem', borderRadius: '8px',
-                            border: '1px solid #444', background: '#0f0f0f',
-                            color: '#e0e0e0', fontSize: '0.9rem', marginBottom: '0.5rem',
+                            border: '1px solid var(--border-input)', background: 'var(--bg-secondary)',
+                            color: 'var(--text-primary)', fontSize: '0.9rem', marginBottom: '0.5rem',
                             fontFamily: 'inherit',
                         }}
                     >
@@ -179,8 +179,8 @@ export function LedgerPage({ identity }: Props) {
                         step="0.01"
                         style={{
                             width: '100%', padding: '0.6rem', borderRadius: '8px',
-                            border: '1px solid #444', background: '#0f0f0f',
-                            color: '#e0e0e0', fontSize: '0.9rem', marginBottom: '0.5rem',
+                            border: '1px solid var(--border-input)', background: 'var(--bg-secondary)',
+                            color: 'var(--text-primary)', fontSize: '0.9rem', marginBottom: '0.5rem',
                             fontFamily: 'inherit', boxSizing: 'border-box',
                         }}
                     />
@@ -191,8 +191,8 @@ export function LedgerPage({ identity }: Props) {
                         onChange={(e) => setSendMemo(e.target.value)}
                         style={{
                             width: '100%', padding: '0.6rem', borderRadius: '8px',
-                            border: '1px solid #444', background: '#0f0f0f',
-                            color: '#e0e0e0', fontSize: '0.9rem', marginBottom: '0.75rem',
+                            border: '1px solid var(--border-input)', background: 'var(--bg-secondary)',
+                            color: 'var(--text-primary)', fontSize: '0.9rem', marginBottom: '0.75rem',
                             fontFamily: 'inherit', boxSizing: 'border-box',
                         }}
                     />
@@ -201,7 +201,7 @@ export function LedgerPage({ identity }: Props) {
                         disabled={sending || !sendTo || !sendAmount}
                         style={{
                             width: '100%', padding: '0.7rem', borderRadius: '8px',
-                            background: sending ? '#555' : '#10b981', color: '#fff',
+                            background: sending ? '#555' : '#10b981', color: 'var(--text-primary)',
                             border: 'none', fontSize: '0.9rem', fontWeight: 600,
                             cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                         }}
@@ -233,7 +233,7 @@ export function LedgerPage({ identity }: Props) {
                     <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>
                         🔥 Monthly Decay (0.5%)
                     </span>
-                    <span style={{ fontSize: '0.85rem', color: '#aaa', fontFamily: 'monospace' }}>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
                         −{(balance * 0.005).toFixed(3)}Ʀ/mo → Commons
                     </span>
                 </div>
@@ -245,8 +245,8 @@ export function LedgerPage({ identity }: Props) {
             </h3>
             {txns.length === 0 ? (
                 <div style={{
-                    background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px',
-                    padding: '2rem', textAlign: 'center', color: '#555', fontSize: '0.9rem',
+                    background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: '12px',
+                    padding: '2rem', textAlign: 'center', color: 'var(--text-faint)', fontSize: '0.9rem',
                 }}>
                     No transactions yet. Start trading on the Marketplace!
                 </div>
@@ -256,18 +256,18 @@ export function LedgerPage({ identity }: Props) {
                         const isSent = tx.from === identity.publicKey;
                         return (
                             <div key={tx.id} style={{
-                                background: '#1a1a1a', border: '1px solid #333',
+                                background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
                                 borderRadius: '10px', padding: '0.75rem 1rem',
                                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                             }}>
                                 <div>
-                                    <p style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e0e0e0' }}>
+                                    <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                                         {isSent ? '↑ Sent' : '↓ Received'}
                                     </p>
                                     {tx.memo && (
-                                        <p style={{ fontSize: '0.75rem', color: '#888', marginTop: '2px' }}>{tx.memo}</p>
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>{tx.memo}</p>
                                     )}
-                                    <p style={{ fontSize: '0.7rem', color: '#555', marginTop: '2px' }}>
+                                    <p style={{ fontSize: '0.7rem', color: 'var(--text-faint)', marginTop: '2px' }}>
                                         {new Date(tx.timestamp).toLocaleString()}
                                     </p>
                                 </div>

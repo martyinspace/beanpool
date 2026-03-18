@@ -104,8 +104,8 @@ export function InvitePage({ identity }: Props) {
     const usedInvites = invites.filter(i => i.usedBy);
 
     const cardStyle: React.CSSProperties = {
-        background: '#1a1a1a',
-        border: '1px solid #333',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-primary)',
         borderRadius: '12px',
         padding: '1rem',
         marginBottom: '0.75rem',
@@ -140,7 +140,7 @@ export function InvitePage({ identity }: Props) {
             {activeSection === 'invites' && (
                 <>
                     <h2 style={{ fontSize: '1.3rem', marginBottom: '0.5rem' }}>🎟️ Invite Someone</h2>
-                    <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
                         Each invite code can only be used once. Generate a new one for each person you invite.
                     </p>
 
@@ -150,7 +150,7 @@ export function InvitePage({ identity }: Props) {
                         style={{
                             width: '100%', padding: '1rem', borderRadius: '12px',
                             border: 'none', background: generating ? '#555' : '#2563eb',
-                            color: '#fff', fontSize: '1rem', fontWeight: 600,
+                            color: 'var(--text-primary)', fontSize: '1rem', fontWeight: 600,
                             cursor: generating ? 'not-allowed' : 'pointer',
                             fontFamily: 'inherit', marginBottom: '1.5rem',
                         }}
@@ -160,8 +160,8 @@ export function InvitePage({ identity }: Props) {
 
                     {newCode && showQR && (
                         <div style={{ ...cardStyle, textAlign: 'center', border: '1px solid #2563eb', background: '#0f1729', marginBottom: '1.5rem' }}>
-                            <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '0.75rem' }}>Share this code with someone you trust</p>
-                            <p style={{ fontFamily: 'monospace', fontSize: '1.8rem', fontWeight: 700, color: '#fff', letterSpacing: '2px', marginBottom: '1rem' }}>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.75rem' }}>Share this code with someone you trust</p>
+                            <p style={{ fontFamily: 'monospace', fontSize: '1.8rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '2px', marginBottom: '1rem' }}>
                                 {newCode.toUpperCase()}
                             </p>
                             <div style={{ background: '#fff', borderRadius: '12px', padding: '1rem', display: 'inline-block', marginBottom: '1rem' }}>
@@ -170,15 +170,15 @@ export function InvitePage({ identity }: Props) {
                             </div>
                             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
                                 <button onClick={() => handleCopy(newCode)} style={{
-                                    padding: '0.6rem 1.2rem', borderRadius: '8px', border: '1px solid #444',
-                                    background: copied ? '#22c55e' : '#222', color: '#fff', fontSize: '0.85rem',
+                                    padding: '0.6rem 1.2rem', borderRadius: '8px', border: '1px solid var(--border-input)',
+                                    background: copied ? '#22c55e' : '#222', color: 'var(--text-primary)', fontSize: '0.85rem',
                                     cursor: 'pointer', fontFamily: 'inherit',
                                 }}>
                                     {copied ? '✓ Copied!' : '📋 Copy'}
                                 </button>
                                 <button onClick={() => handleShare(newCode)} style={{
                                     padding: '0.6rem 1.2rem', borderRadius: '8px', border: 'none',
-                                    background: '#2563eb', color: '#fff', fontSize: '0.85rem',
+                                    background: '#2563eb', color: 'var(--text-primary)', fontSize: '0.85rem',
                                     cursor: 'pointer', fontFamily: 'inherit',
                                 }}>
                                     📤 Share
@@ -189,7 +189,7 @@ export function InvitePage({ identity }: Props) {
 
                     {unusedInvites.length > 0 && (
                         <>
-                            <h3 style={{ fontSize: '0.9rem', color: '#aaa', marginBottom: '0.5rem' }}>⏳ Pending ({unusedInvites.length})</h3>
+                            <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>⏳ Pending ({unusedInvites.length})</h3>
                             {unusedInvites.map(inv => (
                                 <div key={inv.code} style={cardStyle}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -197,11 +197,11 @@ export function InvitePage({ identity }: Props) {
                                             {inv.code.toUpperCase()}
                                         </span>
                                         <button onClick={() => handleCopy(inv.code.toUpperCase())} style={{
-                                            padding: '0.3rem 0.6rem', borderRadius: '6px', border: '1px solid #444',
-                                            background: '#222', color: '#aaa', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit',
+                                            padding: '0.3rem 0.6rem', borderRadius: '6px', border: '1px solid var(--border-input)',
+                                            background: 'var(--bg-hover)', color: 'var(--text-secondary)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit',
                                         }}>📋</button>
                                     </div>
-                                    <p style={{ color: '#555', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                                    <p style={{ color: 'var(--text-faint)', fontSize: '0.75rem', marginTop: '0.25rem' }}>
                                         Created {new Date(inv.createdAt).toLocaleDateString()}
                                     </p>
                                 </div>
@@ -211,13 +211,13 @@ export function InvitePage({ identity }: Props) {
 
                     {usedInvites.length > 0 && (
                         <>
-                            <h3 style={{ fontSize: '0.9rem', color: '#aaa', marginTop: '1rem', marginBottom: '0.5rem' }}>✅ Redeemed ({usedInvites.length})</h3>
+                            <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '1rem', marginBottom: '0.5rem' }}>✅ Redeemed ({usedInvites.length})</h3>
                             {usedInvites.map(inv => (
                                 <div key={inv.code} style={{ ...cardStyle, opacity: 0.6 }}>
-                                    <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: '#888', textDecoration: 'line-through' }}>
+                                    <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: 'var(--text-muted)', textDecoration: 'line-through' }}>
                                         {inv.code.toUpperCase()}
                                     </span>
-                                    <p style={{ color: '#555', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                                    <p style={{ color: 'var(--text-faint)', fontSize: '0.75rem', marginTop: '0.25rem' }}>
                                         Used {inv.usedAt ? new Date(inv.usedAt).toLocaleDateString() : ''}
                                     </p>
                                 </div>
@@ -231,12 +231,12 @@ export function InvitePage({ identity }: Props) {
             {activeSection === 'tree' && (
                 <>
                     <h2 style={{ fontSize: '1.3rem', marginBottom: '0.5rem' }}>🌳 Community Tree</h2>
-                    <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
                         Who invited whom. The tree shows how your community grows.
                     </p>
 
                     {tree.length === 0 ? (
-                        <div style={{ ...cardStyle, textAlign: 'center', color: '#555' }}>
+                        <div style={{ ...cardStyle, textAlign: 'center', color: 'var(--text-faint)' }}>
                             <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🌱</p>
                             <p>No members yet. Generate an invite to start growing!</p>
                         </div>
@@ -272,7 +272,7 @@ function TreeNodeView({ node, depth, identity }: { node: TreeNode; depth: number
                 }}
             >
                 {/* Expand/collapse */}
-                <span style={{ fontSize: '0.75rem', color: '#555', width: '1rem', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)', width: '1rem', textAlign: 'center' }}>
                     {hasChildren ? (expanded ? '▼' : '▶') : '·'}
                 </span>
 
@@ -305,7 +305,7 @@ function TreeNodeView({ node, depth, identity }: { node: TreeNode; depth: number
                             </span>
                         )}
                     </div>
-                    <span style={{ fontSize: '0.7rem', color: '#555' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-faint)' }}>
                         Joined {joinDate}
                         {hasChildren && ` · ${node.children.length} invite${node.children.length !== 1 ? 's' : ''}`}
                     </span>

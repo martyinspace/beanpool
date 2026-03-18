@@ -341,8 +341,8 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
     // Control button style
     const btnStyle: React.CSSProperties = {
         width: '40px', height: '40px', borderRadius: '10px',
-        background: 'rgba(26, 26, 26, 0.9)', border: '1px solid #444',
-        color: '#fff', fontSize: '1.1rem', cursor: 'pointer',
+        background: 'rgba(26, 26, 26, 0.9)', border: '1px solid var(--border-input)',
+        color: 'var(--text-primary)', fontSize: '1.1rem', cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
@@ -432,7 +432,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     style={{
                         position: 'fixed', bottom: '5.5rem', right: '0.75rem',
                         width: '52px', height: '52px', borderRadius: '50%',
-                        background: '#2563eb', border: 'none', color: '#fff',
+                        background: '#2563eb', border: 'none', color: 'var(--text-primary)',
                         fontSize: '1.6rem', cursor: 'pointer', zIndex: 101,
                         boxShadow: '0 4px 16px rgba(37, 99, 235, 0.4)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -454,10 +454,10 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                 padding: '1rem', zIndex: 1000,
                 boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
                 backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid #333',
+                border: '1px solid var(--border-primary)',
             }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                    <span style={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem' }}>New Post</span>
+                    <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.95rem' }}>New Post</span>
                     <button onClick={() => {
                         setShowNewPost(false);
                         setPinDropMode(false);
@@ -468,7 +468,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                             pinDropMarkerRef.current = null;
                         }
                     }} style={{
-                        background: 'none', border: 'none', color: '#666',
+                        background: 'none', border: 'none', color: 'var(--text-muted)',
                         fontSize: '1.2rem', cursor: 'pointer',
                     }}>✕</button>
                 </div>
@@ -479,7 +479,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                         <button key={t} onClick={() => setNewPostType(t)} style={{
                             flex: 1, padding: '0.4rem', borderRadius: '8px',
                             background: newPostType === t ? (t === 'offer' ? '#1d4ed8' : '#c2410c') : '#222',
-                            color: '#fff', border: 'none', fontSize: '0.85rem',
+                            color: 'var(--text-primary)', border: 'none', fontSize: '0.85rem',
                             fontWeight: newPostType === t ? 700 : 400,
                             cursor: 'pointer', fontFamily: 'inherit',
                         }}>
@@ -494,7 +494,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     onChange={e => setNewPostCategory(e.target.value)}
                     style={{
                         width: '100%', padding: '0.5rem', borderRadius: '8px',
-                        background: '#222', color: '#fff', border: '1px solid #444',
+                        background: 'var(--bg-hover)', color: 'var(--text-primary)', border: '1px solid var(--border-input)',
                         marginBottom: '0.5rem', fontSize: '0.85rem', fontFamily: 'inherit',
                     }}
                 >
@@ -508,7 +508,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     <button onClick={() => { useMyLocation(); setValidationErrors(prev => { const n = new Set(prev); n.delete('location'); return n; }); }} style={{
                         flex: 1, padding: '0.4rem', borderRadius: '8px',
                         background: (postLat != null && !pinDropMode) ? '#1a4d2e' : '#222',
-                        color: '#fff',
+                        color: 'var(--text-primary)',
                         border: validationErrors.has('location') ? '1px solid #ef4444' : (postLat != null && !pinDropMode) ? '1px solid #22c55e' : '1px solid #444',
                         boxShadow: validationErrors.has('location') ? '0 0 8px rgba(239, 68, 68, 0.5)' : 'none',
                         fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit',
@@ -518,7 +518,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     <button onClick={() => { enterPinDrop(); setValidationErrors(prev => { const n = new Set(prev); n.delete('location'); return n; }); }} style={{
                         flex: 1, padding: '0.4rem', borderRadius: '8px',
                         background: pinDropMode ? '#1a3a5c' : '#222',
-                        color: '#fff',
+                        color: 'var(--text-primary)',
                         border: validationErrors.has('location') ? '1px solid #ef4444' : pinDropMode ? '1px solid #3b82f6' : '1px solid #444',
                         boxShadow: validationErrors.has('location') ? '0 0 8px rgba(239, 68, 68, 0.5)' : 'none',
                         fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit',
@@ -545,7 +545,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                         onChange={e => { setNewPostTitle(e.target.value); setValidationErrors(prev => { const n = new Set(prev); n.delete('title'); return n; }); }}
                         style={{
                             flex: 1, padding: '0.5rem', borderRadius: '8px',
-                            background: '#222', color: '#fff',
+                            background: 'var(--bg-hover)', color: 'var(--text-primary)',
                             border: validationErrors.has('title') ? '1px solid #ef4444' : '1px solid #444',
                             boxShadow: validationErrors.has('title') ? '0 0 8px rgba(239, 68, 68, 0.5)' : 'none',
                             fontSize: '0.85rem', fontFamily: 'inherit',
@@ -558,7 +558,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                         onChange={e => { setNewPostCredits(e.target.value); setValidationErrors(prev => { const n = new Set(prev); n.delete('credits'); return n; }); }}
                         style={{
                             width: '60px', padding: '0.5rem', borderRadius: '8px',
-                            background: '#222', color: '#fff',
+                            background: 'var(--bg-hover)', color: 'var(--text-primary)',
                             border: validationErrors.has('credits') ? '1px solid #ef4444' : '1px solid #444',
                             boxShadow: validationErrors.has('credits') ? '0 0 8px rgba(239, 68, 68, 0.5)' : 'none',
                             fontSize: '0.85rem', fontFamily: 'inherit', textAlign: 'center',
@@ -574,7 +574,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     rows={2}
                     style={{
                         width: '100%', padding: '0.5rem', borderRadius: '8px',
-                        background: '#222', color: '#fff',
+                        background: 'var(--bg-hover)', color: 'var(--text-primary)',
                         border: validationErrors.has('description') ? '1px solid #ef4444' : '1px solid #444',
                         boxShadow: validationErrors.has('description') ? '0 0 8px rgba(239, 68, 68, 0.5)' : 'none',
                         fontSize: '0.85rem', fontFamily: 'inherit', resize: 'vertical',
@@ -589,14 +589,14 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                             <div key={i} style={{ position: 'relative' }}>
                                 <img src={photo} alt={`photo ${i+1}`} style={{
                                     width: '60px', height: '60px', objectFit: 'cover',
-                                    borderRadius: '8px', border: '1px solid #444',
+                                    borderRadius: '8px', border: '1px solid var(--border-input)',
                                 }} />
                                 <button
                                     onClick={() => setNewPostPhotos(prev => prev.filter((_, j) => j !== i))}
                                     style={{
                                         position: 'absolute', top: '-6px', right: '-6px',
                                         background: '#ef4444', border: 'none', borderRadius: '50%',
-                                        width: '18px', height: '18px', color: '#fff',
+                                        width: '18px', height: '18px', color: 'var(--text-primary)',
                                         fontSize: '0.65rem', cursor: 'pointer', lineHeight: '18px',
                                         padding: 0, textAlign: 'center',
                                     }}
@@ -610,8 +610,8 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                                 width: '60px', height: '60px', borderRadius: '8px',
                                 border: '1px dashed #555', display: 'flex',
                                 alignItems: 'center', justifyContent: 'center',
-                                cursor: 'pointer', background: '#222', fontSize: '1.2rem',
-                                color: '#666',
+                                cursor: 'pointer', background: 'var(--bg-hover)', fontSize: '1.2rem',
+                                color: 'var(--text-muted)',
                             }}>
                                 📷
                                 <input
@@ -644,7 +644,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                             </label>
                         )}
                     </div>
-                    <p style={{ color: '#555', fontSize: '0.65rem', marginTop: '0.25rem' }}>
+                    <p style={{ color: 'var(--text-faint)', fontSize: '0.65rem', marginTop: '0.25rem' }}>
                         {newPostPhotos.length}/3 photos {newPostPhotos.length === 0 ? '(optional)' : ''}
                     </p>
                 </div>
@@ -654,7 +654,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     disabled={posting}
                     style={{
                         width: '100%', padding: '0.6rem', borderRadius: '10px',
-                        background: posting ? '#333' : '#2563eb', color: '#fff',
+                        background: posting ? '#333' : '#2563eb', color: 'var(--text-primary)',
                         border: 'none', fontSize: '0.9rem', fontWeight: 600,
                         cursor: posting ? 'default' : 'pointer', fontFamily: 'inherit',
                     }}

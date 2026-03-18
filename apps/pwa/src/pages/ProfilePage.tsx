@@ -106,9 +106,9 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
         width: '100%',
         padding: '0.75rem 1rem',
         borderRadius: '10px',
-        border: '1px solid #444',
-        background: '#0f0f0f',
-        color: '#fff',
+        border: '1px solid var(--border-input)',
+        background: 'var(--bg-secondary)',
+        color: 'var(--text-primary)',
         fontSize: '1rem',
         fontFamily: 'inherit',
         outline: 'none',
@@ -118,13 +118,13 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
         display: 'block',
         fontSize: '0.85rem',
         fontWeight: 600,
-        color: '#aaa',
+        color: 'var(--text-secondary)',
         marginBottom: '0.5rem',
     };
 
     if (loading) {
         return (
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#888' }}>
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                 Loading profile...
             </div>
         );
@@ -190,7 +190,7 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
                     <button
                         onClick={() => cameraInputRef.current?.click()}
                         style={{
-                            background: '#1a1a1a', border: '1px solid #333',
+                            background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
                             borderRadius: '8px', padding: '0.4rem 0.75rem',
                             color: '#ccc', fontSize: '0.75rem', cursor: 'pointer',
                             fontFamily: 'inherit',
@@ -201,7 +201,7 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
                     <button
                         onClick={() => fileInputRef.current?.click()}
                         style={{
-                            background: '#1a1a1a', border: '1px solid #333',
+                            background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
                             borderRadius: '8px', padding: '0.4rem 0.75rem',
                             color: '#ccc', fontSize: '0.75rem', cursor: 'pointer',
                             fontFamily: 'inherit',
@@ -242,7 +242,7 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
                         background: '#0a1628',
                     }}
                 />
-                <p style={{ color: '#555', fontSize: '0.7rem', margin: '0.25rem 0 0' }}>
+                <p style={{ color: 'var(--text-faint)', fontSize: '0.7rem', margin: '0.25rem 0 0' }}>
                     Changing your callsign updates your display name everywhere
                 </p>
             </div>
@@ -261,15 +261,15 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
                         resize: 'none',
                     }}
                 />
-                <p style={{ color: '#555', fontSize: '0.7rem', textAlign: 'right' }}>
+                <p style={{ color: 'var(--text-faint)', fontSize: '0.7rem', textAlign: 'right' }}>
                     {bio.length}/200
                 </p>
             </div>
 
             {/* Contact Details */}
             <div style={{
-                background: '#1a1a1a',
-                border: '1px solid #333',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-primary)',
                 borderRadius: '12px',
                 padding: '1rem',
                 marginBottom: '1.5rem',
@@ -310,7 +310,7 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
                                         cursor: 'pointer',
                                         fontFamily: 'inherit',
                                         textAlign: 'left',
-                                        color: '#e0e0e0',
+                                        color: 'var(--text-primary)',
                                     }}
                                 >
                                     <span style={{ fontSize: '1.1rem' }}>{opt.label.split(' ')[0]}</span>
@@ -318,7 +318,7 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
                                         <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>
                                             {opt.label.split(' ').slice(1).join(' ')}
                                         </div>
-                                        <div style={{ fontSize: '0.7rem', color: '#888' }}>{opt.desc}</div>
+                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{opt.desc}</div>
                                     </div>
                                 </button>
                             ))}
@@ -337,7 +337,7 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
                     borderRadius: '12px',
                     border: 'none',
                     background: saved ? '#22c55e' : saving ? '#555' : '#2563eb',
-                    color: '#fff',
+                    color: 'var(--text-primary)',
                     fontSize: '1rem',
                     fontWeight: 600,
                     cursor: saving ? 'not-allowed' : 'pointer',

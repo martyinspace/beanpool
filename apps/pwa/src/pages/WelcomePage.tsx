@@ -91,9 +91,9 @@ export function WelcomePage({ onComplete }: Props) {
         width: '100%',
         padding: '0.75rem 1rem',
         borderRadius: '10px',
-        border: '1px solid #444',
-        background: '#0f0f0f',
-        color: '#fff',
+        border: '1px solid var(--border-input)',
+        background: 'var(--bg-secondary)',
+        color: 'var(--text-primary)',
         fontSize: '1rem',
         fontFamily: 'inherit',
         outline: 'none',
@@ -117,14 +117,14 @@ export function WelcomePage({ onComplete }: Props) {
                 <h2 style={{ fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.5rem' }}>
                     Welcome to BeanPool
                 </h2>
-                <p style={{ color: '#888', marginBottom: '2rem', lineHeight: 1.6 }}>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', lineHeight: 1.6 }}>
                     Your identity is yours. It lives on this device,
                     backed by cryptography — no passwords, no central accounts.
                 </p>
 
                 <div style={{
-                    background: '#1a1a1a',
-                    border: '1px solid #333',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-primary)',
                     borderRadius: '16px',
                     padding: '2rem',
                 }}>
@@ -135,7 +135,7 @@ export function WelcomePage({ onComplete }: Props) {
                                 textAlign: 'left',
                                 fontSize: '0.85rem',
                                 fontWeight: 600,
-                                color: '#aaa',
+                                color: 'var(--text-secondary)',
                                 marginBottom: '0.5rem',
                             }}>
                                 Invite Code
@@ -161,7 +161,7 @@ export function WelcomePage({ onComplete }: Props) {
                                 textAlign: 'left',
                                 fontSize: '0.85rem',
                                 fontWeight: 600,
-                                color: '#aaa',
+                                color: 'var(--text-secondary)',
                                 marginBottom: '0.5rem',
                             }}>
                                 Choose your Callsign
@@ -192,7 +192,7 @@ export function WelcomePage({ onComplete }: Props) {
                                     borderRadius: '10px',
                                     border: 'none',
                                     background: loading ? '#555' : '#2563eb',
-                                    color: '#fff',
+                                    color: 'var(--text-primary)',
                                     fontSize: '1rem',
                                     fontWeight: 600,
                                     cursor: loading ? 'not-allowed' : 'pointer',
@@ -206,12 +206,12 @@ export function WelcomePage({ onComplete }: Props) {
                             </button>
 
                             {!inviteCode.trim() && (
-                                <p style={{ color: '#666', fontSize: '0.75rem', marginTop: '0.75rem' }}>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.75rem' }}>
                                     No invite code? You can still join — ask a member to invite you later for full access.
                                 </p>
                             )}
 
-                            <p style={{ color: '#555', fontSize: '0.75rem', marginTop: '1rem' }}>
+                            <p style={{ color: 'var(--text-faint)', fontSize: '0.75rem', marginTop: '1rem' }}>
                                 🔐 Ed25519 keypair generated locally. Your private key never leaves this device.
                             </p>
 
@@ -235,7 +235,7 @@ export function WelcomePage({ onComplete }: Props) {
                             <h3 style={{ fontSize: '1rem', marginBottom: '0.75rem', textAlign: 'left' }}>
                                 📥 Import Identity
                             </h3>
-                            <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5, textAlign: 'left' }}>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5, textAlign: 'left' }}>
                                 Paste the transfer code from your other device and enter the PIN.
                             </p>
                             <textarea
@@ -274,7 +274,7 @@ export function WelcomePage({ onComplete }: Props) {
                                     borderRadius: '10px',
                                     border: 'none',
                                     background: loading ? '#555' : '#2563eb',
-                                    color: '#fff',
+                                    color: 'var(--text-primary)',
                                     fontSize: '1rem',
                                     fontWeight: 600,
                                     cursor: loading ? 'not-allowed' : 'pointer',
@@ -290,7 +290,7 @@ export function WelcomePage({ onComplete }: Props) {
                                 style={{
                                     background: 'none',
                                     border: 'none',
-                                    color: '#888',
+                                    color: 'var(--text-muted)',
                                     fontSize: '0.85rem',
                                     cursor: 'pointer',
                                     marginTop: '1rem',

@@ -10,14 +10,17 @@ import { type BeanPoolIdentity } from '../lib/identity';
 import { exportIdentity, decryptIdentity } from '../lib/identity-transfer';
 import { importIdentity } from '../lib/identity';
 import { ProfilePage } from './ProfilePage';
+import { type Theme } from '../lib/useTheme';
 
 interface Props {
     identity: BeanPoolIdentity;
     onIdentityUpdated: (identity: BeanPoolIdentity) => void;
     onBack: () => void;
+    theme: Theme;
+    onToggleTheme: () => void;
 }
 
-export function SettingsPage({ identity, onIdentityUpdated, onBack }: Props) {
+export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onToggleTheme }: Props) {
     const [mode, setMode] = useState<'menu' | 'export' | 'import' | 'profile'>('menu');
     const [pin, setPin] = useState('');
     const [exportUri, setExportUri] = useState('');
@@ -69,20 +72,21 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack }: Props) {
     }
 
     const cardStyle: React.CSSProperties = {
-        background: '#1a1a1a',
-        border: '1px solid #333',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-primary)',
         borderRadius: '16px',
         padding: '1.5rem',
         marginBottom: '1rem',
+        boxShadow: 'var(--shadow-card)',
     };
 
     const inputStyle: React.CSSProperties = {
         width: '100%',
         padding: '0.75rem 1rem',
         borderRadius: '10px',
-        border: '1px solid #444',
-        background: '#0f0f0f',
-        color: '#fff',
+        border: '1px solid var(--border-input)',
+        background: 'var(--bg-input)',
+        color: 'var(--text-primary)',
         fontSize: '1rem',
         fontFamily: 'inherit',
         outline: 'none',
@@ -95,7 +99,7 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack }: Props) {
         borderRadius: '10px',
         border: 'none',
         background: active ? '#2563eb' : '#333',
-        color: '#fff',
+        color: 'var(--text-primary)',
         fontSize: '1rem',
         fontWeight: 600,
         cursor: active ? 'pointer' : 'not-allowed',
@@ -135,10 +139,50 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack }: Props) {
 
                 {/* Identity Card */}
                 <div style={cardStyle}>
-                    <div style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.25rem' }}>Callsign</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Callsign</div>
                     <div style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '0.75rem' }}>{identity.callsign}</div>
-                    <div style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.25rem' }}>Public Key</div>
-                    <div style={{ fontSize: '0.85rem', fontFamily: 'monospace', color: '#2563eb' }}>{fingerprint}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Public Key</div>
+                    <div style={{ fontSize: '0.85rem', fontFamily: 'monospace', color: 'var(--accent)' }}>{fingerprint}</div>
+                </div>
+
+                {/* Theme Toggle */}
+                <div style={{
+                    ...cardStyle,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '1rem 1.5rem',
+                }}>
+                    <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>
+                        {theme === 'dark' ? '🌙 Dark Theme' : '☀️ Light Theme'}
+                    </span>
+                    <button
+                        onClick={onToggleTheme}
+                        style={{
+                            width: '52px',
+                            height: '28px',
+                            borderRadius: '14px',
+                            border: 'none',
+                            background: theme === 'light' ? 'var(--accent)' : '#444',
+                            position: 'relative',
+                            cursor: 'pointer',
+                            transition: 'background 0.3s',
+                            padding: 0,
+                        }}
+                    >
+                        <span style={{
+                            display: 'block',
+                            width: '22px',
+                            height: '22px',
+                            borderRadius: '50%',
+                            background: '#fff',
+                            position: 'absolute',
+                            top: '3px',
+                            left: theme === 'light' ? '27px' : '3px',
+                            transition: 'left 0.3s',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                        }} />
+                    </button>
                 </div>
 
                 {mode === 'menu' && (
@@ -169,7 +213,7 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack }: Props) {
                         <h3 style={{ fontSize: '1rem', marginBottom: '0.75rem' }}>📤 Export Identity</h3>
                         {!exportUri ? (
                             <>
-                                <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
                                     Choose a PIN to protect your identity during transfer.
                                     You'll need this same PIN on the receiving device.
                                 </p>
@@ -188,7 +232,7 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack }: Props) {
                             </>
                         ) : (
                             <>
-                                <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
                                     Copy this code and paste it on your other device, or scan the text as a QR code.
                                 </p>
                                 <textarea
@@ -221,7 +265,7 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack }: Props) {
                 {mode === 'import' && (
                     <div style={cardStyle}>
                         <h3 style={{ fontSize: '1rem', marginBottom: '0.75rem' }}>📥 Import Identity</h3>
-                        <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
                             Paste the transfer code from your other device and enter the same PIN.
                         </p>
                         <textarea
