@@ -14,6 +14,7 @@
 | 3 | [README.md](README.md) | Project overview, features, API reference |
 | 4 | [SUMMARY.md](SUMMARY.md) | Protocol concepts: mutual credit, identity, governance |
 | 5 | [docs/NODE_ADMIN_SETUP.md](docs/NODE_ADMIN_SETUP.md) | Step-by-step guide for new node operators |
+| 6 | [ROADMAP.md](ROADMAP.md) | Planned features and future work |
 
 > [!IMPORTANT]
 > **Read `HANDOVER.md` before making any changes.** It contains critical information about Let's Encrypt rate limits that can break deployments if ignored.
@@ -28,6 +29,7 @@
 | [SUMMARY.md](SUMMARY.md) | Protocol concepts: mutual credit, identity, reputation, governance, mesh design |
 | [SCALING.md](SCALING.md) | Scaling design: sharding, CRDTs, DHT, edge computing |
 | [NETWORK.md](NETWORK.md) | Live network reference — nodes, IPs, DNS, ports, TLS, trust levels, sync |
+| [ROADMAP.md](ROADMAP.md) | Planned features — identity, marketplace, governance, native app |
 
 ## Operations & Deployment
 
@@ -80,7 +82,7 @@
 | `apps/server/src/handshake.ts` | Mutual trust verification + latency via yamux streams |
 | `apps/server/src/sync-protocol.ts` | Lazy state sync — Merkle hash + delta exchange |
 | `apps/server/src/local-config.ts` | Admin auth (scrypt) + node config |
-| `apps/server/static/settings.html` | Admin settings page — health dashboard, abuse reports, connectors |
+| `apps/server/static/settings.html` | Admin settings page — 4-tab layout (Identity, Network, Community, System), health dashboard, abuse reports, connectors |
 
 ## PWA Source (Key Files)
 
@@ -88,7 +90,7 @@
 |------|---------|
 | `apps/pwa/src/App.tsx` | Shell — identity gate, 5-tab bottom nav, header, tab routing |
 | `apps/pwa/src/pages/MapPage.tsx` | Leaflet/OSM map with marketplace pins, post form with photo upload |
-| `apps/pwa/src/pages/MarketplacePage.tsx` | Marketplace list + post detail + bean ratings + abuse reporting |
+| `apps/pwa/src/pages/MarketplacePage.tsx` | Marketplace list + search + radius filter + post detail + edit own posts + bean ratings + abuse reporting |
 | `apps/pwa/src/pages/MessagesPage.tsx` | Conversations list + chat view (DMs + groups) |
 | `apps/pwa/src/pages/InvitePage.tsx` | Generate + share invite codes (QR, clipboard) |
 | `apps/pwa/src/pages/LedgerPage.tsx` | Balance, transactions, send credits |
@@ -98,6 +100,8 @@
 | `apps/pwa/src/lib/identity.ts` | Ed25519 identity management (IndexedDB) |
 | `apps/pwa/src/lib/e2e-crypto.ts` | Plaintext v1 encoding (E2E-ready data model) |
 | `apps/pwa/src/lib/marketplace.ts` | 13-category config, MarketplacePost type |
+| `apps/pwa/src/lib/geo.ts` | Haversine distance, radius settings persistence |
+| `apps/pwa/src/components/RadiusPickerPage.tsx` | Facebook-style map radius picker (Leaflet circle + slider) |
 
 ---
 
@@ -114,4 +118,4 @@
 
 ---
 
-_Last updated: 2026-03-18 20:00 AEDT_
+_Last updated: 2026-03-18 22:57 AEDT_
