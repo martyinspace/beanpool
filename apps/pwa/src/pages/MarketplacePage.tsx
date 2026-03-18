@@ -13,7 +13,7 @@ import { RadiusPickerPage } from '../components/RadiusPickerPage';
 import { haversineDistance, loadRadiusSettings, saveRadiusSettings, clearRadiusSettings, type RadiusSettings } from '../lib/geo';
 import {
     getMarketplacePosts, removeMarketplacePost, updateMarketplacePost,
-    getMemberProfile, createConversationApi,
+    getMemberProfile, createConversationApi, sendTransfer,
     submitRating, getMemberRatings, reportAbuse,
     type MarketplacePost, type MemberProfile,
 } from '../lib/api';
@@ -55,6 +55,9 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
     const [showReportForm, setShowReportForm] = useState(false);
     const [reportReason, setReportReason] = useState('');
     const [submittingReport, setSubmittingReport] = useState(false);
+
+    // Accept/Fulfill
+    const [accepting, setAccepting] = useState(false);
 
     // Edit mode
     const [editMode, setEditMode] = useState(false);
@@ -336,18 +339,44 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                             {messaging ? 'Opening chat...' : '💬 Message'}
                         </button>
                         <button
-                            onClick={() => {
-                                // TODO: Trade proposal flow
-                                alert(`Trade proposal coming soon!\n\nFor now, use 💬 Message to coordinate with ${selectedPost.authorCallsign}.`);
+                            onClick={async () => {
+                                if (!identity || !selectedPost) return;
+                                const credits = selectedPost.credits;
+                                const isOffer = selectedPost.type === 'offer';
+                                const action = isOffer ? 'accept this offer' : 'fulfill this need';
+                                const direction = isOffer
+                                    ? `You pay ${selectedPost.authorCallsign} ${credits} 🫘`
+                                    : `${selectedPost.authorCallsign} pays you ${credits} 🫘`;
+                                const msg = credits === 0
+                                    ? `${action.charAt(0).toUpperCase() + action.slice(1)}?\n\nThis is a free listing (0 🫘). No credits will be transferred.`
+                                    : `${action.charAt(0).toUpperCase() + action.slice(1)}?\n\n${direction}`;
+                                if (!confirm(msg)) return;
+
+                                setAccepting(true);
+                                try {
+                                    if (credits > 0) {
+                                        const from = isOffer ? identity.publicKey : selectedPost.authorPublicKey;
+                                        const to = isOffer ? selectedPost.authorPublicKey : identity.publicKey;
+                                        const memo = `${isOffer ? 'Accepted' : 'Fulfilled'}: ${selectedPost.title}`;
+                                        await sendTransfer(from, to, credits, memo);
+                                    }
+                                    // Auto-open message conversation
+                                    handleMessageAuthor();
+                                } catch (err) {
+                                    alert(`Transfer failed: ${(err as Error).message}`);
+                                } finally {
+                                    setAccepting(false);
+                                }
                             }}
+                            disabled={accepting}
                             style={{
                                 width: '100%', padding: '0.85rem', borderRadius: '12px',
                                 background: typeColor, color: 'var(--text-primary)', border: 'none',
-                                fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer',
-                                fontFamily: 'inherit',
+                                fontSize: '0.95rem', fontWeight: 600, cursor: accepting ? 'wait' : 'pointer',
+                                fontFamily: 'inherit', opacity: accepting ? 0.6 : 1,
                             }}
                         >
-                            {selectedPost.type === 'offer' ? '🤝 Accept Offer' : '🤝 Fulfill Need'}
+                            {accepting ? 'Processing...' : (selectedPost.type === 'offer' ? '🤝 Accept Offer' : '🤝 Fulfill Need')}
                         </button>
                         <button
                             onClick={() => setShowRatingForm(!showRatingForm)}
