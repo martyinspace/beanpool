@@ -31,6 +31,14 @@
             margin: 0 auto;
         }
 
+        @media (min-width: 768px) {
+            .container { max-width: 720px; }
+        }
+
+        @media (min-width: 1024px) {
+            .container { max-width: 900px; }
+        }
+
         /* Glass panels */
         .glass {
             background: rgba(30, 41, 59, 0.7);
@@ -357,6 +365,53 @@
             grid-template-columns: 1fr 1fr;
             gap: 0.5rem;
         }
+
+        /* Tab bar */
+        .tab-bar {
+            display: flex;
+            gap: 0.25rem;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 0.3rem;
+            margin-bottom: 1.25rem;
+            position: sticky;
+            top: 0.5rem;
+            z-index: 100;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 0.55rem 0.25rem;
+            border: none;
+            border-radius: 10px;
+            background: transparent;
+            color: #64748b;
+            font-size: 0.72rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .tab-btn:hover {
+            color: #cbd5e1;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+        }
+
+        @media (min-width: 768px) {
+            .tab-btn {
+                font-size: 0.8rem;
+                padding: 0.6rem 0.5rem;
+            }
+        }
     </style>
 </head>
 
@@ -390,8 +445,16 @@
         <!-- ========== SETTINGS VIEW ========== -->
         <div id="view-settings" class="hidden">
 
+            <!-- Tab Bar -->
+            <div class="tab-bar" id="tab-bar">
+                <button class="tab-btn active" data-tab="identity">📡 Identity</button>
+                <button class="tab-btn" data-tab="network">🔗 Network</button>
+                <button class="tab-btn" data-tab="community">👥 Community</button>
+                <button class="tab-btn" data-tab="system">⚙️ System</button>
+            </div>
+
             <!-- Node Identity -->
-            <div class="glass">
+            <div class="glass" data-tab="identity">
                 <h3>📡 Node Identity</h3>
                 <div class="field">
                     <label>Callsign</label>
@@ -412,8 +475,27 @@
                 <div class="status-msg" id="identity-status"></div>
             </div>
 
+            <!-- Change Password -->
+            <div class="glass" data-tab="identity">
+                <h3>🔑 Change Password</h3>
+                <div class="field">
+                    <div class="pwd-wrapper">
+                        <input type="password" id="new-pwd" placeholder="New password">
+                        <button class="pwd-eye" tabindex="-1">👁</button>
+                    </div>
+                </div>
+                <div class="field">
+                    <div class="pwd-wrapper">
+                        <input type="password" id="new-pwd-confirm" placeholder="Confirm new password">
+                        <button class="pwd-eye" tabindex="-1">👁</button>
+                    </div>
+                </div>
+                <button class="btn btn-outline btn-full" id="change-pwd-btn">Update Password</button>
+                <div class="status-msg" id="pwd-status"></div>
+            </div>
+
             <!-- Invite Management -->
-            <div class="glass">
+            <div class="glass" data-tab="community">
                 <h3>🎟️ Invite Management</h3>
                 <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">
                     Generate invite codes for new members. On a fresh node, this creates the genesis account first.
@@ -434,7 +516,7 @@
             </div>
 
             <!-- Trusted Connectors -->
-            <div class="glass">
+            <div class="glass" data-tab="network">
                 <h3>🔗 Trusted Connectors</h3>
                 <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">
                     Both nodes must add each other as connectors for mutual trust.
@@ -469,27 +551,8 @@
                 </div>
             </div>
 
-            <!-- Change Password -->
-            <div class="glass">
-                <h3>🔑 Change Password</h3>
-                <div class="field">
-                    <div class="pwd-wrapper">
-                        <input type="password" id="new-pwd" placeholder="New password">
-                        <button class="pwd-eye" tabindex="-1">👁</button>
-                    </div>
-                </div>
-                <div class="field">
-                    <div class="pwd-wrapper">
-                        <input type="password" id="new-pwd-confirm" placeholder="Confirm new password">
-                        <button class="pwd-eye" tabindex="-1">👁</button>
-                    </div>
-                </div>
-                <button class="btn btn-outline btn-full" id="change-pwd-btn">Update Password</button>
-                <div class="status-msg" id="pwd-status"></div>
-            </div>
-
             <!-- Software Updates -->
-            <div class="glass">
+            <div class="glass" data-tab="network">
                 <h3>📦 Software Updates</h3>
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
                     <div>
@@ -515,7 +578,7 @@
                 <div class="status-msg" id="update-status"></div>
             </div>
             <!-- Thresholds & Guardrails -->
-            <div class="glass">
+            <div class="glass" data-tab="system">
                 <h3>⚙️ Thresholds & Guardrails</h3>
                 <p style="font-size:0.75rem;color:#64748b;margin-bottom:1rem;">Tune protocol parameters. Changes take effect immediately.</p>
 
@@ -584,7 +647,7 @@
             </div>
 
             <!-- Community Health -->
-            <div class="glass">
+            <div class="glass" data-tab="community">
                 <h3>💚 Community Health</h3>
                 <div id="health-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:1rem;"></div>
                 <div id="health-widest" style="display:none;background:#0f172a;border:1px solid #1e3a5f;border-radius:8px;padding:0.75rem;margin-bottom:1rem;"></div>
@@ -594,7 +657,7 @@
             </div>
 
             <!-- Abuse Reports -->
-            <div class="glass">
+            <div class="glass" data-tab="community">
                 <h3>🚩 Abuse Reports</h3>
                 <div id="reports-list" style="margin-bottom:0.75rem;">
                     <p style="color:#64748b;font-size:0.85rem;text-align:center;">Click refresh to load reports</p>
@@ -603,7 +666,7 @@
             </div>
 
             <!-- Reset Node -->
-            <div class="glass">
+            <div class="glass" data-tab="system">
                 <h3>⚠️ Reset Node</h3>
                 <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.75rem;">
                     Erases identity and all configuration. You'll need to restart the container to reconfigure.
@@ -637,6 +700,31 @@
             document.getElementById('view-login').classList.toggle('hidden', name !== 'login');
             document.getElementById('view-settings').classList.toggle('hidden', name !== 'settings');
         }
+
+        // ======================== TAB SWITCHING ========================
+        function switchTab(tabName) {
+            // Update buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tabName);
+            });
+            // Show/hide panels
+            document.querySelectorAll('#view-settings > .glass[data-tab]').forEach(panel => {
+                panel.style.display = panel.dataset.tab === tabName ? '' : 'none';
+            });
+            // Persist
+            sessionStorage.setItem('bp-settings-tab', tabName);
+            // Leaflet needs invalidateSize after being unhidden
+            if (tabName === 'identity' && settingsMap) {
+                setTimeout(() => settingsMap.invalidateSize(), 50);
+            }
+        }
+
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+        });
+
+        // Apply initial tab (default: identity)
+        switchTab(sessionStorage.getItem('bp-settings-tab') || 'identity');
 
         // ======================== LEAFLET MAP ========================
         const nodeIcon = L.divIcon({
