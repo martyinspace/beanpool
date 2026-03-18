@@ -98,21 +98,21 @@ export function App() {
             background: 'var(--bg-primary)',
             color: 'var(--text-primary)',
         }}>
-            {/* Header — overlay on map, normal on other tabs */}
+            {/* Header — overlay on map, normal on other tabs and settings */}
             <header style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 padding: '0.75rem 1rem',
-                borderBottom: activeTab === 'map' ? 'none' : '1px solid var(--border-secondary)',
-                background: activeTab === 'map' ? 'var(--header-overlay)' : 'var(--header-bg)',
-                position: activeTab === 'map' ? 'absolute' : 'sticky',
+                borderBottom: (activeTab === 'map' && !showSettings) ? 'none' : '1px solid var(--border-secondary)',
+                background: (activeTab === 'map' && !showSettings) ? 'var(--header-overlay)' : 'var(--header-bg)',
+                position: (activeTab === 'map' && !showSettings) ? 'absolute' : 'sticky',
                 top: 0,
                 left: 0,
                 right: 0,
                 zIndex: 100,
-                backdropFilter: activeTab === 'map' ? 'blur(8px)' : 'none',
-                WebkitBackdropFilter: activeTab === 'map' ? 'blur(8px)' : 'none',
+                backdropFilter: (activeTab === 'map' && !showSettings) ? 'blur(8px)' : 'none',
+                WebkitBackdropFilter: (activeTab === 'map' && !showSettings) ? 'blur(8px)' : 'none',
             }}>
                 <SyncStatus />
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -138,8 +138,8 @@ export function App() {
             <main style={{
                 flex: 1,
                 minHeight: 0,
-                overflowY: activeTab === 'map' ? 'hidden' : 'auto',
-                paddingBottom: activeTab === 'map' ? '0' : '4rem',
+                overflowY: (activeTab === 'map' && !showSettings) ? 'hidden' : 'auto',
+                paddingBottom: (activeTab === 'map' && !showSettings) ? '0' : '4rem',
                 position: 'relative',
             }}>
                 {showSettings ? (
