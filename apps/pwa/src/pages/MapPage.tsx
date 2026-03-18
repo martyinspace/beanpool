@@ -340,12 +340,12 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
 
     // Map control button style
     const mapBtnStyle: React.CSSProperties = {
-        width: '44px', height: '44px', borderRadius: '12px',
-        background: 'rgba(30, 30, 30, 0.92)', border: '1px solid rgba(255,255,255,0.15)',
-        color: '#fff', fontSize: '1.2rem', cursor: 'pointer',
+        width: '48px', height: '48px', borderRadius: '14px',
+        background: 'rgba(30, 30, 30, 0.95)', border: '1.5px solid rgba(255,255,255,0.2)',
+        color: '#fff', fontSize: '1.4rem', cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-        boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
+        boxShadow: '0 3px 14px rgba(0,0,0,0.5)',
         fontFamily: 'inherit',
     };
 
@@ -422,7 +422,15 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     }}
                     title="My location"
                 >
-                    {locating ? '⏳' : '◎'}
+                    {locating ? '⏳' : (
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+                            <circle cx="12" cy="12" r="4" />
+                            <line x1="12" y1="2" x2="12" y2="6" />
+                            <line x1="12" y1="18" x2="12" y2="22" />
+                            <line x1="2" y1="12" x2="6" y2="12" />
+                            <line x1="18" y1="12" x2="22" y2="12" />
+                        </svg>
+                    )}
                 </button>
             </div>
 
@@ -432,11 +440,11 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     onClick={() => setShowNewPost(true)}
                     style={{
                         position: 'fixed', bottom: '5.5rem', right: '0.75rem',
-                        width: '52px', height: '52px', borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #3b82f6, #2563eb)', border: 'none',
+                        width: '54px', height: '54px', borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #f59e0b, #d97706)', border: '2px solid rgba(255,255,255,0.2)',
                         color: '#fff', fontSize: '1.8rem', fontWeight: 300,
                         cursor: 'pointer', zIndex: 101,
-                        boxShadow: '0 4px 20px rgba(37, 99, 235, 0.5)',
+                        boxShadow: '0 4px 20px rgba(245, 158, 11, 0.5)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontFamily: 'inherit',
                     }}
