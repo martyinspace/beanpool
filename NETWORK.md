@@ -22,7 +22,7 @@ Every node runs the same software in a Docker container. Each one has:
 | # | Flag | Callsign | IP Address | DNS Name | Type | PWA |
 |---|------|----------|-----------|----------|------|-----|
 | 1 | 🇦🇺 | Sydney | `20.211.27.68` | `sydney.beanpool.org` | Azure VM | [Open](https://sydney.beanpool.org) |
-| 2 | 🇰🇷 | Korea | `20.194.24.118` | `korea.beanpool.org` | Azure VM | [Open](https://korea.beanpool.org) |
+| 2 | 🇦🇺 | Brisbane | `20.5.121.158` | `brisbane.beanpool.org` | Azure VM | [Open](https://brisbane.beanpool.org) |
 | 3 | 🏠 | Debian | `192.168.1.219` | `debian.beanpool.org` | Bare Metal (LAN) | [Open](https://debian.beanpool.org:8443) |
 
 All nodes run Docker containers. Public nodes use Let's Encrypt TLS (auto-provisioned via DNS-01 challenge). LAN nodes fall back to self-signed certificates.
@@ -37,7 +37,7 @@ Every BeanPool node listens on **4 ports**:
 |------|----------|-------------|-------------|
 | **4001** | TCP | **P2P Communication** — nodes sync state and verify trust via libp2p | Other nodes |
 | **4002** | TCP | **WebSocket P2P** — same as 4001 but via WebSocket for browsers | Browsers, mobile |
-| **8080** | HTTP | **Trust Bootstrap** — landing page with QR codes for cert trust and PWA install | New users |
+| **8080** | HTTP | **Landing Page** — community welcome hub with 3 paths (join, transfer, recover) | New users |
 | **8443** | HTTPS | **PWA Host** — the community interface (map, marketplace, messaging, ledger) | Everyone |
 
 ### Can I change them?
@@ -142,16 +142,16 @@ When two nodes have `full_sync` trust + mutual trust confirmed via handshake:
 ```bash
 bash deploy.sh           # Deploy to all 3 nodes
 bash deploy.sh 1         # Sydney only
-bash deploy.sh 2         # Korea only
+bash deploy.sh 2         # Brisbane only
 bash deploy.sh 3         # Debian (local dev) only
-bash deploy.sh 1 2       # Sydney + Korea
+bash deploy.sh 1 2       # Sydney + Brisbane
 ```
 
 ### SSH Access
 
 ```bash
 ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68   # Sydney
-ssh -i ~/.ssh/id_azure_lattice azureuser@20.194.24.118  # Korea
+ssh -i ~/.ssh/id_azure_lattice azureuser@20.5.121.158   # Brisbane
 ssh marty@192.168.1.219                                  # Debian (LAN)
 ```
 
@@ -174,7 +174,7 @@ ssh ... "docker logs beanpool-beanpool-node-1 2>&1"
 | `apps/server/src/index.ts` | Main BeanPool Node — 5-stage boot orchestrator |
 | `apps/server/src/tls.ts` | TLS certificate management — LE + self-signed fallback |
 | `apps/server/src/state-engine.ts` | In-memory state engine with JSON persistence (members, posts, profiles, ratings, reports) |
-| `apps/server/src/https-server.ts` | 22+ REST API endpoints |
+| `apps/server/src/https-server.ts` | 30+ REST API endpoints |
 | `apps/server/src/sync-protocol.ts` | Lazy state sync via libp2p streams |
 | `apps/pwa/src/App.tsx` | PWA shell — identity gate, 5-tab bottom nav, header |
 | `.env` | Cloudflare + admin secrets (gitignored) |
@@ -182,4 +182,4 @@ ssh ... "docker logs beanpool-beanpool-node-1 2>&1"
 
 ---
 
-_Last updated: 2026-03-18 20:00 AEDT_
+_Last updated: 2026-03-19 01:10 AEDT_

@@ -31,9 +31,9 @@
 - ✅ **WebSocket `/ws`** — real-time state feed
 - ✅ **Sovereign Connectors** — node-to-node trust with 3 levels
 - ✅ **Lazy State Sync** — Merkle hash comparison + delta exchange, 15-min intervals
-- ✅ **Handshake Protocol** — mutual trust + latency over yamux streams (~570ms Sydney↔Korea)
+- ✅ **Handshake Protocol** — mutual trust + latency over yamux streams
 - ✅ **Let's Encrypt Auto-TLS** — DNS-01 challenge via Cloudflare API (acme-client v5)
-- ✅ **3 Live Nodes** — Sydney, Korea, Debian (local dev server)
+- ✅ **3 Live Nodes** — Sydney, Brisbane, Debian (local dev server)
 - ✅ **Node Admin Setup Guide** — comprehensive docs for new node operators
 
 ---
@@ -125,9 +125,9 @@ pnpm build   # Builds all packages via Turborepo
 ```bash
 bash deploy.sh           # Deploy to all 3 nodes
 bash deploy.sh 1         # Sydney only
-bash deploy.sh 2         # Korea only
+bash deploy.sh 2         # Brisbane only
 bash deploy.sh 3         # Debian (local dev) only
-bash deploy.sh 1 2       # Sydney + Korea
+bash deploy.sh 1 2       # Sydney + Brisbane
 ```
 
 ### Live Nodes
@@ -135,12 +135,12 @@ bash deploy.sh 1 2       # Sydney + Korea
 | # | Node | IP | DNS | SSH User | SSH Key |
 |---|------|----|-----|----------|---------|
 | 1 | Sydney | `20.211.27.68` | `sydney.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` |
-| 2 | Korea | `20.194.24.118` | `korea.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` |
+| 2 | Brisbane | `20.5.121.158` | `brisbane.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` |
 | 3 | Debian | `192.168.1.219` | `debian.beanpool.org` | `marty` | default key |
 
 ```bash
 ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68   # Sydney
-ssh -i ~/.ssh/id_azure_lattice azureuser@20.194.24.118  # Korea
+ssh -i ~/.ssh/id_azure_lattice azureuser@20.5.121.158   # Brisbane
 ssh marty@192.168.1.219                                  # Debian (LAN)
 ```
 

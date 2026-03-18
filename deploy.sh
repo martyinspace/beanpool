@@ -26,7 +26,7 @@ fi
 # Azure nodes use azureuser + SSH key; Debian uses marty + default key
 NODES=(
   "1:beanpool-node-sydney:20.211.27.68:sydney.beanpool.org:azureuser"
-  "2:bp-korea:20.194.24.118:korea.beanpool.org:azureuser"
+  "2:bp-brisbane:20.5.121.158:brisbane.beanpool.org:azureuser"
   "3:bp-debian:192.168.1.219:debian.beanpool.org:marty"
 )
 
