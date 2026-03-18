@@ -152,9 +152,9 @@ export async function startHttpServer(port: number): Promise<void> {
       <button class="btn btn-primary" onclick="joinWithCode()">Join Community →</button>
     </div>
 
-    <!-- Open App -->
-    <a href="${pwaUrl}" class="btn btn-secondary" style="margin-bottom: 1rem; display: block;">
-      Already a member? Open BeanPool →
+    <!-- Existing Member -->
+    <a href="${pwaUrl}?import=true" class="btn btn-secondary" style="margin-bottom: 1rem; display: block;">
+      Already a member? Restore identity →
     </a>
 
     <!-- Recovery -->
