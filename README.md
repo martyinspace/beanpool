@@ -234,8 +234,8 @@ All endpoints are served on port 8443 (HTTPS):
 |------|----------|---------|
 | **4001** | TCP | libp2p P2P mesh |
 | **4002** | WS | libp2p WebSocket transport |
-| **8080** | HTTP | Landing page (community welcome hub) |
-| **8443** | HTTPS | PWA + REST API + WebSocket |
+| **8080** | HTTP | HTTP → HTTPS redirect (LAN: QR trust bootstrap) |
+| **8443** | HTTPS | Landing page (`/`), PWA (`/app`), Settings, REST API, WebSocket |
 
 ---
 
@@ -275,7 +275,7 @@ BeanPool is in active development. The PWA is **fully functional** with invite-o
 - ✅ Invite-only membership with single-use codes + hierarchical invite tree
 - ✅ 12-word BIP-39 seed phrase — deterministic Ed25519 key derivation + recovery
 - ✅ People tab — Friends, Community browser, Invites, Guardians (up to 5)
-- ✅ Landing page welcome hub — 3 paths (join, transfer, recover) + admin contact info
+- ✅ Landing page welcome hub (HTTPS `/`) — 3 paths (join, transfer, recover) + admin contact info
 - ✅ Admin community config — name, email, phone in Settings → Community tab
 - ✅ Member profiles (avatar via camera/gallery, editable callsign, bio, contact visibility)
 - ✅ 🫘 Bean reputation system — 5-bean ratings with comments on marketplace tiles + detail

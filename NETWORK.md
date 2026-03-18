@@ -37,8 +37,8 @@ Every BeanPool node listens on **4 ports**:
 |------|----------|-------------|-------------|
 | **4001** | TCP | **P2P Communication** — nodes sync state and verify trust via libp2p | Other nodes |
 | **4002** | TCP | **WebSocket P2P** — same as 4001 but via WebSocket for browsers | Browsers, mobile |
-| **8080** | HTTP | **Landing Page** — community welcome hub with 3 paths (join, transfer, recover) | New users |
-| **8443** | HTTPS | **PWA Host** — the community interface (map, marketplace, messaging, ledger) | Everyone |
+| **8080** | HTTP | **HTTP → HTTPS Redirect** — 301 redirect to HTTPS root (LAN nodes: QR trust bootstrap) | Everyone |
+| **8443** | HTTPS | **Landing page** (`/`), **PWA** (`/app`), **Settings** (`/settings`), **REST APIs** (`/api/*`) | Everyone |
 
 ### Can I change them?
 
