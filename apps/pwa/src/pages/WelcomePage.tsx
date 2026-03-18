@@ -22,8 +22,16 @@ export function WelcomePage({ onComplete }: Props) {
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [showImport, setShowImport] = useState(false);
-    const [importData, setImportData] = useState('');
+    const [showImport, setShowImport] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return !!params.get('import');
+    });
+    const [importData, setImportData] = useState(() => {
+        // Auto-fill if opened via identity transfer link
+        const params = new URLSearchParams(window.location.search);
+        const importParam = params.get('import');
+        return importParam ? window.location.href : '';
+    });
     const [importPin, setImportPin] = useState('');
 
     async function handleCreate() {
@@ -241,7 +249,7 @@ export function WelcomePage({ onComplete }: Props) {
                             <textarea
                                 value={importData}
                                 onChange={(e) => setImportData(e.target.value)}
-                                placeholder="Paste beanpool://import?d=... here"
+                                placeholder="Paste the identity transfer link here"
                                 style={{
                                     ...inputStyle,
                                     minHeight: '80px',

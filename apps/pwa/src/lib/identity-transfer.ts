@@ -4,7 +4,8 @@
  * Exports the identity as a PIN-encrypted JSON payload encoded in a QR-friendly
  * format. The receiving device scans the QR and enters the same PIN to decrypt.
  *
- * Format: beanpool://import?d=<base64-encoded-encrypted-JSON>
+ * Format: https://<origin>?import=<base64-encoded-encrypted-JSON>
+ * Legacy:  beanpool://import?d=<base64-encoded-encrypted-JSON>
  * Encryption: AES-GCM with PBKDF2-derived key from PIN
  */
 
@@ -58,7 +59,7 @@ export async function exportIdentity(identity: BeanPoolIdentity, pin: string): P
     combined.set(new Uint8Array(ciphertext), iv.length);
 
     const b64 = btoa(String.fromCharCode(...combined));
-    return `beanpool://import?d=${encodeURIComponent(b64)}`;
+    return `${window.location.origin}?import=${encodeURIComponent(b64)}`;
 }
 
 /**
@@ -66,11 +67,17 @@ export async function exportIdentity(identity: BeanPoolIdentity, pin: string): P
  * Returns the decrypted identity or throws on wrong PIN / corrupt data.
  */
 export async function decryptIdentity(uri: string, pin: string): Promise<BeanPoolIdentity> {
-    // Parse the URI
-    const match = uri.match(/beanpool:\/\/import\?d=(.+)/);
-    if (!match) throw new Error('Invalid import URI');
-
-    const b64 = decodeURIComponent(match[1]);
+    // Parse both new HTTPS format and legacy beanpool:// format
+    let b64: string;
+    const httpsMatch = uri.match(/[?&]import=(.+?)(?:&|$)/);
+    const legacyMatch = uri.match(/beanpool:\/\/import\?d=(.+)/);
+    if (httpsMatch) {
+        b64 = decodeURIComponent(httpsMatch[1]);
+    } else if (legacyMatch) {
+        b64 = decodeURIComponent(legacyMatch[1]);
+    } else {
+        throw new Error('Invalid import URI');
+    }
     const combined = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
 
     // Split IV (first 12 bytes) and ciphertext

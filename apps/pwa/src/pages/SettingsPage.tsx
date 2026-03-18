@@ -28,6 +28,7 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
 
     const fingerprint = identity.publicKey.slice(0, 16) + '…';
 
@@ -232,24 +233,66 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                             </>
                         ) : (
                             <>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
-                                    Copy this code and paste it on your other device, or scan the text as a QR code.
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.75rem', lineHeight: 1.5 }}>
+                                    Your encrypted identity link is ready. Send it to your other device.
                                 </p>
-                                <textarea
-                                    readOnly
-                                    value={exportUri}
-                                    onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-                                    style={{
-                                        ...inputStyle,
-                                        minHeight: '120px',
-                                        resize: 'none',
-                                        fontSize: '0.75rem',
-                                        fontFamily: 'monospace',
-                                        wordBreak: 'break-all',
-                                    }}
-                                />
-                                <p style={{ color: '#22c55e', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
-                                    ✅ PIN: {pin} — remember this for the receiving device
+                                <div style={{
+                                    background: 'var(--bg-secondary)', borderRadius: '10px',
+                                    border: '1px solid var(--border-input)', padding: '0.75rem',
+                                    marginBottom: '0.75rem', wordBreak: 'break-all',
+                                    fontSize: '0.7rem', fontFamily: 'monospace', color: 'var(--text-faint)',
+                                    maxHeight: '80px', overflow: 'hidden',
+                                }}>
+                                    {exportUri.slice(0, 120)}...
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                await navigator.clipboard.writeText(exportUri);
+                                                setCopied(true);
+                                                setTimeout(() => setCopied(false), 2000);
+                                            } catch {
+                                                const el = document.createElement('textarea');
+                                                el.value = exportUri;
+                                                document.body.appendChild(el);
+                                                el.select();
+                                                document.execCommand('copy');
+                                                document.body.removeChild(el);
+                                                setCopied(true);
+                                                setTimeout(() => setCopied(false), 2000);
+                                            }
+                                        }}
+                                        style={{
+                                            ...btnStyle(true),
+                                            flex: 1,
+                                            background: copied ? '#22c55e' : '#2563eb',
+                                        }}
+                                    >
+                                        {copied ? '✓ Copied!' : '📋 Copy Link'}
+                                    </button>
+                                    <button
+                                        onClick={async () => {
+                                            const shareData = {
+                                                title: 'BeanPool Identity Transfer',
+                                                text: `Import your BeanPool identity (PIN: ${pin})`,
+                                                url: exportUri,
+                                            };
+                                            if (navigator.share) {
+                                                try { await navigator.share(shareData); } catch { /* cancelled */ }
+                                            } else {
+                                                await navigator.clipboard.writeText(exportUri);
+                                                setCopied(true);
+                                                setTimeout(() => setCopied(false), 2000);
+                                            }
+                                        }}
+                                        style={{ ...btnStyle(true), flex: 1, background: '#333' }}
+                                    >
+                                        📤 Share
+                                    </button>
+                                </div>
+                                <p style={{ color: '#22c55e', fontSize: '0.85rem' }}>
+                                    🔑 PIN: <strong>{pin}</strong> — you'll need this on the receiving device
                                 </p>
                             </>
                         )}
@@ -271,7 +314,7 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                         <textarea
                             value={importData}
                             onChange={(e) => setImportData(e.target.value)}
-                            placeholder="Paste beanpool://import?d=... here"
+                            placeholder="Paste the identity transfer link here"
                             style={{
                                 ...inputStyle,
                                 minHeight: '100px',
