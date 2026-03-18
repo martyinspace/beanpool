@@ -205,7 +205,7 @@ export async function startHttpsServer(port: number): Promise<void> {
     router.post('/api/local/update-identity', async (ctx) => {
         if (!rateLimit(ctx)) return;
         const config = getLocalConfig();
-        const { password, callsign, lat, lng } = (ctx as any).requestBody || {};
+        const { password, callsign, lat, lng, communityName, contactEmail, contactPhone } = (ctx as any).requestBody || {};
 
         if (!password || !config.adminHash || !config.salt ||
             !verifyPassword(password, config.adminHash, config.salt)) {
@@ -218,8 +218,22 @@ export async function startHttpsServer(port: number): Promise<void> {
         if (lat !== undefined && lng !== undefined) {
             config.location = { lat: parseFloat(lat), lng: parseFloat(lng) };
         }
+        if (communityName !== undefined) config.communityName = (communityName || '').slice(0, 60) || null;
+        if (contactEmail !== undefined) config.contactEmail = (contactEmail || '').slice(0, 100) || null;
+        if (contactPhone !== undefined) config.contactPhone = (contactPhone || '').slice(0, 30) || null;
         saveLocalConfig(config);
         ctx.body = { success: true };
+    });
+
+    // Public community info — no auth required (landing page)
+    router.get('/api/local/community-info', async (ctx) => {
+        const config = getLocalConfig();
+        ctx.body = {
+            communityName: config.communityName || config.callsign || 'BeanPool Community',
+            contactEmail: config.contactEmail || null,
+            contactPhone: config.contactPhone || null,
+            callsign: config.callsign || null,
+        };
     });
 
     router.post('/api/local/change-password', async (ctx) => {
@@ -383,6 +397,9 @@ export async function startHttpsServer(port: number): Promise<void> {
             adminHash: null,
             salt: null,
             joinedAt: null,
+            communityName: null,
+            contactEmail: null,
+            contactPhone: null,
         });
 
         ctx.body = { success: true, message: 'Node reset. Restart to reconfigure.' };

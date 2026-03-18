@@ -494,6 +494,22 @@
                 <div class="status-msg" id="pwd-status"></div>
             </div>
 
+            <!-- Community Info -->
+            <div class="glass" data-tab="community">
+                <h3>🏘️ Community Info</h3>
+                <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">
+                    Public details displayed on your landing page. Helps new members find your community.
+                </p>
+                <label>Community Name</label>
+                <input type="text" id="community-name" placeholder="e.g. Sydney Community Exchange" maxlength="60" />
+                <label style="margin-top: 0.75rem; display: block;">Contact Email</label>
+                <input type="email" id="contact-email" placeholder="e.g. admin@mycommunity.org" maxlength="100" />
+                <label style="margin-top: 0.75rem; display: block;">Contact Phone</label>
+                <input type="tel" id="contact-phone" placeholder="e.g. +61 400 123 456" maxlength="30" />
+                <button class="btn btn-primary btn-full" id="save-community-btn" style="margin-top: 1rem;">Save Community Info</button>
+                <p id="community-save-msg" class="hidden" style="color: #10b981; font-size: 0.85rem; margin-top: 0.5rem; text-align: center;">✅ Saved</p>
+            </div>
+
             <!-- Invite Management -->
             <div class="glass" data-tab="community">
                 <h3>🎟️ Invite Management</h3>
@@ -816,6 +832,7 @@
                 loadVersionInfo();
                 loadHealthDashboard();
                 loadThresholds();
+                loadCommunityInfo();
                 setTimeout(() => {
                     initMap(
                         parseFloat(document.getElementById('cfg-lat').value) || null,
@@ -972,6 +989,40 @@
                 if (res.ok) showStatus('identity-status', 'Saved!', 'success');
                 else showStatus('identity-status', 'Save failed', 'error');
             } catch (e) { showStatus('identity-status', 'Save failed', 'error'); }
+        });
+
+        // ======================== COMMUNITY INFO ========================
+        // Load community info after login
+        async function loadCommunityInfo() {
+            try {
+                const res = await fetch(`${API}/community-info`);
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('community-name').value = data.communityName || '';
+                    document.getElementById('contact-email').value = data.contactEmail || '';
+                    document.getElementById('contact-phone').value = data.contactPhone || '';
+                }
+            } catch (e) { console.warn('Failed to load community info:', e); }
+        }
+
+        document.getElementById('save-community-btn').addEventListener('click', async () => {
+            try {
+                const res = await fetch(`${API}/update-identity`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        password: authToken,
+                        communityName: document.getElementById('community-name').value,
+                        contactEmail: document.getElementById('contact-email').value,
+                        contactPhone: document.getElementById('contact-phone').value,
+                    }),
+                });
+                const msg = document.getElementById('community-save-msg');
+                if (res.ok) {
+                    msg.classList.remove('hidden');
+                    setTimeout(() => msg.classList.add('hidden'), 2000);
+                }
+            } catch (e) { console.error('Failed to save community info:', e); }
         });
 
         // ======================== SEED INVITE ========================

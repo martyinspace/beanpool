@@ -100,9 +100,10 @@ export function InstallPrompt() {
             <button
                 onClick={handleDismiss}
                 style={{
-                    position: 'absolute', top: '0.5rem', right: '0.75rem',
-                    background: 'none', border: 'none', color: 'var(--text-muted)',
-                    fontSize: '1.2rem', cursor: 'pointer', padding: '0.25rem',
+                    position: 'absolute', top: '0.4rem', right: '0.5rem',
+                    background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff',
+                    fontSize: '1rem', cursor: 'pointer', padding: '0.4rem 0.6rem',
+                    borderRadius: '8px', lineHeight: 1,
                 }}
                 aria-label="Dismiss"
             >✕</button>

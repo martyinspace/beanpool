@@ -27,6 +27,9 @@ export interface LocalConfig {
     salt: string | null;
     joinedAt: number | null;
     thresholds?: Thresholds;
+    communityName: string | null;
+    contactEmail: string | null;
+    contactPhone: string | null;
 }
 
 export interface Thresholds {
@@ -54,6 +57,9 @@ const DEFAULT_CONFIG: LocalConfig = {
     adminHash: null,
     salt: null,
     joinedAt: null,
+    communityName: null,
+    contactEmail: null,
+    contactPhone: null,
 };
 
 export function getLocalConfig(): LocalConfig {

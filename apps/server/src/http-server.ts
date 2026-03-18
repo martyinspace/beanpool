@@ -22,14 +22,23 @@ export async function startHttpServer(port: number): Promise<void> {
 
     // Landing page — depends on TLS mode
     router.get('/', async (ctx) => {
-        // Public nodes with a domain should always redirect HTTP → HTTPS
-        // (isUsingLetsEncrypt() may still be false during initial ACME acquisition)
         const publicDomain = process.env.CF_RECORD_NAME;
         if (publicDomain) {
-            const pwaUrl = `https://${publicDomain}`;
-            // If request is from a browser, show a nice poster; otherwise just redirect
-            const qrCode = await QRCode.toDataURL(pwaUrl, { width: 400, margin: 2 });
-            const hostname = publicDomain;
+            const pwaUrl = `https://${publicDomain}:8443`;
+
+            // Fetch community info for dynamic content
+            const config = await import('./local-config.js').then(m => m.getLocalConfig());
+            const communityName = config.communityName || config.callsign || 'BeanPool Community';
+            const contactEmail = config.contactEmail || '';
+            const contactPhone = config.contactPhone || '';
+
+            const contactSection = (contactEmail || contactPhone) ? `
+            <div class="card">
+              <h2>📬 Contact</h2>
+              <p>Need help or want to learn more about our community?</p>
+              ${contactEmail ? `<a href="mailto:${contactEmail}" class="contact-link">📧 ${contactEmail}</a>` : ''}
+              ${contactPhone ? `<a href="tel:${contactPhone}" class="contact-link">📞 ${contactPhone}</a>` : ''}
+            </div>` : '';
 
             ctx.type = 'html';
             ctx.body = `<!DOCTYPE html>
@@ -37,92 +46,181 @@ export async function startHttpServer(port: number): Promise<void> {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BeanPool — Join BeanPool</title>
+  <title>${communityName} — BeanPool</title>
+  <meta name="description" content="Join ${communityName} on BeanPool — a sovereign marketplace powered by mutual credit.">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Inter', system-ui, sans-serif;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
       background: #0a0a0a;
       color: #e0e0e0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
       min-height: 100vh;
-      padding: 2rem;
+      line-height: 1.6;
     }
-    .poster {
-      max-width: 420px;
-      text-align: center;
+    .container { max-width: 480px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+
+    /* Hero */
+    .hero { text-align: center; margin-bottom: 2rem; }
+    .hero .logo { font-size: 3rem; margin-bottom: 0.5rem; }
+    .hero h1 { font-size: 1.6rem; font-weight: 700; color: #fff; margin-bottom: 0.25rem; }
+    .hero .tagline { color: #888; font-size: 0.9rem; }
+
+    /* Cards */
+    .card {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      border: 1px solid #1e3a5f;
+      border-radius: 16px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
     }
-    .logo { font-size: 3rem; margin-bottom: 0.5rem; }
-    h1 {
-      font-size: 1.8rem;
-      font-weight: 700;
-      color: #fff;
-      margin-bottom: 0.5rem;
+    .card h2 { font-size: 1.1rem; color: #fff; margin-bottom: 0.5rem; }
+    .card p { font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.75rem; }
+    .card-muted { background: #111827; border-color: #1f2937; }
+
+    /* Inputs & Buttons */
+    input[type="text"] {
+      width: 100%; padding: 0.75rem 1rem; background: #0f172a; border: 1px solid #334155;
+      border-radius: 10px; color: #fff; font-size: 1rem; letter-spacing: 1px;
+      text-align: center; font-family: 'SF Mono', 'Fira Code', monospace;
     }
-    .tagline {
-      color: #888;
-      font-size: 0.95rem;
-      margin-bottom: 2rem;
-      line-height: 1.5;
+    input::placeholder { color: #475569; letter-spacing: 0; font-family: inherit; }
+    .btn {
+      display: block; width: 100%; padding: 0.75rem; border: none; border-radius: 10px;
+      font-size: 0.95rem; font-weight: 600; cursor: pointer; text-align: center;
+      text-decoration: none; margin-top: 0.75rem; transition: all 0.2s;
     }
-    .qr-card {
-      background: #fff;
-      border-radius: 20px;
-      padding: 1.5rem;
-      display: inline-block;
-      margin-bottom: 1.5rem;
-      box-shadow: 0 0 40px rgba(37, 99, 235, 0.15);
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; transform: scale(1.01); }
+    .btn-secondary { background: #1e293b; color: #94a3b8; }
+    .btn-secondary:hover { background: #334155; color: #fff; }
+    .btn-inline {
+      display: inline-block; width: auto; padding: 0.5rem 1rem; font-size: 0.85rem;
+      border-radius: 8px; margin-top: 0.5rem;
     }
-    .qr-card img { display: block; }
-    .scan-text {
-      font-size: 0.9rem;
-      color: #aaa;
-      margin-bottom: 1.5rem;
+
+    /* Contact */
+    .contact-link {
+      display: block; color: #60a5fa; text-decoration: none; font-size: 0.9rem;
+      padding: 0.4rem 0; transition: color 0.2s;
     }
-    a.btn {
-      display: inline-block;
-      background: #2563eb;
-      color: white;
-      text-decoration: none;
-      padding: 0.85rem 2rem;
-      border-radius: 12px;
-      font-weight: 600;
-      font-size: 1rem;
-      transition: background 0.2s, transform 0.1s;
+    .contact-link:hover { color: #93bbfc; }
+
+    /* FAQ */
+    .faq-item { border-top: 1px solid #1f2937; padding: 0.75rem 0; }
+    .faq-q {
+      font-size: 0.9rem; font-weight: 600; color: #e2e8f0; cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center;
     }
-    a.btn:hover { background: #1d4ed8; transform: scale(1.02); }
-    .footer {
-      margin-top: 2rem;
-      font-size: 0.75rem;
-      color: #444;
+    .faq-q:hover { color: #60a5fa; }
+    .faq-a {
+      font-size: 0.8rem; color: #94a3b8; padding-top: 0.5rem;
+      display: none; line-height: 1.5;
     }
-    .domain {
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      color: #2563eb;
-      font-size: 0.85rem;
-      margin-bottom: 0.5rem;
+    .faq-item.open .faq-a { display: block; }
+    .faq-arrow { transition: transform 0.2s; font-size: 0.8rem; }
+    .faq-item.open .faq-arrow { transform: rotate(90deg); }
+
+    /* Recovery */
+    .recovery-options { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+    .recovery-opt {
+      flex: 1; background: #0f172a; border: 1px solid #334155; border-radius: 10px;
+      padding: 0.75rem; text-align: center; cursor: pointer; transition: all 0.2s;
+      text-decoration: none; color: #e2e8f0; font-size: 0.8rem;
     }
+    .recovery-opt:hover { border-color: #2563eb; background: #1a1a2e; }
+    .recovery-opt .icon { font-size: 1.5rem; display: block; margin-bottom: 0.25rem; }
+
+    /* Divider */
+    .divider { border: none; border-top: 1px solid #1f2937; margin: 1.5rem 0; }
+
+    .footer { text-align: center; font-size: 0.7rem; color: #333; margin-top: 2rem; }
   </style>
 </head>
 <body>
-  <div class="poster">
-    <div class="logo">🫘</div>
-    <h1>Join BeanPool</h1>
-    <p class="tagline">Sovereign marketplace. No accounts, no passwords.<br/>Your identity is yours.</p>
-
-    <div class="qr-card">
-      <img src="${qrCode}" alt="Scan to join" width="280" height="280" />
+  <div class="container">
+    <div class="hero">
+      <div class="logo">🫘</div>
+      <h1>${communityName}</h1>
+      <p class="tagline">Sovereign marketplace. Your identity is yours.</p>
     </div>
 
-    <p class="scan-text">📱 Scan with your phone camera to join</p>
+    <!-- Join -->
+    <div class="card">
+      <h2>🎟️ Join with Invite Code</h2>
+      <p>Got an invite code from a member? Enter it below.</p>
+      <input type="text" id="invite-input" placeholder="BP-XXXXXX" maxlength="20" />
+      <button class="btn btn-primary" onclick="joinWithCode()">Join Community →</button>
+    </div>
 
-    <p class="domain">${hostname}</p>
-    <a href="${pwaUrl}" class="btn">Open BeanPool →</a>
+    <!-- Open App -->
+    <a href="${pwaUrl}" class="btn btn-secondary" style="margin-bottom: 1rem; display: block;">
+      Already a member? Open BeanPool →
+    </a>
 
-    <p class="footer">Sovereign infrastructure for sovereign communities.</p>
+    <!-- Recovery -->
+    <div class="card card-muted">
+      <h2>🔐 Recover Your Identity</h2>
+      <p>Lost your device? Two ways to get your identity back.</p>
+      <div class="recovery-options">
+        <a href="${pwaUrl}#recover-phrase" class="recovery-opt">
+          <span class="icon">🔑</span>
+          12-Word Phrase
+        </a>
+        <a href="${pwaUrl}#recover-social" class="recovery-opt">
+          <span class="icon">👥</span>
+          Ask 3 Friends
+        </a>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- FAQ -->
+    <div class="card card-muted" style="border: none; background: none; padding: 0;">
+      <h2 style="margin-bottom: 0.75rem; padding: 0 0.25rem;">❓ Frequently Asked Questions</h2>
+
+      <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">What is BeanPool?<span class="faq-arrow">▶</span></div>
+        <div class="faq-a">BeanPool is a mutual credit marketplace for local communities. Members can post offers and needs, trade using community credits, and build local economic resilience — all without banks or corporations.</div>
+      </div>
+
+      <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">How do I get an invite?<span class="faq-arrow">▶</span></div>
+        <div class="faq-a">Ask an existing community member to generate an invite code for you. They can share it as a link, QR code, or text. Each invite code works once.</div>
+      </div>
+
+      <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">Is my data private?<span class="faq-arrow">▶</span></div>
+        <div class="faq-a">Your identity is an Ed25519 keypair stored only on your device — never on a server. Your posts and transactions are shared within your community, but your private key never leaves your device.</div>
+      </div>
+
+      <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">What are community credits?<span class="faq-arrow">▶</span></div>
+        <div class="faq-a">Credits are a mutual credit currency. When you trade, credits transfer between members. Every member starts at zero. The system is designed to encourage reciprocity and keep value circulating locally.</div>
+      </div>
+
+      <div class="faq-item" onclick="this.classList.toggle('open')">
+        <div class="faq-q">Can I use this on my phone?<span class="faq-arrow">▶</span></div>
+        <div class="faq-a">Yes! BeanPool is a Progressive Web App. Open the app link in your browser, then "Add to Home Screen" for the full native-like experience — works on Android, iOS, and desktop.</div>
+      </div>
+    </div>
+
+    ${contactSection}
+
+    <p class="footer">Powered by BeanPool · Sovereign infrastructure for sovereign communities</p>
   </div>
+
+  <script>
+    function joinWithCode() {
+      const code = document.getElementById('invite-input').value.trim();
+      if (code) {
+        window.location.href = '${pwaUrl}?invite=' + encodeURIComponent(code);
+      }
+    }
+    document.getElementById('invite-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') joinWithCode();
+    });
+  </script>
 </body>
 </html>`;
         } else {
