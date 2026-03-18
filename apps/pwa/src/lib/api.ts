@@ -271,3 +271,40 @@ export async function getMemberRatings(publicKey: string): Promise<{ ratings: Ra
 export async function reportAbuse(reporterPubkey: string, targetPubkey: string, reason: string, targetPostId?: string): Promise<{ success: boolean }> {
     return request('POST', '/api/reports', { reporterPubkey, targetPubkey, reason, targetPostId });
 }
+
+// ===================== FRIENDS =====================
+
+export interface FriendEntry {
+    publicKey: string;
+    callsign: string;
+    addedAt: string;
+    isGuardian: boolean;
+}
+
+export async function getFriends(publicKey: string): Promise<FriendEntry[]> {
+    return request('GET', `/api/friends/${publicKey}`);
+}
+
+export async function addFriendApi(ownerPubkey: string, friendPubkey: string): Promise<{ success: boolean; friend: FriendEntry }> {
+    return request('POST', '/api/friends/add', { ownerPubkey, friendPubkey });
+}
+
+export async function removeFriendApi(ownerPubkey: string, friendPubkey: string): Promise<{ success: boolean }> {
+    return request('POST', '/api/friends/remove', { ownerPubkey, friendPubkey });
+}
+
+export async function setGuardianApi(ownerPubkey: string, friendPubkey: string, isGuardian: boolean): Promise<{ success: boolean }> {
+    return request('POST', '/api/friends/guardian', { ownerPubkey, friendPubkey, isGuardian });
+}
+
+// ===================== MEMBERS =====================
+
+export interface MemberSummary {
+    publicKey: string;
+    callsign: string;
+    joinedAt: string;
+}
+
+export async function getAllMembers(): Promise<MemberSummary[]> {
+    return request('GET', '/api/members');
+}

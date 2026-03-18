@@ -18,11 +18,11 @@ import { MarketplacePage } from './pages/MarketplacePage';
 import { LedgerPage } from './pages/LedgerPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { MapPage } from './pages/MapPage';
-import { InvitePage } from './pages/InvitePage';
+import { PeoplePage } from './pages/PeoplePage';
 import { MessagesPage } from './pages/MessagesPage';
 import { InstallPrompt } from './components/InstallPrompt';
 
-type Tab = 'map' | 'marketplace' | 'messages' | 'invite' | 'ledger';
+type Tab = 'map' | 'marketplace' | 'messages' | 'people' | 'ledger';
 
 export function App() {
     const [identity, setIdentity] = useState<BeanPoolIdentity | null>(null);
@@ -85,7 +85,7 @@ export function App() {
         { id: 'map', label: 'Map', emoji: '🗺️' },
         { id: 'marketplace', label: 'Market', emoji: '🤝' },
         { id: 'messages', label: 'Chat', emoji: '💬' },
-        { id: 'invite', label: 'Invite', emoji: '🎟️' },
+        { id: 'people', label: 'People', emoji: '👥' },
         { id: 'ledger', label: 'Ledger', emoji: '📊' },
     ];
 
@@ -155,7 +155,7 @@ export function App() {
                         {activeTab === 'map' && <MapPage identity={identity} openNewPost={openNewPost} onOpenNewPostHandled={() => setOpenNewPost(false)} onNavigate={(tab) => navigateToTab(tab)} />}
                         {activeTab === 'marketplace' && <MarketplacePage identity={identity} onNavigate={(tab, convId) => navigateToTab(tab, convId)} />}
                         {activeTab === 'messages' && <MessagesPage identity={identity} openConversationId={openConversationId} onConversationOpened={() => setOpenConversationId(null)} />}
-                        {activeTab === 'invite' && <InvitePage identity={identity} />}
+                        {activeTab === 'people' && <PeoplePage identity={identity} />}
                         {activeTab === 'ledger' && <LedgerPage identity={identity} />}
                     </>
                 )}

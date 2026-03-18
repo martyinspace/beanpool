@@ -108,6 +108,13 @@ export interface AbuseReport {
     createdAt: string;
 }
 
+export interface FriendEntry {
+    publicKey: string;
+    callsign: string;
+    addedAt: string;
+    isGuardian: boolean;
+}
+
 interface PersistedState {
     members: Member[];
     posts: MarketplacePost[];
@@ -119,6 +126,7 @@ interface PersistedState {
     ledgerAccounts: { id: string; balance: number; lastDemurrageEpoch: number }[];
     ratings: Rating[];
     reports: AbuseReport[];
+    friends: Record<string, FriendEntry[]>;
 }
 
 // ===================== STATE =====================
@@ -133,6 +141,7 @@ let conversations: Conversation[] = [];
 let messages: Message[] = [];
 let ratings: Rating[] = [];
 let reports: AbuseReport[] = [];
+let friends: Record<string, FriendEntry[]> = {};
 let wsClients: Set<any> = new Set();
 
 // ===================== INIT =====================
@@ -152,6 +161,7 @@ export function initStateEngine(): void {
             messages = (saved as any).messages || [];
             ratings = (saved as any).ratings || [];
             reports = (saved as any).reports || [];
+            friends = (saved as any).friends || {};
             // Migrate legacy members without invitedBy field
             for (const m of members) {
                 if (!m.invitedBy) m.invitedBy = 'genesis';
@@ -181,6 +191,7 @@ function saveState(): void {
         ledgerAccounts: ledger.getAllAccounts(),
         ratings,
         reports,
+        friends,
     };
     fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
 }
@@ -967,4 +978,53 @@ export function submitReport(reporterPubkey: string, targetPubkey: string, reaso
 
 export function getReports(): AbuseReport[] {
     return [...reports].reverse();
+}
+
+// ===================== FRIENDS =====================
+
+export function getFriends(pubkey: string): FriendEntry[] {
+    return friends[pubkey] || [];
+}
+
+export function addFriend(ownerPubkey: string, friendPubkey: string): FriendEntry | null {
+    if (!members.find(m => m.publicKey === ownerPubkey)) return null;
+    const friendMember = members.find(m => m.publicKey === friendPubkey);
+    if (!friendMember) return null;
+    if (ownerPubkey === friendPubkey) return null;
+
+    if (!friends[ownerPubkey]) friends[ownerPubkey] = [];
+
+    // Already friends?
+    if (friends[ownerPubkey].find(f => f.publicKey === friendPubkey)) {
+        return friends[ownerPubkey].find(f => f.publicKey === friendPubkey)!;
+    }
+
+    const entry: FriendEntry = {
+        publicKey: friendPubkey,
+        callsign: friendMember.callsign,
+        addedAt: new Date().toISOString(),
+        isGuardian: false,
+    };
+    friends[ownerPubkey].push(entry);
+    saveState();
+    console.log(`👥 ${getMember(ownerPubkey)?.callsign} added ${friendMember.callsign} as friend`);
+    return entry;
+}
+
+export function removeFriend(ownerPubkey: string, friendPubkey: string): boolean {
+    if (!friends[ownerPubkey]) return false;
+    const idx = friends[ownerPubkey].findIndex(f => f.publicKey === friendPubkey);
+    if (idx === -1) return false;
+    friends[ownerPubkey].splice(idx, 1);
+    saveState();
+    return true;
+}
+
+export function setGuardian(ownerPubkey: string, friendPubkey: string, isGuardian: boolean): boolean {
+    if (!friends[ownerPubkey]) return false;
+    const friend = friends[ownerPubkey].find(f => f.publicKey === friendPubkey);
+    if (!friend) return false;
+    friend.isGuardian = isGuardian;
+    saveState();
+    return true;
 }

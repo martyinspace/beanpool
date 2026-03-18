@@ -1,9 +1,12 @@
 /**
  * Identity Library — Ed25519 Keypair + Callsign Management
  *
- * On first run, generates an Ed25519 keypair in the browser
- * and stores it in IndexedDB. The public key acts as the DID.
+ * On first run, generates a 12-word BIP-39 mnemonic, derives an
+ * Ed25519 keypair deterministically, and stores both in IndexedDB.
+ * The public key acts as the DID.
  */
+
+import { generateMnemonic, mnemonicToKeypair } from './mnemonic';
 
 const DB_NAME = 'beanpool-identity';
 const STORE_NAME = 'keys';
@@ -14,6 +17,7 @@ export interface BeanPoolIdentity {
     privateKey: string;   // Hex-encoded Ed25519 private key (never leaves device)
     callsign: string;     // Human-readable name
     createdAt: string;
+    mnemonic?: string[];  // 12-word recovery phrase (optional for legacy identities)
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -42,40 +46,41 @@ export async function loadIdentity(): Promise<BeanPoolIdentity | null> {
 }
 
 /**
- * Generate a new Ed25519 identity and store it in IndexedDB.
+ * Generate a new Ed25519 identity from a 12-word mnemonic.
+ * Returns the identity AND the mnemonic (for one-time display).
  */
 export async function createIdentity(callsign: string): Promise<BeanPoolIdentity> {
-    // Use WebCrypto to generate Ed25519 keypair
-    // Note: Ed25519 support in WebCrypto is available in modern browsers
-    const keypair = await crypto.subtle.generateKey(
-        { name: 'Ed25519' } as any,
-        true,  // extractable
-        ['sign', 'verify']
-    );
-
-    const publicKeyRaw = await crypto.subtle.exportKey('raw', keypair.publicKey);
-    const privateKeyRaw = await crypto.subtle.exportKey('pkcs8', keypair.privateKey);
-
-    const publicKeyHex = bufToHex(new Uint8Array(publicKeyRaw));
-    const privateKeyHex = bufToHex(new Uint8Array(privateKeyRaw));
+    const words = generateMnemonic();
+    const { publicKeyHex, privateKeyHex } = await mnemonicToKeypair(words);
 
     const identity: BeanPoolIdentity = {
         publicKey: publicKeyHex,
         privateKey: privateKeyHex,
         callsign,
         createdAt: new Date().toISOString(),
+        mnemonic: words,
     };
 
-    // Store in IndexedDB
-    const db = await openDb();
-    await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        const store = tx.objectStore(STORE_NAME);
-        store.put(identity, KEY_ID);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-    });
+    await saveIdentity(identity);
+    return identity;
+}
 
+/**
+ * Recover identity from a 12-word mnemonic phrase.
+ * Derives the same keypair deterministically.
+ */
+export async function createIdentityFromMnemonic(words: string[], callsign: string): Promise<BeanPoolIdentity> {
+    const { publicKeyHex, privateKeyHex } = await mnemonicToKeypair(words);
+
+    const identity: BeanPoolIdentity = {
+        publicKey: publicKeyHex,
+        privateKey: privateKeyHex,
+        callsign,
+        createdAt: new Date().toISOString(),
+        mnemonic: words,
+    };
+
+    await saveIdentity(identity);
     return identity;
 }
 
@@ -84,14 +89,7 @@ export async function createIdentity(callsign: string): Promise<BeanPoolIdentity
  * Overwrites any existing identity.
  */
 export async function importIdentity(identity: BeanPoolIdentity): Promise<void> {
-    const db = await openDb();
-    await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        const store = tx.objectStore(STORE_NAME);
-        store.put(identity, KEY_ID);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-    });
+    await saveIdentity(identity);
 }
 
 /**
@@ -102,6 +100,11 @@ export async function updateCallsign(newCallsign: string): Promise<BeanPoolIdent
     const identity = await loadIdentity();
     if (!identity) return null;
     identity.callsign = newCallsign;
+    await saveIdentity(identity);
+    return identity;
+}
+
+async function saveIdentity(identity: BeanPoolIdentity): Promise<void> {
     const db = await openDb();
     await new Promise<void>((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -110,9 +113,4 @@ export async function updateCallsign(newCallsign: string): Promise<BeanPoolIdent
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
     });
-    return identity;
-}
-
-function bufToHex(buf: Uint8Array): string {
-    return Array.from(buf).map(b => b.toString(16).padStart(2, '0')).join('');
 }

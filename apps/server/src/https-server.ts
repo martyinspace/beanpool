@@ -46,6 +46,7 @@ import {
     seedGenesisMember,
     addRating, getRatings, getAverageRating,
     submitReport, getReports,
+    getFriends, addFriend, removeFriend, setGuardian,
 } from './state-engine.js';
 
 const PUBLIC_DIR = path.resolve('public');
@@ -697,6 +698,62 @@ export async function startHttpsServer(port: number): Promise<void> {
             return;
         }
         ctx.body = { success: true, report };
+    });
+
+    // ======================== FRIENDS ========================
+
+    router.get('/api/friends/:publicKey', async (ctx) => {
+        const pubkey = ctx.params.publicKey;
+        ctx.body = getFriends(pubkey);
+    });
+
+    router.post('/api/friends/add', async (ctx) => {
+        const { ownerPubkey, friendPubkey } = (ctx as any).requestBody || {};
+        if (!ownerPubkey || !friendPubkey) {
+            ctx.status = 400;
+            ctx.body = { error: 'ownerPubkey and friendPubkey are required' };
+            return;
+        }
+        const entry = addFriend(ownerPubkey, friendPubkey);
+        if (!entry) {
+            ctx.status = 400;
+            ctx.body = { error: 'Failed — both must be registered members' };
+            return;
+        }
+        ctx.body = { success: true, friend: entry };
+    });
+
+    router.post('/api/friends/remove', async (ctx) => {
+        const { ownerPubkey, friendPubkey } = (ctx as any).requestBody || {};
+        if (!ownerPubkey || !friendPubkey) {
+            ctx.status = 400;
+            ctx.body = { error: 'ownerPubkey and friendPubkey are required' };
+            return;
+        }
+        const ok = removeFriend(ownerPubkey, friendPubkey);
+        ctx.body = { success: ok };
+    });
+
+    router.post('/api/friends/guardian', async (ctx) => {
+        const { ownerPubkey, friendPubkey, isGuardian } = (ctx as any).requestBody || {};
+        if (!ownerPubkey || !friendPubkey) {
+            ctx.status = 400;
+            ctx.body = { error: 'ownerPubkey and friendPubkey are required' };
+            return;
+        }
+        const ok = setGuardian(ownerPubkey, friendPubkey, !!isGuardian);
+        ctx.body = { success: ok };
+    });
+
+    // ======================== MEMBERS LIST ========================
+
+    router.get('/api/members', async (ctx) => {
+        const allMembers = getMembers();
+        ctx.body = allMembers.map(m => ({
+            publicKey: m.publicKey,
+            callsign: m.callsign,
+            joinedAt: m.joinedAt,
+        }));
     });
 
     router.get('/api/admin/reports', async (ctx) => {
