@@ -535,6 +535,38 @@ export function removePost(id: string, authorPublicKey: string): boolean {
     return true;
 }
 
+export function updatePost(
+    id: string,
+    authorPublicKey: string,
+    updates: {
+        type?: 'offer' | 'need';
+        category?: string;
+        title?: string;
+        description?: string;
+        credits?: number;
+        lat?: number;
+        lng?: number;
+        photos?: string[];
+    },
+): MarketplacePost | null {
+    const post = posts.find(p => p.id === id && p.authorPublicKey === authorPublicKey && p.active);
+    if (!post) return null;
+
+    if (updates.type) post.type = updates.type;
+    if (updates.category) post.category = updates.category;
+    if (updates.title) post.title = updates.title;
+    if (updates.description !== undefined) post.description = updates.description;
+    if (updates.credits !== undefined) post.credits = Number(updates.credits) || 0;
+    if (updates.lat !== undefined) post.lat = updates.lat;
+    if (updates.lng !== undefined) post.lng = updates.lng;
+    if (updates.photos !== undefined) post.photos = updates.photos.slice(0, 3);
+
+    saveState();
+    broadcast({ type: 'post_updated', post });
+    console.log(`✏️ Updated post: "${post.title}" by ${post.authorCallsign}`);
+    return post;
+}
+
 // ===================== COMMUNITY INFO =====================
 
 export function getCommunityInfo(): {

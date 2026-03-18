@@ -230,6 +230,23 @@ export async function removeMarketplacePost(id: string, authorPublicKey: string)
     return request('POST', '/api/marketplace/posts/remove', { id, authorPublicKey });
 }
 
+export async function updateMarketplacePost(
+    id: string,
+    authorPublicKey: string,
+    updates: {
+        type?: 'offer' | 'need';
+        category?: string;
+        title?: string;
+        description?: string;
+        credits?: number;
+        lat?: number;
+        lng?: number;
+        photos?: string[];
+    },
+): Promise<{ success: boolean; post: MarketplacePost }> {
+    return request('POST', '/api/marketplace/posts/update', { id, authorPublicKey, ...updates });
+}
+
 // ===================== RATINGS =====================
 
 export interface Rating {

@@ -9,8 +9,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { MARKETPLACE_CATEGORIES, POST_TYPE_COLORS, type PostType } from '../lib/marketplace';
 import { MarketplaceCard } from '../components/MarketplaceCard';
+import { RadiusPickerPage } from '../components/RadiusPickerPage';
+import { haversineDistance, loadRadiusSettings, saveRadiusSettings, clearRadiusSettings, type RadiusSettings } from '../lib/geo';
 import {
-    getMarketplacePosts, removeMarketplacePost,
+    getMarketplacePosts, removeMarketplacePost, updateMarketplacePost,
     getMemberProfile, createConversationApi,
     submitRating, getMemberRatings, reportAbuse,
     type MarketplacePost, type MemberProfile,
@@ -30,6 +32,11 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
     const [showMine, setShowMine] = useState(false);
     const [deleting, setDeleting] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // Radius filter
+    const [radiusSettings, setRadiusSettings] = useState<RadiusSettings | null>(() => loadRadiusSettings());
+    const [showRadiusPicker, setShowRadiusPicker] = useState(false);
 
     // Detail view
     const [selectedPost, setSelectedPost] = useState<MarketplacePost | null>(null);
@@ -48,6 +55,16 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
     const [showReportForm, setShowReportForm] = useState(false);
     const [reportReason, setReportReason] = useState('');
     const [submittingReport, setSubmittingReport] = useState(false);
+
+    // Edit mode
+    const [editMode, setEditMode] = useState(false);
+    const [editType, setEditType] = useState<'offer' | 'need'>('offer');
+    const [editCategory, setEditCategory] = useState('other');
+    const [editTitle, setEditTitle] = useState('');
+    const [editDescription, setEditDescription] = useState('');
+    const [editCredits, setEditCredits] = useState(0);
+    const [editPhotos, setEditPhotos] = useState<string[]>([]);
+    const [saving, setSaving] = useState(false);
 
     // Author ratings cache for tiles
     const [authorRatingsCache, setAuthorRatingsCache] = useState<Record<string, { average: number; count: number }>>({}); 
@@ -480,40 +497,237 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                         display: 'flex', gap: '0.5rem', flexDirection: 'column',
                         marginTop: '0.75rem',
                     }}>
-                        <div style={{
-                            background: 'var(--bg-card)', borderRadius: '12px',
-                            border: '1px solid var(--border-primary)', padding: '0.75rem',
-                            textAlign: 'center',
-                            color: 'var(--text-muted)', fontSize: '0.85rem',
-                        }}>
-                            This is your post
-                        </div>
-                        <button
-                            onClick={async () => {
-                                if (!identity || !selectedPost) return;
-                                if (!confirm('Delete this post?')) return;
-                                setDeleting(selectedPost.id);
-                                try {
-                                    await removeMarketplacePost(selectedPost.id, identity.publicKey);
-                                    setSelectedPost(null);
-                                    refresh();
-                                } catch (e: any) {
-                                    setError(e.message || 'Failed to delete');
-                                } finally {
-                                    setDeleting(null);
-                                }
-                            }}
-                            disabled={deleting === selectedPost.id}
-                            style={{
-                                width: '100%', padding: '0.7rem', borderRadius: '12px',
-                                background: deleting === selectedPost.id ? '#555' : '#dc2626',
-                                color: 'var(--text-primary)', border: 'none',
-                                fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
-                                fontFamily: 'inherit',
-                            }}
-                        >
-                            {deleting === selectedPost.id ? 'Deleting...' : '🗑️ Delete Post'}
-                        </button>
+                        {!editMode ? (
+                            <>
+                                <button
+                                    onClick={() => {
+                                        setEditType(selectedPost.type);
+                                        setEditCategory(selectedPost.category);
+                                        setEditTitle(selectedPost.title);
+                                        setEditDescription(selectedPost.description);
+                                        setEditCredits(selectedPost.credits);
+                                        setEditPhotos(selectedPost.photos || []);
+                                        setEditMode(true);
+                                    }}
+                                    style={{
+                                        width: '100%', padding: '0.85rem', borderRadius: '12px',
+                                        background: '#2563eb', color: '#fff', border: 'none',
+                                        fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer',
+                                        fontFamily: 'inherit',
+                                    }}
+                                >
+                                    ✏️ Edit Post
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        if (!identity || !selectedPost) return;
+                                        if (!confirm('Delete this post?')) return;
+                                        setDeleting(selectedPost.id);
+                                        try {
+                                            await removeMarketplacePost(selectedPost.id, identity.publicKey);
+                                            setSelectedPost(null);
+                                            refresh();
+                                        } catch (e: any) {
+                                            setError(e.message || 'Failed to delete');
+                                        } finally {
+                                            setDeleting(null);
+                                        }
+                                    }}
+                                    disabled={deleting === selectedPost.id}
+                                    style={{
+                                        width: '100%', padding: '0.7rem', borderRadius: '12px',
+                                        background: deleting === selectedPost.id ? '#555' : 'transparent',
+                                        color: '#ef4444', border: '1px solid #ef4444',
+                                        fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
+                                        fontFamily: 'inherit',
+                                    }}
+                                >
+                                    {deleting === selectedPost.id ? 'Deleting...' : '🗑️ Delete Post'}
+                                </button>
+                            </>
+                        ) : (
+                            <div style={{
+                                background: 'var(--bg-card)', borderRadius: '16px',
+                                border: '1px solid var(--border-primary)', padding: '1rem',
+                            }}>
+                                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>✏️ Edit Post</h3>
+
+                                {/* Type */}
+                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                    {(['offer', 'need'] as const).map(t => (
+                                        <button
+                                            key={t}
+                                            onClick={() => setEditType(t)}
+                                            style={{
+                                                flex: 1, padding: '0.5rem', borderRadius: '8px',
+                                                border: `1px solid ${t === 'offer' ? '#3b82f6' : '#f97316'}`,
+                                                background: editType === t ? (t === 'offer' ? '#3b82f6' : '#f97316') : 'transparent',
+                                                color: editType === t ? '#fff' : 'var(--text-muted)',
+                                                fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
+                                                fontFamily: 'inherit', textTransform: 'capitalize',
+                                            }}
+                                        >
+                                            {t === 'offer' ? '🔵 Offer' : '🟠 Need'}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Category */}
+                                <select
+                                    value={editCategory}
+                                    onChange={(e) => setEditCategory(e.target.value)}
+                                    style={{
+                                        ...inputStyle,
+                                        appearance: 'auto', cursor: 'pointer',
+                                    }}
+                                >
+                                    {MARKETPLACE_CATEGORIES.map(cat => (
+                                        <option key={cat.id} value={cat.id}>{cat.emoji} {cat.label}</option>
+                                    ))}
+                                </select>
+
+                                {/* Title */}
+                                <input
+                                    value={editTitle}
+                                    onChange={(e) => setEditTitle(e.target.value)}
+                                    placeholder="Title"
+                                    style={inputStyle}
+                                />
+
+                                {/* Description */}
+                                <textarea
+                                    value={editDescription}
+                                    onChange={(e) => setEditDescription(e.target.value)}
+                                    placeholder="Description"
+                                    style={{
+                                        ...inputStyle,
+                                        minHeight: '80px', resize: 'vertical',
+                                    }}
+                                />
+
+                                {/* Credits */}
+                                <input
+                                    type="number"
+                                    value={editCredits}
+                                    onChange={(e) => setEditCredits(Number(e.target.value) || 0)}
+                                    placeholder="Credits (Ʀ)"
+                                    style={inputStyle}
+                                />
+
+                                {/* Photos */}
+                                <div style={{ marginBottom: '0.75rem' }}>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>Photos ({editPhotos.length}/3)</p>
+                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                        {editPhotos.map((photo, i) => (
+                                            <div key={i} style={{ position: 'relative' }}>
+                                                <img src={photo} alt={`photo ${i+1}`} style={{
+                                                    width: '70px', height: '70px', objectFit: 'cover',
+                                                    borderRadius: '8px', border: '1px solid var(--border-primary)',
+                                                }} />
+                                                <button
+                                                    onClick={() => setEditPhotos(editPhotos.filter((_, j) => j !== i))}
+                                                    style={{
+                                                        position: 'absolute', top: '-6px', right: '-6px',
+                                                        width: '20px', height: '20px', borderRadius: '50%',
+                                                        background: '#ef4444', border: 'none', color: '#fff',
+                                                        fontSize: '0.7rem', cursor: 'pointer', display: 'flex',
+                                                        alignItems: 'center', justifyContent: 'center',
+                                                    }}
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {editPhotos.length < 3 && (
+                                            <label style={{
+                                                width: '70px', height: '70px', borderRadius: '8px',
+                                                border: '2px dashed var(--border-primary)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.5rem',
+                                            }}>
+                                                +
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    style={{ display: 'none' }}
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (!file) return;
+                                                        const reader = new FileReader();
+                                                        reader.onload = () => {
+                                                            const img = new Image();
+                                                            img.onload = () => {
+                                                                const canvas = document.createElement('canvas');
+                                                                const max = 800;
+                                                                let w = img.width, h = img.height;
+                                                                if (w > max || h > max) {
+                                                                    if (w > h) { h = Math.round(h * max / w); w = max; }
+                                                                    else { w = Math.round(w * max / h); h = max; }
+                                                                }
+                                                                canvas.width = w; canvas.height = h;
+                                                                canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+                                                                setEditPhotos([...editPhotos, canvas.toDataURL('image/jpeg', 0.7)]);
+                                                            };
+                                                            img.src = reader.result as string;
+                                                        };
+                                                        reader.readAsDataURL(file);
+                                                        e.target.value = '';
+                                                    }}
+                                                />
+                                            </label>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Save/Cancel */}
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button
+                                        onClick={() => setEditMode(false)}
+                                        style={{
+                                            flex: 1, padding: '0.7rem', borderRadius: '10px',
+                                            background: 'transparent', border: '1px solid var(--border-primary)',
+                                            color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600,
+                                            cursor: 'pointer', fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={async () => {
+                                            if (!identity || !selectedPost || !editTitle.trim()) return;
+                                            setSaving(true);
+                                            try {
+                                                const result = await updateMarketplacePost(selectedPost.id, identity.publicKey, {
+                                                    type: editType,
+                                                    category: editCategory,
+                                                    title: editTitle.trim(),
+                                                    description: editDescription.trim(),
+                                                    credits: editCredits,
+                                                    photos: editPhotos,
+                                                });
+                                                setSelectedPost(result.post);
+                                                setEditMode(false);
+                                                refresh();
+                                            } catch (e: any) {
+                                                setError(e.message || 'Failed to save');
+                                            } finally {
+                                                setSaving(false);
+                                            }
+                                        }}
+                                        disabled={saving || !editTitle.trim()}
+                                        style={{
+                                            flex: 1, padding: '0.7rem', borderRadius: '10px',
+                                            background: editTitle.trim() ? '#2563eb' : '#333',
+                                            border: 'none', color: '#fff', fontSize: '0.85rem',
+                                            fontWeight: 600, cursor: editTitle.trim() ? 'pointer' : 'not-allowed',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        {saving ? 'Saving...' : '💾 Save'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -533,21 +747,68 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
     // =================== LIST VIEW ===================
     return (
         <div style={{ padding: '1rem' }}>
+            {/* Radius Picker Full Screen */}
+            {showRadiusPicker && (
+                <RadiusPickerPage
+                    initial={radiusSettings}
+                    onApply={(settings) => {
+                        setRadiusSettings(settings);
+                        saveRadiusSettings(settings);
+                        setShowRadiusPicker(false);
+                    }}
+                    onCancel={() => setShowRadiusPicker(false)}
+                    onReset={() => {
+                        setRadiusSettings(null);
+                        clearRadiusSettings();
+                        setShowRadiusPicker(false);
+                    }}
+                />
+            )}
+
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                 <h2 style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>🤝 Marketplace</h2>
                 <button
                     onClick={() => onNavigate?.('map-post')}
                     style={{
                         padding: '0.4rem 0.8rem', borderRadius: '8px',
                         background: '#2563eb',
-                        border: 'none', color: 'var(--text-primary)', fontSize: '0.8rem',
+                        border: 'none', color: '#fff', fontSize: '0.8rem',
                         fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                     }}
                 >
                     ＋ New Post
                 </button>
             </div>
+
+            {/* Search bar */}
+            <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="🔍 Search offers & needs..."
+                style={{
+                    width: '100%', padding: '0.6rem 0.75rem', borderRadius: '10px',
+                    border: '1px solid var(--border-primary)', background: 'var(--bg-card)',
+                    color: 'var(--text-primary)', fontSize: '0.85rem', fontFamily: 'inherit',
+                    outline: 'none', marginBottom: '0.5rem', boxSizing: 'border-box',
+                }}
+            />
+
+            {/* Radius chip */}
+            <button
+                onClick={() => setShowRadiusPicker(true)}
+                style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                    padding: '0.35rem 0.75rem', borderRadius: '9999px',
+                    background: radiusSettings ? 'rgba(245, 158, 11, 0.15)' : 'var(--bg-card)',
+                    border: `1px solid ${radiusSettings ? '#f59e0b' : 'var(--border-primary)'}`,
+                    color: radiusSettings ? '#f59e0b' : 'var(--text-muted)',
+                    fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
+                    fontFamily: 'inherit', marginBottom: '0.75rem',
+                }}
+            >
+                📍 {radiusSettings ? `${radiusSettings.radiusKm}km radius` : 'Set location & radius'}
+            </button>
 
             {/* Error */}
             {error && (
@@ -614,15 +875,37 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
             {loading ? (
                 <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>Loading...</p>
             ) : (() => {
-                const filtered = showMine && identity
+                let filtered = showMine && identity
                     ? posts.filter(p => p.authorPublicKey === identity.publicKey)
                     : posts;
+
+                // Text search
+                if (searchQuery.trim()) {
+                    const q = searchQuery.toLowerCase().trim();
+                    filtered = filtered.filter(p =>
+                        p.title.toLowerCase().includes(q) ||
+                        p.description.toLowerCase().includes(q)
+                    );
+                }
+
+                // Radius filter
+                if (radiusSettings) {
+                    filtered = filtered.filter(p => {
+                        if (p.lat == null || p.lng == null) return false;
+                        const dist = haversineDistance(radiusSettings.lat, radiusSettings.lng, p.lat, p.lng);
+                        return dist <= radiusSettings.radiusKm;
+                    });
+                }
+
                 return filtered.length === 0 ? (
                     <div style={{
                         background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: '12px',
                         padding: '2rem', textAlign: 'center', color: 'var(--text-faint)', fontSize: '0.9rem',
                     }}>
-                        {showMine ? 'You haven\'t posted anything yet.' : 'No posts yet. Be the first to post!'}
+                        {searchQuery.trim() ? `No results for "${searchQuery}".`
+                            : radiusSettings ? 'No posts within this radius.'
+                            : showMine ? 'You haven\'t posted anything yet.'
+                            : 'No posts yet. Be the first to post!'}
                     </div>
                 ) : (
                     filtered.map((post) => (

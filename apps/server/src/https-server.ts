@@ -36,7 +36,7 @@ import { WebSocketServer } from 'ws';
 import {
     registerMember, getMembers, getMember,
     getBalance, transfer, getTransactions,
-    createPost, getPosts, removePost,
+    createPost, getPosts, removePost, updatePost,
     getCommunityInfo, addWsClient, removeWsClient,
     generateInvite, redeemInvite, getInviteTree, getInvitesByMember,
     updateProfile, getProfile,
@@ -621,6 +621,22 @@ export async function startHttpsServer(port: number): Promise<void> {
         }
         const removed = removePost(id, authorPublicKey);
         ctx.body = { success: removed };
+    });
+
+    router.post('/api/marketplace/posts/update', async (ctx) => {
+        const { id, authorPublicKey, ...updates } = (ctx as any).requestBody || {};
+        if (!id || !authorPublicKey) {
+            ctx.status = 400;
+            ctx.body = { error: 'id and authorPublicKey are required' };
+            return;
+        }
+        const post = updatePost(id, authorPublicKey, updates);
+        if (!post) {
+            ctx.status = 404;
+            ctx.body = { error: 'Post not found or not owned by you' };
+            return;
+        }
+        ctx.body = { success: true, post };
     });
 
     // ===================== RATINGS =====================
