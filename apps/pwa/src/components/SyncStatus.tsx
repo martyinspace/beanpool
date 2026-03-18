@@ -42,28 +42,29 @@ export function SyncStatus() {
         <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.5rem 1rem',
+            gap: '0.4rem',
+            padding: '0.3rem 0.75rem',
             borderRadius: '9999px',
-            background: sync.connected ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-            border: `1px solid ${sync.connected ? '#10b981' : '#ef4444'}`,
-            fontSize: '0.85rem',
+            background: 'var(--bg-card)',
+            border: `1px solid ${sync.connected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+            fontSize: '0.75rem',
             fontWeight: 500,
             transition: 'all 0.3s ease',
         }}>
             <span style={{
-                width: '8px',
-                height: '8px',
+                width: '7px',
+                height: '7px',
                 borderRadius: '50%',
                 background: sync.connected ? '#10b981' : '#ef4444',
                 animation: sync.connected ? 'pulse 2s infinite' : 'none',
+                flexShrink: 0,
             }} />
-            <span style={{ color: sync.connected ? '#10b981' : '#ef4444' }}>
-                {sync.connected ? '● Synced' : '● Offline'}
+            <span style={{ color: sync.connected ? '#10b981' : '#ef4444', whiteSpace: 'nowrap' }}>
+                {sync.connected ? 'Online' : 'Offline'}
             </span>
             {sync.lastSyncTime && (
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                    — Last synced {formatTimeAgo(sync.lastSyncTime)}
+                <span style={{ color: 'var(--text-faint)', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
+                    {formatTimeAgo(sync.lastSyncTime)}
                 </span>
             )}
         </div>

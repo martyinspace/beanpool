@@ -338,14 +338,15 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
         });
     }, [posts]);
 
-    // Control button style
-    const btnStyle: React.CSSProperties = {
-        width: '40px', height: '40px', borderRadius: '10px',
-        background: 'rgba(26, 26, 26, 0.9)', border: '1px solid var(--border-input)',
-        color: 'var(--text-primary)', fontSize: '1.1rem', cursor: 'pointer',
+    // Map control button style
+    const mapBtnStyle: React.CSSProperties = {
+        width: '44px', height: '44px', borderRadius: '12px',
+        background: 'rgba(30, 30, 30, 0.92)', border: '1px solid rgba(255,255,255,0.15)',
+        color: '#fff', fontSize: '1.2rem', cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+        backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
+        fontFamily: 'inherit',
     };
 
     return (
@@ -400,41 +401,42 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             {/* Map container */}
             <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
 
-            {/* Right-side controls */}
+            {/* Bottom-left controls: dark mode + GPS */}
             <div style={{
-                position: 'absolute', top: '0.75rem', right: '0.75rem',
+                position: 'fixed', bottom: '5.5rem', left: '0.75rem',
                 display: 'flex', flexDirection: 'column', gap: '0.5rem',
-                zIndex: 1000,
+                zIndex: 101,
             }}>
-                {/* Dark/Light toggle */}
-                <button onClick={toggleDarkMode} style={btnStyle} title="Toggle dark/light">
+                {/* Dark/Light map toggle */}
+                <button onClick={toggleDarkMode} style={mapBtnStyle} title="Toggle dark/light map">
                     {isDark ? '☀️' : '🌙'}
                 </button>
 
-                {/* GPS crosshair */}
+                {/* GPS locate */}
                 <button
                     onClick={handleLocate}
                     style={{
-                        ...btnStyle,
-                        background: locating ? 'rgba(139, 92, 246, 0.3)' : btnStyle.background,
-                        border: locating ? '1px solid #8b5cf6' : btnStyle.border,
+                        ...mapBtnStyle,
+                        background: locating ? 'rgba(139, 92, 246, 0.4)' : mapBtnStyle.background,
+                        border: locating ? '1.5px solid #8b5cf6' : mapBtnStyle.border,
                     }}
                     title="My location"
                 >
-                    {locating ? '⏳' : '⊕'}
+                    {locating ? '⏳' : '◎'}
                 </button>
             </div>
 
-            {/* Floating Add Button */}
+            {/* Floating Add Button — bottom right */}
             {!showNewPost && (
                 <button
                     onClick={() => setShowNewPost(true)}
                     style={{
                         position: 'fixed', bottom: '5.5rem', right: '0.75rem',
                         width: '52px', height: '52px', borderRadius: '50%',
-                        background: '#2563eb', border: 'none', color: 'var(--text-primary)',
-                        fontSize: '1.6rem', cursor: 'pointer', zIndex: 101,
-                        boxShadow: '0 4px 16px rgba(37, 99, 235, 0.4)',
+                        background: 'linear-gradient(135deg, #3b82f6, #2563eb)', border: 'none',
+                        color: '#fff', fontSize: '1.8rem', fontWeight: 300,
+                        cursor: 'pointer', zIndex: 101,
+                        boxShadow: '0 4px 20px rgba(37, 99, 235, 0.5)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontFamily: 'inherit',
                     }}
