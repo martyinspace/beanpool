@@ -88,15 +88,16 @@ export function InvitePage({ identity }: Props) {
     }
 
     async function handleShare(code: string) {
+        const inviteUrl = `${window.location.origin}?invite=${code}`;
         const shareData = {
             title: 'Join BeanPool',
-            text: `You've been invited to BeanPool! Use this invite code to join: ${code}`,
-            url: window.location.origin,
+            text: `You've been invited to BeanPool! Use this link to join:`,
+            url: inviteUrl,
         };
         if (navigator.share) {
             try { await navigator.share(shareData); } catch { /* cancelled */ }
         } else {
-            handleCopy(`${shareData.text}\n${shareData.url}`);
+            handleCopy(`Join BeanPool! ${inviteUrl}`);
         }
     }
 
@@ -169,7 +170,7 @@ export function InvitePage({ identity }: Props) {
                                 <QRCodeSVG value={`${window.location.origin}?invite=${newCode}`} size={200} />
                             </div>
                             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                                <button onClick={() => handleCopy(newCode)} style={{
+                                <button onClick={() => handleCopy(`${window.location.origin}?invite=${newCode}`)} style={{
                                     padding: '0.6rem 1.2rem', borderRadius: '8px', border: '1px solid var(--border-input)',
                                     background: copied ? '#22c55e' : '#222', color: 'var(--text-primary)', fontSize: '0.85rem',
                                     cursor: 'pointer', fontFamily: 'inherit',
@@ -196,7 +197,7 @@ export function InvitePage({ identity }: Props) {
                                         <span style={{ fontFamily: 'monospace', fontSize: '1rem', fontWeight: 600, letterSpacing: '1px' }}>
                                             {inv.code.toUpperCase()}
                                         </span>
-                                        <button onClick={() => handleCopy(inv.code.toUpperCase())} style={{
+                                        <button onClick={() => handleCopy(`${window.location.origin}?invite=${inv.code}`)} style={{
                                             padding: '0.3rem 0.6rem', borderRadius: '6px', border: '1px solid var(--border-input)',
                                             background: 'var(--bg-hover)', color: 'var(--text-secondary)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit',
                                         }}>📋</button>
