@@ -124,13 +124,16 @@ async function tryLetsEncrypt(): Promise<boolean> {
 async function requestLetsEncryptCert(): Promise<boolean> {
     console.log(`🔐 Requesting Let's Encrypt cert for ${CF_RECORD_NAME}...`);
 
-    // Wrap the entire ACME flow in a 5-minute timeout so the server
-    // doesn't hang indefinitely if the ACME challenge stalls
-    const ACME_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+    // Wrap the entire ACME flow in a 90-second timeout.
+    // acme-client internally waits on HTTP retry-after headers which
+    // can't be cancelled via Promise.race, so we use a hard timer.
+    const ACME_TIMEOUT_MS = 90 * 1000; // 90 seconds
 
-    const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('ACME cert request timed out after 5 minutes')), ACME_TIMEOUT_MS);
-    });
+    let timedOut = false;
+    const timer = setTimeout(() => {
+        timedOut = true;
+        console.log('⚠️  ACME cert request timed out after 90s — will fall back to self-signed');
+    }, ACME_TIMEOUT_MS);
 
     const certPromise = (async () => {
         // Create or load ACME account key
@@ -245,10 +248,24 @@ async function requestLetsEncryptCert(): Promise<boolean> {
         fs.writeFileSync(LE_KEY_PATH, serverKeyPem);
 
         console.log(`✅ Let's Encrypt cert obtained for ${CF_RECORD_NAME}`);
+        clearTimeout(timer);
         return true;
     })();
 
-    return await Promise.race([certPromise, timeoutPromise]);
+    // Race the cert request against the timeout
+    const result = await Promise.race([
+        certPromise,
+        new Promise<false>((resolve) => {
+            const check = setInterval(() => {
+                if (timedOut) {
+                    clearInterval(check);
+                    resolve(false);
+                }
+            }, 500);
+        }),
+    ]);
+    clearTimeout(timer);
+    return result;
 }
 
 // --- Cloudflare DNS API ---
