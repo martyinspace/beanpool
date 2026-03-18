@@ -58,10 +58,34 @@ DMs and group chats with E2E-ready data model:
 
 ### 🎟️ Invite Tree
 Invite-only membership with hierarchical accountability:
-- **Single-use invite codes** — each code works once, then a new one is generated
+- **Node genesis** — the server admin is the root of the tree, generating seed invite codes from Settings
+- **Admin's personal identity** — admin uses a seed code on their own phone, then invites organically
+- **Single-use invite codes** — each code works once, creating a branch in the tree
 - **QR + share** — copy invite code or share via QR
 - **Online check** — notifies user if offline when generating codes
 - **Invite tree** — full hierarchy of who invited whom
+
+### 👥 People & Friends
+Community connections and guardians:
+- **Friends** — add/remove friends from the community browser
+- **Community** — browse all node members, tap "+ Add" to friend them
+- **Invites** — generate and share invite codes (moved from standalone tab)
+- **Guardians** — select up to 5 trusted friends as recovery guardians
+
+### 🔑 12-Word Seed Phrase
+Deterministic identity from a BIP-39 mnemonic:
+- **New signups** generate a 12-word recovery phrase (128-bit entropy)
+- **Deterministic Ed25519** — same words always regenerate the same keypair
+- **One-time display** — words shown after creation with "I've written these down" confirmation
+- **Recovery mode** — enter 12 words + callsign to restore identity on any device
+- **WebCrypto SHA-256 + PKCS8** — no external crypto dependencies
+
+### 🏠 Landing Page (Welcome Hub)
+Port 80 serves a community welcome hub:
+- **Three clear paths**: New member (invite code), Add another device (transfer link), Lost device (recovery)
+- **Dynamic content** — pulls community name, admin email/phone from node config
+- **FAQ accordion** — common questions with expandable answers
+- **Contact section** — configurable admin contact info
 
 ### 👤 Member Profiles
 - **Avatar** with separate Camera / Gallery upload buttons
@@ -143,7 +167,7 @@ docker compose -p beanpool up -d --build
 ```
 
 - **PWA:** `https://localhost:8443/` — community map, marketplace, messaging, ledger
-- **Trust Bootstrap:** `http://localhost:8080/` — QR codes + CA cert download
+- **Landing Page:** `http://localhost:8080/` — community welcome hub (3 paths: join, transfer, recover)
 - **P2P Mesh:** TCP `:4001` / WS `:4002`
 
 > 📖 For detailed setup instructions (including Let's Encrypt and no-domain options), see [docs/NODE_ADMIN_SETUP.md](docs/NODE_ADMIN_SETUP.md).
@@ -194,6 +218,12 @@ All endpoints are served on port 8443 (HTTPS):
 | `/api/messages/send` | POST | Send a message |
 | `/api/messages/conversations/:pubkey` | GET | List conversations for a member |
 | `/api/messages/messages/:conversationId` | GET | Get messages in a conversation |
+| `/api/friends/:publicKey` | GET | List a member's friends |
+| `/api/friends/add` | POST | Add a friend |
+| `/api/friends/remove` | POST | Remove a friend |
+| `/api/friends/guardian` | POST | Set/unset a friend as recovery guardian |
+| `/api/members` | GET | List all community members |
+| `/api/local/community-info` | GET | Community name, admin email/phone (public) |
 | `/ws` | WebSocket | Real-time state feed |
 
 ---
@@ -204,7 +234,7 @@ All endpoints are served on port 8443 (HTTPS):
 |------|----------|---------|
 | **4001** | TCP | libp2p P2P mesh |
 | **4002** | WS | libp2p WebSocket transport |
-| **8080** | HTTP | Trust Bootstrap (QR onboarding) |
+| **8080** | HTTP | Landing page (community welcome hub) |
 | **8443** | HTTPS | PWA + REST API + WebSocket |
 
 ---
@@ -215,8 +245,8 @@ All endpoints are served on port 8443 (HTTPS):
 - **Demurrage (Decay)** — positive balances decay at 0.5% per month, returning to the Commons Fund
 - **Gossip Mesh** — nodes sync state via libp2p over TCP/WebSockets
 - **Lazy State Sync** — Merkle hash comparison + delta exchange every 15 minutes
-- **Sovereign Identity** — Ed25519 keypairs generated locally (WebCrypto + IndexedDB)
-- **Invite Tree** — hierarchical membership with single-use invite codes
+- **Sovereign Identity** — Ed25519 keypairs from 12-word BIP-39 mnemonic (deterministic, recoverable)
+- **Invite Tree** — hierarchical membership: node genesis → seed codes → admin identity → organic invites
 - **Handshake Protocol** — mutual trust verification + latency measurement via yamux streams
 - **Bean Reputation** — 5-tier community trust score with comments
 - **Abuse Reporting** — flagging system with admin review panel
@@ -242,16 +272,20 @@ All endpoints are served on port 8443 (HTTPS):
 BeanPool is in active development. The PWA is **fully functional** with invite-only membership, community map, marketplace with photos and bean ratings, E2E messaging (DMs + groups), mutual credit ledger, editable member profiles, abuse reporting, and community health dashboard — all connected to live server APIs. Three nodes (Sydney, Korea, Debian) are deployed with lazy state sync over libp2p.
 
 **What's working:**
-- ✅ Invite-only membership with single-use codes + invite tree
+- ✅ Invite-only membership with single-use codes + hierarchical invite tree
+- ✅ 12-word BIP-39 seed phrase — deterministic Ed25519 key derivation + recovery
+- ✅ People tab — Friends, Community browser, Invites, Guardians (up to 5)
+- ✅ Landing page welcome hub — 3 paths (join, transfer, recover) + admin contact info
+- ✅ Admin community config — name, email, phone in Settings → Community tab
 - ✅ Member profiles (avatar via camera/gallery, editable callsign, bio, contact visibility)
 - ✅ 🫘 Bean reputation system — 5-bean ratings with comments on marketplace tiles + detail
 - ✅ Abuse reporting with reason dropdown + admin panel
 - ✅ Marketplace with 13 categories, photos (up to 3), post validation, "My Posts" view
 - ✅ E2E messaging — DMs and group chats
-- ✅ PWA with map, marketplace, messaging, ledger, identity
+- ✅ PWA with map, marketplace, messaging, people, ledger
 - ✅ Post detail view with author profile, photos, bean rating, Message/Rate/Report actions
 - ✅ Community health dashboard (admin settings)
-- ✅ REST APIs (22+ endpoints) including ratings, reports
+- ✅ REST APIs (30+ endpoints) including friends, ratings, reports
 - ✅ WebSocket real-time state feed
 - ✅ Sovereign connectors with 3 trust levels
 - ✅ Lazy state sync (Merkle hash + delta exchange, 15-min intervals)
@@ -261,10 +295,10 @@ BeanPool is in active development. The PWA is **fully functional** with invite-o
 - ✅ Node admin setup guide with LE and no-domain instructions
 
 **Coming next:**
+- Social Recovery (Shamir 3-of-5 secret sharing via Guardians)
 - Offline PWA caching via Service Worker
 - Federated credit verification (`/beanpool/verify/1.0.0`)
 - Governance module integration (quadratic voting)
-- Social Recovery (Guardian Protocol)
 
 ---
 

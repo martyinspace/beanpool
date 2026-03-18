@@ -208,13 +208,35 @@ On first boot, the node needs to be initialized:
 2. Set the **initial credit limit** (how many Ʀ credits each member can go into debt)
 3. Click **Initialize** — this creates the immutable genesis block
 
-### 3. Generate Invite Codes
+### 3. Configure Community Info (Optional)
+
+In Settings → **Community** tab, set:
+- **Community Name** — shown on the landing page
+- **Admin Email** — contact email for member support
+- **Admin Phone** — fallback contact for recovery help
+
+### 4. Generate Seed Invite Codes
 
 - In Settings → **Invite Codes**, generate codes for your founding members
 - Each code is single-use
 - Share codes via the QR poster or direct link
 
-### 4. Connect to Other Nodes (Optional)
+> **Invite Tree Hierarchy:**
+> - Your node is the **genesis** (root of the tree)
+> - Seed invite codes from Settings are the **first generation**
+> - Use one seed code on your **own phone** to create your personal member identity
+> - From your personal identity, you can invite more people organically from the People tab
+> - Every member can generate invites, creating branches in the tree
+
+### 5. Set Up Your Own Phone
+
+1. Generate a seed invite code in Settings
+2. Open the PWA on your phone (`https://your-node`)
+3. Enter the invite code + choose your callsign
+4. **Write down your 12-word recovery phrase** — this is the only way to recover your identity if you lose your phone
+5. Tap "Continue" — you're now a member with your own keypair
+
+### 6. Connect to Other Nodes (Optional)
 
 To join the mesh network:
 1. Settings → **Sovereign Connectors**

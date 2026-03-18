@@ -5,12 +5,16 @@
 
 ---
 
-## Current State (2026-03-18)
+## Current State (2026-03-19)
 
-**BeanPool is a fully functional PWA** with invite-only membership, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), 🫘 bean reputation system, abuse reporting, community health dashboard, and lazy state sync — deployed on **3 sovereign nodes** with Let's Encrypt TLS.
+**BeanPool is a fully functional PWA** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🫘 bean reputation system, abuse reporting, community health dashboard, and lazy state sync — deployed on **3 sovereign nodes** with Let's Encrypt TLS.
 
 ### What's Working
-- ✅ **Invite-only membership** — single-use invite codes, invite tree hierarchy, QR sharing
+- ✅ **Invite-only membership** — single-use invite codes, hierarchical invite tree (node → seed codes → admin → organic invites)
+- ✅ **12-word seed phrase** — BIP-39 mnemonic, deterministic Ed25519 key derivation, recovery flow in PWA
+- ✅ **People tab** — Friends, Community browser, Invites (moved), Guardians (select up to 5)
+- ✅ **Landing page welcome hub** — 3 paths (join, transfer, recover), admin contact info, FAQ
+- ✅ **Admin community config** — name, email, phone in Settings → Community tab
 - ✅ **Member profiles** — avatar (camera + gallery), editable callsign, bio, contact details with 3-tier visibility
 - ✅ **Editable callsign** — change callsign in Profile, syncs to IndexedDB + server
 - ✅ **🫘 Bean reputation** — 5-bean rating with comments, displayed on post tiles and detail view
@@ -19,11 +23,11 @@
 - ✅ **Post photos** — up to 3 photos per post, auto-resized to 400px JPEG, primary photo on tiles, gallery in detail
 - ✅ **Post validation** — all fields required, red glow on empty fields, location required
 - ✅ **E2E messaging** — DMs and group chats (plaintext v1, E2E-ready data model)
-- ✅ **PWA** — community map (Leaflet/OSM), marketplace with post detail view, messaging, ledger, identity
+- ✅ **PWA** — community map (Leaflet/OSM), marketplace, messaging, people, ledger
 - ✅ **Map popups → Market** — "View in Market →" button on map pins navigates to post detail
 - ✅ **Post detail → Message** — "💬 Message" creates DM and auto-opens chat
 - ✅ **Community health dashboard** — admin settings panel with member stats, tree depth, activity, flags
-- ✅ **REST APIs** — 22+ endpoints for community, invites, profiles, ledger, marketplace, messaging, ratings, reports
+- ✅ **REST APIs** — 30+ endpoints for community, invites, profiles, ledger, marketplace, messaging, ratings, reports, friends
 - ✅ **WebSocket `/ws`** — real-time state feed
 - ✅ **Sovereign Connectors** — node-to-node trust with 3 levels
 - ✅ **Lazy State Sync** — Merkle hash comparison + delta exchange, 15-min intervals

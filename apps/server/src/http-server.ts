@@ -164,14 +164,14 @@ export async function startHttpServer(port: number): Promise<void> {
       <h2>💛 Lost Your Device?</h2>
       <p>It's okay — we've got you. Your identity lives on your device, but there are ways to get it back.</p>
       <div class="recovery-options">
-        <div class="recovery-opt" onclick="this.querySelector('.detail').style.display = this.querySelector('.detail').style.display === 'block' ? 'none' : 'block'">
+        <a href="${pwaUrl}" class="recovery-opt" style="text-decoration: none; color: inherit; cursor: pointer;">
           <span class="icon">🔑</span>
           12-Word Phrase
-          <div class="detail" style="display:none; font-size: 0.75rem; color: #94a3b8; margin-top: 0.5rem; line-height: 1.4;">
+          <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.5rem; line-height: 1.4;">
             If you wrote down your recovery phrase when you first joined, you can use it to restore your identity.<br/><br/>
-            <em style="color: #f59e0b;">Coming soon — this feature is being built.</em>
+            <span style="color: #22c55e; font-weight: 600;">✅ Available now — tap to recover →</span>
           </div>
-        </div>
+        </a>
         <div class="recovery-opt" onclick="this.querySelector('.detail').style.display = this.querySelector('.detail').style.display === 'block' ? 'none' : 'block'">
           <span class="icon">👥</span>
           Ask 3 Friends
@@ -182,7 +182,7 @@ export async function startHttpServer(port: number): Promise<void> {
         </div>
       </div>
       <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.75rem; line-height: 1.4;">
-        In the meantime, if you can't recover your identity, contact your community admin below. They may be able to help you rejoin with a new invite.
+        If you can't recover your identity, contact your community admin below. They may be able to help you rejoin with a new invite.
       </p>
     </div>
 

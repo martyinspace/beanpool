@@ -1,7 +1,7 @@
 # 📚 BeanPool Documentation Index
 
 > **Start here.** This is the master guide to all documentation in the BeanPool project.
-> Updated: 2026-03-18
+> Updated: 2026-03-19
 
 ---
 
@@ -52,7 +52,7 @@
 | App | Dir | What It Does |
 |-----|-----|-------------|
 | **BeanPool Node** | `apps/server/` | Gateway — genesis, admin, REST APIs, WebSocket, connectors, handshake, lazy sync, libp2p |
-| **PWA** | `apps/pwa/` | UI — map, marketplace, messaging, ledger, profiles, identity, reputation, privacy, install prompt |
+| **PWA** | `apps/pwa/` | UI — map, marketplace, messaging, people/friends, ledger, profiles, seed phrase recovery, reputation, privacy |
 | **Pillar Toggle** | `apps/native/` | Background mesh state mirror (Expo + React Native) |
 
 ## Core Protocol
@@ -77,7 +77,7 @@
 | `apps/server/src/index.ts` | Main boot orchestrator — 5-stage startup |
 | `apps/server/src/tls.ts` | **TLS certificate management** — LE via acme-client + self-signed fallback |
 | `apps/server/src/state-engine.ts` | In-memory state: members, posts, profiles, conversations, messages, invites, ledger, ratings, reports |
-| `apps/server/src/https-server.ts` | 22+ REST API endpoints: community, marketplace, ratings, reports, admin |
+| `apps/server/src/https-server.ts` | 30+ REST API endpoints: community, marketplace, friends, ratings, reports, admin |
 | `apps/server/src/connector-manager.ts` | Sovereign connectors with 3 trust levels |
 | `apps/server/src/handshake.ts` | Mutual trust verification + latency via yamux streams |
 | `apps/server/src/sync-protocol.ts` | Lazy state sync — Merkle hash + delta exchange |
@@ -88,16 +88,17 @@
 
 | File | Purpose |
 |------|---------|
-| `apps/pwa/src/App.tsx` | Shell — identity gate, 5-tab bottom nav, header, tab routing |
+| `apps/pwa/src/App.tsx` | Shell — identity gate, 5-tab bottom nav (Map, Market, Chat, People, Ledger), header |
 | `apps/pwa/src/pages/MapPage.tsx` | Leaflet/OSM map with marketplace pins, post form with photo upload |
 | `apps/pwa/src/pages/MarketplacePage.tsx` | Marketplace list + search + radius filter + post detail + edit own posts + bean ratings + abuse reporting |
 | `apps/pwa/src/pages/MessagesPage.tsx` | Conversations list + chat view (DMs + groups) |
-| `apps/pwa/src/pages/InvitePage.tsx` | Generate + share invite codes (QR, clipboard) |
+| `apps/pwa/src/pages/PeoplePage.tsx` | People tab — Friends, Community browser, Invites, Guardians sub-views |
 | `apps/pwa/src/pages/LedgerPage.tsx` | Balance, transactions, send credits |
 | `apps/pwa/src/pages/ProfilePage.tsx` | Editable profile — avatar (camera/gallery), callsign, bio, contact |
 | `apps/pwa/src/components/MarketplaceCard.tsx` | Post tile with primary photo + bean rating |
-| `apps/pwa/src/lib/api.ts` | Typed client for all 22+ REST endpoints |
-| `apps/pwa/src/lib/identity.ts` | Ed25519 identity management (IndexedDB) |
+| `apps/pwa/src/lib/api.ts` | Typed client for all 30+ REST endpoints (incl. friends, guardians, members) |
+| `apps/pwa/src/lib/identity.ts` | Ed25519 identity — mnemonic-derived keys, IndexedDB persistence |
+| `apps/pwa/src/lib/mnemonic.ts` | BIP-39 mnemonic generation + WebCrypto PKCS8 key derivation |
 | `apps/pwa/src/lib/e2e-crypto.ts` | Plaintext v1 encoding (E2E-ready data model) |
 | `apps/pwa/src/lib/marketplace.ts` | 13-category config, MarketplacePost type |
 | `apps/pwa/src/lib/geo.ts` | Haversine distance, radius settings persistence |
@@ -118,4 +119,4 @@
 
 ---
 
-_Last updated: 2026-03-18 22:57 AEDT_
+_Last updated: 2026-03-19 00:50 AEDT_
