@@ -73,12 +73,13 @@ export async function initTls(): Promise<void> {
 }
 
 /**
- * Schedule automatic renewal check every 24 hours.
+ * Schedule automatic renewal check every 2 hours.
+ * Short interval ensures LE certs are picked up quickly after rate limits clear.
  */
 export function startRenewalScheduler(): void {
     if (!CF_RECORD_NAME || !CF_API_TOKEN || !CF_ZONE_ID) return;
 
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+    const TWO_HOURS = 2 * 60 * 60 * 1000;
 
     setInterval(async () => {
         console.log('🔄 Checking certificate renewal...');
@@ -94,9 +95,9 @@ export function startRenewalScheduler(): void {
                 usingLetsEncrypt = false;
             }
         }
-    }, TWENTY_FOUR_HOURS);
+    }, TWO_HOURS);
 
-    console.log('🔄 Certificate renewal scheduler started (24h interval)');
+    console.log('🔄 Certificate renewal scheduler started (2h interval)');
 }
 
 // --- Let's Encrypt ---
