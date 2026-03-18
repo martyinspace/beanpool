@@ -185,7 +185,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
         // Validate all fields
         const errors = new Set<string>();
         if (!newPostTitle.trim()) errors.add('title');
-        if (!newPostCredits || Number(newPostCredits) <= 0) errors.add('credits');
+        if (newPostCredits.trim() === '' || isNaN(Number(newPostCredits)) || Number(newPostCredits) < 0) errors.add('credits');
         if (!newPostDescription.trim()) errors.add('description');
         if (postLat == null || postLng == null) errors.add('location');
         setValidationErrors(errors);
