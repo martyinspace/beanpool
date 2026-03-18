@@ -144,33 +144,46 @@ export async function startHttpServer(port: number): Promise<void> {
       <p class="tagline">Sovereign marketplace. Your identity is yours.</p>
     </div>
 
-    <!-- Join -->
+    <!-- 1. New Member -->
     <div class="card">
-      <h2>🎟️ Join with Invite Code</h2>
-      <p>Got an invite code from a member? Enter it below.</p>
+      <h2>🎟️ I'm New Here</h2>
+      <p>Got an invite code from someone in the community? Welcome aboard.</p>
       <input type="text" id="invite-input" placeholder="BP-XXXXXX" maxlength="20" />
       <button class="btn btn-primary" onclick="joinWithCode()">Join Community →</button>
     </div>
 
-    <!-- Existing Member -->
-    <a href="${pwaUrl}?import=true" class="btn btn-secondary" style="margin-bottom: 1rem; display: block;">
-      Already a member? Restore identity →
-    </a>
+    <!-- 2. Add Another Device -->
+    <div class="card">
+      <h2>📱 Set Up Another Device</h2>
+      <p>Already a member and want BeanPool on this device too? Open your existing app, go to <strong>Settings → Export Identity</strong>, then paste the link here.</p>
+      <a href="${pwaUrl}?import=true" class="btn btn-secondary">I have my transfer link →</a>
+    </div>
 
-    <!-- Recovery -->
-    <div class="card card-muted">
-      <h2>🔐 Recover Your Identity</h2>
-      <p>Lost your device? Two ways to get your identity back.</p>
+    <!-- 3. Lost Device Recovery -->
+    <div class="card" style="border-color: #92400e;">
+      <h2>💛 Lost Your Device?</h2>
+      <p>It's okay — we've got you. Your identity lives on your device, but there are ways to get it back.</p>
       <div class="recovery-options">
-        <a href="${pwaUrl}#recover-phrase" class="recovery-opt">
+        <div class="recovery-opt" onclick="this.querySelector('.detail').style.display = this.querySelector('.detail').style.display === 'block' ? 'none' : 'block'">
           <span class="icon">🔑</span>
           12-Word Phrase
-        </a>
-        <a href="${pwaUrl}#recover-social" class="recovery-opt">
+          <div class="detail" style="display:none; font-size: 0.75rem; color: #94a3b8; margin-top: 0.5rem; line-height: 1.4;">
+            If you wrote down your recovery phrase when you first joined, you can use it to restore your identity.<br/><br/>
+            <em style="color: #f59e0b;">Coming soon — this feature is being built.</em>
+          </div>
+        </div>
+        <div class="recovery-opt" onclick="this.querySelector('.detail').style.display = this.querySelector('.detail').style.display === 'block' ? 'none' : 'block'">
           <span class="icon">👥</span>
           Ask 3 Friends
-        </a>
+          <div class="detail" style="display:none; font-size: 0.75rem; color: #94a3b8; margin-top: 0.5rem; line-height: 1.4;">
+            If you set up guardians, 3 of your 5 trusted friends can help reconstruct your identity — even if everything else is lost.<br/><br/>
+            <em style="color: #f59e0b;">Coming soon — this feature is being built.</em>
+          </div>
+        </div>
       </div>
+      <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.75rem; line-height: 1.4;">
+        In the meantime, if you can't recover your identity, contact your community admin below. They may be able to help you rejoin with a new invite.
+      </p>
     </div>
 
     <hr class="divider" />
