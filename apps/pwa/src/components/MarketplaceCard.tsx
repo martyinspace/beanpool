@@ -7,12 +7,18 @@ import { MARKETPLACE_CATEGORIES, POST_TYPE_COLORS, type MarketplacePost } from '
 interface Props {
     post: MarketplacePost;
     authorRating?: { average: number; count: number };
+    remoteNode?: string; // e.g. "https://sydney.beanpool.org"
     onTrade?: (post: MarketplacePost) => void;
 }
 
-export function MarketplaceCard({ post, authorRating, onTrade }: Props) {
+export function MarketplaceCard({ post, authorRating, remoteNode, onTrade }: Props) {
     const categoryConfig = MARKETPLACE_CATEGORIES.find((c) => c.id === post.category);
     const typeColor = POST_TYPE_COLORS[post.type];
+
+    // Extract node callsign from URL for display
+    const nodeBadge = remoteNode
+        ? remoteNode.replace(/^https?:\/\//, '').replace(/\.beanpool\.org.*$/, '').replace(/:\d+$/, '')
+        : null;
 
     return (
         <div style={{
@@ -45,14 +51,28 @@ export function MarketplaceCard({ post, authorRating, onTrade }: Props) {
                         </span>
                     </div>
                 </div>
-                <span style={{
-                    fontSize: '1.1rem',
-                    fontWeight: 700,
-                    color: 'var(--text-primary)',
-                    fontFamily: 'monospace',
-                }}>
-                    {post.credits}Ʀ
-                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
+                    <span style={{
+                        fontSize: '1.1rem',
+                        fontWeight: 700,
+                        color: 'var(--text-primary)',
+                        fontFamily: 'monospace',
+                    }}>
+                        {post.credits}Ʀ
+                    </span>
+                    {nodeBadge && (
+                        <span style={{
+                            fontSize: '0.6rem', fontWeight: 600,
+                            background: 'rgba(99,102,241,0.15)',
+                            color: '#818cf8',
+                            padding: '0.15rem 0.4rem', borderRadius: '9999px',
+                            border: '1px solid rgba(99,102,241,0.3)',
+                            whiteSpace: 'nowrap',
+                        }}>
+                            🌐 {nodeBadge}
+                        </span>
+                    )}
+                </div>
             </div>
 
             {/* Primary photo */}

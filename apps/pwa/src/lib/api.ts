@@ -308,3 +308,69 @@ export interface MemberSummary {
 export async function getAllMembers(): Promise<MemberSummary[]> {
     return request('GET', '/api/members');
 }
+
+// ===================== FEDERATION =====================
+
+export interface NodeInfo {
+    name: string;
+    memberCount: number;
+    postCount: number;
+    peerNodes: { callsign: string; publicUrl: string | null }[];
+}
+
+/** Fetch node info from a remote node */
+export async function getNodeInfo(baseUrl: string): Promise<NodeInfo> {
+    const res = await fetch(`${baseUrl}/api/node/info`);
+    if (!res.ok) throw new Error(`Failed to fetch node info from ${baseUrl}`);
+    return res.json();
+}
+
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+/** Fetch marketplace posts from a remote node (cached in sessionStorage for 5 min) */
+export async function getRemotePosts(baseUrl: string, filters?: { type?: string; category?: string }): Promise<MarketplacePost[]> {
+    const cacheKey = `bp_remote_posts_${baseUrl}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+        const { data, ts } = JSON.parse(cached);
+        if (Date.now() - ts < CACHE_TTL_MS) return data;
+    }
+
+    const params = new URLSearchParams();
+    if (filters?.type) params.set('type', filters.type);
+    if (filters?.category) params.set('category', filters.category);
+    const qs = params.toString() ? `?${params}` : '';
+
+    const res = await fetch(`${baseUrl}/api/marketplace/posts${qs}`);
+    if (!res.ok) throw new Error(`Failed to fetch posts from ${baseUrl}`);
+    const data = await res.json();
+
+    try {
+        sessionStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() }));
+    } catch { /* sessionStorage might be full */ }
+
+    return data;
+}
+
+/** Send a credit transfer to a remote node's ledger */
+export async function sendRemoteTransfer(
+    baseUrl: string, from: string, to: string, amount: number, memo: string
+): Promise<{ success: boolean; transaction: Transaction }> {
+    const res = await fetch(`${baseUrl}/api/ledger/transfer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from, to, amount, memo }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Transfer failed' }));
+        throw new Error(err.error || 'Remote transfer failed');
+    }
+    return res.json();
+}
+
+/** Check balance on a remote node */
+export async function getRemoteBalance(baseUrl: string, publicKey: string): Promise<BalanceInfo> {
+    const res = await fetch(`${baseUrl}/api/ledger/balance/${encodeURIComponent(publicKey)}`);
+    if (!res.ok) throw new Error(`Failed to fetch balance from ${baseUrl}`);
+    return res.json();
+}

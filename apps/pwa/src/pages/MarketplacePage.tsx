@@ -15,7 +15,8 @@ import {
     getMarketplacePosts, removeMarketplacePost, updateMarketplacePost,
     getMemberProfile, createConversationApi, sendTransfer,
     submitRating, getMemberRatings, reportAbuse,
-    type MarketplacePost, type MemberProfile,
+    getNodeInfo, getRemotePosts,
+    type MarketplacePost, type MemberProfile, type NodeInfo,
 } from '../lib/api';
 import { type BeanPoolIdentity } from '../lib/identity';
 
@@ -33,6 +34,10 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
     const [deleting, setDeleting] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+
+    // Federation
+    const [peerNodes, setPeerNodes] = useState<{ callsign: string; publicUrl: string }[]>([]);
+    const [selectedNode, setSelectedNode] = useState<string | null>(null); // null = home node
 
     // Radius filter
     const [radiusSettings, setRadiusSettings] = useState<RadiusSettings | null>(() => loadRadiusSettings());
@@ -74,18 +79,38 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
 
     const refresh = useCallback(async () => {
         try {
-            const filter: any = {};
-            if (typeFilter !== 'all') filter.type = typeFilter;
-            if (categoryFilter !== 'all') filter.category = categoryFilter;
-            const data = await getMarketplacePosts(filter);
-            setPosts(data);
+            if (selectedNode) {
+                // Remote node — fetch via federation API
+                const filter: any = {};
+                if (typeFilter !== 'all') filter.type = typeFilter;
+                if (categoryFilter !== 'all') filter.category = categoryFilter;
+                const data = await getRemotePosts(selectedNode, filter);
+                // Tag posts with remote node info for UI badges
+                setPosts(data.map(p => ({ ...p, _remoteNode: selectedNode })));
+            } else {
+                // Home node — fetch locally
+                const filter: any = {};
+                if (typeFilter !== 'all') filter.type = typeFilter;
+                if (categoryFilter !== 'all') filter.category = categoryFilter;
+                const data = await getMarketplacePosts(filter);
+                setPosts(data);
+            }
             setError(null);
         } catch (e: any) {
             setError(e.message || 'Failed to load');
         } finally {
             setLoading(false);
         }
-    }, [typeFilter, categoryFilter]);
+    }, [typeFilter, categoryFilter, selectedNode]);
+
+    // Fetch peer nodes on mount
+    useEffect(() => {
+        getNodeInfo('').then(info => {
+            const peers = info.peerNodes
+                .filter((p): p is { callsign: string; publicUrl: string } => !!p.publicUrl);
+            setPeerNodes(peers);
+        }).catch(() => {});
+    }, []);
 
     useEffect(() => {
         refresh();
@@ -850,6 +875,44 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                 </div>
             )}
 
+            {/* Connected Communities */}
+            {peerNodes.length > 0 && (
+                <div style={{
+                    display: 'flex', gap: '0.4rem', marginBottom: '0.75rem',
+                    overflowX: 'auto', paddingBottom: '0.25rem',
+                }}>
+                    <button
+                        onClick={() => { setSelectedNode(null); setLoading(true); }}
+                        style={{
+                            padding: '0.35rem 0.7rem', borderRadius: '9999px',
+                            border: `1px solid ${!selectedNode ? '#10b981' : '#444'}`,
+                            background: !selectedNode ? 'rgba(16,185,129,0.15)' : 'transparent',
+                            color: !selectedNode ? '#10b981' : '#888',
+                            fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
+                            fontFamily: 'inherit', whiteSpace: 'nowrap',
+                        }}
+                    >
+                        🏠 Home
+                    </button>
+                    {peerNodes.map(peer => (
+                        <button
+                            key={peer.publicUrl}
+                            onClick={() => { setSelectedNode(peer.publicUrl); setLoading(true); }}
+                            style={{
+                                padding: '0.35rem 0.7rem', borderRadius: '9999px',
+                                border: `1px solid ${selectedNode === peer.publicUrl ? '#6366f1' : '#444'}`,
+                                background: selectedNode === peer.publicUrl ? 'rgba(99,102,241,0.15)' : 'transparent',
+                                color: selectedNode === peer.publicUrl ? '#818cf8' : '#888',
+                                fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
+                                fontFamily: 'inherit', whiteSpace: 'nowrap',
+                            }}
+                        >
+                            🌐 {peer.callsign}
+                        </button>
+                    ))}
+                </div>
+            )}
+
             {/* Filters: type buttons + Mine + category dropdown on one row */}
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 {(['all', 'offer', 'need'] as const).map((t) => (
@@ -942,6 +1005,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                             <MarketplaceCard
                                 post={post as any}
                                 authorRating={authorRatingsCache[post.authorPublicKey]}
+                                remoteNode={(post as any)._remoteNode}
                                 onTrade={(p) => setSelectedPost(p as any)}
                             />
                         </div>
