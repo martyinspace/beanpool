@@ -238,11 +238,13 @@ In Settings → **Community** tab, set:
 
 ### 6. Connect to Other Nodes (Optional)
 
-To join the mesh network:
+To enable cross-community trading (federation):
 1. Settings → **Sovereign Connectors**
 2. Enter the other node's address (e.g. `sydney.beanpool.org:4001`)
-3. The nodes will perform a mutual trust handshake
-4. State sync begins automatically every 15 minutes
+3. Choose trust level: **Peer** (federation, default) or **Mirror** (backup)
+4. The nodes will perform a mutual trust handshake
+
+With **Peer** trust, your members can browse the remote marketplace and trade. With **Mirror** trust, all data replicates every 15 minutes (use only for backups).
 
 ---
 

@@ -36,9 +36,12 @@
 - [ ] **Photo Size Limits** — Enforce max file size per photo and max photos per post at upload time
 - [ ] **Message Retention Policy** — Auto-prune old messages/conversations beyond a configurable age
 
-## Network & Sync
+## Network & Federation
 
-- [ ] **Multi-Node Marketplace Sync** — Propagate marketplace posts across trusted connectors
+- [x] **Federation Protocol — Phase 1** — Trust levels (mirror/peer/blocked), CORS, `/api/node/info`
+- [x] **Federation Protocol — Phase 2** — Remote marketplace browsing, Connected Communities UI, node badges
+- [ ] **Federation Protocol — Phase 3** — Cross-node trading (Accept Offer on remote node)
+- [ ] **Federation Protocol — Phase 4** — Global Balance aggregation, cross-node messaging, deep links
 - [ ] **Offline Queue** — Queue transactions/messages when offline, replay on reconnect
 
 ## Governance & Credits

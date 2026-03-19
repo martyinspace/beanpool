@@ -6,7 +6,7 @@
 
 ## 🍌 The Banana-Simple Version
 
-BeanPool is a **federation of sovereign nodes** — each node is independently operated and controlled by its host admin. There is no central server and no automatic mesh. Each node decides which other nodes to trust and connect to. When your phone opens the BeanPool app, it connects to your local node. Nodes sync state lazily via Merkle hash comparison.
+BeanPool is a **federation of sovereign nodes** — each node is independently operated and controlled by its host admin. There is no central server and no automatic mesh. Each node decides which other nodes to trust and connect to. Nodes connect via **peer** (cross-community trading) or **mirror** (backup replication) trust levels.
 
 > 📖 For step-by-step setup instructions, see [docs/NODE_ADMIN_SETUP.md](docs/NODE_ADMIN_SETUP.md).
 
@@ -117,21 +117,32 @@ BeanPool nodes are **sovereign by default** — each node is isolated and indepe
 
 ### Trust Levels
 
-Each connector has a configurable trust level that determines what data is shared:
+Each connector has a configurable trust level that determines how data flows between nodes:
 
-| Trust Level | Name | Description | Data Shared | Use Case |
-|-------------|------|-------------|-------------|----------|
-| **`read_only`** | Observer | View public activity, no transactions | Public ledger entries only | Monitor a community without participating |
-| **`credit_verification`** | Trading Partner | Cross-community credit verification (default) | Balance checks | Two communities enabling member-to-member trade |
-| **`full_sync`** | Full Mirror | Complete data replication for redundancy | All state (members, posts, profiles, ratings) | Backup nodes and geographic resilience |
+| Trust Level | Label | Description | Data Flow | Use Case |
+|-------------|-------|-------------|-----------|----------|
+| **`peer`** | Peer | *"I trust your users to trade here."* Cross-community federation via CORS + API access | On-demand HTTPS queries — no data stored locally | Two communities enabling cross-marketplace browsing and trading |
+| **`mirror`** | Mirror | *"I am a backup of you."* Full state replication for disaster recovery | All state synced every 15 min (members, posts, profiles, ratings) | Backup nodes and geographic resilience |
+| **`blocked`** | Blocked | *"Do not allow this node's PWA to call my API."* | No CORS headers, API requests rejected | Disconnect from an untrusted node |
 
-### Lazy State Sync
+### Federation — Cross-Community Trading
 
-When two nodes have `full_sync` trust + mutual trust confirmed via handshake:
+When two nodes are connected as **peers**, their members can browse each other's marketplaces and trade across communities:
+
+1. **Browsing:** The PWA queries the remote node's API directly (`sydney.beanpool.org/api/marketplace/posts`) — no data is stored on the home node
+2. **Trading:** When accepting a remote offer, credits move on the **remote** node's ledger (mutual credit allows negative balances)
+3. **Identity:** Ed25519 keypairs work everywhere — no separate accounts needed. Visitors appear as guest entries on remote ledgers
+4. **No transitivity:** Each node must explicitly add peers. Being connected to Sydney doesn't automatically connect you to Sydney's peers
+
+### Mirror — State Replication
+
+When two nodes have `mirror` trust + mutual trust confirmed via handshake:
 1. **Every 15 minutes**, each node compares its Merkle state hash with its peer
 2. **If hashes differ**, the nodes exchange deltas (new members + new posts)
 3. **Posts carry origin tracking** (`originNode`) so each node knows where data came from
 4. **Initial sync** happens 30 seconds after boot
+
+> ⚠️ **Mirror copies all data.** Use only for private backups or small clusters. Not recommended for general federation.
 
 ---
 

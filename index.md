@@ -78,7 +78,8 @@
 | `apps/server/src/tls.ts` | **TLS certificate management** — LE via acme-client + self-signed fallback |
 | `apps/server/src/state-engine.ts` | In-memory state: members, posts, profiles, conversations, messages, invites, ledger, ratings, reports |
 | `apps/server/src/https-server.ts` | 30+ REST API endpoints: community, marketplace, friends, ratings, reports, admin |
-| `apps/server/src/connector-manager.ts` | Sovereign connectors with 3 trust levels |
+| `apps/server/src/connector-manager.ts` | Sovereign connectors with federation trust levels (peer/mirror/blocked) |
+| `apps/server/src/federation-api.ts` | Federation CORS middleware + `/api/node/info` + `/api/federation/verify-member` |
 | `apps/server/src/handshake.ts` | Mutual trust verification + latency via yamux streams |
 | `apps/server/src/sync-protocol.ts` | Lazy state sync — Merkle hash + delta exchange |
 | `apps/server/src/local-config.ts` | Admin auth (scrypt) + node config |
