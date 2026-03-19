@@ -16,7 +16,7 @@ import {
     getMarketplacePosts, removeMarketplacePost, updateMarketplacePost,
     getMemberProfile, createConversationApi, sendTransfer,
     submitRating, getMemberRatings, reportAbuse,
-    getNodeInfo, getRemotePosts, sendRemoteTransfer,
+    getNodeInfo, getRemotePosts, sendRemoteTransfer, sendFederationMessage,
     type MarketplacePost, type MemberProfile, type NodeInfo,
 } from '../lib/api';
 import { type BeanPoolIdentity } from '../lib/identity';
@@ -166,12 +166,29 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
         if (!identity || !selectedPost) return;
         setMessaging(true);
         try {
-            const result = await createConversationApi(
-                'dm',
-                [identity.publicKey, selectedPost.authorPublicKey],
-                identity.publicKey,
-            );
-            if (onNavigate) onNavigate('messages', result.conversation.id);
+            const remoteNode = (selectedPost as any)._remoteNode;
+            if (remoteNode) {
+                // Remote post — relay via federation
+                const result = await sendFederationMessage(
+                    remoteNode,
+                    identity.publicKey,
+                    identity.callsign || 'Anonymous',
+                    selectedPost.authorPublicKey,
+                    `Hi! I'm interested in your post: "${selectedPost.title}"`,
+                    'plaintext',  // nonce placeholder for unencrypted federation msgs
+                );
+                if (result.conversationId && onNavigate) {
+                    onNavigate('messages', result.conversationId);
+                }
+            } else {
+                // Local post — existing flow
+                const result = await createConversationApi(
+                    'dm',
+                    [identity.publicKey, selectedPost.authorPublicKey],
+                    identity.publicKey,
+                );
+                if (onNavigate) onNavigate('messages', result.conversation.id);
+            }
         } catch (e: any) {
             setError(e.message || 'Failed to start conversation');
         } finally {

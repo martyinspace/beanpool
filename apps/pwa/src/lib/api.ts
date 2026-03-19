@@ -368,6 +368,56 @@ export async function sendRemoteTransfer(
     return res.json();
 }
 
+/** Send a federation relay message — delivers to remote node AND stores locally */
+export async function sendFederationMessage(
+    targetNodeUrl: string,
+    senderPublicKey: string,
+    senderCallsign: string,
+    recipientPublicKey: string,
+    ciphertext: string,
+    nonce: string,
+): Promise<{ conversationId: string }> {
+    const homeNodeUrl = window.location.origin;
+    const payload = {
+        senderPublicKey,
+        senderCallsign,
+        senderNodeUrl: homeNodeUrl,
+        recipientPublicKey,
+        ciphertext,
+        nonce,
+    };
+
+    // 1. Deliver to the remote node
+    const remoteRes = await fetch(`${targetNodeUrl}/api/federation/relay-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    if (!remoteRes.ok) {
+        const err = await remoteRes.json().catch(() => ({ error: 'Relay failed' }));
+        throw new Error(err.error || 'Failed to relay message to remote node');
+    }
+
+    // 2. Store locally so the sender can see the conversation in their Chat tab
+    const localRes = await fetch(`/api/federation/relay-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            ...payload,
+            // Swap perspective: on our node, the "sender" is us (already a member),
+            // the "recipient" is the remote user (will be registered as visitor)
+            recipientPublicKey: recipientPublicKey,
+        }),
+    });
+    if (!localRes.ok) {
+        // Remote delivery succeeded but local copy failed — still usable
+        console.warn('Failed to store local copy of federation message');
+        return { conversationId: '' };
+    }
+    const localData = await localRes.json();
+    return { conversationId: localData.conversationId };
+}
+
 /** Check balance on a remote node */
 export async function getRemoteBalance(baseUrl: string, publicKey: string): Promise<BalanceInfo> {
     const res = await fetch(`${baseUrl}/api/ledger/balance/${encodeURIComponent(publicKey)}`);

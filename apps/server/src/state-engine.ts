@@ -286,12 +286,19 @@ export function registerMember(publicKey: string, callsign: string): Member | nu
  * Visitors get a minimal member entry so the ledger can track their balance.
  * Their mutual credit starts at 0 and can go negative (down to -100Ʀ).
  */
-function registerVisitor(publicKey: string): void {
-    if (members.find(m => m.publicKey === publicKey)) return;
-    const shortKey = publicKey.substring(0, 8);
+export function registerVisitor(publicKey: string, callsign?: string): void {
+    const existing = members.find(m => m.publicKey === publicKey);
+    if (existing) {
+        // Update callsign if a better one is provided and current is auto-generated
+        if (callsign && existing.callsign.startsWith('Visitor-')) {
+            existing.callsign = callsign;
+            saveState();
+        }
+        return;
+    }
     const member: Member = {
         publicKey,
-        callsign: `Visitor-${shortKey}`,
+        callsign: callsign || `Visitor-${publicKey.substring(0, 8)}`,
         joinedAt: new Date().toISOString(),
         invitedBy: 'federation',
         inviteCode: 'visitor',
@@ -630,9 +637,11 @@ export function createConversation(
     createdBy: string,
     name?: string,
 ): Conversation | null {
-    // All participants must be registered members
+    // Auto-register unknown participants as visitors (federation support)
     for (const p of participants) {
-        if (!members.find(m => m.publicKey === p)) return null;
+        if (!members.find(m => m.publicKey === p)) {
+            registerVisitor(p);
+        }
     }
 
     // For DMs, check if conversation already exists

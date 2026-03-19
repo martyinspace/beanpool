@@ -11,7 +11,7 @@
 import type Koa from 'koa';
 import type Router from '@koa/router';
 import { getPeerOrigins, getConnectorsByLevel } from './connector-manager.js';
-import { getMembers, getPosts, getBalance } from './state-engine.js';
+import { getMembers, getPosts, getBalance, createConversation, sendMessage, registerVisitor } from './state-engine.js';
 import { getLocalConfig } from './local-config.js';
 
 /**
@@ -92,6 +92,54 @@ export function mountFederationRoutes(router: Router): void {
             isMember: true,
             callsign: member.callsign,
             homeBalance: balance?.balance ?? 0,
+        };
+    });
+
+    // Relay message — receive a DM from a remote node
+    router.post('/api/federation/relay-message', async (ctx) => {
+        const body = (ctx as any).requestBody || {};
+        const { senderPublicKey, senderCallsign, senderNodeUrl, recipientPublicKey, ciphertext, nonce } = body;
+
+        if (!senderPublicKey || !recipientPublicKey || !ciphertext || !nonce) {
+            ctx.status = 400;
+            ctx.body = { error: 'Missing required fields: senderPublicKey, recipientPublicKey, ciphertext, nonce' };
+            return;
+        }
+
+        // Verify recipient exists locally
+        const members = getMembers();
+        const recipient = members.find(m => m.publicKey === recipientPublicKey);
+        if (!recipient) {
+            ctx.status = 404;
+            ctx.body = { error: 'Recipient not found on this node' };
+            return;
+        }
+
+        // Register sender as a visitor with their callsign
+        registerVisitor(senderPublicKey, senderCallsign || undefined);
+
+        // Create or find the DM conversation
+        const conversation = createConversation('dm', [senderPublicKey, recipientPublicKey], senderPublicKey);
+        if (!conversation) {
+            ctx.status = 500;
+            ctx.body = { error: 'Failed to create conversation' };
+            return;
+        }
+
+        // Store the message
+        const message = sendMessage(conversation.id, senderPublicKey, ciphertext, nonce);
+        if (!message) {
+            ctx.status = 500;
+            ctx.body = { error: 'Failed to store message' };
+            return;
+        }
+
+        console.log(`📨 Federation relay: ${senderCallsign || senderPublicKey.substring(0, 8)} → ${recipient.callsign} (from ${senderNodeUrl || 'unknown'})`);
+
+        ctx.body = {
+            success: true,
+            conversationId: conversation.id,
+            messageId: message.id,
         };
     });
 }
