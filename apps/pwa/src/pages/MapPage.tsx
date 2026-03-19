@@ -13,7 +13,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { BeanPoolIdentity } from '../lib/identity';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { getMarketplacePosts, createMarketplacePost, type MarketplacePost } from '../lib/api';
+import { getMarketplacePosts, createMarketplacePost, getNodeInfo, getRemotePosts, type MarketplacePost } from '../lib/api';
 import { MARKETPLACE_CATEGORIES, POST_TYPE_COLORS } from '../lib/marketplace';
 
 // Simple deterministic hash for consistent pin placement
@@ -169,8 +169,26 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
     // Load marketplace posts
     const refreshPosts = useCallback(async () => {
         try {
-            const data = await getMarketplacePosts();
-            setPosts(data);
+            const localData = await getMarketplacePosts();
+            // Also fetch remote posts from peer nodes
+            let allPosts: MarketplacePost[] = [...localData];
+            try {
+                const nodeInfo = await getNodeInfo('');
+                if (nodeInfo.peerNodes?.length) {
+                    const remoteResults = await Promise.allSettled(
+                        nodeInfo.peerNodes
+                            .filter((n: any) => n.publicUrl)
+                            .map(async (n: any) => {
+                                const remotePosts = await getRemotePosts(n.publicUrl);
+                                return remotePosts.map((p: any) => ({ ...p, _remoteNode: n.publicUrl, _remoteCallsign: n.callsign }));
+                            })
+                    );
+                    for (const result of remoteResults) {
+                        if (result.status === 'fulfilled') allPosts = allPosts.concat(result.value);
+                    }
+                }
+            } catch { /* peer fetch failed — show local only */ }
+            setPosts(allPosts);
         } catch { /* offline */ }
     }, []);
 
@@ -291,7 +309,11 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
         posts.forEach((post) => {
             const cat = MARKETPLACE_CATEGORIES.find(c => c.id === post.category);
             const emoji = cat?.emoji || '📌';
-            const color = POST_TYPE_COLORS[post.type] || '#888';
+            const typeColor = POST_TYPE_COLORS[post.type] || '#888';
+            const isRemote = !!(post as any)._remoteNode;
+            const remoteCallsign = (post as any)._remoteCallsign || '';
+            // Remote pins get indigo border; local pins get type color
+            const borderColor = isRemote ? '#6366f1' : typeColor;
 
             // Use real coordinates if available, otherwise deterministic fallback
             let lat: number, lng: number;
@@ -308,7 +330,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                 className: '',
                 html: `<div style="
                     width: 32px; height: 32px; border-radius: 50%;
-                    background: #1a1a1a; border: 2px solid ${color};
+                    background: #1a1a1a; border: 2px solid ${borderColor};
                     display: flex; align-items: center; justify-content: center;
                     font-size: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.4);
                 ">${emoji}</div>`,
@@ -316,12 +338,16 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                 iconAnchor: [16, 16],
             });
 
+            const nodeBadge = isRemote
+                ? `<span style="display:inline-block;font-size:0.65em;background:rgba(99,102,241,0.2);color:#818cf8;padding:1px 5px;border-radius:9px;margin-left:4px;">🌐 ${remoteCallsign}</span>`
+                : '';
+
             const marker = L.marker([lat, lng], { icon });
             marker.bindPopup(`
                 <div style="font-family: -apple-system, sans-serif; min-width: 160px;">
-                    <p style="font-weight: 700; margin: 0 0 4px;">${emoji} ${post.title}</p>
+                    <p style="font-weight: 700; margin: 0 0 4px;">${emoji} ${post.title}${nodeBadge}</p>
                     <p style="margin: 0 0 4px; color: #666; font-size: 0.85em;">${post.description || ''}</p>
-                    <p style="margin: 0; font-weight: 600; color: ${color};">
+                    <p style="margin: 0; font-weight: 600; color: ${typeColor};">
                         ${post.type === 'offer' ? '🔵 Offer' : '🟠 Need'} · ${post.credits}Ʀ
                     </p>
                     <p style="margin: 4px 0 0; color: #888; font-size: 0.8em;">by ${post.authorCallsign}</p>
