@@ -281,6 +281,27 @@ export function registerMember(publicKey: string, callsign: string): Member | nu
     return registerMemberInternal(publicKey, callsign, 'genesis', 'legacy');
 }
 
+/**
+ * Auto-register a visitor from a peer node for federation trading.
+ * Visitors get a minimal member entry so the ledger can track their balance.
+ * Their mutual credit starts at 0 and can go negative (down to -100Ʀ).
+ */
+function registerVisitor(publicKey: string): void {
+    if (members.find(m => m.publicKey === publicKey)) return;
+    const shortKey = publicKey.substring(0, 8);
+    const member: Member = {
+        publicKey,
+        callsign: `Visitor-${shortKey}`,
+        joinedAt: new Date().toISOString(),
+        invitedBy: 'federation',
+        inviteCode: 'visitor',
+    };
+    members.push(member);
+    ledger.initializeGenesisAccount(publicKey);
+    saveState();
+    console.log(`🌐 Visitor registered: ${member.callsign} (federation)`);
+}
+
 export function getMembers(): Member[] {
     return members;
 }
@@ -449,8 +470,15 @@ export function getBalance(publicKey: string): { balance: number; floor: number;
 
 export function transfer(from: string, to: string, amount: number, memo: string): Transaction | null {
     if (amount <= 0) return null;
-    if (!members.find(m => m.publicKey === from)) return null;
-    if (!members.find(m => m.publicKey === to)) return null;
+
+    // Auto-register unknown publicKeys as visitors (federation support)
+    // This allows cross-node trades where the visitor doesn't have a local account
+    if (!members.find(m => m.publicKey === from)) {
+        registerVisitor(from);
+    }
+    if (!members.find(m => m.publicKey === to)) {
+        registerVisitor(to);
+    }
 
     const success = ledger.transfer(from, to, amount);
     if (!success) return null;

@@ -15,7 +15,7 @@ import {
     getMarketplacePosts, removeMarketplacePost, updateMarketplacePost,
     getMemberProfile, createConversationApi, sendTransfer,
     submitRating, getMemberRatings, reportAbuse,
-    getNodeInfo, getRemotePosts,
+    getNodeInfo, getRemotePosts, sendRemoteTransfer,
     type MarketplacePost, type MemberProfile, type NodeInfo,
 } from '../lib/api';
 import { type BeanPoolIdentity } from '../lib/identity';
@@ -383,7 +383,12 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                         const from = isOffer ? identity.publicKey : selectedPost.authorPublicKey;
                                         const to = isOffer ? selectedPost.authorPublicKey : identity.publicKey;
                                         const memo = `${isOffer ? 'Accepted' : 'Fulfilled'}: ${selectedPost.title}`;
-                                        await sendTransfer(from, to, credits, memo);
+                                        const remoteNode = (selectedPost as any)._remoteNode;
+                                        if (remoteNode) {
+                                            await sendRemoteTransfer(remoteNode, from, to, credits, memo);
+                                        } else {
+                                            await sendTransfer(from, to, credits, memo);
+                                        }
                                     }
                                     // Auto-open message conversation
                                     handleMessageAuthor();
