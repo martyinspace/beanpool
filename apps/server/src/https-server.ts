@@ -31,6 +31,7 @@ import {
     connectToAddress, disconnectFromAddress,
     type TrustLevel,
 } from './connector-manager.js';
+import { federationCors, mountFederationRoutes } from './federation-api.js';
 import { getP2PNode } from './p2p.js';
 import { WebSocketServer } from 'ws';
 import {
@@ -75,6 +76,9 @@ function rateLimit(ctx: Koa.Context): boolean {
 export async function startHttpsServer(port: number): Promise<void> {
     const app = new Koa();
     const router = new Router();
+
+    // Federation CORS middleware (must be before body parser for fast OPTIONS handling)
+    app.use(federationCors());
 
     // JSON body parser middleware
     app.use(async (ctx, next) => {
@@ -493,8 +497,8 @@ export async function startHttpsServer(port: number): Promise<void> {
             return;
         }
 
-        const validTrustLevels: TrustLevel[] = ['full_sync', 'credit_verification', 'read_only'];
-        const level: TrustLevel = validTrustLevels.includes(trustLevel) ? trustLevel : 'credit_verification';
+        const validTrustLevels: TrustLevel[] = ['mirror', 'peer', 'blocked'];
+        const level: TrustLevel = validTrustLevels.includes(trustLevel) ? trustLevel : 'peer';
 
         const connector = addConnector(address, level, callsign);
         ctx.body = { success: true, connector };
@@ -1130,6 +1134,9 @@ export async function startHttpsServer(port: number): Promise<void> {
             ctx.body = fs.createReadStream(indexPath);
         }
     });
+
+    // Mount federation routes
+    mountFederationRoutes(router);
 
     app.use(router.routes());
     app.use(router.allowedMethods());

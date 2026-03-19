@@ -552,10 +552,11 @@
                         <div class="field" style="margin-bottom:0">
                             <label>Trust Level</label>
                             <select id="new-trust">
-                                <option value="credit_verification">Credit Verification</option>
-                                <option value="read_only">Read Only</option>
-                                <option value="full_sync">Full Sync</option>
+                                <option value="peer">Peer (Federation)</option>
+                                <option value="mirror">Mirror (Backup)</option>
+                                <option value="blocked">Blocked</option>
                             </select>
+                            <div id="mirror-warning" style="display:none;color:#f59e0b;font-size:0.7rem;margin-top:4px">⚠️ Mirror copies all data. Use only for private backups.</div>
                         </div>
                         <div class="field" style="margin-bottom:0">
                             <label>Callsign (optional)</label>
@@ -869,7 +870,7 @@
                 return;
             }
             list.innerHTML = connectors.map(c => {
-                const trustLabels = { full_sync: 'Full Sync', credit_verification: 'Credit Verification', read_only: 'Read Only' };
+                const trustLabels = { mirror: 'Mirror', peer: 'Peer', blocked: 'Blocked' };
                 let badge;
                 if (c.connected && c.mutualTrust) {
                     badge = `<span class="badge badge-mutual">● Mutual Trust</span>`;
@@ -971,6 +972,12 @@
                     showStatus('connector-status', err.error || 'Failed', 'error');
                 }
             } catch (e) { showStatus('connector-status', 'Failed', 'error'); }
+        });
+
+        // Mirror warning toggle
+        document.getElementById('new-trust').addEventListener('change', (e) => {
+            document.getElementById('mirror-warning').style.display =
+                e.target.value === 'mirror' ? 'block' : 'none';
         });
 
         // ======================== SAVE IDENTITY ========================

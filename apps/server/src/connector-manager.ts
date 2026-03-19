@@ -4,8 +4,10 @@
  * Each node admin manually configures which peers to trust and connect to.
  * No automatic discovery, no bootstrap lists, no central coordination.
  *
- * Trust is MUTUAL — both sides must add each other as connectors
- * for credit verification to work. The handshake protocol verifies this.
+ * Trust Levels:
+ *   - mirror: Full state replication (backup/disaster recovery)
+ *   - peer:   Cross-community federation (CORS + API access, no sync)
+ *   - blocked: Deny API access from this node
  *
  * Connectors are stored in data/connectors.json and persist across restarts.
  */
@@ -24,13 +26,14 @@ const RETRY_INTERVAL_MS = 30_000;     // 30 seconds
 const MAX_RETRY_DELAY_MS = 5 * 60_000; // 5 minutes max backoff
 const SYNC_INTERVAL_MS = 15 * 60_000;  // 15 minutes
 
-export type TrustLevel = 'full_sync' | 'credit_verification' | 'read_only';
+export type TrustLevel = 'mirror' | 'peer' | 'blocked';
 
 export interface ConnectorConfig {
     address: string;         // multiaddr or hostname:port (e.g. "us.beanpool.org:4001")
     trustLevel: TrustLevel;
     enabled: boolean;
     callsign?: string;       // friendly name for the UI
+    publicUrl?: string;      // HTTPS URL for federation API (e.g. "https://sydney.beanpool.org")
     addedAt: number;
 }
 
@@ -75,11 +78,52 @@ function resolveMultiaddr(address: string): string {
     return `/dns4/${host}/tcp/${port || '4001'}`;
 }
 
+/** Migrate legacy trust levels to new federation model */
+function migrateConnector(c: any): ConnectorConfig {
+    // Migrate trust levels
+    const trustMap: Record<string, TrustLevel> = {
+        full_sync: 'mirror',
+        credit_verification: 'peer',
+        read_only: 'peer',
+    };
+    if (trustMap[c.trustLevel]) {
+        console.log(`[Connectors] Migrated ${c.callsign || c.address}: ${c.trustLevel} → ${trustMap[c.trustLevel]}`);
+        c.trustLevel = trustMap[c.trustLevel];
+    }
+
+    // Fix known typos
+    if (c.address && c.address.includes(',')) {
+        const fixed = c.address.replace(/,/g, '.');
+        console.log(`[Connectors] Fixed typo: ${c.address} → ${fixed}`);
+        c.address = fixed;
+    }
+
+    // Auto-derive publicUrl if missing
+    if (!c.publicUrl && c.address) {
+        const [host, port] = c.address.split(':');
+        c.publicUrl = port && port !== '4001'
+            ? `https://${host}:${port}`
+            : `https://${host}`;
+    }
+
+    return c as ConnectorConfig;
+}
+
 function loadConnectors(): void {
     try {
         if (fs.existsSync(CONNECTORS_PATH)) {
-            connectors = JSON.parse(fs.readFileSync(CONNECTORS_PATH, 'utf-8'));
+            const raw = JSON.parse(fs.readFileSync(CONNECTORS_PATH, 'utf-8'));
+            const needsMigration = raw.some((c: any) =>
+                ['full_sync', 'credit_verification', 'read_only'].includes(c.trustLevel) ||
+                !c.publicUrl ||
+                (c.address && c.address.includes(','))
+            );
+            connectors = raw.map(migrateConnector);
             console.log(`[Connectors] Loaded ${connectors.length} connector(s) from disk.`);
+            if (needsMigration) {
+                saveConnectors();
+                console.log(`[Connectors] ✅ Migration complete — saved updated connectors.json`);
+            }
         }
     } catch (e) {
         console.warn('[Connectors] Failed to load connectors:', e);
@@ -199,8 +243,8 @@ async function syncConnectedPeers(): Promise<void> {
 
     for (const connector of connectors) {
         if (!connector.enabled) continue;
-        // Only sync with full_sync trusted peers
-        if (connector.trustLevel !== 'full_sync') continue;
+        // Only sync with mirror peers (backup/disaster recovery)
+        if (connector.trustLevel !== 'mirror') continue;
 
         const status = statuses.get(connector.address);
         if (!status?.connected || !status.peerId || !status.mutualTrust) continue;
@@ -319,12 +363,21 @@ export async function disconnectFromAddress(address: string): Promise<void> {
     console.log(`[Connectors] Disconnected from ${address}`);
 }
 
-export function addConnector(address: string, trustLevel: TrustLevel, callsign?: string): ConnectorConfig {
+export function addConnector(address: string, trustLevel: TrustLevel, callsign?: string, publicUrl?: string): ConnectorConfig {
+    // Auto-derive publicUrl if not provided
+    if (!publicUrl && address) {
+        const [host, port] = address.split(':');
+        publicUrl = port && port !== '4001'
+            ? `https://${host}:${port}`
+            : `https://${host}`;
+    }
+
     // Prevent duplicates
     const existing = connectors.find(c => c.address === address);
     if (existing) {
         existing.trustLevel = trustLevel;
         if (callsign) existing.callsign = callsign;
+        if (publicUrl) existing.publicUrl = publicUrl;
         saveConnectors();
         return existing;
     }
@@ -334,6 +387,7 @@ export function addConnector(address: string, trustLevel: TrustLevel, callsign?:
         trustLevel,
         enabled: true,
         callsign: callsign || undefined,
+        publicUrl,
         addedAt: Date.now(),
     };
 
@@ -374,9 +428,21 @@ export function getConnectorByAddress(address: string): ConnectorStatus | null {
  * Used by the handshake handler to respond to trust queries.
  */
 export function isPeerTrusted(peerId: string): { trusted: boolean; trustLevel: TrustLevel | null } {
-    const status = getConnectors().find(c => c.peerId === peerId);
+    const status = getConnectors().find(c => c.peerId === peerId && c.trustLevel !== 'blocked');
     if (status) {
         return { trusted: true, trustLevel: status.trustLevel };
     }
     return { trusted: false, trustLevel: null };
+}
+
+/** Get connectors filtered by trust level */
+export function getConnectorsByLevel(level: TrustLevel): ConnectorStatus[] {
+    return getConnectors().filter(c => c.trustLevel === level);
+}
+
+/** Get CORS-allowed origins from peer connectors (for federation CORS middleware) */
+export function getPeerOrigins(): string[] {
+    return getConnectors()
+        .filter(c => c.trustLevel === 'peer' && c.publicUrl)
+        .map(c => c.publicUrl!);
 }
