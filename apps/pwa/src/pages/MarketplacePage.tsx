@@ -11,6 +11,7 @@ import { MARKETPLACE_CATEGORIES, POST_TYPE_COLORS, type PostType } from '../lib/
 import { MarketplaceCard } from '../components/MarketplaceCard';
 import { RadiusPickerPage } from '../components/RadiusPickerPage';
 import { haversineDistance, loadRadiusSettings, saveRadiusSettings, clearRadiusSettings, type RadiusSettings } from '../lib/geo';
+import { loadEnabledPeers, togglePeer } from '../lib/peer-prefs';
 import {
     getMarketplacePosts, removeMarketplacePost, updateMarketplacePost,
     getMemberProfile, createConversationApi, sendTransfer,
@@ -35,9 +36,9 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Federation
+    // Federation — multi-toggle (home always on, peers toggled independently)
     const [peerNodes, setPeerNodes] = useState<{ callsign: string; publicUrl: string }[]>([]);
-    const [selectedNode, setSelectedNode] = useState<string | null>(null); // null = home node
+    const [enabledPeers, setEnabledPeers] = useState<Set<string>>(() => loadEnabledPeers());
 
     // Radius filter
     const [radiusSettings, setRadiusSettings] = useState<RadiusSettings | null>(() => loadRadiusSettings());
@@ -79,29 +80,35 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
 
     const refresh = useCallback(async () => {
         try {
-            if (selectedNode) {
-                // Remote node — fetch via federation API
-                const filter: any = {};
-                if (typeFilter !== 'all') filter.type = typeFilter;
-                if (categoryFilter !== 'all') filter.category = categoryFilter;
-                const data = await getRemotePosts(selectedNode, filter);
-                // Tag posts with remote node info for UI badges
-                setPosts(data.map(p => ({ ...p, _remoteNode: selectedNode })));
-            } else {
-                // Home node — fetch locally
-                const filter: any = {};
-                if (typeFilter !== 'all') filter.type = typeFilter;
-                if (categoryFilter !== 'all') filter.category = categoryFilter;
-                const data = await getMarketplacePosts(filter);
-                setPosts(data);
+            const filter: any = {};
+            if (typeFilter !== 'all') filter.type = typeFilter;
+            if (categoryFilter !== 'all') filter.category = categoryFilter;
+
+            // Always fetch home node
+            const homeData = await getMarketplacePosts(filter);
+            let allPosts: MarketplacePost[] = [...homeData];
+
+            // Fetch from all enabled peer nodes in parallel
+            if (enabledPeers.size > 0) {
+                const peerResults = await Promise.allSettled(
+                    [...enabledPeers].map(async (peerUrl) => {
+                        const data = await getRemotePosts(peerUrl, filter);
+                        return data.map(p => ({ ...p, _remoteNode: peerUrl }));
+                    })
+                );
+                for (const result of peerResults) {
+                    if (result.status === 'fulfilled') allPosts = allPosts.concat(result.value);
+                }
             }
+
+            setPosts(allPosts);
             setError(null);
         } catch (e: any) {
             setError(e.message || 'Failed to load');
         } finally {
             setLoading(false);
         }
-    }, [typeFilter, categoryFilter, selectedNode]);
+    }, [typeFilter, categoryFilter, enabledPeers]);
 
     // Fetch peer nodes on mount
     useEffect(() => {
@@ -897,41 +904,42 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                     </select>
                 </div>
 
-                {/* Connected Communities */}
+                {/* Connected Communities — multi-toggle */}
                 {peerNodes.length > 0 && (
                     <div style={{
                         display: 'flex', gap: '0.3rem', marginBottom: '0.5rem',
                         overflowX: 'auto', paddingBottom: '0.15rem',
                     }}>
-                        <button
-                            onClick={() => { setSelectedNode(null); setLoading(true); }}
-                            style={{
-                                padding: '0.25rem 0.55rem', borderRadius: '6px',
-                                border: `1px solid ${!selectedNode ? '#10b981' : '#1f1f1f'}`,
-                                background: !selectedNode ? 'rgba(16,185,129,0.1)' : 'transparent',
-                                color: !selectedNode ? '#10b981' : '#666',
-                                fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
-                                fontFamily: 'inherit', whiteSpace: 'nowrap',
-                            }}
-                        >
+                        <span style={{
+                            padding: '0.25rem 0.55rem', borderRadius: '6px',
+                            border: '1px solid #10b981',
+                            background: 'rgba(16,185,129,0.1)',
+                            color: '#10b981',
+                            fontSize: '0.7rem', fontWeight: 600,
+                            whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center',
+                        }}>
                             🏠 Home
-                        </button>
-                        {peerNodes.map(peer => (
-                            <button
-                                key={peer.publicUrl}
-                                onClick={() => { setSelectedNode(peer.publicUrl); setLoading(true); }}
-                                style={{
-                                    padding: '0.25rem 0.55rem', borderRadius: '6px',
-                                    border: `1px solid ${selectedNode === peer.publicUrl ? '#6366f1' : '#1f1f1f'}`,
-                                    background: selectedNode === peer.publicUrl ? 'rgba(99,102,241,0.1)' : 'transparent',
-                                    color: selectedNode === peer.publicUrl ? '#818cf8' : '#666',
-                                    fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
-                                    fontFamily: 'inherit', whiteSpace: 'nowrap',
-                                }}
-                            >
-                                🌐 {peer.callsign}
-                            </button>
-                        ))}
+                        </span>
+                        {peerNodes.map(peer => {
+                            const isOn = enabledPeers.has(peer.publicUrl);
+                            return (
+                                <button
+                                    key={peer.publicUrl}
+                                    onClick={() => { setEnabledPeers(togglePeer(enabledPeers, peer.publicUrl)); }}
+                                    style={{
+                                        padding: '0.25rem 0.55rem', borderRadius: '6px',
+                                        border: `1px solid ${isOn ? '#6366f1' : '#1f1f1f'}`,
+                                        background: isOn ? 'rgba(99,102,241,0.15)' : 'transparent',
+                                        color: isOn ? '#818cf8' : '#555',
+                                        fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
+                                        fontFamily: 'inherit', whiteSpace: 'nowrap',
+                                        transition: 'all 0.15s ease',
+                                    }}
+                                >
+                                    {isOn ? '🌐' : '○'} {peer.callsign}
+                                </button>
+                            );
+                        })}
                     </div>
                 )}
 

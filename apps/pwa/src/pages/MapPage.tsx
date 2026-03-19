@@ -15,6 +15,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getMarketplacePosts, createMarketplacePost, getNodeInfo, getRemotePosts, type MarketplacePost } from '../lib/api';
 import { MARKETPLACE_CATEGORIES, POST_TYPE_COLORS } from '../lib/marketplace';
+import { loadEnabledPeers } from '../lib/peer-prefs';
 
 // Simple deterministic hash for consistent pin placement
 function simpleHash(str: string): number {
@@ -166,28 +167,31 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
         userMarkerRef.current = L.marker(latlng, { icon, zIndexOffset: 1000 }).addTo(map);
     }
 
-    // Load marketplace posts
+    // Load marketplace posts (home + enabled peers from localStorage)
     const refreshPosts = useCallback(async () => {
         try {
             const localData = await getMarketplacePosts();
-            // Also fetch remote posts from peer nodes
             let allPosts: MarketplacePost[] = [...localData];
-            try {
+
+            // Only fetch from peers the user has toggled on
+            const enabledPeers = loadEnabledPeers();
+            if (enabledPeers.size > 0) {
                 const nodeInfo = await getNodeInfo('');
-                if (nodeInfo.peerNodes?.length) {
+                const peersToFetch = (nodeInfo.peerNodes || [])
+                    .filter((n: any) => n.publicUrl && enabledPeers.has(n.publicUrl));
+
+                if (peersToFetch.length > 0) {
                     const remoteResults = await Promise.allSettled(
-                        nodeInfo.peerNodes
-                            .filter((n: any) => n.publicUrl)
-                            .map(async (n: any) => {
-                                const remotePosts = await getRemotePosts(n.publicUrl);
-                                return remotePosts.map((p: any) => ({ ...p, _remoteNode: n.publicUrl, _remoteCallsign: n.callsign }));
-                            })
+                        peersToFetch.map(async (n: any) => {
+                            const remotePosts = await getRemotePosts(n.publicUrl);
+                            return remotePosts.map((p: any) => ({ ...p, _remoteNode: n.publicUrl, _remoteCallsign: n.callsign }));
+                        })
                     );
                     for (const result of remoteResults) {
                         if (result.status === 'fulfilled') allPosts = allPosts.concat(result.value);
                     }
                 }
-            } catch { /* peer fetch failed — show local only */ }
+            }
             setPosts(allPosts);
         } catch { /* offline */ }
     }, []);
