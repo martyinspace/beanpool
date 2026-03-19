@@ -7,7 +7,7 @@
 
 ## Current State (2026-03-19)
 
-**BeanPool is a fully functional PWA** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🫘 bean reputation system, abuse reporting, community health dashboard, and lazy state sync — deployed on **3 sovereign nodes** with Let's Encrypt TLS.
+**BeanPool is a fully functional PWA** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🫘 bean reputation system, abuse reporting, community health dashboard, and federation protocol — deployed on **3 sovereign nodes** with Let's Encrypt TLS.
 
 ### What's Working
 - ✅ **Invite-only membership** — single-use invite codes, hierarchical invite tree (node → seed codes → admin → organic invites)
@@ -29,8 +29,9 @@
 - ✅ **Community health dashboard** — admin settings panel with member stats, tree depth, activity, flags
 - ✅ **REST APIs** — 30+ endpoints for community, invites, profiles, ledger, marketplace, messaging, ratings, reports, friends
 - ✅ **WebSocket `/ws`** — real-time state feed
-- ✅ **Sovereign Connectors** — node-to-node trust with 3 levels
-- ✅ **Lazy State Sync** — Merkle hash comparison + delta exchange, 15-min intervals
+- ✅ **Federation Protocol** — peer/mirror/blocked trust levels, dynamic CORS, `/api/node/info`, verify-member
+- ✅ **Cross-Community Marketplace** — Connected Communities UI, remote post browsing, `🌐` node badges
+- ✅ **Mirror State Sync** — Merkle hash comparison + delta exchange, 15-min intervals (for mirror-trusted nodes)
 - ✅ **Handshake Protocol** — mutual trust + latency over yamux streams
 - ✅ **Let's Encrypt Auto-TLS** — DNS-01 challenge via Cloudflare API (acme-client v5)
 - ✅ **3 Live Nodes** — Sydney, Brisbane, Debian (local dev server)

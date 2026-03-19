@@ -11,7 +11,7 @@
 
 BeanPool is an open protocol for building a **post-extraction economy**. It connects communities through a decentralized mutual credit system where value is created through cooperation, not extraction. Nodes gossip state over a libp2p mesh, automatically applying demurrage (value decay) to prevent hoarding and fund a community Commons pool.
 
-**Live network:** [sydney.beanpool.org](https://sydney.beanpool.org) · [brisbane.beanpool.org](https://brisbane.beanpool.org) · [debian.beanpool.org](https://debian.beanpool.org:8443) — connected via libp2p with ~570ms handshake latency and 15-minute lazy state sync.
+**Live network:** [sydney.beanpool.org](https://sydney.beanpool.org) · [brisbane.beanpool.org](https://brisbane.beanpool.org) · [debian.beanpool.org](https://debian.beanpool.org:8443) — federated via peer connectors with cross-community marketplace browsing and trading.
 
 ---
 
@@ -108,14 +108,21 @@ Admin insights in Settings page:
 - **Flags** — automated health alerts
 - **Refreshable** with one click
 
-### 🔗 Sovereign Connectors
+### 🔗 Sovereign Connectors + Federation
 Node-to-node trust relationships with 3 levels:
-- **`read_only`** — observe public activity
-- **`credit_verification`** — cross-community credit verification
-- **`full_sync`** — complete data replication + lazy state sync
+- **`peer`** — cross-community federation: browse remote marketplace, trade across nodes
+- **`mirror`** — complete data replication (backup/disaster recovery)
+- **`blocked`** — deny API access from this node
 
-### 🔄 Lazy State Sync
-Automatic state synchronisation between trusted nodes:
+### 🌐 Cross-Community Federation
+Nodes connected as **peers** enable:
+- **Remote marketplace browsing** — PWA queries remote node's API directly
+- **Connected Communities UI** — pill bar to switch between 🏠 Home and 🌐 peer marketplaces
+- **Session cache** — 5-minute cache for instant toggling between communities
+- **Node badges** — 🌐 badges on remote posts to show their origin
+
+### 🔄 Mirror State Sync
+Automatic state synchronisation between `mirror`-trusted nodes:
 - **Merkle hash comparison** — only syncs when state differs
 - **Delta exchange** — new members and posts only
 - **15-minute intervals** with initial sync 30s after boot
@@ -243,8 +250,9 @@ All endpoints are served on port 8443 (HTTPS):
 
 - **Mutual Credit** — participants can go negative (up to −100Ʀ) backed by community trust
 - **Demurrage (Decay)** — positive balances decay at 0.5% per month, returning to the Commons Fund
-- **Gossip Mesh** — nodes sync state via libp2p over TCP/WebSockets
-- **Lazy State Sync** — Merkle hash comparison + delta exchange every 15 minutes
+- **Gossip Mesh** — nodes connect via libp2p over TCP/WebSockets
+- **Federation Protocol** — peer nodes enable cross-community marketplace browsing and trading via CORS + API
+- **Mirror Sync** — Merkle hash comparison + delta exchange every 15 minutes (backup nodes only)
 - **Sovereign Identity** — Ed25519 keypairs from 12-word BIP-39 mnemonic (deterministic, recoverable)
 - **Invite Tree** — hierarchical membership: node genesis → seed codes → admin identity → organic invites
 - **Handshake Protocol** — mutual trust verification + latency measurement via yamux streams
@@ -269,7 +277,7 @@ All endpoints are served on port 8443 (HTTPS):
 
 ## Status
 
-BeanPool is in active development. The PWA is **fully functional** with invite-only membership, community map, marketplace with photos and bean ratings, E2E messaging (DMs + groups), mutual credit ledger, editable member profiles, abuse reporting, and community health dashboard — all connected to live server APIs. Three nodes (Sydney, Brisbane, Debian) are deployed with lazy state sync over libp2p.
+BeanPool is in active development. The PWA is **fully functional** with invite-only membership, community map, marketplace with photos and bean ratings, E2E messaging (DMs + groups), mutual credit ledger, editable member profiles, abuse reporting, and community health dashboard — all connected to live server APIs. Three nodes (Sydney, Brisbane, Debian) are deployed with federation protocol for cross-community trading.
 
 **What's working:**
 - ✅ Invite-only membership with single-use codes + hierarchical invite tree
@@ -287,8 +295,9 @@ BeanPool is in active development. The PWA is **fully functional** with invite-o
 - ✅ Community health dashboard (admin settings)
 - ✅ REST APIs (30+ endpoints) including friends, ratings, reports
 - ✅ WebSocket real-time state feed
-- ✅ Sovereign connectors with 3 trust levels
-- ✅ Lazy state sync (Merkle hash + delta exchange, 15-min intervals)
+- ✅ Federation protocol — peer/mirror/blocked trust levels
+- ✅ Cross-community marketplace browsing (Connected Communities UI)
+- ✅ Mirror state sync (Merkle hash + delta exchange, 15-min intervals)
 - ✅ Handshake protocol (~570ms latency between continents)
 - ✅ Let's Encrypt auto-TLS via DNS-01 challenge (Cloudflare API)
 - ✅ 3 live nodes — Sydney (Azure), Brisbane (Azure), Debian (bare metal)
