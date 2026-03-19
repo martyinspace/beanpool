@@ -1,5 +1,11 @@
 /**
- * MarketplaceCard — Needs & Offers display card
+ * MarketplaceCard — FB Marketplace-style image-dominant tile
+ *
+ * Designed for a 2-column CSS grid:
+ *  - Square photo (1:1 aspect ratio) fills the top
+ *  - Price + title below in compact text
+ *  - Category emoji badge overlaid on the image
+ *  - Remote node badge if from a peer
  */
 
 import { MARKETPLACE_CATEGORIES, POST_TYPE_COLORS, type MarketplacePost } from '../lib/marketplace';
@@ -7,123 +13,128 @@ import { MARKETPLACE_CATEGORIES, POST_TYPE_COLORS, type MarketplacePost } from '
 interface Props {
     post: MarketplacePost;
     authorRating?: { average: number; count: number };
-    remoteNode?: string; // e.g. "https://sydney.beanpool.org"
+    remoteNode?: string;
     onTrade?: (post: MarketplacePost) => void;
 }
 
-export function MarketplaceCard({ post, authorRating, remoteNode, onTrade }: Props) {
+export function MarketplaceCard({ post, authorRating, remoteNode }: Props) {
     const categoryConfig = MARKETPLACE_CATEGORIES.find((c) => c.id === post.category);
     const typeColor = POST_TYPE_COLORS[post.type];
+    const emoji = categoryConfig?.emoji ?? '📦';
 
-    // Extract node callsign from URL for display
     const nodeBadge = remoteNode
         ? remoteNode.replace(/^https?:\/\//, '').replace(/\.beanpool\.org.*$/, '').replace(/:\d+$/, '')
         : null;
 
+    const hasPhoto = post.photos && post.photos.length > 0;
+
     return (
         <div style={{
-            background: 'var(--bg-card)',
-            border: `1px solid ${typeColor}33`,
-            borderLeft: `3px solid ${typeColor}`,
+            background: '#0f0f0f',
             borderRadius: '12px',
-            padding: '1rem',
-            marginBottom: '0.75rem',
-            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+            overflow: 'hidden',
             cursor: 'pointer',
+            border: '1px solid #1a1a1a',
+            transition: 'transform 0.12s ease',
         }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '1.4rem' }}>{categoryConfig?.emoji ?? '🌐'}</span>
-                    <div>
-                        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                            {post.title}
-                        </h3>
-                        <span style={{
-                            display: 'inline-block',
-                            fontSize: '0.7rem',
-                            fontWeight: 600,
-                            textTransform: 'uppercase',
-                            color: typeColor,
-                            letterSpacing: '0.05em',
-                            marginTop: '0.2rem',
-                        }}>
-                            {post.type === 'offer' ? '🔵 Offer' : '🟠 Need'}
-                        </span>
-                    </div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
-                    <span style={{
-                        fontSize: '1.1rem',
-                        fontWeight: 700,
-                        color: 'var(--text-primary)',
-                        fontFamily: 'monospace',
+            {/* Image area */}
+            <div style={{
+                position: 'relative',
+                width: '100%',
+                aspectRatio: '1/1',
+                background: '#1a1a1a',
+                overflow: 'hidden',
+            }}>
+                {hasPhoto ? (
+                    <img
+                        src={post.photos![0]}
+                        alt={post.title}
+                        style={{
+                            width: '100%', height: '100%',
+                            objectFit: 'cover',
+                        }}
+                    />
+                ) : (
+                    /* No photo — show large emoji */
+                    <div style={{
+                        width: '100%', height: '100%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '3rem', opacity: 0.4,
                     }}>
-                        {post.credits}Ʀ
+                        {emoji}
+                    </div>
+                )}
+
+                {/* Type indicator — top-left colored dot */}
+                <div style={{
+                    position: 'absolute', top: '0.4rem', left: '0.4rem',
+                    width: '8px', height: '8px', borderRadius: '50%',
+                    background: typeColor,
+                    boxShadow: `0 0 6px ${typeColor}`,
+                }} />
+
+                {/* Category badge — top-right */}
+                <span style={{
+                    position: 'absolute', top: '0.35rem', right: '0.35rem',
+                    fontSize: '0.95rem',
+                    background: 'rgba(0,0,0,0.6)',
+                    borderRadius: '6px', padding: '0.15rem 0.3rem',
+                    lineHeight: 1,
+                }}>
+                    {emoji}
+                </span>
+
+                {/* Remote node badge — bottom-left */}
+                {nodeBadge && (
+                    <span style={{
+                        position: 'absolute', bottom: '0.35rem', left: '0.35rem',
+                        fontSize: '0.55rem', fontWeight: 600,
+                        background: 'rgba(99,102,241,0.85)',
+                        color: '#fff',
+                        padding: '0.15rem 0.35rem', borderRadius: '4px',
+                        whiteSpace: 'nowrap',
+                    }}>
+                        🌐 {nodeBadge}
                     </span>
-                    {nodeBadge && (
-                        <span style={{
-                            fontSize: '0.6rem', fontWeight: 600,
-                            background: 'rgba(99,102,241,0.15)',
-                            color: '#818cf8',
-                            padding: '0.15rem 0.4rem', borderRadius: '9999px',
-                            border: '1px solid rgba(99,102,241,0.3)',
-                            whiteSpace: 'nowrap',
-                        }}>
-                            🌐 {nodeBadge}
-                        </span>
-                    )}
-                </div>
+                )}
             </div>
 
-            {/* Primary photo */}
-            {post.photos && post.photos.length > 0 && (
-                <img
-                    src={post.photos[0]}
-                    alt="post"
-                    style={{
-                        width: '100%', aspectRatio: '16/9', objectFit: 'cover',
-                        borderRadius: '8px', marginTop: '0.5rem',
-                        background: '#1a1a1a',
-                    }}
-                />
-            )}
+            {/* Text area — compact */}
+            <div style={{ padding: '0.4rem 0.5rem 0.5rem' }}>
+                {/* Price */}
+                <div style={{
+                    fontSize: '0.85rem', fontWeight: 700,
+                    color: '#e5e5e5', fontFamily: 'monospace',
+                    lineHeight: 1.2,
+                }}>
+                    {post.credits}Ʀ
+                </div>
 
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.5rem', lineHeight: 1.5 }}>
-                {post.description}
-            </p>
+                {/* Title */}
+                <div style={{
+                    fontSize: '0.75rem', color: '#999',
+                    lineHeight: 1.3, marginTop: '0.15rem',
+                    overflow: 'hidden', textOverflow: 'ellipsis',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                }}>
+                    {post.title}
+                </div>
 
-            <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginTop: '0.75rem',
-            }}>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    🤝 {post.authorCallsign}
-                    {authorRating && (
-                        <span style={{ marginLeft: '0.4rem', color: '#fbbf24', fontSize: '0.7rem' }}>
-                            {'🫘'.repeat(Math.round(authorRating.average))}{'○'.repeat(5 - Math.round(authorRating.average))}
+                {/* Author + rating — tiny */}
+                <div style={{
+                    fontSize: '0.6rem', color: '#555',
+                    marginTop: '0.2rem',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                    {post.authorCallsign}
+                    {authorRating && authorRating.count > 0 && (
+                        <span style={{ marginLeft: '0.3rem', color: '#fbbf24' }}>
+                            {'🫘'.repeat(Math.round(authorRating.average))}
                         </span>
                     )}
-                </span>
-                {onTrade && (
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onTrade(post); }}
-                        style={{
-                            background: typeColor,
-                            color: 'var(--text-primary)',
-                            border: 'none',
-                            borderRadius: '8px',
-                            padding: '0.4rem 1rem',
-                            fontSize: '0.8rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            fontFamily: 'inherit',
-                        }}
-                    >
-                        {post.type === 'offer' ? 'Accept Offer' : 'Fulfill Need'}
-                    </button>
-                )}
+                </div>
             </div>
         </div>
     );

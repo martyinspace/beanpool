@@ -1019,16 +1019,18 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                             : 'No posts yet. Be the first to post!'}
                     </div>
                 ) : (
-                    filtered.map((post) => (
-                        <div key={post.id} onClick={() => setSelectedPost(post)}>
-                            <MarketplaceCard
-                                post={post as any}
-                                authorRating={authorRatingsCache[post.authorPublicKey]}
-                                remoteNode={(post as any)._remoteNode}
-                                onTrade={(p) => setSelectedPost(p as any)}
-                            />
-                        </div>
-                    ))
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                        {filtered.map((post) => (
+                            <div key={post.id} onClick={() => setSelectedPost(post)}>
+                                <MarketplaceCard
+                                    post={post as any}
+                                    authorRating={authorRatingsCache[post.authorPublicKey]}
+                                    remoteNode={(post as any)._remoteNode}
+                                    onTrade={(p) => setSelectedPost(p as any)}
+                                />
+                            </div>
+                        ))}
+                    </div>
                 );
             })()
             }
