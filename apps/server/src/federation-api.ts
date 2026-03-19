@@ -115,8 +115,8 @@ export function mountFederationRoutes(router: Router): void {
             return;
         }
 
-        // Register sender as a visitor with their callsign
-        registerVisitor(senderPublicKey, senderCallsign || undefined);
+        // Register sender as a visitor with their callsign and home node URL
+        registerVisitor(senderPublicKey, senderCallsign || undefined, senderNodeUrl || undefined);
 
         // Create or find the DM conversation
         const conversation = createConversation('dm', [senderPublicKey, recipientPublicKey], senderPublicKey);

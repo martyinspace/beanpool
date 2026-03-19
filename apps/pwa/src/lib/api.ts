@@ -36,6 +36,7 @@ export interface Member {
     joinedAt: string;
     invitedBy: string;
     inviteCode: string;
+    homeNodeUrl?: string;   // for federation visitors: their home node URL
 }
 
 export async function getCommunityInfo(): Promise<CommunityInfo> {

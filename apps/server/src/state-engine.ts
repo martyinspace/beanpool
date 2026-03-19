@@ -26,6 +26,7 @@ export interface Member {
     joinedAt: string;
     invitedBy: string;      // pubkey of inviter ('genesis' for node admin)
     inviteCode: string;     // the specific invite code used to join
+    homeNodeUrl?: string;   // for federation visitors: their home node URL
 }
 
 export interface InviteCode {
@@ -286,14 +287,21 @@ export function registerMember(publicKey: string, callsign: string): Member | nu
  * Visitors get a minimal member entry so the ledger can track their balance.
  * Their mutual credit starts at 0 and can go negative (down to -100Ʀ).
  */
-export function registerVisitor(publicKey: string, callsign?: string): void {
+export function registerVisitor(publicKey: string, callsign?: string, homeNodeUrl?: string): void {
     const existing = members.find(m => m.publicKey === publicKey);
     if (existing) {
+        let changed = false;
         // Update callsign if a better one is provided and current is auto-generated
         if (callsign && existing.callsign.startsWith('Visitor-')) {
             existing.callsign = callsign;
-            saveState();
+            changed = true;
         }
+        // Update homeNodeUrl if provided and not already set
+        if (homeNodeUrl && !existing.homeNodeUrl) {
+            existing.homeNodeUrl = homeNodeUrl;
+            changed = true;
+        }
+        if (changed) saveState();
         return;
     }
     const member: Member = {
@@ -302,11 +310,12 @@ export function registerVisitor(publicKey: string, callsign?: string): void {
         joinedAt: new Date().toISOString(),
         invitedBy: 'federation',
         inviteCode: 'visitor',
+        homeNodeUrl: homeNodeUrl || undefined,
     };
     members.push(member);
     ledger.initializeGenesisAccount(publicKey);
     saveState();
-    console.log(`🌐 Visitor registered: ${member.callsign} (federation)`);
+    console.log(`🌐 Visitor registered: ${member.callsign} (federation${homeNodeUrl ? ` from ${homeNodeUrl}` : ''})`);
 }
 
 export function getMembers(): Member[] {
