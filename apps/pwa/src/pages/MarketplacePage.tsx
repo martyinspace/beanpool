@@ -824,50 +824,152 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                 />
             )}
 
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                <h2 style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>🤝 Marketplace</h2>
-                <button
-                    onClick={() => onNavigate?.('map-post')}
-                    style={{
-                        padding: '0.4rem 0.8rem', borderRadius: '8px',
-                        background: '#2563eb',
-                        border: 'none', color: '#fff', fontSize: '0.8rem',
-                        fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                    }}
-                >
-                    ＋ New Post
-                </button>
+            {/* ── Linear-style Header ── */}
+            <div style={{
+                background: '#0a0a0a', borderRadius: '14px',
+                border: '1px solid #1f1f1f', padding: '0.75rem',
+                marginBottom: '0.75rem',
+            }}>
+                {/* Title + New Post */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                    <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#e5e5e5', margin: 0 }}>🤝 Marketplace</h2>
+                    <button
+                        onClick={() => onNavigate?.('map-post')}
+                        style={{
+                            padding: '0.3rem 0.7rem', borderRadius: '8px',
+                            background: '#2563eb', border: 'none', color: '#fff',
+                            fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                        }}
+                    >
+                        ＋ New Post
+                    </button>
+                </div>
+
+                {/* Search + Radius + Category — one compact row */}
+                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                        <span style={{
+                            position: 'absolute', left: '0.55rem', top: '50%', transform: 'translateY(-50%)',
+                            fontSize: '0.75rem', opacity: 0.4, pointerEvents: 'none',
+                        }}>🔍</span>
+                        <input
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search..."
+                            style={{
+                                width: '100%', padding: '0.4rem 0.5rem 0.4rem 1.7rem', borderRadius: '8px',
+                                border: '1px solid #1f1f1f', background: '#141414',
+                                color: '#e5e5e5', fontSize: '0.8rem', fontFamily: 'inherit',
+                                outline: 'none', boxSizing: 'border-box',
+                            }}
+                        />
+                    </div>
+                    <button
+                        onClick={() => setShowRadiusPicker(true)}
+                        title={radiusSettings ? `${radiusSettings.radiusKm}km radius` : 'Set radius'}
+                        style={{
+                            width: '34px', height: '34px', borderRadius: '8px', flexShrink: 0,
+                            border: `1px solid ${radiusSettings ? '#f59e0b' : '#1f1f1f'}`,
+                            background: radiusSettings ? 'rgba(245, 158, 11, 0.1)' : '#141414',
+                            color: radiusSettings ? '#f59e0b' : '#666',
+                            fontSize: '0.85rem', cursor: 'pointer', display: 'flex',
+                            alignItems: 'center', justifyContent: 'center', padding: 0,
+                        }}
+                    >
+                        📍
+                    </button>
+                    <select
+                        value={categoryFilter}
+                        onChange={(e) => setCategoryFilter(e.target.value)}
+                        style={{
+                            padding: '0.4rem 0.4rem', borderRadius: '8px', flexShrink: 0,
+                            background: categoryFilter !== 'all' ? '#1a1a2e' : '#141414',
+                            border: `1px solid ${categoryFilter !== 'all' ? '#6366f1' : '#1f1f1f'}`,
+                            color: categoryFilter !== 'all' ? '#a5b4fc' : '#888',
+                            fontSize: '0.75rem', fontFamily: 'inherit', cursor: 'pointer',
+                            appearance: 'auto', maxWidth: '110px',
+                        }}
+                    >
+                        <option value="all">All Categories</option>
+                        {MARKETPLACE_CATEGORIES.map((cat) => (
+                            <option key={cat.id} value={cat.id}>{cat.emoji} {cat.label}</option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Connected Communities */}
+                {peerNodes.length > 0 && (
+                    <div style={{
+                        display: 'flex', gap: '0.3rem', marginBottom: '0.5rem',
+                        overflowX: 'auto', paddingBottom: '0.15rem',
+                    }}>
+                        <button
+                            onClick={() => { setSelectedNode(null); setLoading(true); }}
+                            style={{
+                                padding: '0.25rem 0.55rem', borderRadius: '6px',
+                                border: `1px solid ${!selectedNode ? '#10b981' : '#1f1f1f'}`,
+                                background: !selectedNode ? 'rgba(16,185,129,0.1)' : 'transparent',
+                                color: !selectedNode ? '#10b981' : '#666',
+                                fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
+                                fontFamily: 'inherit', whiteSpace: 'nowrap',
+                            }}
+                        >
+                            🏠 Home
+                        </button>
+                        {peerNodes.map(peer => (
+                            <button
+                                key={peer.publicUrl}
+                                onClick={() => { setSelectedNode(peer.publicUrl); setLoading(true); }}
+                                style={{
+                                    padding: '0.25rem 0.55rem', borderRadius: '6px',
+                                    border: `1px solid ${selectedNode === peer.publicUrl ? '#6366f1' : '#1f1f1f'}`,
+                                    background: selectedNode === peer.publicUrl ? 'rgba(99,102,241,0.1)' : 'transparent',
+                                    color: selectedNode === peer.publicUrl ? '#818cf8' : '#666',
+                                    fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
+                                    fontFamily: 'inherit', whiteSpace: 'nowrap',
+                                }}
+                            >
+                                🌐 {peer.callsign}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {/* Type filter chips — compact row */}
+                <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                    {(['all', 'offer', 'need'] as const).map((t) => (
+                        <button
+                            key={t}
+                            onClick={() => { setTypeFilter(t); setShowMine(false); }}
+                            style={{
+                                padding: '0.25rem 0.55rem', borderRadius: '6px',
+                                border: `1px solid ${t === 'offer' ? '#3b82f633' : t === 'need' ? '#f9731633' : '#1f1f1f'}`,
+                                background: !showMine && typeFilter === t
+                                    ? (t === 'offer' ? '#1e3a5f' : t === 'need' ? '#3b1f0b' : '#1f1f1f')
+                                    : 'transparent',
+                                color: !showMine && typeFilter === t ? '#e5e5e5' : '#666',
+                                fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
+                                fontFamily: 'inherit', whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {t === 'all' ? 'All' : t === 'offer' ? '🔵 Offers' : '🟠 Needs'}
+                        </button>
+                    ))}
+                    <button
+                        onClick={() => setShowMine(!showMine)}
+                        style={{
+                            padding: '0.25rem 0.55rem', borderRadius: '6px',
+                            border: '1px solid #a855f733',
+                            background: showMine ? '#2d1b4e' : 'transparent',
+                            color: showMine ? '#c084fc' : '#666',
+                            fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
+                            fontFamily: 'inherit', whiteSpace: 'nowrap',
+                        }}
+                    >
+                        👤 Mine
+                    </button>
+                </div>
             </div>
-
-            {/* Search bar */}
-            <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="🔍 Search offers & needs..."
-                style={{
-                    width: '100%', padding: '0.6rem 0.75rem', borderRadius: '10px',
-                    border: '1px solid var(--border-primary)', background: 'var(--bg-card)',
-                    color: 'var(--text-primary)', fontSize: '0.85rem', fontFamily: 'inherit',
-                    outline: 'none', marginBottom: '0.5rem', boxSizing: 'border-box',
-                }}
-            />
-
-            {/* Radius chip */}
-            <button
-                onClick={() => setShowRadiusPicker(true)}
-                style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                    padding: '0.35rem 0.75rem', borderRadius: '9999px',
-                    background: radiusSettings ? 'rgba(245, 158, 11, 0.15)' : 'var(--bg-card)',
-                    border: `1px solid ${radiusSettings ? '#f59e0b' : 'var(--border-primary)'}`,
-                    color: radiusSettings ? '#f59e0b' : 'var(--text-muted)',
-                    fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
-                    fontFamily: 'inherit', marginBottom: '0.75rem',
-                }}
-            >
-                📍 {radiusSettings ? `${radiusSettings.radiusKm}km radius` : 'Set location & radius'}
-            </button>
 
             {/* Error */}
             {error && (
@@ -879,94 +981,6 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                     {error}
                 </div>
             )}
-
-            {/* Connected Communities */}
-            {peerNodes.length > 0 && (
-                <div style={{
-                    display: 'flex', gap: '0.4rem', marginBottom: '0.75rem',
-                    overflowX: 'auto', paddingBottom: '0.25rem',
-                }}>
-                    <button
-                        onClick={() => { setSelectedNode(null); setLoading(true); }}
-                        style={{
-                            padding: '0.35rem 0.7rem', borderRadius: '9999px',
-                            border: `1px solid ${!selectedNode ? '#10b981' : '#444'}`,
-                            background: !selectedNode ? 'rgba(16,185,129,0.15)' : 'transparent',
-                            color: !selectedNode ? '#10b981' : '#888',
-                            fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
-                            fontFamily: 'inherit', whiteSpace: 'nowrap',
-                        }}
-                    >
-                        🏠 Home
-                    </button>
-                    {peerNodes.map(peer => (
-                        <button
-                            key={peer.publicUrl}
-                            onClick={() => { setSelectedNode(peer.publicUrl); setLoading(true); }}
-                            style={{
-                                padding: '0.35rem 0.7rem', borderRadius: '9999px',
-                                border: `1px solid ${selectedNode === peer.publicUrl ? '#6366f1' : '#444'}`,
-                                background: selectedNode === peer.publicUrl ? 'rgba(99,102,241,0.15)' : 'transparent',
-                                color: selectedNode === peer.publicUrl ? '#818cf8' : '#888',
-                                fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
-                                fontFamily: 'inherit', whiteSpace: 'nowrap',
-                            }}
-                        >
-                            🌐 {peer.callsign}
-                        </button>
-                    ))}
-                </div>
-            )}
-
-            {/* Filters: type buttons + Mine + category dropdown on one row */}
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                {(['all', 'offer', 'need'] as const).map((t) => (
-                    <button
-                        key={t}
-                        onClick={() => { setTypeFilter(t); setShowMine(false); }}
-                        style={{
-                            padding: '0.4rem 0.8rem', borderRadius: '9999px',
-                            border: `1px solid ${t === 'offer' ? '#3b82f6' : t === 'need' ? '#f97316' : '#555'}`,
-                            background: !showMine && typeFilter === t ? (t === 'offer' ? '#3b82f6' : t === 'need' ? '#f97316' : '#333') : 'transparent',
-                            color: !showMine && typeFilter === t ? '#fff' : '#aaa',
-                            fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
-                            fontFamily: 'inherit', textTransform: 'capitalize',
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
-                        {t === 'all' ? 'All' : t === 'offer' ? '🔵 Offers' : '🟠 Needs'}
-                    </button>
-                ))}
-                <button
-                    onClick={() => setShowMine(!showMine)}
-                    style={{
-                        padding: '0.4rem 0.8rem', borderRadius: '9999px',
-                        border: '1px solid #a855f7',
-                        background: showMine ? '#a855f7' : 'transparent',
-                        color: showMine ? '#fff' : '#aaa',
-                        fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
-                        fontFamily: 'inherit', whiteSpace: 'nowrap',
-                    }}
-                >
-                    👤 Mine
-                </button>
-                <select
-                    value={categoryFilter}
-                    onChange={(e) => setCategoryFilter(e.target.value)}
-                    style={{
-                        flex: 1, padding: '0.4rem 0.5rem', borderRadius: '9999px',
-                        background: categoryFilter !== 'all' ? '#333' : '#1a1a1a',
-                        border: '1px solid #555', color: '#ccc',
-                        fontSize: '0.8rem', fontFamily: 'inherit', cursor: 'pointer',
-                        appearance: 'auto', minWidth: '100px',
-                    }}
-                >
-                    <option value="all">All Categories</option>
-                    {MARKETPLACE_CATEGORIES.map((cat) => (
-                        <option key={cat.id} value={cat.id}>{cat.emoji} {cat.label}</option>
-                    ))}
-                </select>
-            </div>
 
             {/* Posts */}
             {loading ? (

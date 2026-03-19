@@ -81,8 +81,9 @@ export function MarketplaceCard({ post, authorRating, remoteNode, onTrade }: Pro
                     src={post.photos[0]}
                     alt="post"
                     style={{
-                        width: '100%', height: '120px', objectFit: 'cover',
+                        width: '100%', aspectRatio: '16/9', objectFit: 'cover',
                         borderRadius: '8px', marginTop: '0.5rem',
+                        background: '#1a1a1a',
                     }}
                 />
             )}
