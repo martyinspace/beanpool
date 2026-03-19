@@ -102,6 +102,7 @@ for NODE in "${TARGETS[@]}"; do
     echo \"Public IP: \$PUBLIC_IP\"
     echo \"DNS Record: \$CF_RECORD_NAME\"
     sudo -E docker compose -p beanpool pull
+    sudo docker image prune -af 2>/dev/null || true
     sudo -E docker compose -p beanpool up -d
   " 2>&1
 
