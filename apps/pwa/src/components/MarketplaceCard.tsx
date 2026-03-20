@@ -131,7 +131,7 @@ export function MarketplaceCard({ post, authorRating, remoteNode }: Props) {
                     {post.authorCallsign}
                     {authorRating && authorRating.count > 0 && (
                         <span style={{ marginLeft: '0.3rem', color: '#fbbf24' }}>
-                            {'🫘'.repeat(Math.round(authorRating.average))}
+                            {'★'.repeat(Math.round(authorRating.average))}{'☆'.repeat(5 - Math.round(authorRating.average))}
                         </span>
                     )}
                 </div>

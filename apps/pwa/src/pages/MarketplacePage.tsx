@@ -348,9 +348,9 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                             <p style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 0.15rem' }}>
                                 🤝 {selectedPost.authorCallsign}
                             </p>
-                            {/* Bean rating */}
+                            {/* Star rating */}
                             <p style={{ fontSize: '0.8rem', color: '#fbbf24', margin: '0 0 0.15rem' }}>
-                                {'🫘'.repeat(Math.round(authorAvgRating.average))}{'○'.repeat(5 - Math.round(authorAvgRating.average))}
+                                {'★'.repeat(Math.round(authorAvgRating.average))}{'☆'.repeat(5 - Math.round(authorAvgRating.average))}
                                 <span style={{ color: 'var(--text-muted)', marginLeft: '0.35rem' }}>
                                     {authorAvgRating.count > 0 ? `${authorAvgRating.average}/5 (${authorAvgRating.count})` : 'No ratings yet'}
                                 </span>
@@ -464,7 +464,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                                 transform: star <= myRating ? 'scale(1.15)' : 'scale(1)',
                                             }}
                                         >
-                                            🫘
+                                            {star <= myRating ? '★' : '☆'}
                                         </button>
                                     ))}
                                 </div>
