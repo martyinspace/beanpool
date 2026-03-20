@@ -35,6 +35,7 @@ export interface InviteCode {
     createdAt: string;
     usedBy: string | null;  // null = unused, pubkey = claimed
     usedAt: string | null;
+    intendedFor?: string;   // optionally tracking who this invite was generated for
 }
 
 export interface MarketplacePost {
@@ -90,6 +91,8 @@ export interface MemberProfile {
         value: string;           // phone, email, WhatsApp handle
         visibility: 'hidden' | 'trade_partners' | 'community';
     } | null;
+    lastActiveAt?: string;
+    status?: 'active' | 'disabled';
 }
 
 export interface Conversation {
@@ -365,7 +368,7 @@ function generateShortCode(): string {
     return code;
 }
 
-export function generateInvite(inviterPubkey: string): InviteCode | null {
+export function generateInvite(inviterPubkey: string, intendedFor?: string): InviteCode | null {
     // Only registered members can generate invites
     if (!members.find(m => m.publicKey === inviterPubkey)) return null;
 
@@ -375,6 +378,7 @@ export function generateInvite(inviterPubkey: string): InviteCode | null {
         createdAt: new Date().toISOString(),
         usedBy: null,
         usedAt: null,
+        intendedFor,
     };
     inviteCodes.push(invite);
     saveState();
@@ -415,7 +419,7 @@ export interface InviteTreeNode {
     children: InviteTreeNode[];
 }
 
-export function getInviteTree(): InviteTreeNode[] {
+export function getInviteTree(rootPubkey?: string): InviteTreeNode[] {
     // Build tree from members list using invitedBy pointers
     function buildSubtree(parentPubkey: string): InviteTreeNode[] {
         return members
@@ -429,9 +433,16 @@ export function getInviteTree(): InviteTreeNode[] {
             }));
     }
 
-    // Root nodes are members invited by 'genesis'
+    if (rootPubkey) {
+        // Find the root member to get their basic details if we want them as the top node,
+        // or just return their children if the UI expects an array of top-level children.
+        // Returning the children of the root to match previous behavior for genesis
+        return buildSubtree(rootPubkey);
+    }
+
+    // Default to full tree (members invited by 'genesis' and genesis itself)
     return members
-        .filter(m => m.invitedBy === 'genesis')
+        .filter(m => m.invitedBy === 'genesis' || m.publicKey === 'genesis')
         .map(m => ({
             publicKey: m.publicKey,
             callsign: m.callsign,
@@ -1280,4 +1291,93 @@ export function setGuardian(ownerPubkey: string, friendPubkey: string, isGuardia
     friend.isGuardian = isGuardian;
     saveState();
     return true;
+}
+
+// ===================== ADMIN CONTROLS =====================
+
+export function adminSetUserStatus(publicKey: string, status: 'active' | 'disabled') {
+    if (profiles[publicKey]) {
+        profiles[publicKey].status = status;
+        saveState();
+        broadcast({ type: 'profile_updated', publicKey });
+    }
+}
+
+export function adminDeletePost(postId: string) {
+    const idx = posts.findIndex(p => p.id === postId);
+    if (idx !== -1) {
+        posts.splice(idx, 1);
+        saveState();
+        broadcast({ type: 'post_removed', id: postId });
+    }
+}
+
+export function adminPruneUser(publicKey: string) {
+    adminSetUserStatus(publicKey, 'disabled');
+    let modified = false;
+    for (const post of posts) {
+        if (post.authorPublicKey === publicKey && post.status === 'active') {
+            post.status = 'cancelled';
+            post.active = false;
+            modified = true;
+        }
+    }
+    if (modified) {
+        saveState();
+    }
+    broadcast({ type: 'user_pruned', publicKey });
+}
+
+export function adminPruneBranch(rootPublicKey: string) {
+    const prunings = new Set<string>();
+
+    function pruneRec(pubkey: string) {
+        if (prunings.has(pubkey)) return;
+        prunings.add(pubkey);
+        adminPruneUser(pubkey);
+        
+        const invitees = members.filter(m => m.invitedBy === pubkey).map(m => m.publicKey);
+        for (const pk of invitees) {
+            pruneRec(pk);
+        }
+    }
+    pruneRec(rootPublicKey);
+}
+
+export function adminBroadcastAnnouncement(title: string, body: string, severity: 'info'|'warning'|'critical') {
+    broadcast({ type: 'system_announcement', title, body, severity });
+}
+
+export function adminSendWarning(targetPubkey: string, body: string) {
+    const convId = 'sys_warn_' + targetPubkey;
+    let conv = conversations.find(c => c.id === convId);
+    if (!conv) {
+        conv = {
+            id: convId,
+            type: 'dm',
+            name: '⚠️ System Warnings',
+            participants: ['system', targetPubkey],
+            createdBy: 'system',
+            createdAt: new Date().toISOString()
+        };
+        conversations.push(conv);
+    }
+    
+    const msg: Message = {
+        id: crypto.randomUUID(),
+        conversationId: convId,
+        authorPubkey: 'system',
+        ciphertext: body, // Plaintext system message instead of NaCl box
+        nonce: 'system',
+        timestamp: new Date().toISOString(),
+    };
+    messages.push(msg);
+    saveState();
+
+    broadcast({
+        type: 'new_message',
+        conversationId: convId,
+        message: msg,
+        participants: conv.participants,
+    });
 }

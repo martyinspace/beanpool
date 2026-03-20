@@ -369,6 +369,7 @@
         /* Tab bar */
         .tab-bar {
             display: flex;
+            flex-wrap: wrap;
             gap: 0.25rem;
             background: rgba(15, 23, 42, 0.8);
             backdrop-filter: blur(12px);
@@ -451,6 +452,9 @@
                 <button class="tab-btn" data-tab="network">🔗 Network</button>
                 <button class="tab-btn" data-tab="community">👥 Community</button>
                 <button class="tab-btn" data-tab="system">⚙️ System</button>
+                <button class="tab-btn" data-tab="moderation">🛡️ Moderation</button>
+                <button class="tab-btn" data-tab="members">🌳 Audit</button>
+                <button class="tab-btn" data-tab="comms">📢 Comms</button>
             </div>
 
             <!-- Node Identity -->
@@ -680,6 +684,59 @@
                     <p style="color:#64748b;font-size:0.85rem;text-align:center;">Click refresh to load reports</p>
                 </div>
                 <button class="btn btn-outline btn-full" id="refresh-reports-btn">🔄 Load Reports</button>
+            </div>
+
+            <!-- Admin Moderation -->
+            <div class="glass" data-tab="moderation" style="display:none;">
+                <h3>🛡️ Moderation (Posts)</h3>
+                <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.75rem;">Manage all posts on this node.</p>
+                <div id="admin-posts-list" style="margin-bottom:0.75rem; max-height:400px; overflow-y:auto; border:1px solid #1e293b; border-radius:8px;"></div>
+                <button class="btn btn-outline btn-full" onclick="loadAdminData()">🔄 Refresh Data</button>
+            </div>
+
+            <!-- Admin Members & Audit -->
+            <div class="glass" data-tab="members" style="display:none;">
+                <h3>🌳 Members & Audit Tree</h3>
+                <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.75rem;">Manage members and prune suspicious branches.</p>
+                <div id="admin-members-tree" style="margin-bottom:0.75rem; max-height:400px; overflow-y:auto; border:1px solid #1e293b; border-radius:8px; padding:0.5rem;"></div>
+                <button class="btn btn-outline btn-full" onclick="loadAdminData()">🔄 Refresh Data</button>
+            </div>
+
+            <!-- Global Announcements -->
+            <div class="glass" data-tab="comms" style="display:none;">
+                <h3>📢 Global Announcements</h3>
+                <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.75rem;">Push an immediate popup message to all connected clients.</p>
+                <div class="field">
+                    <label>Title</label>
+                    <input type="text" id="admin-announce-title" placeholder="e.g. Scheduled Maintenance">
+                </div>
+                <div class="field">
+                    <label>Message</label>
+                    <textarea id="admin-announce-body" rows="3" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:0.6rem;color:#fff;font-family:inherit;font-size:0.85rem;" placeholder="Node implies..."></textarea>
+                </div>
+                <div class="field">
+                    <label>Severity</label>
+                    <select id="admin-announce-severity">
+                        <option value="info">Info (Blue)</option>
+                        <option value="warning">Warning (Yellow)</option>
+                        <option value="critical">Critical (Red)</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary btn-full" id="btn-send-announcement" style="margin-bottom:0.75rem;">Send Global Announcement</button>
+                <div class="status-msg" id="announce-status"></div>
+                
+                <hr>
+                <h3 style="font-size: 0.85rem;">📥 Direct Warning Message</h3>
+                <div class="field">
+                    <label>Target Pubkey</label>
+                    <input type="text" id="admin-warn-target" placeholder="User's public key">
+                </div>
+                <div class="field">
+                    <label>Message text</label>
+                    <textarea id="admin-warn-body" rows="2" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:0.6rem;color:#f8fafc;font-family:inherit;font-size:0.85rem;" placeholder="Notice of rule violation..."></textarea>
+                </div>
+                <button class="btn btn-outline btn-danger btn-full" id="btn-send-warning">Send Inbox Warning</button>
+                <div class="status-msg" id="warn-status"></div>
             </div>
 
             <!-- Reset Node -->
@@ -1372,6 +1429,149 @@
                 checkForUpdates();
             }
         }
+
+        // ======================== ADMIN CONSOLE ========================
+        let adminDataCache = null;
+
+        async function loadAdminData() {
+            if (!authToken) return;
+            try {
+                const res = await fetch('/api/local/admin/data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken })
+                });
+                if (!res.ok) return;
+                adminDataCache = await res.json();
+                renderAdminPosts();
+                renderAdminMembers();
+            } catch (err) { console.error('Failed to load admin data', err); }
+        }
+
+        async function adminAction(endpoint, payload = {}) {
+            if (!confirm('Are you sure you want to perform this administrative action?')) return;
+            try {
+                const res = await fetch('/api/local/admin' + endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...payload, password: authToken })
+                });
+                if (res.ok) {
+                    alert('Action successful.');
+                    loadAdminData();
+                } else {
+                    const err = await res.json();
+                    alert('Action failed: ' + err.error);
+                }
+            } catch (err) {
+                alert('Network error.');
+            }
+        }
+
+        function renderAdminPosts() {
+            const el = document.getElementById('admin-posts-list');
+            if (!el || !adminDataCache) return;
+            if (adminDataCache.posts.length === 0) { el.innerHTML = '<div style="padding:1rem;text-align:center;color:#64748b;">No posts</div>'; return; }
+            
+            // Sort by date desc
+            const posts = adminDataCache.posts.slice().sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+            el.innerHTML = posts.map(p => `
+                <div style="padding:0.5rem;border-bottom:1px solid #1e293b;display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                        <div style="font-size:0.85rem;font-weight:600;color:${p.status==='active'?'#10b981':'#64748b'}">${p.title || 'Untitled'}</div>
+                        <div style="font-size:0.7rem;color:#94a3b8;font-family:monospace;">${p.authorCallsign || 'Anon'} | ${p.type} | ${new Date(p.createdAt).toLocaleDateString()}</div>
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-danger" onclick="adminAction('/posts/${p.id}/delete')">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderAdminMembers() {
+            const el = document.getElementById('admin-members-tree');
+            if (!el || !adminDataCache) return;
+            const { members, profiles } = adminDataCache;
+            
+            // Map members by invitedBy to build tree
+            const tree = {};
+            members.forEach(m => {
+                const inv = m.invitedBy || 'genesis';
+                if (!tree[inv]) tree[inv] = [];
+                tree[inv].push(m);
+            });
+
+            function buildNode(pubkey, depth = 0) {
+                const member = members.find(m => m.publicKey === pubkey);
+                if (!member) return '';
+                const profile = profiles.find(p => p && p.publicKey === pubkey);
+                const children = tree[pubkey] || [];
+                const isActive = !profile || profile.status !== 'disabled';
+                
+                let html = `
+                    <div style="margin-left:${depth * 15}px; margin-bottom:0.4rem; padding:0.4rem; background:#1e293b; border-left:2px solid ${isActive?'#10b981':'#ef4444'}; border-radius:0 8px 8px 0;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+                            <div>
+                                <strong style="font-size:0.85rem;color:${isActive?'#f8fafc':'#64748b'}">${member.callsign} <span style="font-size:0.6rem;font-family:monospace;color:#475569;">(${pubkey.substring(0,8)})</span></strong>
+                                <div style="font-size:0.7rem;color:#94a3b8;">Active: ${profile?.lastActiveAt ? new Date(profile.lastActiveAt).toLocaleString() : 'Never'}</div>
+                            </div>
+                            <div style="display:flex;gap:0.3rem;">
+                                <button class="btn btn-sm ${isActive?'btn-outline':'btn-primary'}" onclick="adminAction('/users/${pubkey}/status', {status:'${isActive?'disabled':'active'}'})">${isActive?'Pause':'Resume'}</button>
+                                <button class="btn btn-sm btn-danger" onclick="adminAction('/users/${pubkey}/prune')">Prune User</button>
+                                ${children.length > 0 ? `<button class="btn btn-sm btn-danger" onclick="adminAction('/branches/${pubkey}/prune')">Prune Branch</button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                children.forEach(c => html += buildNode(c.publicKey, depth + 1));
+                return html;
+            }
+
+            const roots = tree['genesis'] || [];
+            if (roots.length === 0) el.innerHTML = '<div style="padding:1rem;color:#64748b;">No tree found</div>';
+            else el.innerHTML = roots.map(r => buildNode(r.publicKey, 0)).join('');
+        }
+
+        document.getElementById('btn-send-announcement')?.addEventListener('click', async () => {
+            if (!authToken) return;
+            const payload = {
+                title: document.getElementById('admin-announce-title').value,
+                body: document.getElementById('admin-announce-body').value,
+                severity: document.getElementById('admin-announce-severity').value
+            };
+            try {
+                const res = await fetch('/api/local/admin/announcements', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...payload, password: authToken })
+                });
+                if (res.ok) { showStatus('announce-status', '✅ Sent', 'success'); }
+                else { showStatus('announce-status', 'Failed', 'error'); }
+            } catch (e) { showStatus('announce-status', 'Error', 'error'); }
+        });
+
+        document.getElementById('btn-send-warning')?.addEventListener('click', async () => {
+            if (!authToken) return;
+            const payload = {
+                targetPubkey: document.getElementById('admin-warn-target').value,
+                message: document.getElementById('admin-warn-body').value
+            };
+            try {
+                const res = await fetch('/api/local/admin/warnings', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...payload, password: authToken })
+                });
+                if (res.ok) { showStatus('warn-status', '✅ Sent to Inbox', 'success'); }
+                else { showStatus('warn-status', 'Failed', 'error'); }
+            } catch (e) { showStatus('warn-status', 'Error', 'error'); }
+        });
+
+        // Add loadAdminData hook on tab switch
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const t = e.target.dataset.tab;
+                if (t === 'moderation' || t === 'members') loadAdminData();
+            });
+        });
 
         // ======================== INIT ========================
         async function init() {

@@ -9,7 +9,7 @@
 
 import { useState, useEffect } from 'react';
 import { loadIdentity, type BeanPoolIdentity } from './lib/identity';
-import { connectToAnchor } from './lib/sync';
+import { connectToAnchor, onSystemAnnouncement } from './lib/sync';
 import { useTheme } from './lib/useTheme';
 import { SyncStatus } from './components/SyncStatus';
 import { PrivacyBadge } from './components/PrivacyBadge';
@@ -32,6 +32,7 @@ export function App() {
     const [openConversationId, setOpenConversationId] = useState<string | null>(null);
     const [openNewPost, setOpenNewPost] = useState(false);
     const [theme, toggleTheme] = useTheme();
+    const [sysAnnouncement, setSysAnnouncement] = useState<{ title: string, body: string, severity: string } | null>(null);
 
     function navigateToTab(tab: string, conversationId?: string) {
         if (tab === 'map-post') {
@@ -52,13 +53,18 @@ export function App() {
 
     // Connect to BeanPool Node once identity is loaded
     useEffect(() => {
+        let unsub = () => {};
         if (identity) {
             connectToAnchor();
+            unsub = onSystemAnnouncement((a) => {
+                setSysAnnouncement({ title: a.title, body: a.body, severity: a.severity });
+            });
             // Ensure existing users are registered with the node
             import('./lib/api').then(({ registerMember }) =>
                 registerMember(identity.publicKey, identity.callsign).catch(() => {})
             );
         }
+        return unsub;
     }, [identity]);
 
     if (loading) {
@@ -199,6 +205,48 @@ export function App() {
                     </button>
                 ))}
             </nav>
+
+            {/* System Announcement Modal */}
+            {sysAnnouncement && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.8)', zIndex: 9999,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '1rem', backdropFilter: 'blur(4px)',
+                    WebkitBackdropFilter: 'blur(4px)'
+                }}>
+                    <div style={{
+                        background: 'var(--bg-primary)',
+                        border: `2px solid ${sysAnnouncement.severity === 'critical' ? '#ef4444' : sysAnnouncement.severity === 'warning' ? '#f59e0b' : '#3b82f6'}`,
+                        borderRadius: '12px', padding: '1.5rem',
+                        maxWidth: '400px', width: '100%',
+                        boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                        textAlign: 'center'
+                    }}>
+                        <h2 style={{
+                            margin: '0 0 1rem', fontSize: '1.5rem',
+                            color: sysAnnouncement.severity === 'critical' ? '#ef4444' : sysAnnouncement.severity === 'warning' ? '#f59e0b' : '#3b82f6'
+                        }}>
+                            {sysAnnouncement.severity === 'critical' ? '🚨 ' : sysAnnouncement.severity === 'warning' ? '⚠️ ' : 'ℹ️ '}
+                            {sysAnnouncement.title}
+                        </h2>
+                        <p style={{ margin: '0 0 1.5rem', lineHeight: 1.5, fontSize: '1.05rem', color: 'var(--text-primary)' }}>
+                            {sysAnnouncement.body}
+                        </p>
+                        <button
+                            onClick={() => setSysAnnouncement(null)}
+                            style={{
+                                width: '100%', padding: '0.8rem',
+                                background: sysAnnouncement.severity === 'critical' ? '#ef4444' : sysAnnouncement.severity === 'warning' ? '#f59e0b' : '#3b82f6',
+                                color: '#fff', border: 'none', borderRadius: '8px',
+                                fontSize: '1.1rem', fontWeight: 600, cursor: 'pointer'
+                            }}
+                        >
+                            Acknowledge
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* PWA Install Banner */}
             <InstallPrompt />

@@ -19,6 +19,7 @@ const RECONNECT_INTERVAL = 5000;
 
 let ws: WebSocket | null = null;
 let listeners: SyncCallback[] = [];
+let announcementListeners: ((a: any) => void)[] = [];
 let currentState: SyncState = loadCachedState();
 
 function loadCachedState(): SyncState {
@@ -61,6 +62,12 @@ export function connectToAnchor(url?: string): void {
     ws.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
+            
+            if (data.type === 'system_announcement') {
+                announcementListeners.forEach(cb => cb(data));
+                return;
+            }
+
             currentState = {
                 connected: true,
                 lastSyncTime: Date.now(),
@@ -103,4 +110,14 @@ export function onSyncChange(cb: SyncCallback): () => void {
  */
 export function getSyncState(): SyncState {
     return currentState;
+}
+
+/**
+ * Subscribe to system announcements globally.
+ */
+export function onSystemAnnouncement(cb: (a: any) => void): () => void {
+    announcementListeners.push(cb);
+    return () => {
+        announcementListeners = announcementListeners.filter(l => l !== cb);
+    };
 }

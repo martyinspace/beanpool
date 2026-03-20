@@ -50,6 +50,8 @@ import {
     addRating, getRatings, getAverageRating,
     submitReport, getReports,
     getFriends, addFriend, removeFriend, setGuardian,
+    adminSetUserStatus, adminDeletePost, adminPruneUser,
+    adminPruneBranch, adminBroadcastAnnouncement, adminSendWarning
 } from './state-engine.js';
 
 const PUBLIC_DIR = path.resolve('public');
@@ -252,6 +254,70 @@ export async function startHttpsServer(port: number): Promise<void> {
         };
     });
 
+    // ===================== ADMIN ACTIONS (Requires Password) =====================
+
+    // Middleware-like function for inline password check
+    function checkAdminAuth(ctx: any): boolean {
+        const config = getLocalConfig();
+        const { password } = ctx.requestBody || {};
+        if (!password || !config.adminHash || !config.salt || !verifyPassword(password, config.adminHash, config.salt)) {
+            ctx.status = 401;
+            ctx.body = { error: 'Invalid password' };
+            return false;
+        }
+        return true;
+    }
+
+    router.post('/api/local/admin/data', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        ctx.body = {
+            members: getMembers(),
+            profiles: getMembers().map(m => getProfile(m.publicKey)), // fetch profiles for all
+            posts: getPosts(), // admin wants all posts, even inactive
+        };
+    });
+
+    router.post('/api/local/admin/posts/:id/delete', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        adminDeletePost(ctx.params.id);
+        ctx.body = { success: true };
+    });
+
+    router.post('/api/local/admin/users/:pubkey/status', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        const { status } = (ctx as any).requestBody || {};
+        if (status === 'active' || status === 'disabled') {
+            adminSetUserStatus(ctx.params.pubkey, status);
+        }
+        ctx.body = { success: true };
+    });
+
+    router.post('/api/local/admin/users/:pubkey/prune', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        adminPruneUser(ctx.params.pubkey);
+        ctx.body = { success: true };
+    });
+
+    router.post('/api/local/admin/branches/:pubkey/prune', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        adminPruneBranch(ctx.params.pubkey);
+        ctx.body = { success: true };
+    });
+
+    router.post('/api/local/admin/announcements', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        const { title, body, severity } = (ctx as any).requestBody || {};
+        adminBroadcastAnnouncement(title || 'System Announcement', body || '', severity || 'info');
+        ctx.body = { success: true };
+    });
+
+    router.post('/api/local/admin/warnings', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        const { targetPubkey, message } = (ctx as any).requestBody || {};
+        adminSendWarning(targetPubkey, message || '');
+        ctx.body = { success: true };
+    });
+
     router.post('/api/local/change-password', async (ctx) => {
         if (!rateLimit(ctx)) return;
         const config = getLocalConfig();
@@ -449,13 +515,13 @@ export async function startHttpsServer(port: number): Promise<void> {
     // ===================== INVITE API (PUBLIC) =====================
 
     router.post('/api/invite/generate', async (ctx) => {
-        const { publicKey } = (ctx as any).requestBody || {};
+        const { publicKey, intendedFor } = (ctx as any).requestBody || {};
         if (!publicKey) {
             ctx.status = 400;
             ctx.body = { error: 'publicKey is required' };
             return;
         }
-        const invite = generateInvite(publicKey);
+        const invite = generateInvite(publicKey, intendedFor);
         if (!invite) {
             ctx.status = 403;
             ctx.body = { error: 'Only registered members can generate invites' };
@@ -481,7 +547,8 @@ export async function startHttpsServer(port: number): Promise<void> {
     });
 
     router.get('/api/invite/tree', async (ctx) => {
-        ctx.body = getInviteTree();
+        const root = ctx.query.root as string | undefined;
+        ctx.body = getInviteTree(root);
     });
 
     router.get('/api/invite/mine/:publicKey', async (ctx) => {

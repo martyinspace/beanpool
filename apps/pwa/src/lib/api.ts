@@ -59,18 +59,19 @@ export interface InviteCode {
     createdAt: string;
     usedBy: string | null;
     usedAt: string | null;
+    intendedFor?: string;
 }
 
-export async function generateInvite(publicKey: string): Promise<{ success: boolean; invite: InviteCode }> {
-    return request('POST', '/api/invite/generate', { publicKey });
+export async function generateInvite(publicKey: string, intendedFor?: string): Promise<{ success: boolean; invite: InviteCode }> {
+    return request('POST', '/api/invite/generate', { publicKey, intendedFor });
 }
 
 export async function redeemInvite(code: string, publicKey: string, callsign: string): Promise<{ success: boolean; member: Member }> {
     return request('POST', '/api/invite/redeem', { code, publicKey, callsign });
 }
 
-export async function getInviteTree(): Promise<any[]> {
-    return request('GET', '/api/invite/tree');
+export async function getInviteTree(root?: string): Promise<any[]> {
+    return request('GET', root ? `/api/invite/tree?root=${encodeURIComponent(root)}` : '/api/invite/tree');
 }
 
 export async function getCommunityHealth(): Promise<any> {

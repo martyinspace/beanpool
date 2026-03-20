@@ -28,6 +28,7 @@ export function InvitePage({ identity }: Props) {
     const [invites, setInvites] = useState<InviteCode[]>([]);
     const [generating, setGenerating] = useState(false);
     const [newCode, setNewCode] = useState<string | null>(null);
+    const [intendedFor, setIntendedFor] = useState('');
     const [copied, setCopied] = useState(false);
     const [showQR, setShowQR] = useState(false);
 
@@ -49,7 +50,7 @@ export function InvitePage({ identity }: Props) {
 
     async function loadTree() {
         try {
-            const result = await getInviteTree();
+            const result = await getInviteTree(identity.publicKey);
             setTree(result);
         } catch { /* offline */ }
     }
@@ -59,8 +60,9 @@ export function InvitePage({ identity }: Props) {
         setGenerating(true);
         setCopied(false);
         try {
-            const result = await generateInvite(identity.publicKey);
+            const result = await generateInvite(identity.publicKey, intendedFor.trim() || undefined);
             setNewCode(result.invite.code);
+            setIntendedFor('');
             setShowQR(true);
             await loadInvites();
         } catch (err: any) {
@@ -145,6 +147,19 @@ export function InvitePage({ identity }: Props) {
                         Each invite code can only be used once. Generate a new one for each person you invite.
                     </p>
 
+                    <input
+                        type="text"
+                        placeholder="Who is this invite for? (Optional)"
+                        value={intendedFor}
+                        onChange={e => setIntendedFor(e.target.value)}
+                        style={{
+                            width: '100%', padding: '0.8rem', borderRadius: '8px',
+                            border: '1px solid var(--border-input)', background: 'var(--bg-card)',
+                            color: 'var(--text-primary)', marginBottom: '1rem',
+                            fontFamily: 'inherit',
+                        }}
+                    />
+
                     <button
                         onClick={handleGenerate}
                         disabled={generating}
@@ -194,9 +209,16 @@ export function InvitePage({ identity }: Props) {
                             {unusedInvites.map(inv => (
                                 <div key={inv.code} style={cardStyle}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ fontFamily: 'monospace', fontSize: '1rem', fontWeight: 600, letterSpacing: '1px' }}>
-                                            {inv.code.toUpperCase()}
-                                        </span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                            {inv.intendedFor && (
+                                                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>
+                                                    For: {inv.intendedFor}
+                                                </span>
+                                            )}
+                                            <span style={{ fontFamily: 'monospace', fontSize: '1rem', fontWeight: 600, letterSpacing: '1px' }}>
+                                                {inv.code.toUpperCase()}
+                                            </span>
+                                        </div>
                                         <button onClick={() => handleCopy(`${window.location.origin}/app?invite=${inv.code}`)} style={{
                                             padding: '0.3rem 0.6rem', borderRadius: '6px', border: '1px solid var(--border-input)',
                                             background: 'var(--bg-hover)', color: 'var(--text-secondary)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit',
@@ -215,9 +237,16 @@ export function InvitePage({ identity }: Props) {
                             <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '1rem', marginBottom: '0.5rem' }}>✅ Redeemed ({usedInvites.length})</h3>
                             {usedInvites.map(inv => (
                                 <div key={inv.code} style={{ ...cardStyle, opacity: 0.6 }}>
-                                    <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: 'var(--text-muted)', textDecoration: 'line-through' }}>
-                                        {inv.code.toUpperCase()}
-                                    </span>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                        {inv.intendedFor && (
+                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                                For: {inv.intendedFor}
+                                            </span>
+                                        )}
+                                        <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: 'var(--text-muted)', textDecoration: 'line-through' }}>
+                                            {inv.code.toUpperCase()}
+                                        </span>
+                                    </div>
                                     <p style={{ color: 'var(--text-faint)', fontSize: '0.75rem', marginTop: '0.25rem' }}>
                                         Used {inv.usedAt ? new Date(inv.usedAt).toLocaleDateString() : ''}
                                     </p>
