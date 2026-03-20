@@ -1691,7 +1691,7 @@
                 const unreadCount = conv?.unreadCount || 0;
                 return {
                     publicKey: m.publicKey,
-                    callsign: profile?.bio || m.callsign,
+                    callsign: profile?.callsign || m.callsign,
                     conv,
                     lastMessage,
                     unreadCount
@@ -1740,7 +1740,7 @@
         function selectInboxUser(pubkey) {
             inboxSelectedUser = adminDataCache.members.find(m => m.publicKey === pubkey);
             const profile = adminDataCache.profiles.find(p => p.publicKey === pubkey);
-            if (inboxSelectedUser) inboxSelectedUser.callsign = profile?.bio || inboxSelectedUser.callsign;
+            if (inboxSelectedUser) inboxSelectedUser.callsign = profile?.callsign || inboxSelectedUser.callsign;
             
             // Mark conversation as read (admin perspective)
             if (inboxAdminPubkey) {
