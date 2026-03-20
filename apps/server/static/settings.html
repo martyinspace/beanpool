@@ -1614,10 +1614,7 @@
             
             window.promptWarning = async function(pubkey) {
                 // Switch to the Inbox & Comms tab
-                document.querySelectorAll('[data-tab]').forEach(el => el.style.display = 'none');
-                document.querySelector('[data-tab="comms"]').style.display = '';
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                document.querySelector('.tab-btn[data-tab="comms"]').classList.add('active');
+                switchTab('comms');
                 // Load inbox data then auto-select the user
                 await loadAdminInbox();
                 selectInboxUser(pubkey);
