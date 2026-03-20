@@ -815,6 +815,9 @@
             if (tabName === 'identity' && settingsMap) {
                 setTimeout(() => settingsMap.invalidateSize(), 50);
             }
+            // Load data for admin tabs
+            if (tabName === 'moderation' || tabName === 'members') loadAdminData();
+            if (tabName === 'comms') loadAdminInbox();
         }
 
         document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -1788,14 +1791,6 @@
         });
 
 
-        // Add loadAdminData hook on tab switch
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const t = e.target.dataset.tab;
-                if (t === 'moderation' || t === 'members') loadAdminData();
-                if (t === 'comms') loadAdminInbox();
-            });
-        });
 
         // ======================== INIT ========================
         async function init() {
