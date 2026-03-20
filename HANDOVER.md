@@ -137,7 +137,7 @@ bash deploy.sh 1 2       # Sydney + Brisbane
 |---|------|----|-----|----------|---------|
 | 1 | Sydney | `20.211.27.68` | `sydney.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` |
 | 2 | Brisbane | `20.5.121.158` | `brisbane.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` |
-| 3 | Debian | `192.168.1.219` | `debian.beanpool.org` | `marty` | default key |
+| 3 | Mullum | `192.168.1.219` | `mullum.beanpool.org` | `marty` | default key |
 
 ```bash
 ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68   # Sydney

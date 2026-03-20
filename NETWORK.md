@@ -23,7 +23,7 @@ Every node runs the same software in a Docker container. Each one has:
 |---|------|----------|-----------|----------|------|-----|
 | 1 | 🇦🇺 | Sydney | `20.211.27.68` | `sydney.beanpool.org` | Azure VM | [Open](https://sydney.beanpool.org) |
 | 2 | 🇦🇺 | Brisbane | `20.5.121.158` | `brisbane.beanpool.org` | Azure VM | [Open](https://brisbane.beanpool.org) |
-| 3 | 🏠 | Debian | `192.168.1.219` | `debian.beanpool.org` | Bare Metal (LAN) | [Open](https://debian.beanpool.org:8443) |
+| 3 | 🏠 | Mullum | `192.168.1.219` | `mullum.beanpool.org` | Bare Metal (LAN) | [Open](https://mullum.beanpool.org:8443) |
 
 All nodes run Docker containers. Public nodes use Let's Encrypt TLS (auto-provisioned via DNS-01 challenge). LAN nodes fall back to self-signed certificates.
 

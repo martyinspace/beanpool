@@ -11,7 +11,7 @@
 
 BeanPool is an open protocol for building a **post-extraction economy**. It connects communities through a decentralized mutual credit system where value is created through cooperation, not extraction. Nodes gossip state over a libp2p mesh, automatically applying demurrage (value decay) to prevent hoarding and fund a community Commons pool.
 
-**Live network:** [sydney.beanpool.org](https://sydney.beanpool.org) · [brisbane.beanpool.org](https://brisbane.beanpool.org) · [debian.beanpool.org](https://debian.beanpool.org:8443) — federated via peer connectors with cross-community marketplace browsing and trading.
+**Live network:** [sydney.beanpool.org](https://sydney.beanpool.org) · [brisbane.beanpool.org](https://brisbane.beanpool.org) · [mullum.beanpool.org](https://mullum.beanpool.org:8443) — federated via peer connectors with cross-community marketplace browsing and trading.
 
 ---
 
