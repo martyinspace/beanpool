@@ -410,27 +410,39 @@ export function WelcomePage({ onComplete }: Props) {
                                 🔐 Ed25519 keypair generated locally. Your private key never leaves this device.
                             </p>
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '1.5rem' }}>
-                                <button
-                                    onClick={() => { setShowImport(true); setError(null); }}
-                                    style={{
-                                        background: 'none', border: 'none',
-                                        color: '#2563eb', fontSize: '0.85rem',
-                                        cursor: 'pointer', fontFamily: 'inherit',
-                                    }}
-                                >
-                                    Already have an identity? Import →
-                                </button>
-                                <button
-                                    onClick={() => { setShowRecovery(true); setError(null); }}
-                                    style={{
-                                        background: 'none', border: 'none',
-                                        color: '#f59e0b', fontSize: '0.8rem',
-                                        cursor: 'pointer', fontFamily: 'inherit',
-                                    }}
-                                >
-                                    🔑 Recover with 12-word phrase
-                                </button>
+                            <div style={{
+                                marginTop: '1.5rem', paddingTop: '1.25rem',
+                                borderTop: '1px solid var(--border-primary, #333)',
+                            }}>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.75rem', fontWeight: 600 }}>
+                                    Already a member?
+                                </p>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button
+                                        onClick={() => { setShowImport(true); setError(null); }}
+                                        style={{
+                                            flex: 1, padding: '0.7rem 0.5rem', borderRadius: '10px',
+                                            border: '1px solid #2563eb44',
+                                            background: 'rgba(37,99,235,0.08)',
+                                            color: '#60a5fa', fontSize: '0.8rem', fontWeight: 600,
+                                            cursor: 'pointer', fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        📥 Import from Device
+                                    </button>
+                                    <button
+                                        onClick={() => { setShowRecovery(true); setError(null); }}
+                                        style={{
+                                            flex: 1, padding: '0.7rem 0.5rem', borderRadius: '10px',
+                                            border: '1px solid #f59e0b44',
+                                            background: 'rgba(245,158,11,0.08)',
+                                            color: '#fbbf24', fontSize: '0.8rem', fontWeight: 600,
+                                            cursor: 'pointer', fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        🔑 Recover Identity
+                                    </button>
+                                </div>
                             </div>
                         </>
                     ) : (
