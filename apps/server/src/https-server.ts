@@ -35,7 +35,7 @@ import { federationCors, mountFederationRoutes } from './federation-api.js';
 import { getP2PNode } from './p2p.js';
 import { WebSocketServer } from 'ws';
 import {
-    registerMember, getMembers, getMember,
+    registerMember, getMembers, getAllMembers, getMember,
     getBalance, transfer, getTransactions,
     createPost, getPosts, removePost, updatePost,
     acceptPost, completePostTransaction, cancelPostTransaction,
@@ -182,7 +182,7 @@ export async function startHttpsServer(port: number): Promise<void> {
         const info = getCommunityInfo();
         if (info.memberCount > 0) {
             // Already have members — just generate an invite from the genesis member
-            const members = getMembers();
+            const members = getAllMembers();
             const genesisMember = members.find(m => m.invitedBy === 'genesis');
             if (genesisMember) {
                 const invite = generateInvite(genesisMember.publicKey);
@@ -271,8 +271,8 @@ export async function startHttpsServer(port: number): Promise<void> {
     router.post('/api/local/admin/data', async (ctx) => {
         if (!checkAdminAuth(ctx as any)) return;
         ctx.body = {
-            members: getMembers(),
-            profiles: getMembers().map(m => getProfile(m.publicKey)), // fetch profiles for all
+            members: getAllMembers(),
+            profiles: getAllMembers().map(m => getProfile(m.publicKey)), // fetch profiles for all
             posts: getPosts(), // admin wants all posts, even inactive
         };
     });
@@ -914,7 +914,7 @@ export async function startHttpsServer(port: number): Promise<void> {
     // ======================== MEMBERS LIST ========================
 
     router.get('/api/members', async (ctx) => {
-        const allMembers = getMembers();
+        const allMembers = getAllMembers();
         ctx.body = allMembers.map(m => ({
             publicKey: m.publicKey,
             callsign: m.callsign,

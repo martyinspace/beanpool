@@ -1506,18 +1506,19 @@
                 if (!member) return '';
                 const profile = profiles.find(p => p && p.publicKey === pubkey);
                 const children = tree[pubkey] || [];
-                const isActive = !profile || profile.status !== 'disabled';
+                const isPruned = profile?.status === 'pruned';
+                const isActive = !profile || profile.status === 'active' || profile.status === undefined;
                 
                 let html = `
-                    <div style="margin-left:${depth * 15}px; margin-bottom:0.4rem; padding:0.4rem; background:#1e293b; border-left:2px solid ${isActive?'#10b981':'#ef4444'}; border-radius:0 8px 8px 0;">
+                    <div style="margin-left:${depth * 15}px; margin-bottom:0.4rem; padding:0.4rem; background:#1e293b; border-left:2px solid ${isPruned ? '#475569' : isActive ? '#10b981' : '#f59e0b'}; border-radius:0 8px 8px 0;">
                         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
                             <div>
-                                <strong style="font-size:0.85rem;color:${isActive?'#f8fafc':'#64748b'}">${member.callsign} <span style="font-size:0.6rem;font-family:monospace;color:#475569;">(${pubkey.substring(0,8)})</span></strong>
+                                <strong style="font-size:0.85rem;color:${isPruned ? '#64748b' : isActive ? '#f8fafc' : '#f59e0b'}">${isPruned ? '🗑️ ' : !isActive ? '⏸️ ' : ''}${member.callsign} <span style="font-size:0.6rem;font-family:monospace;color:#475569;">(${pubkey.substring(0,8)})</span></strong>
                                 <div style="font-size:0.7rem;color:#94a3b8;">Active: ${profile?.lastActiveAt ? new Date(profile.lastActiveAt).toLocaleString() : 'Never'}</div>
                             </div>
                             <div style="display:flex;gap:0.3rem;">
-                                <button class="btn btn-sm ${isActive?'btn-outline':'btn-primary'}" onclick="adminAction('/users/${pubkey}/status', {status:'${isActive?'disabled':'active'}'})">${isActive?'Pause':'Resume'}</button>
-                                <button class="btn btn-sm btn-danger" onclick="adminAction('/users/${pubkey}/prune')">Prune User</button>
+                                ${!isPruned ? `<button class="btn btn-sm ${isActive?'btn-outline':'btn-primary'}" onclick="adminAction('/users/${pubkey}/status', {status:'${isActive?'disabled':'active'}'})">${isActive?'Pause':'Resume'}</button>` : ''}
+                                ${!isPruned ? `<button class="btn btn-sm btn-danger" onclick="adminAction('/users/${pubkey}/prune')">Prune User</button>` : ''}
                                 ${children.length > 0 ? `<button class="btn btn-sm btn-danger" onclick="adminAction('/branches/${pubkey}/prune')">Prune Branch</button>` : ''}
                             </div>
                         </div>

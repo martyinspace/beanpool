@@ -92,7 +92,7 @@ export interface MemberProfile {
         visibility: 'hidden' | 'trade_partners' | 'community';
     } | null;
     lastActiveAt?: string;
-    status?: 'active' | 'disabled';
+    status?: 'active' | 'disabled' | 'pruned';
 }
 
 export interface Conversation {
@@ -350,6 +350,10 @@ export function registerVisitor(publicKey: string, callsign?: string, homeNodeUr
 }
 
 export function getMembers(): Member[] {
+    return members.filter(m => profiles[m.publicKey]?.status !== 'pruned');
+}
+
+export function getAllMembers(): Member[] {
     return members;
 }
 
@@ -371,6 +375,8 @@ function generateShortCode(): string {
 export function generateInvite(inviterPubkey: string, intendedFor?: string): InviteCode | null {
     // Only registered members can generate invites
     if (!members.find(m => m.publicKey === inviterPubkey)) return null;
+
+    recordActivity(inviterPubkey);
 
     const invite: InviteCode = {
         code: generateShortCode(),
@@ -461,6 +467,8 @@ export function updateProfile(publicKey: string, update: {
 }): MemberProfile | null {
     if (!members.find(m => m.publicKey === publicKey)) return null;
 
+    recordActivity(publicKey);
+
     const existing = profiles[publicKey] || {
         publicKey,
         avatar: null,
@@ -537,6 +545,8 @@ export function transfer(from: string, to: string, amount: number, memo: string)
 
     const success = ledger.transfer(from, to, amount);
     if (!success) return null;
+
+    recordActivity(from);
 
     const txn: Transaction = {
         id: crypto.randomUUID(),
@@ -1293,14 +1303,33 @@ export function setGuardian(ownerPubkey: string, friendPubkey: string, isGuardia
     return true;
 }
 
+export function recordActivity(publicKey: string) {
+    if (!profiles[publicKey]) {
+        const member = members.find(m => m.publicKey === publicKey);
+        if (!member) return;
+        profiles[publicKey] = {
+            publicKey, avatar: null, bio: '', contact: null, status: 'active'
+        };
+    }
+    profiles[publicKey].lastActiveAt = new Date().toISOString();
+    // Intentionally omitting saveState() here so disk isn't thrashed every single read/action.
+    // Calling functions usually save state anyway.
+}
+
 // ===================== ADMIN CONTROLS =====================
 
-export function adminSetUserStatus(publicKey: string, status: 'active' | 'disabled') {
-    if (profiles[publicKey]) {
+export function adminSetUserStatus(publicKey: string, status: 'active' | 'disabled' | 'pruned') {
+    if (!profiles[publicKey]) {
+        const member = members.find(m => m.publicKey === publicKey);
+        if (!member) return;
+        profiles[publicKey] = {
+            publicKey, avatar: null, bio: '', contact: null, status
+        };
+    } else {
         profiles[publicKey].status = status;
-        saveState();
-        broadcast({ type: 'profile_updated', publicKey });
     }
+    saveState();
+    broadcast({ type: 'profile_updated', publicKey });
 }
 
 export function adminDeletePost(postId: string) {
@@ -1313,10 +1342,10 @@ export function adminDeletePost(postId: string) {
 }
 
 export function adminPruneUser(publicKey: string) {
-    adminSetUserStatus(publicKey, 'disabled');
+    adminSetUserStatus(publicKey, 'pruned');
     let modified = false;
     for (const post of posts) {
-        if (post.authorPublicKey === publicKey && post.status === 'active') {
+        if (post.authorPublicKey === publicKey && (post.status === 'active' || post.status === 'pending')) {
             post.status = 'cancelled';
             post.active = false;
             modified = true;
