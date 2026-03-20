@@ -1404,7 +1404,7 @@ export function adminBroadcastAnnouncement(title: string, body: string, severity
     broadcast({ type: 'system_announcement', title, body, severity });
 }
 
-export function adminSendWarning(targetPubkey: string, body: string) {
+export function adminSendMessage(targetPubkey: string, body: string) {
     const convId = 'sys_warn_' + targetPubkey;
     let conv = conversations.find(c => c.id === convId);
     if (!conv) {

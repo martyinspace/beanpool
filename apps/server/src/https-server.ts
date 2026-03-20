@@ -51,7 +51,7 @@ import {
     submitReport, getReports,
     getFriends, addFriend, removeFriend, setGuardian,
     adminSetUserStatus, adminDeletePost, adminPruneUser,
-    adminPruneBranch, adminBroadcastAnnouncement, adminSendWarning,
+    adminPruneBranch, adminBroadcastAnnouncement, adminSendMessage,
     recordActivity
 } from './state-engine.js';
 
@@ -319,10 +319,21 @@ export async function startHttpsServer(port: number): Promise<void> {
         ctx.body = { success: true };
     });
 
-    router.post('/api/local/admin/warnings', async (ctx) => {
+    router.post('/api/local/admin/inbox', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        const convs = getConversationsByMember('system');
+        // Map messages into the response
+        const inbox = convs.map(c => ({
+            ...c,
+            messages: getConversationMessages(c.id, 50)
+        }));
+        ctx.body = { conversations: inbox };
+    });
+
+    router.post('/api/local/admin/inbox/send', async (ctx) => {
         if (!checkAdminAuth(ctx as any)) return;
         const { targetPubkey, message } = (ctx as any).requestBody || {};
-        adminSendWarning(targetPubkey, message || '');
+        adminSendMessage(targetPubkey, message || '');
         ctx.body = { success: true };
     });
 

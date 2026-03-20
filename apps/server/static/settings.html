@@ -454,7 +454,7 @@
                 <button class="tab-btn" data-tab="system">⚙️ System</button>
                 <button class="tab-btn" data-tab="moderation">🛡️ Moderation</button>
                 <button class="tab-btn" data-tab="members">🌳 Audit</button>
-                <button class="tab-btn" data-tab="comms">📢 Comms</button>
+                <button class="tab-btn" data-tab="comms">📥 Inbox & Comms</button>
             </div>
 
             <!-- Node Identity -->
@@ -708,41 +708,59 @@
                 <button class="btn btn-outline btn-full" onclick="loadAdminData()">🔄 Refresh Data</button>
             </div>
 
-            <!-- Global Announcements -->
-            <div class="glass" data-tab="comms" style="display:none;">
-                <h3>📢 Global Announcements</h3>
-                <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.75rem;">Push an immediate popup message to all connected clients.</p>
-                <div class="field">
-                    <label>Title</label>
-                    <input type="text" id="admin-announce-title" placeholder="e.g. Scheduled Maintenance">
-                </div>
-                <div class="field">
-                    <label>Message</label>
-                    <textarea id="admin-announce-body" rows="3" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:0.6rem;color:#fff;font-family:inherit;font-size:0.85rem;" placeholder="Node implies..."></textarea>
-                </div>
-                <div class="field">
-                    <label>Severity</label>
-                    <select id="admin-announce-severity">
-                        <option value="info">Info (Blue)</option>
-                        <option value="warning">Warning (Yellow)</option>
-                        <option value="critical">Critical (Red)</option>
-                    </select>
-                </div>
-                <button class="btn btn-primary btn-full" id="btn-send-announcement" style="margin-bottom:0.75rem;">Send Global Announcement</button>
-                <div class="status-msg" id="announce-status"></div>
+            <!-- Inbox & Global Comms -->
+            <div class="glass" data-tab="comms" style="display:none; flex-direction:column; max-height:85vh;">
+                <h3>📥 Inbox & Global Comms</h3>
                 
-                <hr>
-                <h3 style="font-size: 0.85rem;">📥 Direct Warning Message</h3>
-                <div class="field">
-                    <label>Target Pubkey</label>
-                    <input type="text" id="admin-warn-target" placeholder="User's public key">
+                <!-- Inbox Split Pane -->
+                <div style="display: flex; gap: 0; min-height: 400px; height: 400px; border: 1px solid #1e293b; border-radius: 8px; overflow: hidden; margin-bottom: 1rem; flex-shrink: 0;">
+                    
+                    <!-- Left Sidebar (Users & Convs) -->
+                    <div style="width: 35%; background: #0f172a; border-right: 1px solid #1e293b; display: flex; flex-direction: column;">
+                        <div style="padding: 0.5rem; border-bottom: 1px solid #1e293b;">
+                            <input type="text" id="admin-inbox-search" placeholder="Search members..." style="width:100%;height:32px;background:#1e293b;border:1px solid #334155;border-radius:4px;padding:0.4rem;color:#f8fafc;font-size:0.8rem;outline:none;">
+                        </div>
+                        <div id="admin-inbox-list" style="flex: 1; overflow-y: auto;">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    
+                    <!-- Right Chat Area -->
+                    <div style="flex: 1; background: #020617; display: flex; flex-direction: column;">
+                        <div id="admin-inbox-header" style="padding: 0.75rem; border-bottom: 1px solid #1e293b; font-weight: 600; color: #f8fafc; background: #0f172a;font-size:0.9rem;">
+                            Select a conversation
+                        </div>
+                        <div id="admin-inbox-messages" style="flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                            <div style="margin:auto;color:#475569;font-size:0.85rem;">No conversation selected</div>
+                        </div>
+                        <div style="padding: 0.5rem; border-top: 1px solid #1e293b; background: #0f172a; display: flex; gap: 0.5rem;">
+                            <input type="text" id="admin-inbox-input" placeholder="Type a message..." disabled style="flex: 1;background:#1e293b;border:1px solid #334155;border-radius:20px;padding:0.5rem 1rem;color:#f8fafc;font-size:0.85rem;outline:none;">
+                            <button class="btn btn-primary" id="admin-inbox-send" disabled style="padding:0.5rem 1rem;border-radius:20px;">Send</button>
+                        </div>
+                    </div>
+                </div>
+
+                <hr style="border-color: #1e293b; margin: 0.5rem 0 1rem 0;">
+                
+                <!-- Global Announcements -->
+                <h3 style="font-size: 0.9rem; margin-bottom: 0.5rem;">📢 Push Global Announcement</h3>
+                <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+                    <div class="field" style="flex:1;">
+                        <input type="text" id="admin-announce-title" placeholder="e.g. Scheduled Maintenance">
+                    </div>
+                    <div class="field" style="flex:1;">
+                        <select id="admin-announce-severity">
+                            <option value="info">Info (Blue)</option>
+                            <option value="warning">Warning (Yellow)</option>
+                            <option value="critical">Critical (Red)</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="field">
-                    <label>Message text</label>
-                    <textarea id="admin-warn-body" rows="2" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:0.6rem;color:#f8fafc;font-family:inherit;font-size:0.85rem;" placeholder="Notice of rule violation..."></textarea>
+                    <textarea id="admin-announce-body" rows="2" style="width:100%;border:1px solid #334155;border-radius:8px;padding:0.6rem;color:#f8fafc;font-family:inherit;font-size:0.85rem;resize:vertical;" placeholder="Popup Message Body..."></textarea>
                 </div>
-                <button class="btn btn-outline btn-danger btn-full" id="btn-send-warning">Send Inbox Warning</button>
-                <div class="status-msg" id="warn-status"></div>
+                <button class="btn btn-outline btn-full" id="btn-send-announcement" style="margin-bottom:0.75rem;">Broadcast Announcement</button>
+                <div class="status-msg" id="announce-status"></div>
             </div>
 
             <!-- Reset Node -->
@@ -1618,27 +1636,160 @@
             } catch (e) { showStatus('announce-status', 'Error', 'error'); }
         });
 
-        document.getElementById('btn-send-warning')?.addEventListener('click', async () => {
-            if (!authToken) return;
-            const payload = {
-                targetPubkey: document.getElementById('admin-warn-target').value,
-                message: document.getElementById('admin-warn-body').value
-            };
+        // ======================== ADMIN INBOX ========================
+        let inboxDataCache = null;
+        let inboxSelectedUser = null; 
+
+        function decodePlaintext(ciphertext, nonce) {
             try {
-                const res = await fetch('/api/local/admin/warnings', {
+                if (nonce.startsWith('plaintext')) return decodeURIComponent(escape(atob(ciphertext)));
+                return '[Encrypted ' + nonce + ']';
+            } catch { return '[Encrypted]'; }
+        }
+
+        async function loadAdminInbox() {
+            if (!authToken) return;
+            // Need members to build the user list
+            if (!adminDataCache) await loadAdminData();
+            
+            try {
+                const res = await fetch('/api/local/admin/inbox', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ...payload, password: authToken })
+                    body: JSON.stringify({ password: authToken })
                 });
-                if (res.ok) { showStatus('warn-status', '✅ Sent to Inbox', 'success'); }
-                else { showStatus('warn-status', 'Failed', 'error'); }
-            } catch (e) { showStatus('warn-status', 'Error', 'error'); }
+                if (res.ok) {
+                    const data = await res.json();
+                    inboxDataCache = data.conversations;
+                    renderAdminInboxList();
+                    if (inboxSelectedUser) renderAdminInboxChat();
+                }
+            } catch (err) { console.error('Failed to load inbox', err); }
+        }
+
+        function renderAdminInboxList() {
+            const listEl = document.getElementById('admin-inbox-list');
+            if (!listEl || !adminDataCache) return;
+
+            const searchTerm = document.getElementById('admin-inbox-search').value.toLowerCase();
+            
+            // Build a list of ALL users, but prioritize those we have conversations with
+            let users = adminDataCache.members.map(m => {
+                const profile = adminDataCache.profiles.find(p => p.publicKey === m.publicKey);
+                const conv = (inboxDataCache || []).find(c => c.participants.includes(m.publicKey));
+                const lastMessage = conv?.messages?.length ? conv.messages[conv.messages.length - 1] : null;
+                return {
+                    publicKey: m.publicKey,
+                    callsign: profile?.bio || m.callsign,
+                    conv,
+                    lastMessage
+                };
+            });
+
+            // Filter
+            if (searchTerm) {
+                users = users.filter(u => u.callsign.toLowerCase().includes(searchTerm) || u.publicKey.toLowerCase().includes(searchTerm));
+            }
+
+            // Sort: recently active conversations first
+            users.sort((a, b) => {
+                const timeA = a.lastMessage ? new Date(a.lastMessage.timestamp).getTime() : 0;
+                const timeB = b.lastMessage ? new Date(b.lastMessage.timestamp).getTime() : 0;
+                return timeB - timeA;
+            });
+
+            listEl.innerHTML = users.map(u => `
+                <div class="inbox-user-item" onclick="selectInboxUser('${u.publicKey}')" style="padding: 0.75rem; border-bottom: 1px solid #1e293b; cursor: pointer; background: ${inboxSelectedUser?.publicKey === u.publicKey ? '#1e293b' : 'transparent'}; transition: background 0.2s;">
+                    <div style="font-weight: 600; font-size: 0.85rem; color: #f8fafc;">${u.callsign}</div>
+                    <div style="font-size: 0.7rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.2rem;">
+                        ${u.lastMessage ? decodePlaintext(u.lastMessage.ciphertext, u.lastMessage.nonce) : '<em>No messages yet</em>'}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function selectInboxUser(pubkey) {
+            inboxSelectedUser = adminDataCache.members.find(m => m.publicKey === pubkey);
+            const profile = adminDataCache.profiles.find(p => p.publicKey === pubkey);
+            if (inboxSelectedUser) inboxSelectedUser.callsign = profile?.bio || inboxSelectedUser.callsign;
+            
+            document.getElementById('admin-inbox-input').disabled = false;
+            document.getElementById('admin-inbox-send').disabled = false;
+            renderAdminInboxList(); // update highlight
+            renderAdminInboxChat();
+        }
+
+        function renderAdminInboxChat() {
+            const headerEl = document.getElementById('admin-inbox-header');
+            const messagesEl = document.getElementById('admin-inbox-messages');
+            if (!headerEl || !messagesEl) return;
+
+            if (!inboxSelectedUser) {
+                headerEl.textContent = 'Select a conversation';
+                messagesEl.innerHTML = '<div style="margin:auto;color:#475569;font-size:0.85rem;">No conversation selected</div>';
+                return;
+            }
+
+            headerEl.textContent = 'Chat with ' + inboxSelectedUser.callsign;
+
+            const conv = (inboxDataCache || []).find(c => c.participants.includes(inboxSelectedUser.publicKey));
+            const messages = conv?.messages || [];
+
+            if (messages.length === 0) {
+                messagesEl.innerHTML = '<div style="margin:auto;color:#475569;font-size:0.85rem;">No messages yet. Send a warning to start the conversation.</div>';
+                return;
+            }
+
+            messagesEl.innerHTML = messages.map(msg => {
+                const isSystem = msg.authorPubkey === 'system';
+                return `
+                    <div style="align-self: ${isSystem ? 'flex-end' : 'flex-start'}; max-width: 80%;">
+                        <div style="background: ${isSystem ? '#2563eb' : '#1e293b'}; border-radius: ${isSystem ? '12px 12px 2px 12px' : '12px 12px 12px 2px'}; padding: 0.5rem 0.8rem; font-size: 0.85rem; color: #f8fafc; word-break: break-word;">
+                            ${decodePlaintext(msg.ciphertext, msg.nonce)}
+                        </div>
+                        <div style="font-size: 0.65rem; color: #64748b; margin-top: 0.2rem; text-align: ${isSystem ? 'right' : 'left'};">
+                            ${new Date(msg.timestamp).toLocaleString()}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Scroll to bottom
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        document.getElementById('admin-inbox-search')?.addEventListener('input', renderAdminInboxList);
+
+        document.getElementById('admin-inbox-send')?.addEventListener('click', async () => {
+            if (!authToken || !inboxSelectedUser) return;
+            const inputEl = document.getElementById('admin-inbox-input');
+            const message = inputEl.value.trim();
+            if (!message) return;
+
+            inputEl.disabled = true;
+            try {
+                const res = await fetch('/api/local/admin/inbox/send', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ targetPubkey: inboxSelectedUser.publicKey, message, password: authToken })
+                });
+                if (res.ok) {
+                    inputEl.value = '';
+                    await loadAdminInbox(); // refresh
+                } else { alert('Failed to send message'); }
+            } catch (e) { alert('Network error'); }
+            finally { inputEl.disabled = false; inputEl.focus(); }
         });
+        
+        document.getElementById('admin-inbox-input')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') document.getElementById('admin-inbox-send').click();
+        });
+
 
         // Add loadAdminData hook on tab switch
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const t = e.target.dataset.tab;
                 if (t === 'moderation' || t === 'members') loadAdminData();
+                if (t === 'comms') loadAdminInbox();
             });
         });
 
