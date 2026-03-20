@@ -121,8 +121,10 @@ export async function startHttpsServer(port: number): Promise<void> {
 
     // ===================== ROOT REDIRECT =====================
     // Redirect root to the PWA app — existing users auto-login via IndexedDB identity
+    // Preserve query params (e.g. ?invite=BP-XXXX-XXXX) for invite URL flow
     router.get('/', async (ctx) => {
-        ctx.redirect('/app');
+        const query = ctx.querystring ? `?${ctx.querystring}` : '';
+        ctx.redirect(`/app${query}`);
     });
 
     // ===================== LOCAL STATUS API =====================

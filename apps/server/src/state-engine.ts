@@ -329,7 +329,7 @@ export function getMember(publicKey: string): Member | undefined {
 // ===================== INVITE CODES =====================
 
 function generateShortCode(): string {
-    const chars = 'abcdefghjkmnpqrstuvwxyz23456789'; // no confusing chars
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no confusing chars
     let code = 'BP-';
     for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
     code += '-';

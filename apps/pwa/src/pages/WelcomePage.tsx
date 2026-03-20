@@ -16,11 +16,64 @@ interface Props {
     onComplete: (identity: BeanPoolIdentity) => void;
 }
 
+// ===================== INVITE CODE FORMATTING =====================
+
+/** Strip everything except alphanumeric, uppercase, and format as BP-XXXX-XXXX */
+function formatInviteCode(raw: string): string {
+    // Strip non-alphanumeric
+    const clean = raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+    // Remove BP prefix if present (we'll add it back)
+    const withoutPrefix = clean.startsWith('BP') ? clean.slice(2) : clean;
+
+    // Take at most 8 chars for the code body
+    const body = withoutPrefix.slice(0, 8);
+
+    if (body.length === 0) return '';
+    if (body.length <= 4) return `BP-${body}`;
+    return `BP-${body.slice(0, 4)}-${body.slice(4)}`;
+}
+
+/** Normalise any input to the canonical BP-XXXX-XXXX format for API submission */
+function normaliseInviteCode(raw: string): string {
+    const clean = raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const withoutPrefix = clean.startsWith('BP') ? clean.slice(2) : clean;
+    const body = withoutPrefix.slice(0, 8);
+    if (body.length < 8) return raw.trim().toUpperCase(); // partial — return as-is
+    return `BP-${body.slice(0, 4)}-${body.slice(4)}`;
+}
+
+// ===================== FAQ DATA =====================
+
+const FAQ_ITEMS = [
+    {
+        q: 'What is BeanPool?',
+        a: 'BeanPool is a mutual credit marketplace for local communities. Members can post offers and needs, trade using community credits, and build local economic resilience — all without banks or corporations.',
+    },
+    {
+        q: 'How do I get an invite?',
+        a: 'Ask an existing community member to generate an invite code for you. They can share it as a link, QR code, or text. Each invite code works once.',
+    },
+    {
+        q: 'Is my data private?',
+        a: 'Your identity is an Ed25519 keypair stored only on your device — never on a server. Your posts and transactions are shared within your community, but your private key never leaves your device.',
+    },
+    {
+        q: 'What are community credits?',
+        a: 'Credits are a mutual credit currency. When you trade, credits transfer between members. Every member starts at zero. The system is designed to encourage reciprocity and keep value circulating locally.',
+    },
+    {
+        q: 'Can I use this on my phone?',
+        a: 'Yes! BeanPool is a Progressive Web App. Open the app link in your browser, then "Add to Home Screen" for the full native-like experience — works on Android, iOS, and desktop.',
+    },
+];
+
 export function WelcomePage({ onComplete }: Props) {
     const [callsign, setCallsign] = useState('');
     const [inviteCode, setInviteCode] = useState(() => {
         const params = new URLSearchParams(window.location.search);
-        return params.get('invite') || '';
+        const raw = params.get('invite') || '';
+        return raw ? formatInviteCode(raw) : '';
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -29,7 +82,6 @@ export function WelcomePage({ onComplete }: Props) {
         return !!params.get('import');
     });
     const [importData, setImportData] = useState(() => {
-        // Auto-fill if opened via identity transfer link
         const params = new URLSearchParams(window.location.search);
         const importParam = params.get('import');
         return importParam ? window.location.href : '';
@@ -42,15 +94,15 @@ export function WelcomePage({ onComplete }: Props) {
     const [seedConfirmed, setSeedConfirmed] = useState(false);
     const [pendingInviteCode, setPendingInviteCode] = useState('');
     const [showNewUser, setShowNewUser] = useState(() => {
-        // Auto-expand signup if arriving via invite link
         const params = new URLSearchParams(window.location.search);
         return !!params.get('invite');
     });
     const [showMemberOptions, setShowMemberOptions] = useState(false);
+    const [openFaq, setOpenFaq] = useState<number | null>(null);
 
     async function handleCreate() {
         const trimmedCallsign = callsign.trim();
-        const trimmedCode = inviteCode.trim();
+        const trimmedCode = normaliseInviteCode(inviteCode);
 
         if (trimmedCallsign.length < 2) {
             setError('Callsign must be at least 2 characters.');
@@ -62,8 +114,6 @@ export function WelcomePage({ onComplete }: Props) {
 
         try {
             const identity = await createIdentity(trimmedCallsign);
-
-            // Show seed phrase before proceeding
             setPendingIdentity(identity);
             setPendingInviteCode(trimmedCode);
             setLoading(false);
@@ -328,6 +378,133 @@ export function WelcomePage({ onComplete }: Props) {
                                 ← Back
                             </button>
                         </>
+                    ) : showNewUser ? (
+                        /* ===== NEW USER SIGNUP + FAQs ===== */
+                        <>
+                            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.35rem' }}>
+                                🎟️ Join with Invite Code
+                            </h3>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+                                Got an invite code or scanned a QR? Enter it below with your chosen callsign to join.
+                            </p>
+
+                            <label style={{
+                                display: 'block', textAlign: 'left',
+                                fontSize: '0.85rem', fontWeight: 600,
+                                color: 'var(--text-secondary)', marginBottom: '0.5rem',
+                            }}>
+                                Invite Code
+                            </label>
+                            <input
+                                type="text"
+                                value={inviteCode}
+                                onChange={(e) => setInviteCode(formatInviteCode(e.target.value))}
+                                placeholder="e.g. BP-7K3X-9M2W"
+                                maxLength={14}
+                                disabled={loading}
+                                style={{
+                                    ...inputStyle,
+                                    fontFamily: 'monospace',
+                                    letterSpacing: '1px',
+                                    textAlign: 'center',
+                                    fontSize: '1.1rem',
+                                }}
+                            />
+
+                            <label style={{
+                                display: 'block', textAlign: 'left',
+                                fontSize: '0.85rem', fontWeight: 600,
+                                color: 'var(--text-secondary)', marginBottom: '0.5rem',
+                            }}>
+                                Choose your Callsign
+                            </label>
+                            <input
+                                type="text"
+                                value={callsign}
+                                onChange={(e) => setCallsign(e.target.value)}
+                                placeholder="e.g. Billinudgel-Marty"
+                                maxLength={32}
+                                disabled={loading}
+                                onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+                                style={inputStyle}
+                            />
+
+                            {error && (
+                                <p style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                                    {error}
+                                </p>
+                            )}
+
+                            <button
+                                onClick={handleCreate}
+                                disabled={loading || callsign.trim().length < 2}
+                                style={{
+                                    width: '100%', padding: '0.85rem', borderRadius: '10px',
+                                    border: 'none',
+                                    background: loading ? '#555' : '#2563eb',
+                                    color: 'var(--text-primary)', fontSize: '1rem',
+                                    fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
+                                    fontFamily: 'inherit', transition: 'background 0.2s',
+                                }}
+                            >
+                                {loading ? 'Joining...' : inviteCode.trim()
+                                    ? 'Join with Invite'
+                                    : 'Create Sovereign Identity'}
+                            </button>
+
+                            {/* ===== FAQs ===== */}
+                            <div style={{ marginTop: '2rem', borderTop: '1px solid var(--border-primary, #333)', paddingTop: '1.25rem' }}>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>
+                                    ❓ Frequently Asked Questions
+                                </h4>
+                                {FAQ_ITEMS.map((faq, i) => (
+                                    <div
+                                        key={i}
+                                        style={{
+                                            borderTop: i > 0 ? '1px solid var(--border-primary, #222)' : 'none',
+                                            padding: '0.65rem 0',
+                                        }}
+                                    >
+                                        <div
+                                            onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                                            style={{
+                                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                                cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600,
+                                                color: 'var(--text-primary)',
+                                                textAlign: 'left',
+                                            }}
+                                        >
+                                            {faq.q}
+                                            <span style={{
+                                                fontSize: '0.7rem', color: 'var(--text-muted)',
+                                                transition: 'transform 0.2s',
+                                                transform: openFaq === i ? 'rotate(90deg)' : 'none',
+                                                flexShrink: 0, marginLeft: '0.5rem',
+                                            }}>▶</span>
+                                        </div>
+                                        {openFaq === i && (
+                                            <p style={{
+                                                fontSize: '0.78rem', color: 'var(--text-muted)',
+                                                lineHeight: 1.5, marginTop: '0.4rem', textAlign: 'left',
+                                            }}>
+                                                {faq.a}
+                                            </p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button
+                                onClick={() => { setShowNewUser(false); setError(null); }}
+                                style={{
+                                    background: 'none', border: 'none',
+                                    color: 'var(--text-muted)', fontSize: '0.8rem',
+                                    cursor: 'pointer', marginTop: '1rem', fontFamily: 'inherit',
+                                }}
+                            >
+                                ← Back
+                            </button>
+                        </>
                     ) : !showImport ? (
                         /* ===== MAIN WELCOME — two simple choices ===== */
                         <>
@@ -371,7 +548,7 @@ export function WelcomePage({ onComplete }: Props) {
                                         I'm New Here
                                     </button>
                                 </>
-                            ) : !showNewUser ? (
+                            ) : (
                                 /* MEMBER SUB-OPTIONS */
                                 <>
                                     <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.35rem' }}>
@@ -427,84 +604,6 @@ export function WelcomePage({ onComplete }: Props) {
                                         }}
                                     >
                                         ← Back
-                                    </button>
-                                </>
-                            ) : (
-                                <>
-                                    {/* DIVIDER */}
-                                    <div style={{
-                                        display: 'flex', alignItems: 'center', gap: '0.75rem',
-                                        margin: '1.5rem 0 1rem',
-                                    }}>
-                                        <div style={{ flex: 1, height: '1px', background: 'var(--border-primary, #333)' }} />
-                                        <span style={{ color: 'var(--text-faint)', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>
-                                            New Account
-                                        </span>
-                                        <div style={{ flex: 1, height: '1px', background: 'var(--border-primary, #333)' }} />
-                                    </div>
-
-                                    <label style={{
-                                        display: 'block', textAlign: 'left',
-                                        fontSize: '0.85rem', fontWeight: 600,
-                                        color: 'var(--text-secondary)', marginBottom: '0.5rem',
-                                    }}>
-                                        Invite Code
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={inviteCode}
-                                        onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                                        placeholder="e.g. BP-7K3X-9M2W"
-                                        maxLength={14}
-                                        disabled={loading}
-                                        style={{
-                                            ...inputStyle,
-                                            fontFamily: 'monospace',
-                                            letterSpacing: '1px',
-                                            textAlign: 'center',
-                                            fontSize: '1.1rem',
-                                        }}
-                                    />
-
-                                    <label style={{
-                                        display: 'block', textAlign: 'left',
-                                        fontSize: '0.85rem', fontWeight: 600,
-                                        color: 'var(--text-secondary)', marginBottom: '0.5rem',
-                                    }}>
-                                        Choose your Callsign
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={callsign}
-                                        onChange={(e) => setCallsign(e.target.value)}
-                                        placeholder="e.g. Billinudgel-Marty"
-                                        maxLength={32}
-                                        disabled={loading}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-                                        style={inputStyle}
-                                    />
-
-                                    {error && (
-                                        <p style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '1rem' }}>
-                                            {error}
-                                        </p>
-                                    )}
-
-                                    <button
-                                        onClick={handleCreate}
-                                        disabled={loading || callsign.trim().length < 2}
-                                        style={{
-                                            width: '100%', padding: '0.85rem', borderRadius: '10px',
-                                            border: 'none',
-                                            background: loading ? '#555' : '#2563eb',
-                                            color: 'var(--text-primary)', fontSize: '1rem',
-                                            fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
-                                            fontFamily: 'inherit', transition: 'background 0.2s',
-                                        }}
-                                    >
-                                        {loading ? 'Joining...' : inviteCode.trim()
-                                            ? 'Join with Invite'
-                                            : 'Create Sovereign Identity'}
                                     </button>
                                 </>
                             )}
