@@ -697,7 +697,13 @@
             <!-- Admin Members & Audit -->
             <div class="glass" data-tab="members" style="display:none;">
                 <h3>🌳 Members & Audit Tree</h3>
-                <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.75rem;">Manage members and prune suspicious branches.</p>
+                <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.5rem;">Manage members and prune suspicious branches.</p>
+                <div style="font-size: 0.75rem; display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.5rem; padding: 0.4rem 0%;">
+                    <div><span style="display:inline-block;padding:2px 6px;border-radius:4px;background:#ef444422;color:#ef4444;font-weight:bold;margin-right:4px;">⚠️</span> Sybil / Invite Spam</div>
+                    <div><span style="display:inline-block;padding:2px 6px;border-radius:4px;background:#f59e0b22;color:#f59e0b;font-weight:bold;margin-right:4px;">🔄</span> Wash Trading</div>
+                    <div><span style="display:inline-block;padding:2px 6px;border-radius:4px;background:#f59e0b22;color:#f59e0b;font-weight:bold;margin-right:4px;">🏝️</span> Isolated Branch</div>
+                    <div><span style="display:inline-block;padding:2px 6px;border-radius:4px;background:#64748b22;color:#64748b;font-weight:bold;margin-right:4px;">💤</span> Inactive</div>
+                </div>
                 <div id="admin-members-tree" style="margin-bottom:0.75rem; max-height:400px; overflow-y:auto; border:1px solid #1e293b; border-radius:8px; padding:0.5rem;"></div>
                 <button class="btn btn-outline btn-full" onclick="loadAdminData()">🔄 Refresh Data</button>
             </div>

@@ -1423,8 +1423,8 @@ export function adminSendWarning(targetPubkey: string, body: string) {
         id: crypto.randomUUID(),
         conversationId: convId,
         authorPubkey: 'system',
-        ciphertext: body, // Plaintext system message instead of NaCl box
-        nonce: 'system',
+        ciphertext: Buffer.from(body, 'utf-8').toString('base64'),
+        nonce: 'plaintext-v1',
         timestamp: new Date().toISOString(),
     };
     messages.push(msg);

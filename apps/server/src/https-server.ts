@@ -95,7 +95,7 @@ export async function startHttpsServer(port: number): Promise<void> {
                     (ctx as any).requestBody = parsed;
 
                     const sender = parsed.publicKey || parsed.authorPublicKey || parsed.buyerPublicKey || parsed.from || parsed.memberPublicKey || parsed.voterPublicKey;
-                    if (sender && typeof sender === 'string' && sender.startsWith('BP-')) {
+                    if (sender && typeof sender === 'string' && sender.length >= 32) {
                         recordActivity(sender);
                     }
                 } catch {
