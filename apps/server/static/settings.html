@@ -1606,16 +1606,17 @@
             else el.innerHTML = roots.map(r => buildNode(r.publicKey, 0)).join('');
             
             window.promptWarning = async function(pubkey) {
-                const msg = prompt('Enter inbox warning message to send to this user:');
-                if (!msg) return;
-                try {
-                    const res = await fetch('/api/local/admin/warnings', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ targetPublicKey: pubkey, message: msg, password: authToken })
-                    });
-                    if (res.ok) alert('Warning sent successfully to ' + pubkey.substring(0,8));
-                    else alert('Failed to send warning');
-                } catch (e) { alert(e.message); }
+                // Switch to the Inbox & Comms tab
+                document.querySelectorAll('[data-tab]').forEach(el => el.style.display = 'none');
+                document.querySelector('[data-tab="comms"]').style.display = '';
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelector('.tab-btn[data-tab="comms"]').classList.add('active');
+                // Load inbox data then auto-select the user
+                await loadAdminInbox();
+                selectInboxUser(pubkey);
+                // Focus the input so admin can start typing immediately
+                const inp = document.getElementById('admin-inbox-input');
+                if (inp) { inp.disabled = false; inp.focus(); }
             }
         }
 
