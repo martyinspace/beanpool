@@ -201,9 +201,28 @@ export interface MarketplacePost {
     authorCallsign: string;
     createdAt: string;
     active: boolean;
+    status: 'active' | 'pending' | 'paused' | 'completed' | 'cancelled';
+    repeatable: boolean;
+    acceptedBy?: string;
+    acceptedAt?: string;
+    completedAt?: string;
     lat?: number;
     lng?: number;
     photos?: string[];
+}
+
+export interface MarketplaceTransaction {
+    id: string;
+    postId: string;
+    postTitle: string;
+    buyerPublicKey: string;
+    buyerCallsign: string;
+    sellerPublicKey: string;
+    sellerCallsign: string;
+    credits: number;
+    status: 'pending' | 'completed' | 'cancelled';
+    createdAt: string;
+    completedAt?: string;
 }
 
 export async function getMarketplacePosts(filter?: { type?: string; category?: string }): Promise<MarketplacePost[]> {
@@ -223,6 +242,7 @@ export async function createMarketplacePost(post: {
     lat?: number;
     lng?: number;
     photos?: string[];
+    repeatable?: boolean;
 }): Promise<{ success: boolean; post: MarketplacePost }> {
     return request('POST', '/api/marketplace/posts', post);
 }
@@ -246,6 +266,46 @@ export async function updateMarketplacePost(
     },
 ): Promise<{ success: boolean; post: MarketplacePost }> {
     return request('POST', '/api/marketplace/posts/update', { id, authorPublicKey, ...updates });
+}
+
+// ===================== MARKETPLACE TRANSACTIONS =====================
+
+export async function acceptMarketplacePost(
+    postId: string, buyerPublicKey: string
+): Promise<{ success: boolean; transaction: MarketplaceTransaction }> {
+    return request('POST', '/api/marketplace/posts/accept', { postId, buyerPublicKey });
+}
+
+export async function completeMarketplaceTransaction(
+    transactionId: string, confirmerPublicKey: string
+): Promise<{ success: boolean; transaction: MarketplaceTransaction }> {
+    return request('POST', '/api/marketplace/transactions/complete', { transactionId, confirmerPublicKey });
+}
+
+export async function cancelMarketplaceTransaction(
+    transactionId: string, cancellerPublicKey: string
+): Promise<{ success: boolean; transaction: MarketplaceTransaction }> {
+    return request('POST', '/api/marketplace/transactions/cancel', { transactionId, cancellerPublicKey });
+}
+
+export async function pauseMarketplacePost(
+    postId: string, authorPublicKey: string
+): Promise<{ success: boolean }> {
+    return request('POST', '/api/marketplace/posts/pause', { postId, authorPublicKey });
+}
+
+export async function resumeMarketplacePost(
+    postId: string, authorPublicKey: string
+): Promise<{ success: boolean }> {
+    return request('POST', '/api/marketplace/posts/resume', { postId, authorPublicKey });
+}
+
+export async function getMyMarketplaceTransactions(
+    publicKey: string, status?: string
+): Promise<MarketplaceTransaction[]> {
+    const params = new URLSearchParams({ publicKey });
+    if (status) params.set('status', status);
+    return request('GET', `/api/marketplace/transactions?${params}`);
 }
 
 // ===================== RATINGS =====================

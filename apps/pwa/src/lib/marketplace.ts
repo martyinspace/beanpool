@@ -38,4 +38,7 @@ export interface MarketplacePost {
     location: { lat: number; lng: number } | null;
     createdAt: string;
     photos?: string[];
+    status?: 'active' | 'pending' | 'paused' | 'completed' | 'cancelled';
+    repeatable?: boolean;
+    acceptedBy?: string;
 }

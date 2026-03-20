@@ -84,6 +84,30 @@ export function MarketplaceCard({ post, authorRating, remoteNode }: Props) {
                     {emoji}
                 </span>
 
+                {/* Status badges */}
+                {post.status === 'pending' && (
+                    <span style={{
+                        position: 'absolute', bottom: '0.35rem', right: '0.35rem',
+                        fontSize: '0.6rem', fontWeight: 600,
+                        background: 'rgba(245,158,11,0.9)',
+                        color: '#000',
+                        padding: '0.15rem 0.4rem', borderRadius: '4px',
+                    }}>
+                        ⏳ PENDING
+                    </span>
+                )}
+                {post.repeatable && (
+                    <span style={{
+                        position: 'absolute', top: '0.35rem', left: '1.2rem',
+                        fontSize: '0.55rem', fontWeight: 600,
+                        background: 'rgba(99,102,241,0.85)',
+                        color: '#fff',
+                        padding: '0.1rem 0.3rem', borderRadius: '4px',
+                    }}>
+                        🔁
+                    </span>
+                )}
+
                 {/* Remote node badge — bottom-left */}
                 {nodeBadge && (
                     <span style={{

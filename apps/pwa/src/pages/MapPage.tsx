@@ -52,6 +52,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
     const [newPostTitle, setNewPostTitle] = useState('');
     const [newPostDescription, setNewPostDescription] = useState('');
     const [newPostCredits, setNewPostCredits] = useState('');
+    const [newPostRepeatable, setNewPostRepeatable] = useState(false);
     const [newPostPhotos, setNewPostPhotos] = useState<string[]>([]);
     const [posting, setPosting] = useState(false);
     const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
@@ -221,12 +222,14 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                 description: newPostDescription.trim(),
                 credits: Number(newPostCredits) || 0,
                 authorPublicKey: identity.publicKey || '',
+                repeatable: newPostRepeatable,
                 ...(postLat != null && postLng != null ? { lat: postLat, lng: postLng } : {}),
                 ...(newPostPhotos.length > 0 ? { photos: newPostPhotos } : {}),
             });
             setNewPostTitle('');
             setNewPostDescription('');
             setNewPostCredits('');
+            setNewPostRepeatable(false);
             setNewPostPhotos([]);
             setPostLat(null);
             setPostLng(null);
@@ -605,6 +608,21 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                         }}
                     />
                 </div>
+
+                {/* Repeatable toggle */}
+                <label style={{
+                    display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    fontSize: '0.82rem', color: 'var(--text-muted)', cursor: 'pointer',
+                    padding: '0.25rem 0',
+                }}>
+                    <input
+                        type="checkbox"
+                        checked={newPostRepeatable}
+                        onChange={e => setNewPostRepeatable(e.target.checked)}
+                        style={{ width: '16px', height: '16px', accentColor: '#2563eb' }}
+                    />
+                    🔁 Repeatable — keep listing active for ongoing bookings
+                </label>
 
                 {/* Description */}
                 <textarea

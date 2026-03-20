@@ -17,7 +17,9 @@ import {
     getMemberProfile, createConversationApi, sendTransfer,
     submitRating, getMemberRatings, reportAbuse,
     getNodeInfo, getRemotePosts, sendRemoteTransfer, sendFederationMessage,
-    type MarketplacePost, type MemberProfile, type NodeInfo,
+    acceptMarketplacePost, completeMarketplaceTransaction,
+    cancelMarketplaceTransaction, getMyMarketplaceTransactions,
+    type MarketplacePost, type MemberProfile, type NodeInfo, type MarketplaceTransaction,
 } from '../lib/api';
 import { type BeanPoolIdentity } from '../lib/identity';
 
@@ -390,47 +392,55 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                         <button
                             onClick={async () => {
                                 if (!identity || !selectedPost) return;
-                                const credits = selectedPost.credits;
                                 const isOffer = selectedPost.type === 'offer';
                                 const action = isOffer ? 'accept this offer' : 'fulfill this need';
                                 const direction = isOffer
-                                    ? `You pay ${selectedPost.authorCallsign} ${credits} 🫘`
-                                    : `${selectedPost.authorCallsign} pays you ${credits} 🫘`;
-                                const msg = credits === 0
+                                    ? `You will pay ${selectedPost.authorCallsign} ${selectedPost.credits} 🫘 when completed`
+                                    : `${selectedPost.authorCallsign} will pay you ${selectedPost.credits} 🫘 when completed`;
+                                const msg = selectedPost.credits === 0
                                     ? `${action.charAt(0).toUpperCase() + action.slice(1)}?\n\nThis is a free listing (0 🫘). No credits will be transferred.`
-                                    : `${action.charAt(0).toUpperCase() + action.slice(1)}?\n\n${direction}`;
+                                    : `${action.charAt(0).toUpperCase() + action.slice(1)}?\n\n${direction}\n\nCredits are held until the poster confirms completion.`;
                                 if (!confirm(msg)) return;
 
                                 setAccepting(true);
                                 try {
-                                    if (credits > 0) {
-                                        const from = isOffer ? identity.publicKey : selectedPost.authorPublicKey;
-                                        const to = isOffer ? selectedPost.authorPublicKey : identity.publicKey;
-                                        const memo = `${isOffer ? 'Accepted' : 'Fulfilled'}: ${selectedPost.title}`;
-                                        const remoteNode = (selectedPost as any)._remoteNode;
-                                        if (remoteNode) {
-                                            await sendRemoteTransfer(remoteNode, from, to, credits, memo);
-                                        } else {
-                                            await sendTransfer(from, to, credits, memo);
+                                    const remoteNode = (selectedPost as any)._remoteNode;
+                                    if (remoteNode) {
+                                        // Remote posts — use old direct transfer for now
+                                        if (selectedPost.credits > 0) {
+                                            const from = isOffer ? identity.publicKey : selectedPost.authorPublicKey;
+                                            const to = isOffer ? selectedPost.authorPublicKey : identity.publicKey;
+                                            const memo = `${isOffer ? 'Accepted' : 'Fulfilled'}: ${selectedPost.title}`;
+                                            await sendRemoteTransfer(remoteNode, from, to, selectedPost.credits, memo);
                                         }
+                                        handleMessageAuthor();
+                                    } else {
+                                        // Local posts — use new lifecycle API
+                                        await acceptMarketplacePost(selectedPost.id, identity.publicKey);
+                                        handleMessageAuthor();
+                                        refresh(); // Refresh to show updated status
                                     }
-                                    // Auto-open message conversation
-                                    handleMessageAuthor();
                                 } catch (err) {
-                                    alert(`Transfer failed: ${(err as Error).message}`);
+                                    alert(`Failed: ${(err as Error).message}`);
                                 } finally {
                                     setAccepting(false);
                                 }
                             }}
-                            disabled={accepting}
+                            disabled={accepting || selectedPost.status === 'pending'}
                             style={{
                                 width: '100%', padding: '0.85rem', borderRadius: '12px',
-                                background: typeColor, color: 'var(--text-primary)', border: 'none',
-                                fontSize: '0.95rem', fontWeight: 600, cursor: accepting ? 'wait' : 'pointer',
+                                background: selectedPost.status === 'pending' ? '#555' : typeColor,
+                                color: 'var(--text-primary)', border: 'none',
+                                fontSize: '0.95rem', fontWeight: 600,
+                                cursor: accepting || selectedPost.status === 'pending' ? 'not-allowed' : 'pointer',
                                 fontFamily: 'inherit', opacity: accepting ? 0.6 : 1,
                             }}
                         >
-                            {accepting ? 'Processing...' : (selectedPost.type === 'offer' ? '🤝 Accept Offer' : '🤝 Fulfill Need')}
+                            {accepting ? 'Processing...' : (
+                                selectedPost.status === 'pending'
+                                    ? '⏳ Pending Confirmation'
+                                    : (selectedPost.type === 'offer' ? '🤝 Accept Offer' : '🤝 Fulfill Need')
+                            )}
                         </button>
                         <button
                             onClick={() => setShowRatingForm(!showRatingForm)}

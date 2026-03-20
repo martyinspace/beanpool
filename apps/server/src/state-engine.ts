@@ -48,10 +48,29 @@ export interface MarketplacePost {
     authorCallsign: string;
     createdAt: string;
     active: boolean;
+    status: 'active' | 'pending' | 'paused' | 'completed' | 'cancelled';
+    repeatable: boolean;          // true = ongoing service, stays active after accept
+    acceptedBy?: string;          // publicKey of acceptor (one-time posts only)
+    acceptedAt?: string;
+    completedAt?: string;
     lat?: number;
     lng?: number;
-    photos?: string[];        // up to 3 base64 data URLs
-    originNode?: string;      // ID of the node where this post was created
+    photos?: string[];            // up to 3 base64 data URLs
+    originNode?: string;          // ID of the node where this post was created
+}
+
+export interface MarketplaceTransaction {
+    id: string;
+    postId: string;
+    postTitle: string;
+    buyerPublicKey: string;       // the person who clicked 'Accept'
+    buyerCallsign: string;
+    sellerPublicKey: string;      // the post author
+    sellerCallsign: string;
+    credits: number;
+    status: 'pending' | 'completed' | 'cancelled';
+    createdAt: string;
+    completedAt?: string;
 }
 
 export interface Transaction {
@@ -120,6 +139,7 @@ interface PersistedState {
     members: Member[];
     posts: MarketplacePost[];
     transactions: Transaction[];
+    marketplaceTransactions: MarketplaceTransaction[];
     inviteCodes: InviteCode[];
     profiles: Record<string, MemberProfile>;
     conversations: Conversation[];
@@ -136,6 +156,7 @@ let ledger = new LedgerManager();
 let members: Member[] = [];
 let posts: MarketplacePost[] = [];
 let transactions: Transaction[] = [];
+let marketplaceTransactions: MarketplaceTransaction[] = [];
 let inviteCodes: InviteCode[] = [];
 let profiles: Record<string, MemberProfile> = {};
 let conversations: Conversation[] = [];
@@ -156,13 +177,19 @@ export function initStateEngine(): void {
             members = saved.members || [];
             posts = saved.posts || [];
             transactions = saved.transactions || [];
+            marketplaceTransactions = (saved as any).marketplaceTransactions || [];
             inviteCodes = saved.inviteCodes || [];
             profiles = saved.profiles || {};
             conversations = (saved as any).conversations || [];
             messages = (saved as any).messages || [];
             ratings = (saved as any).ratings || [];
             reports = (saved as any).reports || [];
-            friends = (saved as any).friends || {};
+            friends = (saved as any).friends || [];
+            // Migrate legacy posts without status/repeatable fields
+            for (const p of posts) {
+                if (!p.status) p.status = p.active ? 'active' : 'cancelled';
+                if (p.repeatable === undefined) p.repeatable = false;
+            }
             // Migrate legacy members without invitedBy field
             for (const m of members) {
                 if (!m.invitedBy) m.invitedBy = 'genesis';
@@ -185,6 +212,7 @@ function saveState(): void {
         members,
         posts,
         transactions: transactions.slice(-1000),
+        marketplaceTransactions: marketplaceTransactions.slice(-5000),
         inviteCodes: inviteCodes.slice(-5000),
         profiles,
         conversations,
@@ -544,6 +572,7 @@ export function createPost(
     lat?: number,
     lng?: number,
     photos?: string[],
+    repeatable?: boolean,
 ): MarketplacePost | null {
     const author = getMember(authorPublicKey);
     // Allow posts even without registered member — use fallback callsign
@@ -560,18 +589,21 @@ export function createPost(
         authorCallsign: callsign,
         createdAt: new Date().toISOString(),
         active: true,
+        status: 'active',
+        repeatable: repeatable || false,
         ...(lat != null && lng != null ? { lat, lng } : {}),
         ...(photos && photos.length > 0 ? { photos: photos.slice(0, 3) } : {}),
     };
     posts.push(post);
     saveState();
     broadcast({ type: 'new_post', post });
-    console.log(`📌 New ${type}: "${title}" by ${callsign}`);
+    console.log(`📌 New ${type}: "${title}" by ${callsign}${repeatable ? ' [repeatable]' : ''}`);
     return post;
 }
 
 export function getPosts(filter?: { type?: string; category?: string }): MarketplacePost[] {
-    let result = posts.filter(p => p.active);
+    // Show active and pending posts (pending shows with badge)
+    let result = posts.filter(p => p.active && (p.status === 'active' || p.status === 'pending'));
     if (filter?.type && filter.type !== 'all') {
         result = result.filter(p => p.type === filter.type);
     }
@@ -585,6 +617,7 @@ export function removePost(id: string, authorPublicKey: string): boolean {
     const post = posts.find(p => p.id === id && p.authorPublicKey === authorPublicKey);
     if (!post) return false;
     post.active = false;
+    post.status = 'cancelled';
     saveState();
     broadcast({ type: 'post_removed', id });
     return true;
@@ -602,6 +635,7 @@ export function updatePost(
         lat?: number;
         lng?: number;
         photos?: string[];
+        repeatable?: boolean;
     },
 ): MarketplacePost | null {
     const post = posts.find(p => p.id === id && p.authorPublicKey === authorPublicKey && p.active);
@@ -615,11 +649,184 @@ export function updatePost(
     if (updates.lat !== undefined) post.lat = updates.lat;
     if (updates.lng !== undefined) post.lng = updates.lng;
     if (updates.photos !== undefined) post.photos = updates.photos.slice(0, 3);
+    if (updates.repeatable !== undefined) post.repeatable = updates.repeatable;
 
     saveState();
     broadcast({ type: 'post_updated', post });
     console.log(`✏️ Updated post: "${post.title}" by ${post.authorCallsign}`);
     return post;
+}
+
+// ===================== MARKETPLACE TRANSACTIONS =====================
+
+/**
+ * Accept a marketplace post. Creates a MarketplaceTransaction.
+ * For one-time posts: sets post to 'pending'.
+ * For repeatable posts: post stays 'active'.
+ */
+export function acceptPost(
+    postId: string,
+    buyerPublicKey: string,
+): MarketplaceTransaction | null {
+    const post = posts.find(p => p.id === postId && p.active && p.status === 'active');
+    if (!post) return null;
+
+    // Can't accept your own post
+    if (post.authorPublicKey === buyerPublicKey) return null;
+
+    const buyer = getMember(buyerPublicKey);
+    const buyerCallsign = buyer?.callsign || 'Anonymous';
+
+    const isOffer = post.type === 'offer';
+    const tx: MarketplaceTransaction = {
+        id: crypto.randomUUID(),
+        postId: post.id,
+        postTitle: post.title,
+        buyerPublicKey,
+        buyerCallsign,
+        sellerPublicKey: post.authorPublicKey,
+        sellerCallsign: post.authorCallsign,
+        credits: post.credits,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+    };
+
+    marketplaceTransactions.push(tx);
+
+    // For one-time posts, mark as pending
+    if (!post.repeatable) {
+        post.status = 'pending';
+        post.acceptedBy = buyerPublicKey;
+        post.acceptedAt = new Date().toISOString();
+    }
+
+    saveState();
+    broadcast({ type: 'post_accepted', postId: post.id, transaction: tx });
+    console.log(`🤝 ${buyerCallsign} accepted "${post.title}" by ${post.authorCallsign}`);
+    return tx;
+}
+
+/**
+ * Complete (confirm) a marketplace transaction. Transfers credits.
+ * Only the poster (seller) can confirm.
+ */
+export function completePostTransaction(
+    transactionId: string,
+    confirmerPublicKey: string,
+): MarketplaceTransaction | null {
+    const tx = marketplaceTransactions.find(t => t.id === transactionId && t.status === 'pending');
+    if (!tx) return null;
+
+    // Only the post author (seller) can confirm
+    if (tx.sellerPublicKey !== confirmerPublicKey) return null;
+
+    const post = posts.find(p => p.id === tx.postId);
+
+    // Transfer credits if amount > 0
+    if (tx.credits > 0 && post) {
+        const isOffer = post.type === 'offer';
+        const from = isOffer ? tx.buyerPublicKey : tx.sellerPublicKey;
+        const to = isOffer ? tx.sellerPublicKey : tx.buyerPublicKey;
+        const memo = `Completed: ${tx.postTitle}`;
+        
+        // Use the ledger to transfer
+        const success = ledger.transfer(from, to, tx.credits);
+        if (!success) return null;
+        
+        const txRecord: Transaction = {
+            id: crypto.randomUUID(),
+            from, to,
+            amount: tx.credits,
+            memo,
+            timestamp: new Date().toISOString(),
+        };
+        transactions.push(txRecord);
+    }
+
+    tx.status = 'completed';
+    tx.completedAt = new Date().toISOString();
+
+    // For one-time posts, mark as completed
+    if (post && !post.repeatable) {
+        post.status = 'completed';
+        post.active = false;
+        post.completedAt = new Date().toISOString();
+    }
+
+    saveState();
+    broadcast({ type: 'transaction_completed', transaction: tx });
+    console.log(`✅ Transaction completed: "${tx.postTitle}" (${tx.credits}🫘)`);
+    return tx;
+}
+
+/**
+ * Cancel a pending marketplace transaction.
+ * Either the buyer or the seller can cancel.
+ */
+export function cancelPostTransaction(
+    transactionId: string,
+    cancellerPublicKey: string,
+): MarketplaceTransaction | null {
+    const tx = marketplaceTransactions.find(t => t.id === transactionId && t.status === 'pending');
+    if (!tx) return null;
+
+    // Either buyer or seller can cancel
+    if (tx.buyerPublicKey !== cancellerPublicKey && tx.sellerPublicKey !== cancellerPublicKey) return null;
+
+    tx.status = 'cancelled';
+
+    // For one-time posts, restore to active
+    const post = posts.find(p => p.id === tx.postId);
+    if (post && !post.repeatable && post.status === 'pending') {
+        post.status = 'active';
+        delete post.acceptedBy;
+        delete post.acceptedAt;
+    }
+
+    saveState();
+    broadcast({ type: 'transaction_cancelled', transaction: tx });
+    console.log(`❌ Transaction cancelled: "${tx.postTitle}"`);
+    return tx;
+}
+
+/**
+ * Pause a repeatable post. Only the author can pause.
+ */
+export function pausePost(postId: string, authorPublicKey: string): boolean {
+    const post = posts.find(p => p.id === postId && p.authorPublicKey === authorPublicKey && p.status === 'active');
+    if (!post) return false;
+    post.status = 'paused';
+    saveState();
+    broadcast({ type: 'post_updated', post });
+    return true;
+}
+
+/**
+ * Resume a paused post. Only the author can resume.
+ */
+export function resumePost(postId: string, authorPublicKey: string): boolean {
+    const post = posts.find(p => p.id === postId && p.authorPublicKey === authorPublicKey && p.status === 'paused');
+    if (!post) return false;
+    post.status = 'active';
+    saveState();
+    broadcast({ type: 'post_updated', post });
+    return true;
+}
+
+/**
+ * Get marketplace transactions for a user (as buyer or seller).
+ */
+export function getMarketplaceTransactions(
+    publicKey: string,
+    filter?: { status?: string },
+): MarketplaceTransaction[] {
+    let result = marketplaceTransactions.filter(
+        t => t.buyerPublicKey === publicKey || t.sellerPublicKey === publicKey
+    );
+    if (filter?.status) {
+        result = result.filter(t => t.status === filter.status);
+    }
+    return result.reverse(); // Most recent first
 }
 
 // ===================== COMMUNITY INFO =====================

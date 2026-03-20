@@ -38,6 +38,8 @@ import {
     registerMember, getMembers, getMember,
     getBalance, transfer, getTransactions,
     createPost, getPosts, removePost, updatePost,
+    acceptPost, completePostTransaction, cancelPostTransaction,
+    pausePost, resumePost, getMarketplaceTransactions,
     getCommunityInfo, addWsClient, removeWsClient,
     generateInvite, redeemInvite, getInviteTree, getInvitesByMember,
     updateProfile, getProfile,
@@ -621,7 +623,7 @@ export async function startHttpsServer(port: number): Promise<void> {
     });
 
     router.post('/api/marketplace/posts', async (ctx) => {
-        const { type, category, title, description, credits, authorPublicKey, lat, lng, photos } =
+        const { type, category, title, description, credits, authorPublicKey, lat, lng, photos, repeatable } =
             (ctx as any).requestBody || {};
         if (!type || !title || !authorPublicKey) {
             ctx.status = 400;
@@ -634,6 +636,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             lat != null ? Number(lat) : undefined,
             lng != null ? Number(lng) : undefined,
             photos,
+            repeatable === true || repeatable === 'true',
         );
         if (!post) {
             ctx.status = 400;
@@ -668,6 +671,89 @@ export async function startHttpsServer(port: number): Promise<void> {
             return;
         }
         ctx.body = { success: true, post };
+    });
+
+    // ===================== MARKETPLACE TRANSACTIONS =====================
+
+    router.post('/api/marketplace/posts/accept', async (ctx) => {
+        const { postId, buyerPublicKey } = (ctx as any).requestBody || {};
+        if (!postId || !buyerPublicKey) {
+            ctx.status = 400;
+            ctx.body = { error: 'postId and buyerPublicKey are required' };
+            return;
+        }
+        const tx = acceptPost(postId, buyerPublicKey);
+        if (!tx) {
+            ctx.status = 400;
+            ctx.body = { error: 'Cannot accept — post not found, already pending, or you are the author' };
+            return;
+        }
+        ctx.body = { success: true, transaction: tx };
+    });
+
+    router.post('/api/marketplace/transactions/complete', async (ctx) => {
+        const { transactionId, confirmerPublicKey } = (ctx as any).requestBody || {};
+        if (!transactionId || !confirmerPublicKey) {
+            ctx.status = 400;
+            ctx.body = { error: 'transactionId and confirmerPublicKey are required' };
+            return;
+        }
+        const tx = completePostTransaction(transactionId, confirmerPublicKey);
+        if (!tx) {
+            ctx.status = 400;
+            ctx.body = { error: 'Cannot complete — transaction not found, not pending, or credit transfer failed' };
+            return;
+        }
+        ctx.body = { success: true, transaction: tx };
+    });
+
+    router.post('/api/marketplace/transactions/cancel', async (ctx) => {
+        const { transactionId, cancellerPublicKey } = (ctx as any).requestBody || {};
+        if (!transactionId || !cancellerPublicKey) {
+            ctx.status = 400;
+            ctx.body = { error: 'transactionId and cancellerPublicKey are required' };
+            return;
+        }
+        const tx = cancelPostTransaction(transactionId, cancellerPublicKey);
+        if (!tx) {
+            ctx.status = 400;
+            ctx.body = { error: 'Cannot cancel — transaction not found or not authorized' };
+            return;
+        }
+        ctx.body = { success: true, transaction: tx };
+    });
+
+    router.post('/api/marketplace/posts/pause', async (ctx) => {
+        const { postId, authorPublicKey } = (ctx as any).requestBody || {};
+        if (!postId || !authorPublicKey) {
+            ctx.status = 400;
+            ctx.body = { error: 'postId and authorPublicKey are required' };
+            return;
+        }
+        const success = pausePost(postId, authorPublicKey);
+        ctx.body = { success };
+    });
+
+    router.post('/api/marketplace/posts/resume', async (ctx) => {
+        const { postId, authorPublicKey } = (ctx as any).requestBody || {};
+        if (!postId || !authorPublicKey) {
+            ctx.status = 400;
+            ctx.body = { error: 'postId and authorPublicKey are required' };
+            return;
+        }
+        const success = resumePost(postId, authorPublicKey);
+        ctx.body = { success };
+    });
+
+    router.get('/api/marketplace/transactions', async (ctx) => {
+        const publicKey = ctx.query.publicKey as string;
+        const status = ctx.query.status as string | undefined;
+        if (!publicKey) {
+            ctx.status = 400;
+            ctx.body = { error: 'publicKey query parameter is required' };
+            return;
+        }
+        ctx.body = getMarketplaceTransactions(publicKey, status ? { status } : undefined);
     });
 
     // ===================== RATINGS =====================
