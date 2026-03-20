@@ -22,7 +22,7 @@ import { startHttpsServer } from './https-server.js';
 import { startP2P } from './p2p.js';
 import { initConnectorManager, connectAll } from './connector-manager.js';
 import { registerHandshakeHandler } from './handshake.js';
-import { initStateEngine } from './state-engine.js';
+import { initStateEngine, migrateAdminConversations } from './state-engine.js';
 
 const PORT_HTTP = Number(process.env.PORT_HTTP ?? 8080);
 const PORT_HTTPS = Number(process.env.PORT_HTTPS ?? 8443);
@@ -42,6 +42,7 @@ async function main() {
 
     // Step 2.5: Initialize state engine (ledger, members, marketplace)
     initStateEngine();
+    migrateAdminConversations();
 
     // Step 3: TLS certificates (LE or self-signed)
     await initTls();

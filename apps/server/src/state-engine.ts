@@ -1406,60 +1406,84 @@ export function adminBroadcastAnnouncement(title: string, body: string, severity
 
 export function adminSendMessage(targetPubkey: string, body: string) {
     const adminPubkey = getAdminPubkey();
-    const convId = 'admin_dm_' + targetPubkey;
-    let conv = conversations.find(c => c.id === convId);
     
-    // Also check for legacy 'sys_warn_' conversations and migrate them
-    if (!conv) {
-        const legacyConv = conversations.find(c => c.id === 'sys_warn_' + targetPubkey);
-        if (legacyConv) {
-            legacyConv.id = convId;
-            legacyConv.participants = [adminPubkey, targetPubkey];
-            legacyConv.createdBy = adminPubkey;
-            legacyConv.name = '💬 Admin';
-            // Update all legacy messages in this conversation
-            messages.filter(m => m.conversationId === 'sys_warn_' + targetPubkey).forEach(m => {
-                m.conversationId = convId;
-                if (m.authorPubkey === 'system') m.authorPubkey = adminPubkey;
-            });
-            conv = legacyConv;
-        }
-    }
-
-    if (!conv) {
-        conv = {
-            id: convId,
-            type: 'dm',
-            name: '💬 Admin',
-            participants: [adminPubkey, targetPubkey],
-            createdBy: adminPubkey,
-            createdAt: new Date().toISOString()
-        };
-        conversations.push(conv);
-    }
+    // Use createConversation which deduplicates DMs automatically
+    const conv = createConversation('dm', [adminPubkey, targetPubkey], adminPubkey);
+    if (!conv) return;
     
-    const msg: Message = {
-        id: crypto.randomUUID(),
-        conversationId: convId,
-        authorPubkey: adminPubkey,
-        ciphertext: Buffer.from(body, 'utf-8').toString('base64'),
-        nonce: 'plaintext-v1',
-        timestamp: new Date().toISOString(),
-    };
-    messages.push(msg);
-    saveState();
-
-    broadcast({
-        type: 'new_message',
-        conversationId: convId,
-        message: msg,
-        participants: conv.participants,
-    });
+    const ciphertext = Buffer.from(body, 'utf-8').toString('base64');
+    sendMessage(conv.id, adminPubkey, ciphertext, 'plaintext-v1');
 }
 
 /** Get the genesis (admin) member's public key */
 export function getAdminPubkey(): string {
     const genesis = members.find(m => m.invitedBy === 'genesis');
     return genesis?.publicKey || 'system';
+}
+
+/**
+ * Migrate legacy admin conversations (sys_warn_*, admin_dm_*) into proper DM conversations.
+ * Call this once on boot after initStateEngine().
+ */
+export function migrateAdminConversations() {
+    const adminPubkey = getAdminPubkey();
+    if (adminPubkey === 'system') return; // No genesis member yet
+    
+    let dirty = false;
+    
+    // Find all legacy conversations
+    const legacyConvs = conversations.filter(c => 
+        c.id.startsWith('sys_warn_') || c.id.startsWith('admin_dm_')
+    );
+    
+    for (const legacy of legacyConvs) {
+        // Find the target user in this conversation
+        const targetPubkey = legacy.participants.find(p => p !== 'system' && p !== adminPubkey);
+        if (!targetPubkey) continue;
+        
+        // Check if a proper DM conversation already exists between admin and target
+        const properConv = conversations.find(c =>
+            c.type === 'dm' &&
+            !c.id.startsWith('sys_warn_') &&
+            !c.id.startsWith('admin_dm_') &&
+            c.participants.length === 2 &&
+            c.participants.includes(adminPubkey) &&
+            c.participants.includes(targetPubkey)
+        );
+        
+        if (properConv) {
+            // Move all messages from the legacy conversation into the proper one
+            messages.filter(m => m.conversationId === legacy.id).forEach(m => {
+                m.conversationId = properConv.id;
+                if (m.authorPubkey === 'system') m.authorPubkey = adminPubkey;
+            });
+            // Remove the legacy conversation
+            const idx = conversations.indexOf(legacy);
+            if (idx !== -1) conversations.splice(idx, 1);
+            dirty = true;
+        } else {
+            // No proper DM exists — convert the legacy one in-place
+            legacy.participants = [adminPubkey, targetPubkey];
+            legacy.createdBy = adminPubkey;
+            legacy.type = 'dm';
+            legacy.name = null;
+            // Fix messages
+            messages.filter(m => m.conversationId === legacy.id).forEach(m => {
+                if (m.authorPubkey === 'system') m.authorPubkey = adminPubkey;
+            });
+            // Give it a proper UUID
+            const oldId = legacy.id;
+            legacy.id = crypto.randomUUID();
+            messages.filter(m => m.conversationId === oldId).forEach(m => {
+                m.conversationId = legacy.id;
+            });
+            dirty = true;
+        }
+    }
+    
+    if (dirty) {
+        saveState();
+        console.log(`📧 Migrated ${legacyConvs.length} legacy admin conversation(s)`);
+    }
 }
 
