@@ -205,7 +205,9 @@ export interface MarketplacePost {
     status: 'active' | 'pending' | 'paused' | 'completed' | 'cancelled';
     repeatable: boolean;
     acceptedBy?: string;
+    acceptedByCallsign?: string;
     acceptedAt?: string;
+    pendingTransactionId?: string;
     completedAt?: string;
     lat?: number;
     lng?: number;

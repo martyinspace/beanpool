@@ -52,7 +52,9 @@ export interface MarketplacePost {
     status: 'active' | 'pending' | 'paused' | 'completed' | 'cancelled';
     repeatable: boolean;          // true = ongoing service, stays active after accept
     acceptedBy?: string;          // publicKey of acceptor (one-time posts only)
+    acceptedByCallsign?: string;  // callsign of the acceptor
     acceptedAt?: string;
+    pendingTransactionId?: string;// id of the marketplace transaction representing the pending state
     completedAt?: string;
     lat?: number;
     lng?: number;
@@ -718,6 +720,8 @@ export function acceptPost(
     if (!post.repeatable) {
         post.status = 'pending';
         post.acceptedBy = buyerPublicKey;
+        post.acceptedByCallsign = buyerCallsign;
+        post.pendingTransactionId = tx.id;
         post.acceptedAt = new Date().toISOString();
     }
 
@@ -801,6 +805,8 @@ export function cancelPostTransaction(
     if (post && !post.repeatable && post.status === 'pending') {
         post.status = 'active';
         delete post.acceptedBy;
+        delete post.acceptedByCallsign;
+        delete post.pendingTransactionId;
         delete post.acceptedAt;
     }
 
@@ -1033,7 +1039,7 @@ export function importRemoteState(remote: SyncPayload): { newMembers: number; ne
 // ===================== COMMUNITY HEALTH =====================
 
 export interface HealthFlag {
-    type: 'wash_trading' | 'isolated_branch' | 'inactive_member';
+    type: 'wash_trading' | 'isolated_branch' | 'inactive_member' | 'invite_spam';
     severity: 'warning' | 'alert';
     description: string;
     members: string[];
@@ -1161,6 +1167,27 @@ export function getCommunityHealth(): CommunityHealth {
                 severity: 'warning',
                 description: `${root.callsign}'s branch (${branchMembers.size} members) only trades internally`,
                 members: Array.from(branchMembers),
+            });
+        }
+    }
+
+    // 4. Invite Spam / Sybil Ring
+    const memberInvites = new Map<string, { total: number, used: number }>();
+    for (const inv of inviteCodes) {
+        if (!memberInvites.has(inv.createdBy)) memberInvites.set(inv.createdBy, { total: 0, used: 0 });
+        const stats = memberInvites.get(inv.createdBy)!;
+        stats.total++;
+        if (inv.usedBy) stats.used++;
+    }
+    for (const [pubkey, stats] of memberInvites) {
+        if (stats.total >= 5) {
+            const member = getMember(pubkey);
+            const severity = stats.total >= 10 ? 'alert' : 'warning';
+            flags.push({
+                type: 'invite_spam',
+                severity,
+                description: `${member?.callsign || pubkey.substring(0, 8)} has generated a high volume of invites (${stats.total})`,
+                members: [pubkey],
             });
         }
     }

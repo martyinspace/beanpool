@@ -1491,8 +1491,17 @@
         function renderAdminMembers() {
             const el = document.getElementById('admin-members-tree');
             if (!el || !adminDataCache) return;
-            const { members, profiles } = adminDataCache;
+            const { members, profiles, health } = adminDataCache;
+            const flags = health?.flags || [];
             
+            const nodeFlags = {}; // pubkey -> array of flags directly on this user
+            flags.forEach(f => {
+                f.members.forEach(m => {
+                    if (!nodeFlags[m]) nodeFlags[m] = [];
+                    nodeFlags[m].push(f);
+                });
+            });
+
             // Map members by invitedBy to build tree
             const tree = {};
             members.forEach(m => {
@@ -1500,6 +1509,27 @@
                 if (!tree[inv]) tree[inv] = [];
                 tree[inv].push(m);
             });
+
+            const branchFlagsCache = {};
+            function getBranchFlags(pubkey) {
+                if (branchFlagsCache[pubkey]) return branchFlagsCache[pubkey];
+                const direct = nodeFlags[pubkey] || [];
+                const children = tree[pubkey] || [];
+                let all = [...direct];
+                children.forEach(c => all.push(...getBranchFlags(c.publicKey)));
+                
+                // Deduplicate by description
+                const unique = [];
+                const seen = new Set();
+                all.forEach(f => {
+                    if (!seen.has(f.description)) {
+                        seen.add(f.description);
+                        unique.push(f);
+                    }
+                });
+                branchFlagsCache[pubkey] = unique;
+                return unique;
+            }
 
             function buildNode(pubkey, depth = 0) {
                 const member = members.find(m => m.publicKey === pubkey);
@@ -1509,29 +1539,60 @@
                 const isPruned = profile?.status === 'pruned';
                 const isActive = !profile || profile.status === 'active' || profile.status === undefined;
                 const isGenesis = depth === 0;
+
+                const bFlags = getBranchFlags(pubkey);
+                const hasFlags = bFlags.length > 0;
+                const isAlert = bFlags.some(f => f.severity === 'alert');
+                
+                let flagPill = '';
+                if (hasFlags) {
+                    flagPill = `<span style="background:${isAlert ? '#ef4444' : '#f59e0b'};color:#fff;font-size:0.65rem;padding:0.1rem 0.4rem;border-radius:12px;margin-left:0.4rem;font-weight:700;" title="${bFlags.map(f => f.type.replace('_',' ')).join(', ')}">${bFlags.length} ⚠️</span>`;
+                }
+
+                const childrenHtml = children.map(c => buildNode(c.publicKey, depth + 1)).join('');
+                const hasChildren = children.length > 0;
                 
                 let html = `
-                    <div style="margin-left:${depth * 15}px; margin-bottom:0.4rem; padding:0.4rem; background:#1e293b; border-left:2px solid ${isPruned ? '#475569' : isActive ? '#10b981' : '#f59e0b'}; border-radius:0 8px 8px 0;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
-                            <div>
-                                <strong style="font-size:0.85rem;color:${isPruned ? '#64748b' : isActive ? '#f8fafc' : '#f59e0b'}">${isPruned ? '🗑️ ' : !isActive ? '⏸️ ' : ''}${member.callsign} <span style="font-size:0.6rem;font-family:monospace;color:#475569;">(${pubkey.substring(0,8)})</span></strong>
-                                <div style="font-size:0.7rem;color:#94a3b8;">Active: ${profile?.lastActiveAt ? new Date(profile.lastActiveAt).toLocaleString() : 'Never'}</div>
+                    <details ${depth < 3 || hasFlags ? 'open' : ''} style="margin-left:${depth === 0 ? 0 : 15}px;">
+                        <summary style="margin-bottom:0.4rem; padding:0.4rem; background:#1e293b; border-left:2px solid ${isPruned ? '#475569' : isActive ? '#10b981' : '#f59e0b'}; border-radius:0 8px 8px 0; cursor:${hasChildren ? 'pointer' : 'default'};">
+                            <div style="display:inline-flex; width: calc(100% - 20px); justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; vertical-align: top;">
+                                <div>
+                                    <strong style="font-size:0.85rem;color:${isPruned ? '#64748b' : isActive ? '#f8fafc' : '#f59e0b'}">${isPruned ? '🗑️ ' : !isActive ? '⏸️ ' : ''}${member.callsign} <span style="font-size:0.6rem;font-family:monospace;color:#475569;">(${pubkey.substring(0,8)})</span></strong>
+                                    ${flagPill}
+                                    <div style="font-size:0.7rem;color:#94a3b8;">Active: ${profile?.lastActiveAt ? new Date(profile.lastActiveAt).toLocaleString() : 'Never'}</div>
+                                </div>
+                                <div style="display:flex;gap:0.3rem;align-items:center;">
+                                    ${!isGenesis && !isPruned ? `<button class="btn btn-sm ${isActive?'btn-outline':'btn-primary'}" onclick="event.preventDefault(); adminAction('/users/${pubkey}/status', {status:'${isActive?'disabled':'active'}'})">${isActive?'Pause':'Resume'}</button>` : ''}
+                                    ${!isGenesis && !isPruned ? `<button class="btn btn-sm btn-danger" onclick="event.preventDefault(); adminAction('/users/${pubkey}/prune')">Prune User</button>` : ''}
+                                    ${!isGenesis && children.length > 0 ? `<button class="btn btn-sm btn-danger" onclick="event.preventDefault(); adminAction('/branches/${pubkey}/prune')">Prune Branch</button>` : ''}
+                                    ${!isPruned ? `<button class="btn btn-sm btn-primary" style="background:#2563eb;color:#fff;border-color:#2563eb;" onclick="event.preventDefault(); promptWarning('${pubkey}')">✉️ Message</button>` : ''}
+                                </div>
                             </div>
-                            <div style="display:flex;gap:0.3rem;">
-                                ${!isGenesis && !isPruned ? `<button class="btn btn-sm ${isActive?'btn-outline':'btn-primary'}" onclick="adminAction('/users/${pubkey}/status', {status:'${isActive?'disabled':'active'}'})">${isActive?'Pause':'Resume'}</button>` : ''}
-                                ${!isGenesis && !isPruned ? `<button class="btn btn-sm btn-danger" onclick="adminAction('/users/${pubkey}/prune')">Prune User</button>` : ''}
-                                ${!isGenesis && children.length > 0 ? `<button class="btn btn-sm btn-danger" onclick="adminAction('/branches/${pubkey}/prune')">Prune Branch</button>` : ''}
-                            </div>
+                        </summary>
+                        <div>
+                            ${childrenHtml}
                         </div>
-                    </div>
+                    </details>
                 `;
-                children.forEach(c => html += buildNode(c.publicKey, depth + 1));
                 return html;
             }
 
             const roots = tree['genesis'] || [];
             if (roots.length === 0) el.innerHTML = '<div style="padding:1rem;color:#64748b;">No tree found</div>';
             else el.innerHTML = roots.map(r => buildNode(r.publicKey, 0)).join('');
+            
+            window.promptWarning = async function(pubkey) {
+                const msg = prompt('Enter inbox warning message to send to this user:');
+                if (!msg) return;
+                try {
+                    const res = await fetch('/api/local/admin/warnings', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ targetPublicKey: pubkey, message: msg, password: authToken })
+                    });
+                    if (res.ok) alert('Warning sent successfully to ' + pubkey.substring(0,8));
+                    else alert('Failed to send warning');
+                } catch (e) { alert(e.message); }
+            }
         }
 
         document.getElementById('btn-send-announcement')?.addEventListener('click', async () => {

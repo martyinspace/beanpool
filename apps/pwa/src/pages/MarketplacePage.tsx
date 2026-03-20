@@ -591,6 +591,63 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                         marginTop: '0.75rem',
                     }}>
                         {!editMode ? (
+                            selectedPost.status === 'pending' ? (
+                                <>
+                                    <p style={{ color: '#fbbf24', fontSize: '0.9rem', textAlign: 'center', margin: '0 0 0.5rem' }}>
+                                        ⏳ Pending Completion by {selectedPost.acceptedByCallsign || 'Buyer'}
+                                    </p>
+                                    <button
+                                        onClick={async () => {
+                                            if (!identity || !selectedPost.pendingTransactionId) return;
+                                            if (!confirm(`Release ${selectedPost.credits} credits and complete this transaction?`)) return;
+                                            setAccepting(true);
+                                            try {
+                                                await completeMarketplaceTransaction(selectedPost.pendingTransactionId, identity.publicKey);
+                                                setSelectedPost(null);
+                                                refresh();
+                                            } catch (e: any) {
+                                                setError(e.message || 'Failed to complete transaction');
+                                            } finally {
+                                                setAccepting(false);
+                                            }
+                                        }}
+                                        disabled={accepting}
+                                        style={{
+                                            width: '100%', padding: '0.85rem', borderRadius: '12px',
+                                            background: '#10b981', color: '#fff', border: 'none',
+                                            fontSize: '0.95rem', fontWeight: 600, cursor: accepting ? 'not-allowed' : 'pointer',
+                                            fontFamily: 'inherit', opacity: accepting ? 0.6 : 1,
+                                        }}
+                                    >
+                                        {accepting ? 'Processing...' : '✅ Release Credits'}
+                                    </button>
+                                    <button
+                                        onClick={async () => {
+                                            if (!identity || !selectedPost.pendingTransactionId) return;
+                                            if (!confirm('Cancel this transaction and return the post to the market?')) return;
+                                            setAccepting(true);
+                                            try {
+                                                await cancelMarketplaceTransaction(selectedPost.pendingTransactionId, identity.publicKey);
+                                                setSelectedPost(null);
+                                                refresh();
+                                            } catch (e: any) {
+                                                setError(e.message || 'Failed to cancel transaction');
+                                            } finally {
+                                                setAccepting(false);
+                                            }
+                                        }}
+                                        disabled={accepting}
+                                        style={{
+                                            width: '100%', padding: '0.7rem', borderRadius: '12px',
+                                            background: 'transparent', color: '#ef4444', border: '1px solid #ef4444',
+                                            fontSize: '0.85rem', fontWeight: 600, cursor: accepting ? 'not-allowed' : 'pointer',
+                                            fontFamily: 'inherit', opacity: accepting ? 0.6 : 1,
+                                        }}
+                                    >
+                                        ❌ Cancel Transaction
+                                    </button>
+                                </>
+                            ) : (
                             <>
                                 <button
                                     onClick={() => {
@@ -638,7 +695,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                     {deleting === selectedPost.id ? 'Deleting...' : '🗑️ Delete Post'}
                                 </button>
                             </>
-                        ) : (
+                        )) : (
                             <div style={{
                                 background: 'var(--bg-card)', borderRadius: '16px',
                                 border: '1px solid var(--border-primary)', padding: '1rem',

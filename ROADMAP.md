@@ -25,7 +25,7 @@
 
 ## Marketplace
 
-- [ ] **Database Migration** — Move from JSON state file to SQLite for scalability
+- [ ] **Database Migration** — Move from JSON state file to SQLite for scalability. Includes Spatial Bounding-Box indexing, continuous scroll Pagination (`LIMIT/OFFSET`), and updated CORS APIs.
 - [ ] **Photo Compression Pipeline** — Server-side image optimisation for marketplace post photos
 
 ## Data Lifecycle & Storage

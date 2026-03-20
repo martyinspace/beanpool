@@ -90,10 +90,12 @@ export function InvitePage({ identity }: Props) {
     }
 
     async function handleShare(code: string) {
+        const invite = invites.find(i => i.code === code);
+        const namePhrase = invite?.intendedFor ? `Hey ${invite.intendedFor}, ` : '';
         const inviteUrl = `${window.location.origin}/app?invite=${code}`;
         const shareData = {
             title: 'Join BeanPool',
-            text: `You've been invited to BeanPool! Use this link to join:`,
+            text: `${namePhrase}you've been invited to BeanPool! Use this link to join:`,
             url: inviteUrl,
         };
         if (navigator.share) {
@@ -219,10 +221,16 @@ export function InvitePage({ identity }: Props) {
                                                 {inv.code.toUpperCase()}
                                             </span>
                                         </div>
-                                        <button onClick={() => handleCopy(`${window.location.origin}/app?invite=${inv.code}`)} style={{
-                                            padding: '0.3rem 0.6rem', borderRadius: '6px', border: '1px solid var(--border-input)',
-                                            background: 'var(--bg-hover)', color: 'var(--text-secondary)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'inherit',
-                                        }}>📋</button>
+                                        <div style={{ display: 'flex', gap: '0.3rem' }}>
+                                            <button onClick={() => handleCopy(`${window.location.origin}/app?invite=${inv.code}`)} style={{
+                                                padding: '0.3rem 0.6rem', borderRadius: '6px', border: '1px solid var(--border-input)',
+                                                background: 'var(--bg-hover)', color: 'var(--text-secondary)', fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit',
+                                            }}>📋</button>
+                                            <button onClick={() => handleShare(inv.code)} style={{
+                                                padding: '0.3rem 0.6rem', borderRadius: '6px', border: 'none',
+                                                background: '#2563eb', color: '#fff', fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit',
+                                            }}>📤</button>
+                                        </div>
                                     </div>
                                     <p style={{ color: 'var(--text-faint)', fontSize: '0.75rem', marginTop: '0.25rem' }}>
                                         Created {new Date(inv.createdAt).toLocaleDateString()}

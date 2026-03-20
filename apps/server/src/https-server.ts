@@ -51,7 +51,8 @@ import {
     submitReport, getReports,
     getFriends, addFriend, removeFriend, setGuardian,
     adminSetUserStatus, adminDeletePost, adminPruneUser,
-    adminPruneBranch, adminBroadcastAnnouncement, adminSendWarning
+    adminPruneBranch, adminBroadcastAnnouncement, adminSendWarning,
+    recordActivity
 } from './state-engine.js';
 
 const PUBLIC_DIR = path.resolve('public');
@@ -90,7 +91,13 @@ export async function startHttpsServer(port: number): Promise<void> {
             if (ctx.request.type === 'application/json' || ctx.get('content-type')?.includes('json')) {
                 try {
                     const body = await readBody(ctx.req);
-                    (ctx as any).requestBody = JSON.parse(body);
+                    const parsed = JSON.parse(body);
+                    (ctx as any).requestBody = parsed;
+
+                    const sender = parsed.publicKey || parsed.authorPublicKey || parsed.buyerPublicKey || parsed.from || parsed.memberPublicKey || parsed.voterPublicKey;
+                    if (sender && typeof sender === 'string' && sender.startsWith('BP-')) {
+                        recordActivity(sender);
+                    }
                 } catch {
                     (ctx as any).requestBody = {};
                 }
@@ -274,6 +281,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             members: getAllMembers(),
             profiles: getAllMembers().map(m => getProfile(m.publicKey)), // fetch profiles for all
             posts: getPosts(), // admin wants all posts, even inactive
+            health: getCommunityHealth(),
         };
     });
 
