@@ -122,6 +122,7 @@ export async function startHttpsServer(port: number): Promise<void> {
     router.get('/settings', async (ctx) => {
         if (fs.existsSync(SETTINGS_PATH)) {
             ctx.type = 'html';
+            ctx.set('Cache-Control', 'no-cache, no-store, must-revalidate');
             ctx.body = fs.createReadStream(SETTINGS_PATH);
         } else {
             ctx.status = 404;
