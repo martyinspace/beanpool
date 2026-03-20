@@ -1639,7 +1639,8 @@
 
         // ======================== ADMIN INBOX ========================
         let inboxDataCache = null;
-        let inboxSelectedUser = null; 
+        let inboxSelectedUser = null;
+        let inboxAdminPubkey = null;
 
         function decodePlaintext(ciphertext, nonce) {
             try {
@@ -1661,6 +1662,7 @@
                 if (res.ok) {
                     const data = await res.json();
                     inboxDataCache = data.conversations;
+                    inboxAdminPubkey = data.adminPubkey;
                     renderAdminInboxList();
                     if (inboxSelectedUser) renderAdminInboxChat();
                 }
@@ -1741,13 +1743,13 @@
             }
 
             messagesEl.innerHTML = messages.map(msg => {
-                const isSystem = msg.authorPubkey === 'system';
+                const isAdmin = msg.authorPubkey === inboxAdminPubkey || msg.authorPubkey === 'system';
                 return `
-                    <div style="align-self: ${isSystem ? 'flex-end' : 'flex-start'}; max-width: 80%;">
-                        <div style="background: ${isSystem ? '#2563eb' : '#1e293b'}; border-radius: ${isSystem ? '12px 12px 2px 12px' : '12px 12px 12px 2px'}; padding: 0.5rem 0.8rem; font-size: 0.85rem; color: #f8fafc; word-break: break-word;">
+                    <div style="align-self: ${isAdmin ? 'flex-end' : 'flex-start'}; max-width: 80%;">
+                        <div style="background: ${isAdmin ? '#2563eb' : '#1e293b'}; border-radius: ${isAdmin ? '12px 12px 2px 12px' : '12px 12px 12px 2px'}; padding: 0.5rem 0.8rem; font-size: 0.85rem; color: #f8fafc; word-break: break-word;">
                             ${decodePlaintext(msg.ciphertext, msg.nonce)}
                         </div>
-                        <div style="font-size: 0.65rem; color: #64748b; margin-top: 0.2rem; text-align: ${isSystem ? 'right' : 'left'};">
+                        <div style="font-size: 0.65rem; color: #64748b; margin-top: 0.2rem; text-align: ${isAdmin ? 'right' : 'left'};">
                             ${new Date(msg.timestamp).toLocaleString()}
                         </div>
                     </div>

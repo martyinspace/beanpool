@@ -1405,15 +1405,34 @@ export function adminBroadcastAnnouncement(title: string, body: string, severity
 }
 
 export function adminSendMessage(targetPubkey: string, body: string) {
-    const convId = 'sys_warn_' + targetPubkey;
+    const adminPubkey = getAdminPubkey();
+    const convId = 'admin_dm_' + targetPubkey;
     let conv = conversations.find(c => c.id === convId);
+    
+    // Also check for legacy 'sys_warn_' conversations and migrate them
+    if (!conv) {
+        const legacyConv = conversations.find(c => c.id === 'sys_warn_' + targetPubkey);
+        if (legacyConv) {
+            legacyConv.id = convId;
+            legacyConv.participants = [adminPubkey, targetPubkey];
+            legacyConv.createdBy = adminPubkey;
+            legacyConv.name = '💬 Admin';
+            // Update all legacy messages in this conversation
+            messages.filter(m => m.conversationId === 'sys_warn_' + targetPubkey).forEach(m => {
+                m.conversationId = convId;
+                if (m.authorPubkey === 'system') m.authorPubkey = adminPubkey;
+            });
+            conv = legacyConv;
+        }
+    }
+
     if (!conv) {
         conv = {
             id: convId,
             type: 'dm',
-            name: '⚠️ System Warnings',
-            participants: ['system', targetPubkey],
-            createdBy: 'system',
+            name: '💬 Admin',
+            participants: [adminPubkey, targetPubkey],
+            createdBy: adminPubkey,
             createdAt: new Date().toISOString()
         };
         conversations.push(conv);
@@ -1422,7 +1441,7 @@ export function adminSendMessage(targetPubkey: string, body: string) {
     const msg: Message = {
         id: crypto.randomUUID(),
         conversationId: convId,
-        authorPubkey: 'system',
+        authorPubkey: adminPubkey,
         ciphertext: Buffer.from(body, 'utf-8').toString('base64'),
         nonce: 'plaintext-v1',
         timestamp: new Date().toISOString(),
@@ -1437,3 +1456,10 @@ export function adminSendMessage(targetPubkey: string, body: string) {
         participants: conv.participants,
     });
 }
+
+/** Get the genesis (admin) member's public key */
+export function getAdminPubkey(): string {
+    const genesis = members.find(m => m.invitedBy === 'genesis');
+    return genesis?.publicKey || 'system';
+}
+

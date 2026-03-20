@@ -52,7 +52,7 @@ import {
     getFriends, addFriend, removeFriend, setGuardian,
     adminSetUserStatus, adminDeletePost, adminPruneUser,
     adminPruneBranch, adminBroadcastAnnouncement, adminSendMessage,
-    recordActivity
+    getAdminPubkey, recordActivity
 } from './state-engine.js';
 
 const PUBLIC_DIR = path.resolve('public');
@@ -321,13 +321,16 @@ export async function startHttpsServer(port: number): Promise<void> {
 
     router.post('/api/local/admin/inbox', async (ctx) => {
         if (!checkAdminAuth(ctx as any)) return;
-        const convs = getConversationsByMember('system');
-        // Map messages into the response
-        const inbox = convs.map(c => ({
+        const adminPubkey = getAdminPubkey();
+        const convs = getConversationsByMember(adminPubkey);
+        // Also grab any legacy 'system' conversations
+        const legacyConvs = getConversationsByMember('system').filter(c => !convs.find(x => x.id === c.id));
+        const allConvs = [...convs, ...legacyConvs];
+        const inbox = allConvs.map(c => ({
             ...c,
             messages: getConversationMessages(c.id, 50)
         }));
-        ctx.body = { conversations: inbox };
+        ctx.body = { conversations: inbox, adminPubkey };
     });
 
     router.post('/api/local/admin/inbox/send', async (ctx) => {
