@@ -41,6 +41,12 @@ export function WelcomePage({ onComplete }: Props) {
     const [pendingIdentity, setPendingIdentity] = useState<BeanPoolIdentity | null>(null);
     const [seedConfirmed, setSeedConfirmed] = useState(false);
     const [pendingInviteCode, setPendingInviteCode] = useState('');
+    const [showNewUser, setShowNewUser] = useState(() => {
+        // Auto-expand signup if arriving via invite link
+        const params = new URLSearchParams(window.location.search);
+        return !!params.get('invite');
+    });
+    const [showMemberOptions, setShowMemberOptions] = useState(false);
 
     async function handleCreate() {
         const trimmedCallsign = callsign.trim();
@@ -323,127 +329,185 @@ export function WelcomePage({ onComplete }: Props) {
                             </button>
                         </>
                     ) : !showImport ? (
-                        /* ===== MAIN JOIN FORM ===== */
+                        /* ===== MAIN WELCOME — two simple choices ===== */
                         <>
-                            <label style={{
-                                display: 'block',
-                                textAlign: 'left',
-                                fontSize: '0.85rem',
-                                fontWeight: 600,
-                                color: 'var(--text-secondary)',
-                                marginBottom: '0.5rem',
-                            }}>
-                                Invite Code
-                            </label>
-                            <input
-                                type="text"
-                                value={inviteCode}
-                                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                                placeholder="e.g. BP-7K3X-9M2W"
-                                maxLength={14}
-                                disabled={loading}
-                                style={{
-                                    ...inputStyle,
-                                    fontFamily: 'monospace',
-                                    letterSpacing: '1px',
-                                    textAlign: 'center',
-                                    fontSize: '1.1rem',
-                                }}
-                            />
+                            {!showMemberOptions ? (
+                                /* DEFAULT: Two clear choices */
+                                <>
+                                    <button
+                                        onClick={() => setShowMemberOptions(true)}
+                                        style={{
+                                            width: '100%', padding: '1.1rem 1rem', borderRadius: '14px',
+                                            border: 'none',
+                                            background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                                            color: '#fff', fontSize: '1.1rem', fontWeight: 700,
+                                            cursor: 'pointer', fontFamily: 'inherit',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                                            marginBottom: '1rem',
+                                            boxShadow: '0 4px 14px rgba(37,99,235,0.35)',
+                                            transition: 'transform 0.15s',
+                                        }}
+                                        onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.98)')}
+                                        onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                                        onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                                    >
+                                        I'm Already a Member →
+                                    </button>
 
-                            <label style={{
-                                display: 'block',
-                                textAlign: 'left',
-                                fontSize: '0.85rem',
-                                fontWeight: 600,
-                                color: 'var(--text-secondary)',
-                                marginBottom: '0.5rem',
-                            }}>
-                                Choose your Callsign
-                            </label>
-                            <input
-                                type="text"
-                                value={callsign}
-                                onChange={(e) => setCallsign(e.target.value)}
-                                placeholder="e.g. Billinudgel-Marty"
-                                maxLength={32}
-                                disabled={loading}
-                                onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-                                style={inputStyle}
-                            />
+                                    <button
+                                        onClick={() => setShowNewUser(true)}
+                                        style={{
+                                            width: '100%', padding: '0.9rem 1rem', borderRadius: '14px',
+                                            border: '1px solid var(--border-primary, #333)',
+                                            background: 'transparent',
+                                            color: 'var(--text-muted)', fontSize: '0.95rem', fontWeight: 500,
+                                            cursor: 'pointer', fontFamily: 'inherit',
+                                            transition: 'transform 0.15s',
+                                        }}
+                                        onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.98)')}
+                                        onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                                        onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                                    >
+                                        I'm New Here
+                                    </button>
+                                </>
+                            ) : !showNewUser ? (
+                                /* MEMBER SUB-OPTIONS */
+                                <>
+                                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.35rem' }}>
+                                        Sign in to your account
+                                    </h3>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+                                        Choose how to restore your identity on this device:
+                                    </p>
 
-                            {error && (
-                                <p style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '1rem' }}>
-                                    {error}
-                                </p>
-                            )}
-
-                            <button
-                                onClick={handleCreate}
-                                disabled={loading || callsign.trim().length < 2}
-                                style={{
-                                    width: '100%',
-                                    padding: '0.85rem',
-                                    borderRadius: '10px',
-                                    border: 'none',
-                                    background: loading ? '#555' : '#2563eb',
-                                    color: 'var(--text-primary)',
-                                    fontSize: '1rem',
-                                    fontWeight: 600,
-                                    cursor: loading ? 'not-allowed' : 'pointer',
-                                    fontFamily: 'inherit',
-                                    transition: 'background 0.2s',
-                                }}
-                            >
-                                {loading ? 'Joining...' : inviteCode.trim()
-                                    ? 'Join with Invite'
-                                    : 'Create Sovereign Identity'}
-                            </button>
-
-                            {!inviteCode.trim() && (
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.75rem' }}>
-                                    No invite code? You can still join — ask a member to invite you later for full access.
-                                </p>
-                            )}
-
-                            <p style={{ color: 'var(--text-faint)', fontSize: '0.75rem', marginTop: '1rem' }}>
-                                🔐 Ed25519 keypair generated locally. Your private key never leaves this device.
-                            </p>
-
-                            <div style={{
-                                marginTop: '1.5rem', paddingTop: '1.25rem',
-                                borderTop: '1px solid var(--border-primary, #333)',
-                            }}>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.75rem', fontWeight: 600 }}>
-                                    Already a member?
-                                </p>
-                                <div style={{ display: 'flex', gap: '0.5rem' }}>
                                     <button
                                         onClick={() => { setShowImport(true); setError(null); }}
                                         style={{
-                                            flex: 1, padding: '0.7rem 0.5rem', borderRadius: '10px',
-                                            border: '1px solid #2563eb44',
-                                            background: 'rgba(37,99,235,0.08)',
-                                            color: '#60a5fa', fontSize: '0.8rem', fontWeight: 600,
+                                            width: '100%', padding: '1rem 1rem', borderRadius: '14px',
+                                            border: '1px solid #2563eb66',
+                                            background: 'linear-gradient(135deg, rgba(37,99,235,0.2), rgba(37,99,235,0.06))',
+                                            color: '#93bbfc', fontSize: '1.05rem', fontWeight: 700,
                                             cursor: 'pointer', fontFamily: 'inherit',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem',
+                                            marginBottom: '0.75rem',
+                                            transition: 'transform 0.15s',
                                         }}
+                                        onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.98)')}
+                                        onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                                        onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
                                     >
-                                        📥 Import from Device
+                                        📲 I have a Transfer Link
                                     </button>
+
                                     <button
                                         onClick={() => { setShowRecovery(true); setError(null); }}
                                         style={{
-                                            flex: 1, padding: '0.7rem 0.5rem', borderRadius: '10px',
-                                            border: '1px solid #f59e0b44',
-                                            background: 'rgba(245,158,11,0.08)',
-                                            color: '#fbbf24', fontSize: '0.8rem', fontWeight: 600,
+                                            width: '100%', padding: '1rem 1rem', borderRadius: '14px',
+                                            border: '1px solid #f59e0b66',
+                                            background: 'linear-gradient(135deg, rgba(245,158,11,0.2), rgba(245,158,11,0.06))',
+                                            color: '#fcd171', fontSize: '1.05rem', fontWeight: 700,
                                             cursor: 'pointer', fontFamily: 'inherit',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem',
+                                            transition: 'transform 0.15s',
+                                        }}
+                                        onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.98)')}
+                                        onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                                        onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                                    >
+                                        🔑 Recover with 12 Words
+                                    </button>
+
+                                    <button
+                                        onClick={() => setShowMemberOptions(false)}
+                                        style={{
+                                            background: 'none', border: 'none',
+                                            color: 'var(--text-muted)', fontSize: '0.8rem',
+                                            cursor: 'pointer', marginTop: '1rem', fontFamily: 'inherit',
                                         }}
                                     >
-                                        🔑 Recover Identity
+                                        ← Back
                                     </button>
-                                </div>
-                            </div>
+                                </>
+                            ) : (
+                                <>
+                                    {/* DIVIDER */}
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', gap: '0.75rem',
+                                        margin: '1.5rem 0 1rem',
+                                    }}>
+                                        <div style={{ flex: 1, height: '1px', background: 'var(--border-primary, #333)' }} />
+                                        <span style={{ color: 'var(--text-faint)', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                            New Account
+                                        </span>
+                                        <div style={{ flex: 1, height: '1px', background: 'var(--border-primary, #333)' }} />
+                                    </div>
+
+                                    <label style={{
+                                        display: 'block', textAlign: 'left',
+                                        fontSize: '0.85rem', fontWeight: 600,
+                                        color: 'var(--text-secondary)', marginBottom: '0.5rem',
+                                    }}>
+                                        Invite Code
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={inviteCode}
+                                        onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                                        placeholder="e.g. BP-7K3X-9M2W"
+                                        maxLength={14}
+                                        disabled={loading}
+                                        style={{
+                                            ...inputStyle,
+                                            fontFamily: 'monospace',
+                                            letterSpacing: '1px',
+                                            textAlign: 'center',
+                                            fontSize: '1.1rem',
+                                        }}
+                                    />
+
+                                    <label style={{
+                                        display: 'block', textAlign: 'left',
+                                        fontSize: '0.85rem', fontWeight: 600,
+                                        color: 'var(--text-secondary)', marginBottom: '0.5rem',
+                                    }}>
+                                        Choose your Callsign
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={callsign}
+                                        onChange={(e) => setCallsign(e.target.value)}
+                                        placeholder="e.g. Billinudgel-Marty"
+                                        maxLength={32}
+                                        disabled={loading}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+                                        style={inputStyle}
+                                    />
+
+                                    {error && (
+                                        <p style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                                            {error}
+                                        </p>
+                                    )}
+
+                                    <button
+                                        onClick={handleCreate}
+                                        disabled={loading || callsign.trim().length < 2}
+                                        style={{
+                                            width: '100%', padding: '0.85rem', borderRadius: '10px',
+                                            border: 'none',
+                                            background: loading ? '#555' : '#2563eb',
+                                            color: 'var(--text-primary)', fontSize: '1rem',
+                                            fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
+                                            fontFamily: 'inherit', transition: 'background 0.2s',
+                                        }}
+                                    >
+                                        {loading ? 'Joining...' : inviteCode.trim()
+                                            ? 'Join with Invite'
+                                            : 'Create Sovereign Identity'}
+                                    </button>
+                                </>
+                            )}
                         </>
                     ) : (
                         /* ===== IMPORT FROM DEVICE ===== */
