@@ -324,14 +324,16 @@ export interface Rating {
     raterPubkey: string;
     stars: number;
     comment: string;
+    role: 'provider' | 'receiver';
+    transactionId: string;
     createdAt: string;
 }
 
-export async function submitRating(raterPubkey: string, targetPubkey: string, stars: number, comment: string): Promise<{ success: boolean; rating: Rating }> {
-    return request('POST', '/api/ratings', { raterPubkey, targetPubkey, stars, comment });
+export async function submitRating(raterPubkey: string, targetPubkey: string, stars: number, comment: string, transactionId: string): Promise<{ success: boolean; rating: Rating }> {
+    return request('POST', '/api/ratings', { raterPubkey, targetPubkey, stars, comment, transactionId });
 }
 
-export async function getMemberRatings(publicKey: string): Promise<{ ratings: Rating[]; average: number; count: number }> {
+export async function getMemberRatings(publicKey: string): Promise<{ ratings: Rating[]; average: number; count: number; asProvider: { average: number; count: number }; asReceiver: { average: number; count: number } }> {
     return request('GET', `/api/ratings/${publicKey}`);
 }
 

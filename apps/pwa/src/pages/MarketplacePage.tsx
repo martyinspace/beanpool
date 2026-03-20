@@ -53,7 +53,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
     const [messaging, setMessaging] = useState(false);
 
     // Ratings
-    const [authorAvgRating, setAuthorAvgRating] = useState<{ average: number; count: number }>({ average: 0, count: 0 });
+    const [authorAvgRating, setAuthorAvgRating] = useState<{ average: number; count: number; asProvider?: { average: number; count: number }; asReceiver?: { average: number; count: number } }>({ average: 0, count: 0 });
     const [myRating, setMyRating] = useState(0);
     const [ratingComment, setRatingComment] = useState('');
     const [showRatingForm, setShowRatingForm] = useState(false);
@@ -160,7 +160,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
             .catch(() => setAuthorProfile(null))
             .finally(() => setLoadingProfile(false));
         getMemberRatings(selectedPost.authorPublicKey)
-            .then(r => setAuthorAvgRating({ average: r.average, count: r.count }))
+            .then(r => setAuthorAvgRating({ average: r.average, count: r.count, asProvider: r.asProvider, asReceiver: r.asReceiver }))
             .catch(() => {});
     }, [selectedPost?.id]);
 
@@ -354,7 +354,17 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                             <p style={{ fontSize: '0.8rem', color: '#fbbf24', margin: '0 0 0.15rem' }}>
                                 {'★'.repeat(Math.round(authorAvgRating.average))}{'☆'.repeat(5 - Math.round(authorAvgRating.average))}
                                 <span style={{ color: 'var(--text-muted)', marginLeft: '0.35rem' }}>
-                                    {authorAvgRating.count > 0 ? `${authorAvgRating.average}/5 (${authorAvgRating.count})` : 'No ratings yet'}
+                                    {authorAvgRating.count > 0 ? (
+                                        <>
+                                            {`${authorAvgRating.average}/5 (${authorAvgRating.count})`}
+                                            {authorAvgRating.asProvider && authorAvgRating.asProvider.count > 0 && (
+                                                <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem' }}>📤 {authorAvgRating.asProvider.average}</span>
+                                            )}
+                                            {authorAvgRating.asReceiver && authorAvgRating.asReceiver.count > 0 && (
+                                                <span style={{ marginLeft: '0.3rem', fontSize: '0.7rem' }}>📥 {authorAvgRating.asReceiver.average}</span>
+                                            )}
+                                        </>
+                                    ) : 'No ratings yet'}
                                 </span>
                             </p>
                             {authorProfile?.bio && (
@@ -442,84 +452,110 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                     : (selectedPost.type === 'offer' ? '🤝 Accept Offer' : '🤝 Fulfill Need')
                             )}
                         </button>
-                        <button
-                            onClick={() => setShowRatingForm(!showRatingForm)}
-                            style={{
-                                width: '100%', padding: '0.7rem', borderRadius: '12px',
-                                background: showRatingForm ? '#92400e' : '#1a1a1a',
-                                color: showRatingForm ? '#fbbf24' : '#fbbf24',
-                                border: '1px solid var(--border-primary)',
-                                fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
-                                fontFamily: 'inherit',
-                            }}
-                        >
-                            🫘 Rate {selectedPost.authorCallsign}
-                        </button>
+                        {/* Transaction-gated rating — only show on completed posts where user was a participant */}
+                        {identity && selectedPost.status === 'completed' && selectedPost.pendingTransactionId && (
+                            identity.publicKey === selectedPost.authorPublicKey || 
+                            identity.publicKey === selectedPost.acceptedBy
+                        ) && (() => {
+                            const targetPubkey = identity.publicKey === selectedPost.authorPublicKey 
+                                ? selectedPost.acceptedBy! 
+                                : selectedPost.authorPublicKey;
+                            const targetName = identity.publicKey === selectedPost.authorPublicKey
+                                ? (selectedPost.acceptedByCallsign || 'them')
+                                : selectedPost.authorCallsign;
+                            // Determine role of target
+                            const isOffer = selectedPost.type === 'offer';
+                            const targetIsSeller = targetPubkey === selectedPost.authorPublicKey;
+                            const targetRole = targetIsSeller 
+                                ? (isOffer ? 'Provider' : 'Receiver')
+                                : (isOffer ? 'Receiver' : 'Provider');
+                            return (
+                                <>
+                                    <button
+                                        onClick={() => setShowRatingForm(!showRatingForm)}
+                                        style={{
+                                            width: '100%', padding: '0.7rem', borderRadius: '12px',
+                                            background: showRatingForm ? '#92400e' : '#1a1a1a',
+                                            color: '#fbbf24',
+                                            border: '1px solid var(--border-primary)',
+                                            fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        ⭐ Rate {targetName} as {targetRole}
+                                    </button>
 
-                        {showRatingForm && (
-                            <div style={{
-                                background: 'var(--bg-card)', borderRadius: '12px',
-                                border: '1px solid var(--border-primary)', padding: '1rem',
-                            }}>
-                                <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                                    {[1, 2, 3, 4, 5].map(star => (
-                                        <button
-                                            key={star}
-                                            onClick={() => setMyRating(star)}
-                                            style={{
-                                                background: 'none', border: 'none', cursor: 'pointer',
-                                                fontSize: '1.8rem', padding: '0.1rem',
-                                                color: star <= myRating ? '#fbbf24' : '#444',
-                                                transition: 'transform 0.15s',
-                                                transform: star <= myRating ? 'scale(1.15)' : 'scale(1)',
-                                            }}
-                                        >
-                                            {star <= myRating ? '★' : '☆'}
-                                        </button>
-                                    ))}
-                                </div>
-                                <textarea
-                                    value={ratingComment}
-                                    onChange={(e) => setRatingComment(e.target.value)}
-                                    placeholder="Leave a comment (optional)..."
-                                    maxLength={200}
-                                    style={{
-                                        width: '100%', padding: '0.6rem', borderRadius: '8px',
-                                        border: '1px solid var(--border-input)', background: 'var(--bg-secondary)',
-                                        color: 'var(--text-primary)', fontSize: '0.85rem', fontFamily: 'inherit',
-                                        minHeight: '60px', resize: 'none', outline: 'none',
-                                        marginBottom: '0.5rem', boxSizing: 'border-box',
-                                    }}
-                                />
-                                <button
-                                    onClick={async () => {
-                                        if (!identity || !selectedPost || myRating < 1) return;
-                                        setSubmittingRating(true);
-                                        try {
-                                            await submitRating(identity.publicKey, selectedPost.authorPublicKey, myRating, ratingComment);
-                                            const fresh = await getMemberRatings(selectedPost.authorPublicKey);
-                                            setAuthorAvgRating({ average: fresh.average, count: fresh.count });
-                                            setShowRatingForm(false);
-                                            setRatingComment('');
-                                        } catch (e: any) {
-                                            alert(e.message || 'Failed to submit rating');
-                                        } finally {
-                                            setSubmittingRating(false);
-                                        }
-                                    }}
-                                    disabled={myRating < 1 || submittingRating}
-                                    style={{
-                                        width: '100%', padding: '0.6rem', borderRadius: '8px',
-                                        background: myRating >= 1 ? '#2563eb' : '#333',
-                                        color: 'var(--text-primary)', border: 'none', fontSize: '0.85rem',
-                                        fontWeight: 600, cursor: myRating >= 1 ? 'pointer' : 'not-allowed',
-                                        fontFamily: 'inherit',
-                                    }}
-                                >
-                                    {submittingRating ? 'Submitting...' : myRating < 1 ? 'Tap beans to rate' : `Submit ${myRating}🫘 Rating`}
-                                </button>
-                            </div>
-                        )}
+                                    {showRatingForm && (
+                                        <div style={{
+                                            background: 'var(--bg-card)', borderRadius: '12px',
+                                            border: '1px solid var(--border-primary)', padding: '1rem',
+                                        }}>
+                                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 0.75rem', textAlign: 'center' }}>
+                                                How was <strong>{targetName}</strong> as a <strong>{targetRole}</strong>?
+                                            </p>
+                                            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                                {[1, 2, 3, 4, 5].map(star => (
+                                                    <button
+                                                        key={star}
+                                                        onClick={() => setMyRating(star)}
+                                                        style={{
+                                                            background: 'none', border: 'none', cursor: 'pointer',
+                                                            fontSize: '1.8rem', padding: '0.1rem',
+                                                            color: star <= myRating ? '#fbbf24' : '#444',
+                                                            transition: 'transform 0.15s',
+                                                            transform: star <= myRating ? 'scale(1.15)' : 'scale(1)',
+                                                        }}
+                                                    >
+                                                        {star <= myRating ? '★' : '☆'}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <textarea
+                                                value={ratingComment}
+                                                onChange={(e) => setRatingComment(e.target.value)}
+                                                placeholder="Leave a comment (optional)..."
+                                                maxLength={200}
+                                                style={{
+                                                    width: '100%', padding: '0.6rem', borderRadius: '8px',
+                                                    border: '1px solid var(--border-input)', background: 'var(--bg-secondary)',
+                                                    color: 'var(--text-primary)', fontSize: '0.85rem', fontFamily: 'inherit',
+                                                    minHeight: '60px', resize: 'none', outline: 'none',
+                                                    marginBottom: '0.5rem', boxSizing: 'border-box',
+                                                }}
+                                            />
+                                            <button
+                                                onClick={async () => {
+                                                    if (!identity || !selectedPost || myRating < 1 || !selectedPost.pendingTransactionId) return;
+                                                    setSubmittingRating(true);
+                                                    try {
+                                                        await submitRating(identity.publicKey, targetPubkey, myRating, ratingComment, selectedPost.pendingTransactionId);
+                                                        const fresh = await getMemberRatings(targetPubkey);
+                                                        setAuthorAvgRating({ average: fresh.average, count: fresh.count });
+                                                        setShowRatingForm(false);
+                                                        setRatingComment('');
+                                                        setMyRating(0);
+                                                    } catch (e: any) {
+                                                        alert(e.message || 'Failed to submit rating');
+                                                    } finally {
+                                                        setSubmittingRating(false);
+                                                    }
+                                                }}
+                                                disabled={myRating < 1 || submittingRating}
+                                                style={{
+                                                    width: '100%', padding: '0.6rem', borderRadius: '8px',
+                                                    background: myRating >= 1 ? '#2563eb' : '#333',
+                                                    color: 'var(--text-primary)', border: 'none', fontSize: '0.85rem',
+                                                    fontWeight: 600, cursor: myRating >= 1 ? 'pointer' : 'not-allowed',
+                                                    fontFamily: 'inherit',
+                                                }}
+                                            >
+                                                {submittingRating ? 'Submitting...' : myRating < 1 ? 'Tap stars to rate' : `Submit ${myRating}⭐ Rating`}
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
+                            );
+                        })()}
 
                         <button
                             onClick={() => setShowReportForm(!showReportForm)}

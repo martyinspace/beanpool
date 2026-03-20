@@ -121,6 +121,8 @@ export interface Rating {
     raterPubkey: string;        // who left the rating
     stars: number;              // 1-5
     comment: string;
+    role: 'provider' | 'receiver';  // what role the TARGET played
+    transactionId: string;      // links to a completed MarketplaceTransaction
     createdAt: string;
 }
 
@@ -1217,14 +1219,36 @@ export function getCommunityHealth(): CommunityHealth {
 
 // ===================== RATINGS =====================
 
-export function addRating(raterPubkey: string, targetPubkey: string, stars: number, comment: string): Rating | null {
+export function addRating(raterPubkey: string, targetPubkey: string, stars: number, comment: string, transactionId: string): Rating | null {
     if (!members.find(m => m.publicKey === raterPubkey)) return null;
     if (!members.find(m => m.publicKey === targetPubkey)) return null;
     if (raterPubkey === targetPubkey) return null;
     if (stars < 1 || stars > 5) return null;
 
-    // Update existing rating if already rated
-    const existing = ratings.find(r => r.raterPubkey === raterPubkey && r.targetPubkey === targetPubkey);
+    // Validate transaction exists and is completed
+    const tx = marketplaceTransactions.find(t => t.id === transactionId && t.status === 'completed');
+    if (!tx) return null;
+
+    // Validate rater and target are participants
+    const isBuyer = tx.buyerPublicKey === raterPubkey;
+    const isSeller = tx.sellerPublicKey === raterPubkey;
+    if (!isBuyer && !isSeller) return null;
+    if (tx.buyerPublicKey !== targetPubkey && tx.sellerPublicKey !== targetPubkey) return null;
+
+    // Determine the role of the TARGET in this transaction
+    // For Offers: seller = provider, buyer = receiver
+    // For Needs: seller = receiver, buyer = provider
+    const post = posts.find(p => p.id === tx.postId);
+    const isOffer = post?.type === 'offer';
+    let targetRole: 'provider' | 'receiver';
+    if (tx.sellerPublicKey === targetPubkey) {
+        targetRole = isOffer ? 'provider' : 'receiver';
+    } else {
+        targetRole = isOffer ? 'receiver' : 'provider';
+    }
+
+    // Prevent duplicate ratings per transaction per rater
+    const existing = ratings.find(r => r.transactionId === transactionId && r.raterPubkey === raterPubkey);
     if (existing) {
         existing.stars = stars;
         existing.comment = comment.slice(0, 200);
@@ -1239,13 +1263,15 @@ export function addRating(raterPubkey: string, targetPubkey: string, stars: numb
         raterPubkey,
         stars,
         comment: comment.slice(0, 200),
+        role: targetRole,
+        transactionId,
         createdAt: new Date().toISOString(),
     };
     ratings.push(rating);
     saveState();
     const rater = getMember(raterPubkey);
     const target = getMember(targetPubkey);
-    console.log(`⭐ ${rater?.callsign || raterPubkey.substring(0, 12)} rated ${target?.callsign || targetPubkey.substring(0, 12)}: ${stars}/5`);
+    console.log(`⭐ ${rater?.callsign || raterPubkey.substring(0, 12)} rated ${target?.callsign || targetPubkey.substring(0, 12)} as ${targetRole}: ${stars}/5`);
     return rating;
 }
 
@@ -1253,11 +1279,22 @@ export function getRatings(targetPubkey: string): Rating[] {
     return ratings.filter(r => r.targetPubkey === targetPubkey);
 }
 
-export function getAverageRating(targetPubkey: string): { average: number; count: number } {
+export function getAverageRating(targetPubkey: string): { average: number; count: number; asProvider: { average: number; count: number }; asReceiver: { average: number; count: number } } {
     const userRatings = ratings.filter(r => r.targetPubkey === targetPubkey);
-    if (userRatings.length === 0) return { average: 0, count: 0 };
+    if (userRatings.length === 0) return { average: 0, count: 0, asProvider: { average: 0, count: 0 }, asReceiver: { average: 0, count: 0 } };
     const sum = userRatings.reduce((acc, r) => acc + r.stars, 0);
-    return { average: Math.round((sum / userRatings.length) * 10) / 10, count: userRatings.length };
+    
+    const providerRatings = userRatings.filter(r => r.role === 'provider');
+    const receiverRatings = userRatings.filter(r => r.role === 'receiver');
+    const providerAvg = providerRatings.length > 0 ? Math.round((providerRatings.reduce((a, r) => a + r.stars, 0) / providerRatings.length) * 10) / 10 : 0;
+    const receiverAvg = receiverRatings.length > 0 ? Math.round((receiverRatings.reduce((a, r) => a + r.stars, 0) / receiverRatings.length) * 10) / 10 : 0;
+    
+    return {
+        average: Math.round((sum / userRatings.length) * 10) / 10,
+        count: userRatings.length,
+        asProvider: { average: providerAvg, count: providerRatings.length },
+        asReceiver: { average: receiverAvg, count: receiverRatings.length },
+    };
 }
 
 // ===================== ABUSE REPORTS =====================

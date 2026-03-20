@@ -868,16 +868,16 @@ export async function startHttpsServer(port: number): Promise<void> {
     // ===================== RATINGS =====================
 
     router.post('/api/ratings', async (ctx) => {
-        const { raterPubkey, targetPubkey, stars, comment } = (ctx as any).requestBody || {};
-        if (!raterPubkey || !targetPubkey || !stars) {
+        const { raterPubkey, targetPubkey, stars, comment, transactionId } = (ctx as any).requestBody || {};
+        if (!raterPubkey || !targetPubkey || !stars || !transactionId) {
             ctx.status = 400;
-            ctx.body = { error: 'raterPubkey, targetPubkey, and stars are required' };
+            ctx.body = { error: 'raterPubkey, targetPubkey, stars, and transactionId are required' };
             return;
         }
-        const rating = addRating(raterPubkey, targetPubkey, Number(stars), comment || '');
+        const rating = addRating(raterPubkey, targetPubkey, Number(stars), comment || '', transactionId);
         if (!rating) {
             ctx.status = 400;
-            ctx.body = { error: 'Failed — both users must be registered members, cannot rate yourself' };
+            ctx.body = { error: 'Failed — transaction must be completed, both users must be participants' };
             return;
         }
         ctx.body = { success: true, rating };
