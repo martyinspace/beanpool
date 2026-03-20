@@ -1676,6 +1676,8 @@
             } catch (err) { console.error('Failed to load inbox', err); }
         }
 
+        let showAllMembers = false;
+        
         function renderAdminInboxList() {
             const listEl = document.getElementById('admin-inbox-list');
             if (!listEl || !adminDataCache) return;
@@ -1689,40 +1691,73 @@
                 const profile = adminDataCache.profiles.find(p => p.publicKey === m.publicKey);
                 const conv = (inboxDataCache || []).find(c => c.participants.includes(m.publicKey));
                 const lastMessage = conv?.messages?.length ? conv.messages[conv.messages.length - 1] : null;
+                const unreadCount = conv?.unreadCount || 0;
                 return {
                     publicKey: m.publicKey,
                     callsign: profile?.bio || m.callsign,
                     conv,
-                    lastMessage
+                    lastMessage,
+                    unreadCount
                 };
             });
 
-            // Filter
+            // Filter by search
             if (searchTerm) {
                 users = users.filter(u => u.callsign.toLowerCase().includes(searchTerm) || u.publicKey.toLowerCase().includes(searchTerm));
             }
 
-            // Sort: recently active conversations first
+            // Default: only show users with active conversations (unless toggled or searching)
+            if (!showAllMembers && !searchTerm) {
+                users = users.filter(u => u.conv && u.conv.messages && u.conv.messages.length > 0);
+            }
+
+            // Sort: unread first, then by most recent message
             users.sort((a, b) => {
+                if (a.unreadCount > 0 && b.unreadCount === 0) return -1;
+                if (b.unreadCount > 0 && a.unreadCount === 0) return 1;
                 const timeA = a.lastMessage ? new Date(a.lastMessage.timestamp).getTime() : 0;
                 const timeB = b.lastMessage ? new Date(b.lastMessage.timestamp).getTime() : 0;
                 return timeB - timeA;
             });
 
-            listEl.innerHTML = users.map(u => `
-                <div class="inbox-user-item" onclick="selectInboxUser('${u.publicKey}')" style="padding: 0.75rem; border-bottom: 1px solid #1e293b; cursor: pointer; background: ${inboxSelectedUser?.publicKey === u.publicKey ? '#1e293b' : 'transparent'}; transition: background 0.2s;">
-                    <div style="font-weight: 600; font-size: 0.85rem; color: #f8fafc;">${u.callsign}</div>
-                    <div style="font-size: 0.7rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.2rem;">
-                        ${u.lastMessage ? decodePlaintext(u.lastMessage.ciphertext, u.lastMessage.nonce) : '<em>No messages yet</em>'}
+            let html = users.map(u => `
+                <div class="inbox-user-item" onclick="selectInboxUser('${u.publicKey}')" style="padding: 0.75rem; border-bottom: 1px solid #1e293b; cursor: pointer; background: ${inboxSelectedUser?.publicKey === u.publicKey ? '#1e293b' : 'transparent'}; transition: background 0.2s; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight: ${u.unreadCount > 0 ? '700' : '600'}; font-size: 0.85rem; color: #f8fafc;">${u.callsign}</div>
+                        <div style="font-size: 0.7rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.2rem;">
+                            ${u.lastMessage ? decodePlaintext(u.lastMessage.ciphertext, u.lastMessage.nonce) : '<em>No messages yet</em>'}
+                        </div>
                     </div>
+                    ${u.unreadCount > 0 ? `<span style="background:#ef4444;color:#fff;font-size:0.6rem;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px;margin-left:0.5rem;box-shadow:0 0 6px rgba(239,68,68,0.6);">${u.unreadCount > 99 ? '99+' : u.unreadCount}</span>` : ''}
                 </div>
             `).join('');
+
+            // Show all members toggle
+            if (!searchTerm) {
+                html += `<div onclick="showAllMembers=!showAllMembers;renderAdminInboxList();" style="padding:0.5rem;text-align:center;cursor:pointer;color:#3b82f6;font-size:0.75rem;border-top:1px solid #1e293b;">${showAllMembers ? '▲ Show active only' : '▼ Show all members'}</div>`;
+            }
+
+            listEl.innerHTML = html;
         }
 
         function selectInboxUser(pubkey) {
             inboxSelectedUser = adminDataCache.members.find(m => m.publicKey === pubkey);
             const profile = adminDataCache.profiles.find(p => p.publicKey === pubkey);
             if (inboxSelectedUser) inboxSelectedUser.callsign = profile?.bio || inboxSelectedUser.callsign;
+            
+            // Mark conversation as read (admin perspective)
+            if (inboxAdminPubkey) {
+                const conv = (inboxDataCache || []).find(c => c.participants.includes(pubkey));
+                if (conv) {
+                    fetch('/api/messages/mark-read', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ pubkey: inboxAdminPubkey, conversationId: conv.id })
+                    }).catch(() => {});
+                    // Clear unread count locally
+                    if (conv.unreadCount) conv.unreadCount = 0;
+                }
+            }
             
             document.getElementById('admin-inbox-input').disabled = false;
             document.getElementById('admin-inbox-send').disabled = false;

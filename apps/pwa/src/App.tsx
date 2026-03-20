@@ -10,6 +10,7 @@
 import { useState, useEffect } from 'react';
 import { loadIdentity, type BeanPoolIdentity } from './lib/identity';
 import { connectToAnchor, onSystemAnnouncement } from './lib/sync';
+import { getConversations } from './lib/api';
 import { useTheme } from './lib/useTheme';
 import { SyncStatus } from './components/SyncStatus';
 import { PrivacyBadge } from './components/PrivacyBadge';
@@ -33,6 +34,7 @@ export function App() {
     const [openNewPost, setOpenNewPost] = useState(false);
     const [theme, toggleTheme] = useTheme();
     const [sysAnnouncement, setSysAnnouncement] = useState<{ title: string, body: string, severity: string } | null>(null);
+    const [totalUnread, setTotalUnread] = useState(0);
 
     function navigateToTab(tab: string, conversationId?: string) {
         if (tab === 'map-post') {
@@ -65,6 +67,20 @@ export function App() {
             );
         }
         return unsub;
+    }, [identity]);
+
+    // Poll unread message count
+    useEffect(() => {
+        if (!identity) return;
+        const pollUnread = async () => {
+            try {
+                const result = await getConversations(identity.publicKey);
+                setTotalUnread(result.totalUnread || 0);
+            } catch { /* offline */ }
+        };
+        pollUnread();
+        const interval = setInterval(pollUnread, 10000);
+        return () => clearInterval(interval);
     }, [identity]);
 
     if (loading) {
@@ -200,7 +216,31 @@ export function App() {
                             borderTop: activeTab === tab.id ? '2px solid var(--accent)' : '2px solid transparent',
                         }}
                     >
-                        <span style={{ fontSize: '1.2rem' }}>{tab.emoji}</span>
+                        <span style={{ fontSize: '1.2rem', position: 'relative' }}>
+                            {tab.emoji}
+                            {tab.id === 'messages' && totalUnread > 0 && (
+                                <span style={{
+                                    position: 'absolute',
+                                    top: '-6px',
+                                    right: '-10px',
+                                    background: '#ef4444',
+                                    color: '#fff',
+                                    fontSize: '0.6rem',
+                                    fontWeight: 700,
+                                    minWidth: '16px',
+                                    height: '16px',
+                                    borderRadius: '8px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '0 3px',
+                                    lineHeight: 1,
+                                    boxShadow: '0 0 6px rgba(239,68,68,0.6)',
+                                }}>
+                                    {totalUnread > 99 ? '99+' : totalUnread}
+                                </span>
+                            )}
+                        </span>
                         <span>{tab.label}</span>
                     </button>
                 ))}

@@ -116,6 +116,7 @@ export interface Conversation {
     participants: string[];
     createdBy: string;
     createdAt: string;
+    unreadCount?: number;
 }
 
 export interface ApiMessage {
@@ -145,8 +146,12 @@ export async function sendMessageApi(
     return request('POST', '/api/messages/send', { conversationId, authorPubkey, ciphertext, nonce });
 }
 
-export async function getConversations(publicKey: string): Promise<{ conversations: Conversation[] }> {
+export async function getConversations(publicKey: string): Promise<{ conversations: Conversation[]; totalUnread: number }> {
     return request('GET', `/api/messages/conversations/${encodeURIComponent(publicKey)}`);
+}
+
+export async function markConversationReadApi(pubkey: string, conversationId: string): Promise<void> {
+    return request('POST', '/api/messages/mark-read', { pubkey, conversationId });
 }
 
 export async function getConversationMessages(conversationId: string, limit = 50): Promise<{

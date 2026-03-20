@@ -153,6 +153,7 @@ interface PersistedState {
     ratings: Rating[];
     reports: AbuseReport[];
     friends: Record<string, FriendEntry[]>;
+    readCursors: Record<string, Record<string, string>>;
 }
 
 // ===================== STATE =====================
@@ -169,6 +170,7 @@ let messages: Message[] = [];
 let ratings: Rating[] = [];
 let reports: AbuseReport[] = [];
 let friends: Record<string, FriendEntry[]> = {};
+let readCursors: Record<string, Record<string, string>> = {}; // pubkey -> { convId -> lastReadTimestamp }
 let wsClients: Set<any> = new Set();
 
 // ===================== INIT =====================
@@ -190,6 +192,7 @@ export function initStateEngine(): void {
             ratings = (saved as any).ratings || [];
             reports = (saved as any).reports || [];
             friends = (saved as any).friends || [];
+            readCursors = (saved as any).readCursors || {};
             // Migrate legacy posts without status/repeatable fields
             for (const p of posts) {
                 if (!p.status) p.status = p.active ? 'active' : 'cancelled';
@@ -226,6 +229,7 @@ function saveState(): void {
         ratings,
         reports,
         friends,
+        readCursors,
     };
     fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
 }
@@ -1485,5 +1489,41 @@ export function migrateAdminConversations() {
         saveState();
         console.log(`📧 Migrated ${legacyConvs.length} legacy admin conversation(s)`);
     }
+}
+
+// ===================== UNREAD TRACKING =====================
+
+/**
+ * Mark a conversation as read by a user (sets the read cursor to now).
+ */
+export function markConversationRead(pubkey: string, conversationId: string): void {
+    if (!readCursors[pubkey]) readCursors[pubkey] = {};
+    readCursors[pubkey][conversationId] = new Date().toISOString();
+    saveState();
+}
+
+/**
+ * Get unread message counts for a user across all their conversations.
+ * Returns Record<conversationId, unreadCount>
+ */
+export function getUnreadCounts(pubkey: string): Record<string, number> {
+    const userConvs = conversations.filter(c => c.participants.includes(pubkey));
+    const cursors = readCursors[pubkey] || {};
+    const counts: Record<string, number> = {};
+    
+    for (const conv of userConvs) {
+        const cursor = cursors[conv.id];
+        const convMessages = messages.filter(m => 
+            m.conversationId === conv.id && 
+            m.authorPubkey !== pubkey  // Don't count own messages as unread
+        );
+        if (cursor) {
+            counts[conv.id] = convMessages.filter(m => m.timestamp > cursor).length;
+        } else {
+            // Never read — all messages from others are unread
+            counts[conv.id] = convMessages.length;
+        }
+    }
+    return counts;
 }
 

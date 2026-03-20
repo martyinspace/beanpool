@@ -10,6 +10,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
     getConversations, getConversationMessages, createConversationApi,
     sendMessageApi, getMembers, sendFederationMessage,
+    markConversationReadApi,
     type Conversation, type ApiMessage, type Member,
 } from '../lib/api';
 import { encodePlaintext, decodePlaintext } from '../lib/e2e-crypto';
@@ -44,6 +45,8 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
     useEffect(() => {
         if (activeConv) {
             loadMessages(activeConv.id);
+            // Mark conversation as read when opened
+            markConversationReadApi(identity.publicKey, activeConv.id).catch(() => {});
             // Poll for new messages every 3 seconds
             pollRef.current = window.setInterval(() => loadMessages(activeConv.id), 3000);
         }
@@ -443,7 +446,17 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                     <p style={{ fontSize: '0.85rem' }}>Start by sending a DM or creating a group.</p>
                 </div>
             ) : (
-                conversations.map(conv => (
+                conversations
+                    .filter(c => (c.unreadCount || 0) > 0 || c.createdAt) // show all (filtering empty convs happens server-side)
+                    .sort((a, b) => {
+                        // Unread first, then by date
+                        const aUnread = a.unreadCount || 0;
+                        const bUnread = b.unreadCount || 0;
+                        if (aUnread > 0 && bUnread === 0) return -1;
+                        if (bUnread > 0 && aUnread === 0) return 1;
+                        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                    })
+                    .map(conv => (
                     <div
                         key={conv.id}
                         onClick={() => { setActiveConv(conv); loadMembers(); }}
@@ -455,11 +468,34 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                 background: conv.type === 'group' ? '#1e3a5f' : '#333',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 fontSize: '1.1rem', flexShrink: 0,
+                                position: 'relative',
                             }}>
                                 {conv.type === 'group' ? '👥' : '💬'}
+                                {(conv.unreadCount || 0) > 0 && (
+                                    <span style={{
+                                        position: 'absolute',
+                                        top: '-4px',
+                                        right: '-4px',
+                                        background: '#ef4444',
+                                        color: '#fff',
+                                        fontSize: '0.6rem',
+                                        fontWeight: 700,
+                                        minWidth: '16px',
+                                        height: '16px',
+                                        borderRadius: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: '0 3px',
+                                        lineHeight: 1,
+                                        boxShadow: '0 0 6px rgba(239,68,68,0.6)',
+                                    }}>
+                                        {conv.unreadCount! > 99 ? '99+' : conv.unreadCount}
+                                    </span>
+                                )}
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>
+                                <div style={{ fontWeight: (conv.unreadCount || 0) > 0 ? 700 : 600, fontSize: '0.95rem' }}>
                                     {getConversationTitle(conv)}
                                 </div>
                                 <div style={{

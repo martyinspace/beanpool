@@ -52,7 +52,8 @@ import {
     getFriends, addFriend, removeFriend, setGuardian,
     adminSetUserStatus, adminDeletePost, adminPruneUser,
     adminPruneBranch, adminBroadcastAnnouncement, adminSendMessage,
-    getAdminPubkey, recordActivity
+    getAdminPubkey, recordActivity,
+    markConversationRead, getUnreadCounts
 } from './state-engine.js';
 
 const PUBLIC_DIR = path.resolve('public');
@@ -327,9 +328,11 @@ export async function startHttpsServer(port: number): Promise<void> {
         // Also grab any legacy 'system' conversations
         const legacyConvs = getConversationsByMember('system').filter(c => !convs.find(x => x.id === c.id));
         const allConvs = [...convs, ...legacyConvs];
+        const unreadCounts = getUnreadCounts(adminPubkey);
         const inbox = allConvs.map(c => ({
             ...c,
-            messages: getConversationMessages(c.id, 50)
+            messages: getConversationMessages(c.id, 50),
+            unreadCount: unreadCounts[c.id] || 0,
         }));
         ctx.body = { conversations: inbox, adminPubkey };
     });
@@ -686,7 +689,23 @@ export async function startHttpsServer(port: number): Promise<void> {
 
     router.get('/api/messages/conversations/:publicKey', async (ctx) => {
         const { publicKey } = ctx.params;
-        ctx.body = { conversations: getConversationsByMember(publicKey) };
+        const convs = getConversationsByMember(publicKey);
+        const unreadCounts = getUnreadCounts(publicKey);
+        ctx.body = {
+            conversations: convs.map(c => ({ ...c, unreadCount: unreadCounts[c.id] || 0 })),
+            totalUnread: Object.values(unreadCounts).reduce((a, b) => a + b, 0),
+        };
+    });
+
+    router.post('/api/messages/mark-read', async (ctx) => {
+        const { pubkey, conversationId } = (ctx as any).requestBody || {};
+        if (!pubkey || !conversationId) {
+            ctx.status = 400;
+            ctx.body = { error: 'Missing pubkey or conversationId' };
+            return;
+        }
+        markConversationRead(pubkey, conversationId);
+        ctx.body = { success: true };
     });
 
     router.get('/api/messages/:conversationId', async (ctx) => {
