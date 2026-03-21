@@ -13,7 +13,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { BeanPoolIdentity } from '../lib/identity';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { getMarketplacePosts, createMarketplacePost, getNodeInfo, getRemotePosts, type MarketplacePost } from '../lib/api';
+import { getMarketplacePosts, createMarketplacePost, getNodeInfo, getRemotePosts, getNodeConfig, type MarketplacePost } from '../lib/api';
 import { MARKETPLACE_CATEGORIES, POST_TYPE_COLORS } from '../lib/marketplace';
 import { loadEnabledPeers } from '../lib/peer-prefs';
 
@@ -42,6 +42,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
     const mapRef = useRef<L.Map | null>(null);
     const markersRef = useRef<L.LayerGroup | null>(null);
     const userMarkerRef = useRef<L.Marker | null>(null);
+    const radiusCircleRef = useRef<L.Circle | null>(null);
 
     const [isDark, setIsDark] = useState(false); // Light mode by default
     const [locating, setLocating] = useState(false);
@@ -115,6 +116,25 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             }
         };
         container.addEventListener('click', handlePopupClick);
+
+        // Draw service radius circle from node config
+        getNodeConfig().then(config => {
+            if (config.serviceRadius && config.serviceRadius.radiusKm > 0 && mapRef.current) {
+                const { lat, lng, radiusKm } = config.serviceRadius;
+                if (radiusCircleRef.current) {
+                    mapRef.current.removeLayer(radiusCircleRef.current);
+                }
+                radiusCircleRef.current = L.circle([lat, lng], {
+                    radius: radiusKm * 1000,
+                    color: '#f59e0b',
+                    fillColor: '#f59e0b',
+                    fillOpacity: 0.06,
+                    weight: 2,
+                    dashArray: '8 5',
+                    interactive: false,
+                }).addTo(mapRef.current);
+            }
+        }).catch(() => {});
 
         return () => {
             container.removeEventListener('click', handlePopupClick);
