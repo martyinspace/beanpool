@@ -88,8 +88,8 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             maxZoom: 19,
         }).addTo(map);
 
-        // Zoom control bottom-left
-        L.control.zoom({ position: 'bottomleft' }).addTo(map);
+        // Zoom control top-right (avoids bottom nav bar & custom FABs)
+        L.control.zoom({ position: 'topright' }).addTo(map);
 
         // Attribution bottom-right (small)
         L.control.attribution({ position: 'bottomright', prefix: false })
