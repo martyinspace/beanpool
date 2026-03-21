@@ -75,3 +75,19 @@ Because the state log is built entirely on backwards-compatible CRDTs, the mirro
 5. **The Failover:** While the primary restarts, the Cloudflare Load Balancer instantly detects the drop and seamlessly routes 100% of your users to the newly-updated backup node!
 
 Once the primary finishes booting, the two nodes will sync back up perfectly. Your community stays online the entire time!
+
+---
+
+## 🌐 5. Federating with a Mirrored Community
+
+If a neighboring community (e.g. `brisbane.beanpool.org`) acts as a Sovereign Sister Node and wants to federate its marketplace with your newly mirrored `mullum` community, they benefit from your high availability too!
+
+Because the fundamental Ledger consists of **idempotent CRDTs**, if an external node accidentally dials both `mullum1` and `mullum2` simultaneously, the mathematical core guarantees that **no data will ever be duplicated.** The sync engine instantly detects matching cryptographic signatures and seamlessly ignores any repetitive event logs.
+
+However, the most elegant way to handle Federation is to simply leverage your Load Balancer:
+
+**The Golden Rules for External Federation:**
+1. **External Node Configuration:** The external node (`brisbane`) only needs to add **ONE** connector: `mullum.beanpool.org` (the Load Balancer). Cloudflare will securely dial whichever physical box is currently active and the libp2p WebSocket securely extracts the dynamic cryptographic Peer ID on the fly.
+2. **Local Node Configuration:** Because security handshakes require **Mutual Trust**, and because Connectors are intentionally *not* synced across the CRDT event log (to prevent port looping), the Admin at Mullumbimby MUST log into the dashboards of **BOTH** `mullum1` and `mullum2` and manually add `brisbane.beanpool.org` as a trusted `peer` connector explicitly on both boxes.
+
+This guarantees that no matter which node Cloudflare proxy-routes `brisbane`'s traffic to, the receiving mirrored node will actively trust and securely federate with it!
