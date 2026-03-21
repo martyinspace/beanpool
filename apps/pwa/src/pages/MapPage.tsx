@@ -102,7 +102,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
         // Light mode by default — no filter needed
 
         // Try to get user location on init
-        map.locate({ setView: true, maxZoom: 15 });
+        map.locate({ setView: false });
         map.on('locationfound', (e) => {
             setUserMarker(map, e.latlng);
         });
@@ -133,6 +133,9 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     dashArray: '8 5',
                     interactive: false,
                 }).addTo(mapRef.current);
+
+                // Frame the map around the radius so it touches the edges
+                mapRef.current.fitBounds(radiusCircleRef.current.getBounds(), { padding: [10, 10] });
             }
         }).catch(() => {});
 
