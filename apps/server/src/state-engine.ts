@@ -165,6 +165,7 @@ export interface VotingRound {
 }
 
 export interface NodeConfig {
+    name?: string;
     serviceRadius?: { lat: number; lng: number; radiusKm: number };
     publishToDirectory?: boolean;
 }
@@ -1754,6 +1755,7 @@ export function getNodeConfig(): NodeConfig {
 }
 
 export function updateNodeConfig(update: Partial<NodeConfig>): NodeConfig {
+    if (update.name !== undefined) nodeConfig.name = update.name;
     if (update.serviceRadius !== undefined) nodeConfig.serviceRadius = update.serviceRadius;
     if (update.publishToDirectory !== undefined) nodeConfig.publishToDirectory = update.publishToDirectory;
     saveState();
@@ -1763,7 +1765,7 @@ export function updateNodeConfig(update: Partial<NodeConfig>): NodeConfig {
 export function getDirectoryInfo(): { name: string; memberCount: number; serviceRadius?: { lat: number; lng: number; radiusKm: number }; version: string } | null {
     if (nodeConfig.publishToDirectory === false) return null;
     return {
-        name: process.env.BEANPOOL_NODE_NAME || 'BeanPool Node',
+        name: nodeConfig.name || process.env.BEANPOOL_NODE_NAME || 'BeanPool Node',
         memberCount: members.length,
         serviceRadius: nodeConfig.serviceRadius,
         version: '1.0.0',

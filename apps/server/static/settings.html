@@ -466,6 +466,10 @@
                     <input type="text" id="cfg-callsign" maxlength="20" placeholder="e.g. Sydney">
                 </div>
                 <div class="field">
+                    <label>Community Name (For Map)</label>
+                    <input type="text" id="cfg-name" maxlength="50" placeholder="e.g. Mullumbimby BeanPool">
+                </div>
+                <div class="field">
                     <label>Operating Region</label>
                     <div class="search-wrapper">
                         <input type="search" id="location-search" placeholder="Search for a location..."
@@ -1676,7 +1680,9 @@
             const lng = parseFloat(document.getElementById('cfg-lng').value);
             const km = parseInt(document.getElementById('radius-km').value) || 0;
             const publish = document.getElementById('publish-directory').checked;
+            const nodeName = document.getElementById('cfg-name').value.trim();
             const update = { publishToDirectory: publish };
+            if (nodeName) update.name = nodeName;
             if (!isNaN(lat) && !isNaN(lng) && km > 0) {
                 update.serviceRadius = { lat, lng, radiusKm: km };
             } else {
@@ -1701,6 +1707,9 @@
                     document.getElementById('radius-slider').value = Math.min(km, 200);
                     document.getElementById('radius-km').value = km;
                     updateRadiusCircle();
+                }
+                if (config.name) {
+                    document.getElementById('cfg-name').value = config.name;
                 }
                 document.getElementById('publish-directory').checked = config.publishToDirectory !== false;
             } catch { /* ignore */ }

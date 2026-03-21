@@ -73,7 +73,8 @@ async function pollNodes() {
                 .bindPopup(`
                     <div style="font-family:Inter,sans-serif;">
                         <strong>${node.name}</strong><br>
-                        <span style="color:#94a3b8;font-size:0.85em;">${node.memberCount} members · ${radiusKm}km radius</span>
+                        <span style="color:#94a3b8;font-size:0.85em;">${node.memberCount} members · ${radiusKm}km radius</span><br>
+                        <a href="${node.url}" target="_blank" style="font-size:0.85em; display:inline-block; margin-top:6px; color:#f59e0b; font-weight:500;">Visit Community →</a>
                     </div>
                 `)
                 .addTo(nodesMap);
@@ -92,7 +93,13 @@ async function pollNodes() {
             bounds.push([lat, lng]);
         } else if (node.lat && node.lng) {
             L.marker([node.lat, node.lng], { icon: nodeIcon })
-                .bindPopup(`<strong>${node.name}</strong><br>${node.memberCount} members`)
+                .bindPopup(`
+                    <div style="font-family:Inter,sans-serif;">
+                        <strong>${node.name}</strong><br>
+                        <span style="color:#94a3b8;font-size:0.85em;">${node.memberCount} members</span><br>
+                        <a href="${node.url}" target="_blank" style="font-size:0.85em; display:inline-block; margin-top:6px; color:#f59e0b; font-weight:500;">Visit Community →</a>
+                    </div>
+                `)
                 .addTo(nodesMap);
             bounds.push([node.lat, node.lng]);
         }
