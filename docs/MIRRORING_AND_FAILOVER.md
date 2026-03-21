@@ -59,3 +59,19 @@ Because of the CRDT event log architecture, **merging communities is just as sim
    - The Web of Trust trees will merge into a single continuous forest.
 
 Once synced, Administrator A and Administrator B are now co-hosting an identical merged community. Either admin can choose to shut down their physical server, map their domain to the surviving node, and the merge is complete!
+
+---
+
+## 🔄 4. Rolling Updates (Zero Downtime)
+
+When a new version of BeanPool is released, you can update your mirrored array without your community ever experiencing a single second of downtime!
+
+Because the state log is built entirely on backwards-compatible CRDTs, the mirror will happily tolerate being out of sync with the primary node's software version for the few minutes it takes to deploy. The standard operational procedure is a **Rolling Update**:
+
+1. **Update the Backup Node First:** Run your deployment script targeted *only* at the backup node (e.g. `bash deploy.sh 1`). 
+2. **Cloudflare Takes Over:** While the backup node restarts, Cloudflare's health check will briefly mark it as "Down" and route 100% of community traffic safely to your Primary node.
+3. **The Catch-Up Sync:** When the backup node finishes booting, it will instantly re-establish its libp2p connection to the Primary node and safely sync any new posts or messages that happened while it was restarting.
+4. **Update the Primary Node:** Now, deploy to your Primary node (e.g. `bash deploy.sh 3`). 
+5. **The Failover:** While the primary restarts, the Cloudflare Load Balancer instantly detects the drop and seamlessly routes 100% of your users to the newly-updated backup node!
+
+Once the primary finishes booting, the two nodes will sync back up perfectly. Your community stays online the entire time!
