@@ -310,7 +310,6 @@ section { padding: 5rem 0; }
 #nodes-map {
     height: 400px;
     width: 100%;
-    filter: brightness(0.7) contrast(1.1) saturate(0.8);
 }
 .nodes-list {
     padding: 1rem;

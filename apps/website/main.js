@@ -21,9 +21,9 @@ const nodesMap = L.map('nodes-map', {
     scrollWheelZoom: false,
 });
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 18,
-    attribution: '© CartoDB © OSM',
+    attribution: '© OSM',
 }).addTo(nodesMap);
 
 L.control.attribution({ position: 'bottomright', prefix: false })
