@@ -1765,7 +1765,7 @@ export function updateNodeConfig(update: Partial<NodeConfig>): NodeConfig {
 export function getDirectoryInfo(): { name: string; memberCount: number; serviceRadius?: { lat: number; lng: number; radiusKm: number }; version: string } | null {
     if (nodeConfig.publishToDirectory === false) return null;
     return {
-        name: nodeConfig.name || process.env.BEANPOOL_NODE_NAME || 'BeanPool Node',
+        name: nodeConfig.name || process.env.BEANPOOL_NODE_NAME || process.env.CF_RECORD_NAME || 'BeanPool Node',
         memberCount: members.length,
         serviceRadius: nodeConfig.serviceRadius,
         version: '1.0.0',
