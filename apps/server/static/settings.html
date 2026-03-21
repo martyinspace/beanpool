@@ -476,6 +476,22 @@
                     <input type="hidden" id="cfg-lat">
                     <input type="hidden" id="cfg-lng">
                 </div>
+                <!-- Service Radius -->
+                <div class="field" id="radius-field" style="margin-top:0.75rem;">
+                    <label style="display:flex;justify-content:space-between;align-items:center;">
+                        Service Radius
+                        <span id="radius-display" style="font-family:monospace;color:#f59e0b;font-weight:600;">Off</span>
+                    </label>
+                    <div style="display:flex;gap:0.5rem;align-items:center;">
+                        <input type="range" id="radius-slider" min="0" max="200" value="0" step="1" style="flex:1;accent-color:#f59e0b;" />
+                        <input type="number" id="radius-km" min="0" max="500" step="1" placeholder="km" style="width:65px;padding:0.35rem;border-radius:6px;border:1px solid #1e293b;background:#0f172a;color:#e2e8f0;font-size:0.85rem;text-align:center;" />
+                    </div>
+                    <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem;">
+                        <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;color:#94a3b8;cursor:pointer;">
+                            <input type="checkbox" id="publish-directory" checked /> Publish this node on beanpool.org
+                        </label>
+                    </div>
+                </div>
                 <button class="btn btn-primary btn-full" id="save-identity-btn">Save Changes</button>
                 <div class="status-msg" id="identity-status"></div>
             </div>
@@ -737,20 +753,10 @@
                     <button class="btn btn-outline" onclick="loadCommonsData()" style="flex:1;">🔄 Refresh</button>
                 </div>
 
-                <!-- Service Radius -->
+                <!-- Service Radius (read-only — set on Identity tab) -->
                 <h4 style="font-size:0.95rem;margin-bottom:0.5rem;">📍 Service Radius</h4>
-                <p style="font-size:0.75rem;color:#64748b;margin-bottom:0.75rem;">Set the geographic zone for your community. Posts outside this radius get a "🌐 Remote" badge.</p>
-                <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;">
-                    <input type="number" id="radius-lat" placeholder="Latitude" step="0.001" style="flex:1;padding:0.5rem;border-radius:6px;border:1px solid #1e293b;background:#0f172a;color:#e2e8f0;font-size:0.85rem;" />
-                    <input type="number" id="radius-lng" placeholder="Longitude" step="0.001" style="flex:1;padding:0.5rem;border-radius:6px;border:1px solid #1e293b;background:#0f172a;color:#e2e8f0;font-size:0.85rem;" />
-                    <input type="number" id="radius-km" placeholder="Radius (km)" min="1" step="1" style="flex:1;padding:0.5rem;border-radius:6px;border:1px solid #1e293b;background:#0f172a;color:#e2e8f0;font-size:0.85rem;" />
-                </div>
-                <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
-                    <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;cursor:pointer;">
-                        <input type="checkbox" id="publish-directory" checked /> Publish this node on beanpool.org
-                    </label>
-                </div>
-                <button class="btn btn-outline btn-full" onclick="saveNodeConfig()">💾 Save Radius & Directory</button>
+                <p id="commons-radius-info" style="font-size:0.8rem;color:#94a3b8;margin-bottom:0.75rem;">Not configured — set it on the Identity tab.</p>
+                <button class="btn btn-outline btn-full" onclick="switchTab('identity')">📝 Set Radius on Identity Tab</button>
             </div>
 
             <!-- Inbox & Global Comms -->
@@ -827,6 +833,25 @@
         const API = '/api/local';
         let authToken = null;
         let settingsMap, settingsMarker;
+        let radiusCircle;
+
+        function updateRadiusCircle() {
+            const lat = parseFloat(document.getElementById('cfg-lat').value);
+            const lng = parseFloat(document.getElementById('cfg-lng').value);
+            const km = parseInt(document.getElementById('radius-km').value) || 0;
+            // Update display
+            document.getElementById('radius-display').textContent = km > 0 ? km + ' km' : 'Off';
+            // Remove old circle
+            if (radiusCircle) { settingsMap?.removeLayer(radiusCircle); radiusCircle = null; }
+            // Draw new if valid
+            if (settingsMap && !isNaN(lat) && !isNaN(lng) && km > 0) {
+                radiusCircle = L.circle([lat, lng], {
+                    radius: km * 1000,
+                    color: '#f59e0b', fillColor: '#f59e0b',
+                    fillOpacity: 0.08, weight: 2, dashArray: '6 4'
+                }).addTo(settingsMap);
+            }
+        }
 
         // ======================== PASSWORD EYE TOGGLE ========================
         document.querySelectorAll('.pwd-eye').forEach(btn => {
@@ -862,6 +887,7 @@
             // Leaflet needs invalidateSize after being unhidden
             if (tabName === 'identity' && settingsMap) {
                 setTimeout(() => settingsMap.invalidateSize(), 50);
+                loadNodeConfig();
             }
             // Load data for admin tabs
             if (tabName === 'moderation' || tabName === 'members') loadAdminData();
@@ -898,8 +924,22 @@
                 document.getElementById('cfg-lng').value = e.latlng.lng;
                 if (settingsMarker) settingsMarker.setLatLng(e.latlng);
                 else settingsMarker = L.marker(e.latlng, { icon: nodeIcon }).addTo(settingsMap);
+                updateRadiusCircle();
             });
+            // Draw initial radius circle if loaded
+            updateRadiusCircle();
         }
+
+        // Sync radius slider <-> km input
+        document.getElementById('radius-slider').addEventListener('input', (e) => {
+            document.getElementById('radius-km').value = e.target.value;
+            updateRadiusCircle();
+        });
+        document.getElementById('radius-km').addEventListener('input', (e) => {
+            const v = Math.min(parseInt(e.target.value) || 0, 500);
+            document.getElementById('radius-slider').value = Math.min(v, 200);
+            updateRadiusCircle();
+        });
 
         // ======================== LOCATION SEARCH (NOMINATIM) ========================
         const searchInput = document.getElementById('location-search');
@@ -1127,6 +1167,8 @@
                         lng: document.getElementById('cfg-lng').value ? parseFloat(document.getElementById('cfg-lng').value) : null,
                     })
                 });
+                // Also save node config (radius + directory)
+                await saveNodeConfig();
                 if (res.ok) showStatus('identity-status', 'Saved!', 'success');
                 else showStatus('identity-status', 'Save failed', 'error');
             } catch (e) { showStatus('identity-status', 'Save failed', 'error'); }
@@ -1566,6 +1608,18 @@
                     </div>
                 </div>`;
             }).join('');
+
+            // Update radius info display
+            fetch('/api/node/config').then(r => r.json()).then(config => {
+                const el = document.getElementById('commons-radius-info');
+                if (config.serviceRadius && config.serviceRadius.radiusKm > 0) {
+                    el.textContent = `${config.serviceRadius.radiusKm} km radius · ${config.publishToDirectory !== false ? '📡 Published on beanpool.org' : '🔒 Not published'}`;
+                    el.style.color = '#10b981';
+                } else {
+                    el.textContent = 'Not configured — set it on the Identity tab.';
+                    el.style.color = '#94a3b8';
+                }
+            }).catch(() => {});
         }
 
         async function createRound() {
@@ -1618,13 +1672,15 @@
 
         async function saveNodeConfig() {
             if (!authToken) return;
-            const lat = parseFloat(document.getElementById('radius-lat').value);
-            const lng = parseFloat(document.getElementById('radius-lng').value);
-            const km = parseFloat(document.getElementById('radius-km').value);
+            const lat = parseFloat(document.getElementById('cfg-lat').value);
+            const lng = parseFloat(document.getElementById('cfg-lng').value);
+            const km = parseInt(document.getElementById('radius-km').value) || 0;
             const publish = document.getElementById('publish-directory').checked;
             const update = { publishToDirectory: publish };
-            if (!isNaN(lat) && !isNaN(lng) && !isNaN(km) && km > 0) {
+            if (!isNaN(lat) && !isNaN(lng) && km > 0) {
                 update.serviceRadius = { lat, lng, radiusKm: km };
+            } else {
+                update.serviceRadius = null;
             }
             try {
                 await fetch('/api/local/admin/node/config', {
@@ -1632,8 +1688,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ password: authToken, ...update })
                 });
-                alert('✅ Node config saved');
-            } catch (e) { alert('Failed: ' + e.message); }
+            } catch (e) { console.warn('Failed to save node config:', e); }
         }
 
         async function loadNodeConfig() {
@@ -1642,14 +1697,14 @@
                 if (!res.ok) return;
                 const config = await res.json();
                 if (config.serviceRadius) {
-                    document.getElementById('radius-lat').value = config.serviceRadius.lat || '';
-                    document.getElementById('radius-lng').value = config.serviceRadius.lng || '';
-                    document.getElementById('radius-km').value = config.serviceRadius.radiusKm || '';
+                    const km = config.serviceRadius.radiusKm || 0;
+                    document.getElementById('radius-slider').value = Math.min(km, 200);
+                    document.getElementById('radius-km').value = km;
+                    updateRadiusCircle();
                 }
                 document.getElementById('publish-directory').checked = config.publishToDirectory !== false;
             } catch { /* ignore */ }
         }
-
 
         async function loadAdminData() {
             if (!authToken) return;
