@@ -72,7 +72,7 @@ async function pollNodes() {
             L.marker([lat, lng], { icon: nodeIcon })
                 .bindPopup(`
                     <div style="font-family:Inter,sans-serif;">
-                        <strong>${node.nodeName}</strong><br>
+                        <strong>${node.name}</strong><br>
                         <span style="color:#94a3b8;font-size:0.85em;">${node.memberCount} members · ${radiusKm}km radius</span>
                     </div>
                 `)
@@ -92,7 +92,7 @@ async function pollNodes() {
             bounds.push([lat, lng]);
         } else if (node.lat && node.lng) {
             L.marker([node.lat, node.lng], { icon: nodeIcon })
-                .bindPopup(`<strong>${node.nodeName}</strong><br>${node.memberCount} members`)
+                .bindPopup(`<strong>${node.name}</strong><br>${node.memberCount} members`)
                 .addTo(nodesMap);
             bounds.push([node.lat, node.lng]);
         }
@@ -100,7 +100,7 @@ async function pollNodes() {
         // Node chip
         const chip = document.createElement('div');
         chip.className = 'node-chip';
-        chip.innerHTML = `<span class="node-dot"></span> ${node.nodeName}`;
+        chip.innerHTML = `<span class="node-dot"></span> ${node.name}`;
         nodesList.appendChild(chip);
     });
 
