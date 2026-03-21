@@ -142,6 +142,33 @@ export interface FriendEntry {
     isGuardian: boolean;
 }
 
+export interface CommunityProject {
+    id: string;
+    title: string;
+    description: string;
+    proposerPubkey: string;
+    proposerCallsign: string;
+    requestedAmount: number;
+    status: 'proposed' | 'active' | 'funded' | 'rejected' | 'completed';
+    votes: { pubkey: string; weight: 1 }[];
+    createdAt: string;
+    fundedAt?: string;
+}
+
+export interface VotingRound {
+    id: string;
+    status: 'open' | 'closed';
+    closesAt: string;
+    projectIds: string[];
+    createdBy: string;
+    createdAt: string;
+}
+
+export interface NodeConfig {
+    serviceRadius?: { lat: number; lng: number; radiusKm: number };
+    publishToDirectory?: boolean;
+}
+
 interface PersistedState {
     members: Member[];
     posts: MarketplacePost[];
@@ -156,6 +183,9 @@ interface PersistedState {
     reports: AbuseReport[];
     friends: Record<string, FriendEntry[]>;
     readCursors: Record<string, Record<string, string>>;
+    communityProjects: CommunityProject[];
+    votingRounds: VotingRound[];
+    nodeConfig: NodeConfig;
 }
 
 // ===================== STATE =====================
@@ -173,6 +203,9 @@ let ratings: Rating[] = [];
 let reports: AbuseReport[] = [];
 let friends: Record<string, FriendEntry[]> = {};
 let readCursors: Record<string, Record<string, string>> = {}; // pubkey -> { convId -> lastReadTimestamp }
+let communityProjects: CommunityProject[] = [];
+let votingRounds: VotingRound[] = [];
+let nodeConfig: NodeConfig = { publishToDirectory: true };
 let wsClients: Set<any> = new Set();
 
 // ===================== INIT =====================
@@ -195,6 +228,9 @@ export function initStateEngine(): void {
             reports = (saved as any).reports || [];
             friends = (saved as any).friends || [];
             readCursors = (saved as any).readCursors || {};
+            communityProjects = (saved as any).communityProjects || [];
+            votingRounds = (saved as any).votingRounds || [];
+            if ((saved as any).nodeConfig) nodeConfig = (saved as any).nodeConfig;
             // Migrate legacy posts without status/repeatable fields
             for (const p of posts) {
                 if (!p.status) p.status = p.active ? 'active' : 'cancelled';
@@ -232,6 +268,9 @@ function saveState(): void {
         reports,
         friends,
         readCursors,
+        communityProjects,
+        votingRounds,
+        nodeConfig,
     };
     fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
 }
@@ -1563,4 +1602,172 @@ export function getUnreadCounts(pubkey: string): Record<string, number> {
     }
     return counts;
 }
+
+// ===================== COMMUNITY COMMONS =====================
+
+export function createProject(proposerPubkey: string, title: string, description: string, requestedAmount: number): CommunityProject | null {
+    const member = getMember(proposerPubkey);
+    if (!member) return null;
+    if (!title.trim() || requestedAmount <= 0) return null;
+
+    const project: CommunityProject = {
+        id: crypto.randomUUID(),
+        title: title.trim().slice(0, 100),
+        description: description.trim().slice(0, 500),
+        proposerPubkey,
+        proposerCallsign: member.callsign,
+        requestedAmount: Math.round(requestedAmount * 100) / 100,
+        status: 'proposed',
+        votes: [],
+        createdAt: new Date().toISOString(),
+    };
+    communityProjects.push(project);
+    saveState();
+    broadcast({ type: 'project_created', project });
+    console.log(`🏛️ New project proposed: "${project.title}" by ${member.callsign} (${requestedAmount}Ʀ)`);
+    return project;
+}
+
+export function voteForProject(voterPubkey: string, projectId: string): { success: boolean; error?: string } {
+    if (!getMember(voterPubkey)) return { success: false, error: 'Not a member' };
+
+    const project = communityProjects.find(p => p.id === projectId);
+    if (!project) return { success: false, error: 'Project not found' };
+
+    // Project must be in an active voting round
+    const activeRound = votingRounds.find(r => r.status === 'open' && r.projectIds.includes(projectId));
+    if (!activeRound) return { success: false, error: 'No active voting round for this project' };
+
+    // Check if voter has already voted for ANY project in this round — 1 vote per round
+    const roundProjectIds = new Set(activeRound.projectIds);
+    for (const rp of communityProjects) {
+        if (roundProjectIds.has(rp.id) && rp.votes.some(v => v.pubkey === voterPubkey)) {
+            // Already voted — move vote to new project
+            rp.votes = rp.votes.filter(v => v.pubkey !== voterPubkey);
+        }
+    }
+
+    project.votes.push({ pubkey: voterPubkey, weight: 1 });
+    saveState();
+    broadcast({ type: 'vote_cast', projectId, voterPubkey, totalVotes: project.votes.length });
+    return { success: true };
+}
+
+export function createVotingRound(adminPubkey: string, projectIds: string[], closesAt: string): VotingRound | null {
+    // Only admin can create rounds
+    const admin = getMember(adminPubkey);
+    if (!admin || admin.invitedBy !== 'genesis') return null;
+
+    // Don't allow multiple open rounds
+    if (votingRounds.some(r => r.status === 'open')) return null;
+
+    // Set selected projects to 'active'
+    for (const pid of projectIds) {
+        const p = communityProjects.find(pr => pr.id === pid && pr.status === 'proposed');
+        if (p) p.status = 'active';
+    }
+
+    const round: VotingRound = {
+        id: crypto.randomUUID(),
+        status: 'open',
+        closesAt,
+        projectIds,
+        createdBy: adminPubkey,
+        createdAt: new Date().toISOString(),
+    };
+    votingRounds.push(round);
+    saveState();
+    broadcast({ type: 'voting_round_created', round });
+    console.log(`🗳️ Voting round created with ${projectIds.length} projects, closes ${closesAt}`);
+    return round;
+}
+
+export function closeVotingRound(roundId: string): { success: boolean; winner?: CommunityProject; error?: string } {
+    const round = votingRounds.find(r => r.id === roundId && r.status === 'open');
+    if (!round) return { success: false, error: 'Round not found or already closed' };
+
+    round.status = 'closed';
+
+    // Tally votes — find the project with most votes
+    const candidates = communityProjects.filter(p => round.projectIds.includes(p.id));
+    candidates.sort((a, b) => b.votes.length - a.votes.length);
+
+    const winner = candidates[0];
+    if (winner && winner.votes.length > 0) {
+        // Try to fund the winner from commons
+        const funded = ledger.deductFromCommons(winner.requestedAmount);
+        if (funded) {
+            winner.status = 'funded';
+            winner.fundedAt = new Date().toISOString();
+            console.log(`🎉 Project funded: "${winner.title}" (${winner.requestedAmount}Ʀ from commons)`);
+        } else {
+            // Not enough in commons — mark as proposed again for next round
+            winner.status = 'proposed';
+            console.log(`⚠️ Not enough commons balance to fund "${winner.title}"`);
+        }
+    }
+
+    // Set non-winners back to proposed
+    for (const c of candidates) {
+        if (c.id !== winner?.id && c.status === 'active') {
+            c.status = 'proposed';
+        }
+    }
+
+    saveState();
+    broadcast({ type: 'voting_round_closed', roundId, winnerId: winner?.id || null });
+    return { success: true, winner: winner?.status === 'funded' ? winner : undefined };
+}
+
+export function adminRejectProject(projectId: string): boolean {
+    const project = communityProjects.find(p => p.id === projectId);
+    if (!project) return false;
+    project.status = 'rejected';
+    saveState();
+    return true;
+}
+
+export function getProjects(): CommunityProject[] {
+    return communityProjects.filter(p => p.status !== 'rejected');
+}
+
+export function getAllProjects(): CommunityProject[] {
+    return communityProjects;
+}
+
+export function getVotingRounds(): VotingRound[] {
+    return votingRounds;
+}
+
+export function getActiveRound(): VotingRound | null {
+    return votingRounds.find(r => r.status === 'open') || null;
+}
+
+export function getCommonsBalance(): number {
+    return Math.round(COMMONS_BALANCE * 100) / 100;
+}
+
+// ===================== NODE CONFIG =====================
+
+export function getNodeConfig(): NodeConfig {
+    return { ...nodeConfig };
+}
+
+export function updateNodeConfig(update: Partial<NodeConfig>): NodeConfig {
+    if (update.serviceRadius !== undefined) nodeConfig.serviceRadius = update.serviceRadius;
+    if (update.publishToDirectory !== undefined) nodeConfig.publishToDirectory = update.publishToDirectory;
+    saveState();
+    return { ...nodeConfig };
+}
+
+export function getDirectoryInfo(): { name: string; memberCount: number; serviceRadius?: { lat: number; lng: number; radiusKm: number }; version: string } | null {
+    if (!nodeConfig.publishToDirectory) return null;
+    return {
+        name: process.env.BEANPOOL_NODE_NAME || 'BeanPool Node',
+        memberCount: members.length,
+        serviceRadius: nodeConfig.serviceRadius,
+        version: '1.0.0',
+    };
+}
+
 

@@ -495,3 +495,58 @@ export async function getRemoteBalance(baseUrl: string, publicKey: string): Prom
     if (!res.ok) throw new Error(`Failed to fetch balance from ${baseUrl}`);
     return res.json();
 }
+
+// ===================== COMMUNITY COMMONS =====================
+
+export interface CommunityProject {
+    id: string;
+    title: string;
+    description: string;
+    proposerPubkey: string;
+    proposerCallsign: string;
+    requestedAmount: number;
+    status: 'proposed' | 'active' | 'funded' | 'rejected' | 'completed';
+    votes: { pubkey: string; weight: 1 }[];
+    createdAt: string;
+    fundedAt?: string;
+}
+
+export interface VotingRound {
+    id: string;
+    status: 'open' | 'closed';
+    closesAt: string;
+    projectIds: string[];
+    createdBy: string;
+    createdAt: string;
+}
+
+export async function getCommonsBalance(): Promise<{ balance: number }> {
+    return request('GET', '/api/commons/balance');
+}
+
+export async function getCommonsProjects(): Promise<{ projects: CommunityProject[]; activeRound: VotingRound | null }> {
+    return request('GET', '/api/commons/projects');
+}
+
+export async function proposeProject(proposerPubkey: string, title: string, description: string, requestedAmount: number): Promise<{ success: boolean; project: CommunityProject }> {
+    return request('POST', '/api/commons/projects', { proposerPubkey, title, description, requestedAmount });
+}
+
+export async function voteForProject(voterPubkey: string, projectId: string): Promise<{ success: boolean }> {
+    return request('POST', '/api/commons/vote', { voterPubkey, projectId });
+}
+
+export async function getVotingRounds(): Promise<{ rounds: VotingRound[]; activeRound: VotingRound | null }> {
+    return request('GET', '/api/commons/rounds');
+}
+
+// ===================== NODE CONFIG =====================
+
+export interface NodeConfig {
+    serviceRadius?: { lat: number; lng: number; radiusKm: number };
+    publishToDirectory?: boolean;
+}
+
+export async function getNodeConfig(): Promise<NodeConfig> {
+    return request('GET', '/api/node/config');
+}

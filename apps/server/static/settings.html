@@ -454,7 +454,8 @@
                 <button class="tab-btn" data-tab="system">⚙️ System</button>
                 <button class="tab-btn" data-tab="moderation">🛡️ Moderation</button>
                 <button class="tab-btn" data-tab="members">🌳 Audit</button>
-                <button class="tab-btn" data-tab="comms">📥 Inbox & Comms</button>
+                <button class="tab-btn" data-tab="commons">🏛️ Commons</button>
+                <button class="tab-btn" data-tab="comms">📥 Inbox &amp; Comms</button>
             </div>
 
             <!-- Node Identity -->
@@ -708,6 +709,50 @@
                 <button class="btn btn-outline btn-full" onclick="loadAdminData()">🔄 Refresh Data</button>
             </div>
 
+            <!-- Commons & Voting -->
+            <div class="glass" data-tab="commons" style="display:none;">
+                <h3>🏛️ Community Commons</h3>
+                <p style="font-size:0.8rem;color:#64748b;margin-bottom:1rem;">Manage the demurrage pool, voting rounds, and community projects.</p>
+
+                <!-- Pool Balance -->
+                <div style="display:flex;gap:1rem;margin-bottom:1rem;">
+                    <div style="flex:1;background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:1rem;text-align:center;">
+                        <p style="font-size:0.8rem;color:#64748b;margin-bottom:0.25rem;">Commons Pool</p>
+                        <p id="commons-balance" style="font-size:1.8rem;font-weight:700;color:#f59e0b;font-family:monospace;">...</p>
+                    </div>
+                    <div style="flex:1;background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:1rem;text-align:center;">
+                        <p style="font-size:0.8rem;color:#64748b;margin-bottom:0.25rem;">Active Round</p>
+                        <p id="commons-round-status" style="font-size:1rem;font-weight:600;color:#60a5fa;">None</p>
+                    </div>
+                </div>
+
+                <!-- Projects List -->
+                <h4 style="font-size:0.95rem;margin-bottom:0.5rem;">Projects</h4>
+                <div id="commons-projects-list" style="max-height:300px;overflow-y:auto;border:1px solid #1e293b;border-radius:8px;margin-bottom:1rem;"></div>
+
+                <!-- Voting Round Controls -->
+                <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;">
+                    <button class="btn btn-outline" onclick="createRound()" style="flex:1;">🗳️ Create Round</button>
+                    <button class="btn btn-outline" onclick="closeRound()" style="flex:1;">✅ Close Round</button>
+                    <button class="btn btn-outline" onclick="loadCommonsData()" style="flex:1;">🔄 Refresh</button>
+                </div>
+
+                <!-- Service Radius -->
+                <h4 style="font-size:0.95rem;margin-bottom:0.5rem;">📍 Service Radius</h4>
+                <p style="font-size:0.75rem;color:#64748b;margin-bottom:0.75rem;">Set the geographic zone for your community. Posts outside this radius get a "🌐 Remote" badge.</p>
+                <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;">
+                    <input type="number" id="radius-lat" placeholder="Latitude" step="0.001" style="flex:1;padding:0.5rem;border-radius:6px;border:1px solid #1e293b;background:#0f172a;color:#e2e8f0;font-size:0.85rem;" />
+                    <input type="number" id="radius-lng" placeholder="Longitude" step="0.001" style="flex:1;padding:0.5rem;border-radius:6px;border:1px solid #1e293b;background:#0f172a;color:#e2e8f0;font-size:0.85rem;" />
+                    <input type="number" id="radius-km" placeholder="Radius (km)" min="1" step="1" style="flex:1;padding:0.5rem;border-radius:6px;border:1px solid #1e293b;background:#0f172a;color:#e2e8f0;font-size:0.85rem;" />
+                </div>
+                <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
+                    <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;cursor:pointer;">
+                        <input type="checkbox" id="publish-directory" checked /> Publish this node on beanpool.org
+                    </label>
+                </div>
+                <button class="btn btn-outline btn-full" onclick="saveNodeConfig()">💾 Save Radius & Directory</button>
+            </div>
+
             <!-- Inbox & Global Comms -->
             <div class="glass" data-tab="comms" style="display:none; flex-direction:column; max-height:85vh;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
@@ -821,6 +866,7 @@
             // Load data for admin tabs
             if (tabName === 'moderation' || tabName === 'members') loadAdminData();
             if (tabName === 'comms') loadAdminInbox();
+            if (tabName === 'commons') { loadCommonsData(); loadNodeConfig(); }
         }
 
         document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -1463,6 +1509,147 @@
 
         // ======================== ADMIN CONSOLE ========================
         let adminDataCache = null;
+
+        // ===================== COMMONS =====================
+        let commonsData = null;
+
+        async function loadCommonsData() {
+            if (!authToken) return;
+            try {
+                const res = await fetch('/api/local/admin/commons/projects', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken })
+                });
+                if (!res.ok) return;
+                commonsData = await res.json();
+                renderCommonsTab();
+            } catch (e) { console.warn('Failed to load commons:', e); }
+        }
+
+        function renderCommonsTab() {
+            if (!commonsData) return;
+            document.getElementById('commons-balance').textContent = commonsData.balance.toFixed(2) + 'Ʀ';
+
+            const activeRound = commonsData.rounds.find(r => r.status === 'open');
+            const roundStatus = document.getElementById('commons-round-status');
+            if (activeRound) {
+                roundStatus.textContent = 'Open → ' + new Date(activeRound.closesAt).toLocaleDateString();
+                roundStatus.style.color = '#10b981';
+            } else {
+                roundStatus.textContent = 'None';
+                roundStatus.style.color = '#60a5fa';
+            }
+
+            const list = document.getElementById('commons-projects-list');
+            if (!commonsData.projects.length) {
+                list.innerHTML = '<div style="padding:1rem;text-align:center;color:#64748b;">No projects yet</div>';
+                return;
+            }
+            list.innerHTML = commonsData.projects.map(p => {
+                const statusBadge = {
+                    proposed: '📋 Proposed',
+                    active: '🗳️ Voting',
+                    funded: '✅ Funded',
+                    rejected: '❌ Rejected',
+                    completed: '🎉 Completed',
+                }[p.status] || p.status;
+                const votes = p.votes?.length || 0;
+                return `<div style="padding:0.6rem 0.75rem;border-bottom:1px solid #1e293b;display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                        <strong style="font-size:0.85rem;">${p.title}</strong>
+                        <div style="font-size:0.7rem;color:#64748b;margin-top:2px;">${p.proposerCallsign} · ${p.requestedAmount.toFixed(2)}Ʀ · ${votes} vote${votes !== 1 ? 's' : ''}</div>
+                    </div>
+                    <div style="display:flex;gap:0.4rem;align-items:center;">
+                        <span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:${p.status === 'funded' ? '#10b98122' : p.status === 'rejected' ? '#ef444422' : '#2563eb22'};color:${p.status === 'funded' ? '#10b981' : p.status === 'rejected' ? '#ef4444' : '#60a5fa'};">${statusBadge}</span>
+                        ${p.status === 'proposed' || p.status === 'active' ? `<button onclick="rejectProject('${p.id}')" style="padding:2px 6px;border-radius:4px;background:#ef444422;color:#ef4444;border:none;cursor:pointer;font-size:0.7rem;">✕</button>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function createRound() {
+            if (!authToken || !commonsData) return;
+            const proposed = commonsData.projects.filter(p => p.status === 'proposed');
+            if (!proposed.length) { alert('No proposed projects to include in a round.'); return; }
+            const days = prompt('How many days should voting be open?', '7');
+            if (!days) return;
+            const closesAt = new Date(Date.now() + Number(days) * 86400000).toISOString();
+            try {
+                await fetch('/api/local/admin/commons/round', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken, action: 'create', projectIds: proposed.map(p => p.id), closesAt })
+                });
+                await loadCommonsData();
+            } catch (e) { alert('Failed to create round: ' + e.message); }
+        }
+
+        async function closeRound() {
+            if (!authToken || !commonsData) return;
+            const activeRound = commonsData.rounds.find(r => r.status === 'open');
+            if (!activeRound) { alert('No active round to close.'); return; }
+            if (!confirm('Close the voting round and fund the winner?')) return;
+            try {
+                const res = await fetch('/api/local/admin/commons/round', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken, action: 'close', roundId: activeRound.id })
+                });
+                const data = await res.json();
+                if (data.winner) alert('🎉 Funded: ' + data.winner.title + ' (' + data.winner.requestedAmount + 'Ʀ)');
+                else alert('Round closed. No project was funded (not enough in commons or no votes).');
+                await loadCommonsData();
+            } catch (e) { alert('Failed to close round: ' + e.message); }
+        }
+
+        async function rejectProject(projectId) {
+            if (!authToken) return;
+            if (!confirm('Reject this project?')) return;
+            try {
+                await fetch('/api/local/admin/commons/reject', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken, projectId })
+                });
+                await loadCommonsData();
+            } catch (e) { alert('Failed: ' + e.message); }
+        }
+
+        async function saveNodeConfig() {
+            if (!authToken) return;
+            const lat = parseFloat(document.getElementById('radius-lat').value);
+            const lng = parseFloat(document.getElementById('radius-lng').value);
+            const km = parseFloat(document.getElementById('radius-km').value);
+            const publish = document.getElementById('publish-directory').checked;
+            const update = { publishToDirectory: publish };
+            if (!isNaN(lat) && !isNaN(lng) && !isNaN(km) && km > 0) {
+                update.serviceRadius = { lat, lng, radiusKm: km };
+            }
+            try {
+                await fetch('/api/local/admin/node/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken, ...update })
+                });
+                alert('✅ Node config saved');
+            } catch (e) { alert('Failed: ' + e.message); }
+        }
+
+        async function loadNodeConfig() {
+            try {
+                const res = await fetch('/api/node/config');
+                if (!res.ok) return;
+                const config = await res.json();
+                if (config.serviceRadius) {
+                    document.getElementById('radius-lat').value = config.serviceRadius.lat || '';
+                    document.getElementById('radius-lng').value = config.serviceRadius.lng || '';
+                    document.getElementById('radius-km').value = config.serviceRadius.radiusKm || '';
+                }
+                document.getElementById('publish-directory').checked = config.publishToDirectory !== false;
+            } catch { /* ignore */ }
+        }
+
 
         async function loadAdminData() {
             if (!authToken) return;

@@ -53,7 +53,11 @@ import {
     adminSetUserStatus, adminDeletePost, adminPruneUser,
     adminPruneBranch, adminBroadcastAnnouncement, adminSendMessage,
     getAdminPubkey, recordActivity,
-    markConversationRead, getUnreadCounts
+    markConversationRead, getUnreadCounts,
+    createProject, voteForProject, createVotingRound, closeVotingRound,
+    getProjects, getAllProjects, getVotingRounds, getActiveRound, getCommonsBalance,
+    adminRejectProject,
+    getNodeConfig, updateNodeConfig, getDirectoryInfo,
 } from './state-engine.js';
 
 const PUBLIC_DIR = path.resolve('public');
@@ -888,6 +892,130 @@ export async function startHttpsServer(port: number): Promise<void> {
         const memberRatings = getRatings(publicKey);
         const average = getAverageRating(publicKey);
         ctx.body = { ratings: memberRatings, ...average };
+    });
+
+    // ===================== COMMUNITY COMMONS =====================
+
+    router.get('/api/commons/balance', async (ctx) => {
+        ctx.body = { balance: getCommonsBalance() };
+    });
+
+    router.get('/api/commons/projects', async (ctx) => {
+        ctx.body = { projects: getProjects(), activeRound: getActiveRound() };
+    });
+
+    router.post('/api/commons/projects', async (ctx) => {
+        const { proposerPubkey, title, description, requestedAmount } = (ctx as any).requestBody || {};
+        if (!proposerPubkey || !title || !requestedAmount) {
+            ctx.status = 400;
+            ctx.body = { error: 'proposerPubkey, title, and requestedAmount are required' };
+            return;
+        }
+        const project = createProject(proposerPubkey, title, description || '', Number(requestedAmount));
+        if (!project) {
+            ctx.status = 400;
+            ctx.body = { error: 'Failed — must be a registered member, title/amount required' };
+            return;
+        }
+        ctx.body = { success: true, project };
+    });
+
+    router.post('/api/commons/vote', async (ctx) => {
+        const { voterPubkey, projectId } = (ctx as any).requestBody || {};
+        if (!voterPubkey || !projectId) {
+            ctx.status = 400;
+            ctx.body = { error: 'voterPubkey and projectId are required' };
+            return;
+        }
+        const result = voteForProject(voterPubkey, projectId);
+        if (!result.success) {
+            ctx.status = 400;
+            ctx.body = { error: result.error };
+            return;
+        }
+        ctx.body = { success: true };
+    });
+
+    router.get('/api/commons/rounds', async (ctx) => {
+        ctx.body = { rounds: getVotingRounds(), activeRound: getActiveRound() };
+    });
+
+    // Admin: create/close voting rounds
+    router.post('/api/local/admin/commons/round', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        const { action, projectIds, closesAt, roundId } = (ctx as any).requestBody || {};
+        if (action === 'create') {
+            if (!projectIds?.length || !closesAt) {
+                ctx.status = 400;
+                ctx.body = { error: 'projectIds and closesAt required' };
+                return;
+            }
+            const round = createVotingRound(getAdminPubkey(), projectIds, closesAt);
+            if (!round) {
+                ctx.status = 400;
+                ctx.body = { error: 'Failed — another round may be open, or not admin' };
+                return;
+            }
+            ctx.body = { success: true, round };
+        } else if (action === 'close') {
+            if (!roundId) {
+                ctx.status = 400;
+                ctx.body = { error: 'roundId required' };
+                return;
+            }
+            const result = closeVotingRound(roundId);
+            if (!result.success) {
+                ctx.status = 400;
+                ctx.body = { error: result.error };
+                return;
+            }
+            ctx.body = { success: true, winner: result.winner || null };
+        } else {
+            ctx.status = 400;
+            ctx.body = { error: 'action must be "create" or "close"' };
+        }
+    });
+
+    // Admin: reject a project
+    router.post('/api/local/admin/commons/reject', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        const { projectId } = (ctx as any).requestBody || {};
+        if (!projectId) {
+            ctx.status = 400;
+            ctx.body = { error: 'projectId required' };
+            return;
+        }
+        adminRejectProject(projectId);
+        ctx.body = { success: true };
+    });
+
+    // Admin: get all projects (including rejected)
+    router.post('/api/local/admin/commons/projects', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        ctx.body = { projects: getAllProjects(), rounds: getVotingRounds(), balance: getCommonsBalance() };
+    });
+
+    // ===================== NODE CONFIG =====================
+
+    router.get('/api/node/config', async (ctx) => {
+        ctx.body = getNodeConfig();
+    });
+
+    router.post('/api/local/admin/node/config', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        const update = (ctx as any).requestBody || {};
+        ctx.body = updateNodeConfig(update);
+    });
+
+    // Public directory info endpoint (returns null/403 if opted out)
+    router.get('/api/directory/info', async (ctx) => {
+        const info = getDirectoryInfo();
+        if (!info) {
+            ctx.status = 403;
+            ctx.body = { error: 'This node has opted out of the directory' };
+            return;
+        }
+        ctx.body = info;
     });
 
     // ===================== ABUSE REPORTS =====================
