@@ -14,6 +14,7 @@ import type { BeanPoolIdentity } from '../lib/identity';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getMarketplacePosts, createMarketplacePost, getNodeInfo, getRemotePosts, getNodeConfig, type MarketplacePost } from '../lib/api';
+import { haversineDistance } from '../lib/geo';
 import { MARKETPLACE_CATEGORIES, POST_TYPE_COLORS } from '../lib/marketplace';
 import { loadEnabledPeers } from '../lib/peer-prefs';
 
@@ -61,6 +62,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
     const [postLng, setPostLng] = useState<number | null>(null);
     const [pinDropMode, setPinDropMode] = useState(false);
     const pinDropMarkerRef = useRef<L.Marker | null>(null);
+    const [nodeRadius, setNodeRadius] = useState<{lat: number, lng: number, radiusKm: number} | null>(null);
 
     // Auto-open post form when navigated from marketplace
     useEffect(() => {
@@ -120,6 +122,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
         // Draw service radius circle from node config
         getNodeConfig().then(config => {
             if (config.serviceRadius && config.serviceRadius.radiusKm > 0 && mapRef.current) {
+                setNodeRadius(config.serviceRadius);
                 const { lat, lng, radiusKm } = config.serviceRadius;
                 if (radiusCircleRef.current) {
                     mapRef.current.removeLayer(radiusCircleRef.current);
@@ -236,6 +239,15 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
         if (postLat == null || postLng == null) errors.add('location');
         setValidationErrors(errors);
         if (errors.size > 0) return;
+
+        if (nodeRadius && postLat != null && postLng != null) {
+            const dist = haversineDistance(postLat, postLng, nodeRadius.lat, nodeRadius.lng);
+            if (dist > nodeRadius.radiusKm) {
+                const proceed = window.confirm(`This listing is ${Math.round(dist)}km away, which is outside your community's ${nodeRadius.radiusKm}km service area. Are you sure you want to post it here?`);
+                if (!proceed) return;
+            }
+        }
+
         setPosting(true);
         try {
             await createMarketplacePost({
