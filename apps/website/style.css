@@ -86,11 +86,10 @@ a:hover { opacity: 0.85; }
 /* ======================== HERO ======================== */
 #hero {
     position: relative;
-    min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 6rem 1.5rem 3rem;
+    padding: 9rem 1.5rem 4rem;
     overflow: hidden;
 }
 .hero-bg {
