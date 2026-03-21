@@ -1008,7 +1008,15 @@ export async function startHttpsServer(port: number): Promise<void> {
     });
 
     // Public directory info endpoint (returns null/403 if opted out)
+    // CORS-enabled for beanpool.org website
+    router.options('/api/directory/info', async (ctx) => {
+        ctx.set('Access-Control-Allow-Origin', '*');
+        ctx.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        ctx.set('Access-Control-Allow-Headers', 'Content-Type');
+        ctx.status = 204;
+    });
     router.get('/api/directory/info', async (ctx) => {
+        ctx.set('Access-Control-Allow-Origin', '*');
         const info = getDirectoryInfo();
         if (!info) {
             ctx.status = 403;
