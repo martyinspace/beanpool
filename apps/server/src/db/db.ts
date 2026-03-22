@@ -212,9 +212,10 @@ export function migrateLegacyState() {
                 insertConversation.run(conv.id, conv.type, conv.name || null, conv.createdBy || null, conv.createdAt);
                 
                 if (conv.participants) {
-                    for (const pubkey of conv.participants) {
+                    const uniqueParticipants = Array.from(new Set(conv.participants));
+                    for (const pubkey of uniqueParticipants) {
                         const lastRead = state.readCursors?.[pubkey]?.[conv.id] || null;
-                        insertParticipant.run(conv.id, pubkey, lastRead);
+                        insertParticipant.run(conv.id, pubkey as string, lastRead);
                     }
                 }
             }
@@ -229,7 +230,13 @@ export function migrateLegacyState() {
         // 8. Friends
         if (state.friends) {
             for (const ownerPubkey of Object.keys(state.friends)) {
+                const uniqueFriends = new Map();
                 for (const friend of state.friends[ownerPubkey]) {
+                    if (!uniqueFriends.has(friend.publicKey)) {
+                        uniqueFriends.set(friend.publicKey, friend);
+                    }
+                }
+                for (const friend of uniqueFriends.values()) {
                     insertFriend.run(ownerPubkey, friend.publicKey, friend.addedAt, friend.isGuardian ? 1 : 0);
                 }
             }
