@@ -165,18 +165,28 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
         }
     }
 
-    // GPS locate
     function handleLocate() {
         if (!mapRef.current) return;
         setLocating(true);
-        mapRef.current.locate({ setView: true, maxZoom: 16 });
-        mapRef.current.once('locationfound', (e) => {
-            setUserMarker(mapRef.current!, e.latlng);
+        
+        const map = mapRef.current;
+        const onLocationFound = (e: L.LocationEvent) => {
+            setUserMarker(map, e.latlng);
             setLocating(false);
-        });
-        mapRef.current.once('locationerror', () => {
+            cleanupLocate();
+        };
+        const onLocationError = () => {
             setLocating(false);
-        });
+            cleanupLocate();
+        };
+        function cleanupLocate() {
+            map.off('locationfound', onLocationFound);
+            map.off('locationerror', onLocationError);
+        }
+
+        map.on('locationfound', onLocationFound);
+        map.on('locationerror', onLocationError);
+        map.locate({ setView: true, maxZoom: 16 });
     }
 
     // User location marker (pulsing purple dot)
@@ -284,18 +294,29 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
     // Use current GPS location for the post
     function useMyLocation() {
         if (!mapRef.current) return;
-        mapRef.current.locate({ setView: false, maxZoom: 16 });
-        mapRef.current.once('locationfound', (e) => {
+
+        const map = mapRef.current;
+        const onLocationFound = (e: L.LocationEvent) => {
             setPostLat(Math.round(e.latlng.lat * 10000) / 10000);
             setPostLng(Math.round(e.latlng.lng * 10000) / 10000);
             setPinDropMode(false);
             // Place preview pin
             placePreviewPin(e.latlng.lat, e.latlng.lng);
-        });
-        mapRef.current.once('locationerror', () => {
+            cleanupLocate();
+        };
+        const onLocationError = () => {
             // Fall back to pin drop
             setPinDropMode(true);
-        });
+            cleanupLocate();
+        };
+        function cleanupLocate() {
+            map.off('locationfound', onLocationFound);
+            map.off('locationerror', onLocationError);
+        }
+
+        map.on('locationfound', onLocationFound);
+        map.on('locationerror', onLocationError);
+        map.locate({ setView: false, maxZoom: 16 });
     }
 
     // Enter pin-drop mode — tap map to place location
