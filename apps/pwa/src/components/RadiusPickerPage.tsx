@@ -27,7 +27,7 @@ export function RadiusPickerPage({ initial, defaultRadius = 20, onApply, onCance
     const markerRef = useRef<L.CircleMarker | null>(null);
 
     const [center, setCenter] = useState<[number, number]>(
-        initial ? [initial.lat, initial.lng] : [-33.8688, 151.2093] // Default: Sydney
+        initial ? [initial.lat, initial.lng] : [-28.5495, 153.5005] // Default: Mullumbimby
     );
     const [radiusKm, setRadiusKm] = useState(initial?.radiusKm ?? defaultRadius);
     const [radiusIdx, setRadiusIdx] = useState(() => {

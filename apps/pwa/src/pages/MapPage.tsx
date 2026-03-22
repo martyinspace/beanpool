@@ -27,8 +27,8 @@ function simpleHash(str: string): number {
     return Math.abs(hash);
 }
 
-// Default to Sydney, Australia
-const DEFAULT_CENTER: [number, number] = [-33.8688, 151.2093];
+// Default to Mullumbimby, Australia
+const DEFAULT_CENTER: [number, number] = [-28.5495, 153.5005];
 const DEFAULT_ZOOM = 13;
 
 interface Props {
