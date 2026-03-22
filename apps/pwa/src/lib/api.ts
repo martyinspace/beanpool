@@ -2,8 +2,8 @@
  * API Client — Typed fetch wrappers for BeanPool Node APIs
  *
  * Base URL is same-origin (the PWA is served by the node).
+ */
 import { loadIdentity } from './identity';
-
 const BASE = '';  // Same-origin — PWA is served by the node
 
 // Helper to convert hex string to Uint8Array
@@ -24,7 +24,7 @@ async function signWithWebCrypto(privateKeyHex: string, payload: any): Promise<s
     const pkcs8 = hexToBytes(privateKeyHex);
     const privateKey = await crypto.subtle.importKey(
         'pkcs8',
-        pkcs8,
+        pkcs8 as unknown as BufferSource,
         { name: 'Ed25519' },
         false,
         ['sign']
