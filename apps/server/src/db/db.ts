@@ -59,29 +59,29 @@ export function migrateLegacyState() {
 
     // Prepare statements
     const insertMember = db.prepare(`
-        INSERT INTO members (
+        INSERT OR IGNORE INTO members (
             public_key, callsign, joined_at, invited_by, invite_code, home_node_url,
             avatar_url, bio, contact_value, contact_visibility, status, last_active_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertInviteCode = db.prepare(`
-        INSERT INTO invite_codes (code, created_by, created_at, used_by, used_at, intended_for)
+        INSERT OR IGNORE INTO invite_codes (code, created_by, created_at, used_by, used_at, intended_for)
         VALUES (?, ?, ?, ?, ?, ?)
     `);
 
     const insertAccount = db.prepare(`
-        INSERT INTO accounts (public_key, balance, last_demurrage_epoch)
+        INSERT OR IGNORE INTO accounts (public_key, balance, last_demurrage_epoch)
         VALUES (?, ?, ?)
     `);
 
     const insertTransaction = db.prepare(`
-        INSERT INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp)
+        INSERT OR IGNORE INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp)
         VALUES (?, ?, ?, ?, ?, ?)
     `);
 
     const insertPost = db.prepare(`
-        INSERT INTO posts (
+        INSERT OR IGNORE INTO posts (
             id, type, category, title, description, credits, author_pubkey, created_at,
             active, status, repeatable, accepted_by, accepted_at, pending_transaction_id,
             completed_at, lat, lng, origin_node
@@ -89,48 +89,48 @@ export function migrateLegacyState() {
     `);
 
     const insertPostPhoto = db.prepare(`
-        INSERT INTO post_photos (post_id, photo_data, order_num)
+        INSERT OR IGNORE INTO post_photos (post_id, photo_data, order_num)
         VALUES (?, ?, ?)
     `);
 
     const insertMarketplaceTx = db.prepare(`
-        INSERT INTO marketplace_transactions (
+        INSERT OR IGNORE INTO marketplace_transactions (
             id, post_id, buyer_pubkey, seller_pubkey, credits, status, created_at, completed_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertConversation = db.prepare(`
-        INSERT INTO conversations (id, type, name, created_by, created_at)
+        INSERT OR IGNORE INTO conversations (id, type, name, created_by, created_at)
         VALUES (?, ?, ?, ?, ?)
     `);
 
     const insertParticipant = db.prepare(`
-        INSERT INTO conversation_participants (conversation_id, public_key, last_read_at)
+        INSERT OR IGNORE INTO conversation_participants (conversation_id, public_key, last_read_at)
         VALUES (?, ?, ?)
     `);
 
     const insertMessage = db.prepare(`
-        INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, timestamp)
+        INSERT OR IGNORE INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, timestamp)
         VALUES (?, ?, ?, ?, ?, ?)
     `);
 
     const insertFriend = db.prepare(`
-        INSERT INTO friends (owner_pubkey, friend_pubkey, added_at, is_guardian)
+        INSERT OR IGNORE INTO friends (owner_pubkey, friend_pubkey, added_at, is_guardian)
         VALUES (?, ?, ?, ?)
     `);
 
     const insertRating = db.prepare(`
-        INSERT INTO ratings (id, target_pubkey, rater_pubkey, role, stars, comment, transaction_id, created_at)
+        INSERT OR IGNORE INTO ratings (id, target_pubkey, rater_pubkey, role, stars, comment, transaction_id, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const insertReport = db.prepare(`
-        INSERT INTO abuse_reports (id, reporter_pubkey, target_pubkey, target_post_id, reason, created_at)
+        INSERT OR IGNORE INTO abuse_reports (id, reporter_pubkey, target_pubkey, target_post_id, reason, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
     `);
 
     const insertConfig = db.prepare(`
-        INSERT INTO node_config (key, value)
+        INSERT OR IGNORE INTO node_config (key, value)
         VALUES (?, ?)
     `);
 
@@ -214,8 +214,9 @@ export function migrateLegacyState() {
                 if (conv.participants) {
                     const uniqueParticipants = Array.from(new Set(conv.participants));
                     for (const pubkey of uniqueParticipants) {
-                        const lastRead = state.readCursors?.[pubkey]?.[conv.id] || null;
-                        insertParticipant.run(conv.id, pubkey as string, lastRead);
+                        const pk = pubkey as string;
+                        const lastRead = state.readCursors?.[pk]?.[conv.id] || null;
+                        insertParticipant.run(conv.id, pk, lastRead);
                     }
                 }
             }
