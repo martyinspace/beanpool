@@ -26,10 +26,12 @@ import { type BeanPoolIdentity } from '../lib/identity';
 interface Props {
     identity: BeanPoolIdentity | null;
     marketClickCount?: number;
+    openPostId?: string | null;
+    onPostOpened?: () => void;
     onNavigate?: (tab: string, conversationId?: string) => void;
 }
 
-export function MarketplacePage({ identity, marketClickCount = 0, onNavigate }: Props) {
+export function MarketplacePage({ identity, marketClickCount = 0, openPostId, onPostOpened, onNavigate }: Props) {
     const [posts, setPosts] = useState<MarketplacePost[]>([]);
     const [typeFilter, setTypeFilter] = useState<PostType | 'all'>('all');
     const [categoryFilter, setCategoryFilter] = useState<string | 'all'>('all');
@@ -66,6 +68,18 @@ export function MarketplacePage({ identity, marketClickCount = 0, onNavigate }: 
             setSelectedPost(null);
         }
     }, [marketClickCount]);
+
+    // Handle deep-link from Map pins
+    useEffect(() => {
+        if (openPostId && posts.length > 0) {
+            const found = posts.find(p => p.id === openPostId);
+            if (found) {
+                setSelectedPost(found);
+                onPostOpened?.();
+            }
+        }
+    }, [openPostId, posts, onPostOpened]);
+
     const [authorProfile, setAuthorProfile] = useState<MemberProfile | null>(null);
     const [loadingProfile, setLoadingProfile] = useState(false);
     const [messaging, setMessaging] = useState(false);
@@ -94,6 +108,12 @@ export function MarketplacePage({ identity, marketClickCount = 0, onNavigate }: 
     const [editCredits, setEditCredits] = useState(0);
     const [editPhotos, setEditPhotos] = useState<string[]>([]);
     const [saving, setSaving] = useState(false);
+
+    // Accept & Complete Inline Forms
+    const [showAcceptConfirm, setShowAcceptConfirm] = useState(false);
+    const [acceptHours, setAcceptHours] = useState('1');
+    const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
+    const [completeHours, setCompleteHours] = useState('');
 
     // Author ratings cache for tiles
     const [authorRatingsCache, setAuthorRatingsCache] = useState<Record<string, { average: number; count: number }>>({}); 
@@ -284,7 +304,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, onNavigate }: 
                                 {selectedPost.type === 'offer' ? 'Asking Price' : 'Willing to Pay'}
                             </span>
                             <div className="text-3xl font-bold text-nature-900 dark:text-white font-mono tracking-tight">
-                                {selectedPost.credits}<span className="text-xl text-nature-400 ml-1 font-sans font-medium">B</span>
+                                {selectedPost.credits}<span className="text-xl text-nature-400 ml-1 font-sans font-medium">{selectedPost.priceType === 'hourly' ? 'B/hr' : 'B'}</span>
                             </div>
                         </div>
                     </div>
@@ -358,65 +378,114 @@ export function MarketplacePage({ identity, marketClickCount = 0, onNavigate }: 
                         <button
                             onClick={handleMessageAuthor}
                             disabled={messaging}
-                            style={{
-                                width: '100%', padding: '0.85rem', borderRadius: '12px',
-                                background: '#2563eb', color: 'var(--text-primary)', border: 'none',
-                                fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer',
-                                fontFamily: 'inherit', opacity: messaging ? 0.6 : 1,
-                            }}
+                            className={`w-full py-3.5 rounded-xl font-bold text-white text-[15px] transition-all shadow-md ${
+                                messaging ? 'bg-nature-500 cursor-not-allowed opacity-60' : 'bg-nature-800 hover:bg-nature-900'
+                            }`}
                         >
                             {messaging ? 'Opening chat...' : '💬 Message'}
                         </button>
-                        <button
-                            onClick={async () => {
-                                if (!identity || !selectedPost) return;
-                                const isOffer = selectedPost.type === 'offer';
-                                const action = isOffer ? 'accept this offer' : 'fulfill this need';
-                                const direction = isOffer
-                                    ? `You will pay ${selectedPost.authorCallsign} ${selectedPost.credits} B when completed`
-                                    : `${selectedPost.authorCallsign} will pay you ${selectedPost.credits} B when completed`;
-                                const msg = selectedPost.credits === 0
-                                    ? `${action.charAt(0).toUpperCase() + action.slice(1)}?\n\nThis is a free listing (0 B). No credits will be transferred.`
-                                    : `${action.charAt(0).toUpperCase() + action.slice(1)}?\n\n${direction}\n\nCredits are held until the poster confirms completion.`;
-                                if (!confirm(msg)) return;
+                        {showAcceptConfirm ? (
+                            <div className="bg-oat-50 dark:bg-nature-950 border border-nature-200 dark:border-nature-800 rounded-xl p-4 shadow-inner mt-2">
+                                <p className="font-bold text-nature-900 dark:text-white mb-2 text-center text-sm">
+                                    {selectedPost.type === 'offer' ? 'Accept this Offer?' : 'Fulfill this Need?'}
+                                </p>
+                                
+                                {selectedPost.priceType === 'hourly' && (
+                                    <div className="mb-3">
+                                        <label className="block text-xs font-bold text-nature-600 dark:text-nature-400 mb-1 uppercase tracking-wider">
+                                            Estimated Hours
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={acceptHours}
+                                            onChange={(e) => setAcceptHours(e.target.value)}
+                                            min="1"
+                                            className="w-full bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-lg px-3 py-2 text-nature-900 dark:text-white font-mono text-center focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                                        />
+                                        <p className="text-[10px] text-nature-500 mt-1 text-center">
+                                            Credits will be reserved based on this estimate.
+                                        </p>
+                                    </div>
+                                )}
+                                
+                                <div className="text-center mb-4 text-xs font-medium text-nature-700 dark:text-nature-300 bg-white dark:bg-nature-900 py-2 rounded-lg border border-nature-100 dark:border-nature-800">
+                                    {(() => {
+                                        const hrs = Number(acceptHours) || 0;
+                                        const tot = selectedPost.priceType === 'hourly' ? selectedPost.credits * hrs : selectedPost.credits;
+                                        const actionText = selectedPost.type === 'offer' ? 'You will pay' : 'You will receive';
+                                        return tot === 0 
+                                            ? 'This is a free listing (0 B). No credits transferred.'
+                                            : `${actionText} ${tot} B ${selectedPost.priceType === 'hourly' ? `(${hrs} hr)` : ''} when completed.`;
+                                    })()}
+                                </div>
+                                
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setShowAcceptConfirm(false)}
+                                        disabled={accepting}
+                                        className="flex-1 py-2.5 rounded-lg border border-nature-200 dark:border-nature-700 text-nature-600 dark:text-nature-300 font-bold hover:bg-nature-100 dark:hover:bg-nature-800 transition-colors text-sm"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={async () => {
+                                            if (!identity || !selectedPost) return;
+                                            setAccepting(true);
+                                            try {
+                                                const isHourly = selectedPost.priceType === 'hourly';
+                                                const estimatedHours = isHourly ? Number(acceptHours) : undefined;
+                                                const totalCredits = isHourly ? selectedPost.credits * (estimatedHours || 0) : selectedPost.credits;
 
-                                setAccepting(true);
-                                try {
-                                    const remoteNode = (selectedPost as any)._remoteNode;
-                                    if (remoteNode) {
-                                        // Remote posts — use old direct transfer for now
-                                        if (selectedPost.credits > 0) {
-                                            const from = isOffer ? identity.publicKey : selectedPost.authorPublicKey;
-                                            const to = isOffer ? selectedPost.authorPublicKey : identity.publicKey;
-                                            const memo = `${isOffer ? 'Accepted' : 'Fulfilled'}: ${selectedPost.title}`;
-                                            await sendRemoteTransfer(remoteNode, from, to, selectedPost.credits, memo);
-                                        }
-                                        handleMessageAuthor();
-                                    } else {
-                                        // Local posts — use new lifecycle API
-                                        await acceptMarketplacePost(selectedPost.id, identity.publicKey);
-                                        handleMessageAuthor();
-                                        refresh(); // Refresh to show updated status
-                                    }
-                                } catch (err) {
-                                    alert(`Failed: ${(err as Error).message}`);
-                                } finally {
-                                    setAccepting(false);
-                                }
-                            }}
-                            disabled={accepting || selectedPost.status === 'pending'}
-                            className={`w-full py-3.5 rounded-xl font-bold text-white text-[15px] transition-all shadow-md ${
-                                accepting || selectedPost.status === 'pending'
-                                    ? 'bg-nature-400 cursor-not-allowed opacity-60'
-                                    : selectedPost.type === 'offer' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-600 hover:bg-orange-700'
-                            }`}
-                        >
-                             {accepting ? 'Processing...' : (
-                                 selectedPost.status === 'pending'
-                                     ? '⏳ Pending Confirmation'
-                                     : (selectedPost.type === 'offer' ? '🤝 Accept Offer' : '🤝 Fulfill Need')
-                             )}
-                        </button>
+                                                const remoteNode = (selectedPost as any)._remoteNode;
+                                                if (remoteNode) {
+                                                    const isOffer = selectedPost.type === 'offer';
+                                                    if (totalCredits > 0) {
+                                                        const from = isOffer ? identity.publicKey : selectedPost.authorPublicKey;
+                                                        const to = isOffer ? selectedPost.authorPublicKey : identity.publicKey;
+                                                        const memo = `${isOffer ? 'Accepted' : 'Fulfilled'}: ${selectedPost.title}`;
+                                                        await sendRemoteTransfer(remoteNode, from, to, totalCredits, memo);
+                                                    }
+                                                    handleMessageAuthor();
+                                                } else {
+                                                    await acceptMarketplacePost(selectedPost.id, identity.publicKey, estimatedHours);
+                                                    handleMessageAuthor();
+                                                    refresh();
+                                                }
+                                                setShowAcceptConfirm(false);
+                                            } catch (err) {
+                                                alert(`Failed: ${(err as Error).message}`);
+                                            } finally {
+                                                setAccepting(false);
+                                            }
+                                        }}
+                                        disabled={accepting || (selectedPost.priceType === 'hourly' && (!acceptHours || Number(acceptHours) <= 0))}
+                                        className={`flex-1 py-2.5 rounded-lg font-bold text-white text-sm transition-all shadow-sm ${
+                                            accepting 
+                                                ? 'bg-emerald-400 cursor-not-allowed opacity-60' 
+                                                : 'bg-emerald-600 hover:bg-emerald-700'
+                                        }`}
+                                    >
+                                        {accepting ? 'Processing...' : 'Confirm'}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => setShowAcceptConfirm(true)}
+                                disabled={accepting || selectedPost.status === 'pending'}
+                                className={`w-full py-3.5 rounded-xl font-bold text-white text-[15px] transition-all shadow-md ${
+                                    accepting || selectedPost.status === 'pending'
+                                        ? 'bg-nature-400 cursor-not-allowed opacity-60'
+                                        : selectedPost.type === 'offer' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-terra-600 hover:bg-terra-700'
+                                }`}
+                            >
+                                 {accepting ? 'Processing...' : (
+                                     selectedPost.status === 'pending'
+                                         ? '⏳ Pending Confirmation'
+                                         : (selectedPost.type === 'offer' ? '🤝 Accept Offer' : '🤝 Fulfill Need')
+                                 )}
+                            </button>
+                        )}
                         {/* Transaction-gated rating — only show on completed posts where user was a participant */}
                         {identity && selectedPost.status === 'completed' && selectedPost.pendingTransactionId && (
                             identity.publicKey === selectedPost.authorPublicKey || 
@@ -559,28 +628,92 @@ export function MarketplacePage({ identity, marketClickCount = 0, onNavigate }: 
                                     <p className="text-amber-500 text-sm font-semibold text-center mb-2">
                                         ⏳ Pending Completion by {selectedPost.acceptedByCallsign || 'Buyer'}
                                     </p>
-                                    <button
-                                        onClick={async () => {
-                                            if (!identity || !selectedPost.pendingTransactionId) return;
-                                            if (!confirm(`Release ${selectedPost.credits} credits and complete this transaction?`)) return;
-                                            setAccepting(true);
-                                            try {
-                                                await completeMarketplaceTransaction(selectedPost.pendingTransactionId, identity.publicKey);
-                                                setSelectedPost(null);
-                                                refresh();
-                                            } catch (e: any) {
-                                                setError(e.message || 'Failed to complete transaction');
-                                            } finally {
-                                                setAccepting(false);
-                                            }
-                                        }}
-                                        disabled={accepting}
-                                        className={`w-full py-3.5 rounded-xl font-bold text-white text-[15px] transition-all shadow-md ${
-                                            accepting ? 'bg-emerald-400 cursor-not-allowed opacity-60' : 'bg-emerald-500 hover:bg-emerald-600'
-                                        }`}
-                                    >
-                                        {accepting ? 'Processing...' : '✅ Release Credits'}
-                                    </button>
+                                    {showCompleteConfirm ? (
+                                        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4 shadow-inner mt-2">
+                                            <p className="font-bold text-emerald-900 dark:text-emerald-400 mb-2 text-center text-sm">
+                                                Finalize Transaction
+                                            </p>
+                                            
+                                            {selectedPost.priceType === 'hourly' && (
+                                                <div className="mb-3">
+                                                    <label className="block text-xs font-bold text-emerald-700 dark:text-emerald-500 mb-1 uppercase tracking-wider">
+                                                        Actual Hours Worked
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        value={completeHours}
+                                                        onChange={(e) => setCompleteHours(e.target.value)}
+                                                        min="0.5"
+                                                        step="0.5"
+                                                        placeholder="e.g. 2.5"
+                                                        className="w-full bg-white dark:bg-nature-900 border border-emerald-200 dark:border-emerald-800 rounded-lg px-3 py-2 text-nature-900 dark:text-white font-mono text-center focus:ring-2 focus:ring-emerald-400 focus:outline-none"
+                                                    />
+                                                </div>
+                                            )}
+                                            
+                                            <div className="text-center mb-4 text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-white dark:bg-nature-900 py-2.5 rounded-lg border border-emerald-100 dark:border-emerald-900 shadow-sm">
+                                                {(() => {
+                                                    const hrs = Number(completeHours) || 0;
+                                                    const tot = selectedPost.priceType === 'hourly' ? selectedPost.credits * hrs : selectedPost.credits;
+                                                    return `Transferring ${tot} B to ${selectedPost.type === 'offer' ? 'you' : selectedPost.acceptedByCallsign}`;
+                                                })()}
+                                            </div>
+                                            
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setShowCompleteConfirm(false)}
+                                                    disabled={accepting}
+                                                    className="flex-1 py-2.5 rounded-lg border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors text-sm"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!identity || !selectedPost.pendingTransactionId) return;
+                                                        setAccepting(true);
+                                                        try {
+                                                            const isHourly = selectedPost.priceType === 'hourly';
+                                                            const finalHours = isHourly ? Number(completeHours) : undefined;
+                                                            await completeMarketplaceTransaction(selectedPost.pendingTransactionId, identity.publicKey, finalHours);
+                                                            setSelectedPost(null);
+                                                            setShowCompleteConfirm(false);
+                                                            refresh();
+                                                        } catch (e: any) {
+                                                            setError(e.message || 'Failed to complete transaction');
+                                                        } finally {
+                                                            setAccepting(false);
+                                                        }
+                                                    }}
+                                                    disabled={accepting || (selectedPost.priceType === 'hourly' && (!completeHours || Number(completeHours) <= 0))}
+                                                    className={`flex-1 py-2.5 rounded-lg font-bold text-white text-sm transition-all shadow-sm ${
+                                                        accepting 
+                                                            ? 'bg-emerald-400 cursor-not-allowed opacity-60' 
+                                                            : 'bg-emerald-600 hover:bg-emerald-700'
+                                                    }`}
+                                                >
+                                                    {accepting ? 'Processing...' : 'Release Credits'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => {
+                                                setShowCompleteConfirm(true);
+                                                // Initialize completeHours based on original credits if hourly but not set yet
+                                                if (selectedPost.priceType === 'hourly' && !completeHours) {
+                                                    // This represents a guess; the original hours isn't attached to the post directly for the author, 
+                                                    // but we can default to 1 for simplicity and force them to enter the actual amount.
+                                                    setCompleteHours('1');
+                                                }
+                                            }}
+                                            disabled={accepting}
+                                            className={`w-full py-3.5 rounded-xl font-bold text-white text-[15px] transition-all shadow-md ${
+                                                accepting ? 'bg-emerald-400 cursor-not-allowed opacity-60' : 'bg-emerald-500 hover:bg-emerald-600'
+                                            }`}
+                                        >
+                                            {accepting ? 'Processing...' : '✅ Release Credits'}
+                                        </button>
+                                    )}
                                     <button
                                         onClick={async () => {
                                             if (!identity || !selectedPost.pendingTransactionId) return;
@@ -867,17 +1000,31 @@ export function MarketplacePage({ identity, marketClickCount = 0, onNavigate }: 
                 {/* Collapsible Filters Panel */}
                 {showFilters && (
                     <div className="mt-4 bg-oat-50/50 dark:bg-nature-900/40 rounded-[24px] border border-nature-200 dark:border-nature-800 p-4 shadow-inner animate-in slide-in-from-top-2 duration-200">
-                        {/* Radius + Category */}
                         <div className="flex gap-2 items-center mb-4">
-                            <button
-                                onClick={() => setShowRadiusPicker(true)}
-                                title={radiusSettings ? `${radiusSettings.radiusKm}km radius` : 'Set radius'}
-                                className={`flex-1 py-2.5 px-4 rounded-xl border flex items-center gap-2 text-sm font-bold shadow-sm transition-colors ${
-                                    radiusSettings ? 'bg-amber-100 dark:bg-amber-900/60 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400' : 'bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400'
-                                }`}
-                            >
-                                <span>📍</span> {radiusSettings ? `${radiusSettings.radiusKm}km Radius` : 'Location Radius'}
-                            </button>
+                            <div className={`flex-1 flex rounded-xl border shadow-sm transition-colors ${
+                                radiusSettings ? 'bg-amber-100 dark:bg-amber-900/60 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400' : 'bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400'
+                            }`}>
+                                <button
+                                    onClick={() => setShowRadiusPicker(true)}
+                                    title={radiusSettings ? `${radiusSettings.radiusKm}km radius` : 'Set radius'}
+                                    className={`flex-1 py-2.5 px-3 flex items-center justify-center gap-2 text-sm font-bold rounded-l-xl ${!radiusSettings ? 'rounded-r-xl px-4' : ''}`}
+                                >
+                                    <span>📍</span> {radiusSettings ? `${radiusSettings.radiusKm}km Radius` : 'Location Radius'}
+                                </button>
+                                {radiusSettings && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setRadiusSettings(null);
+                                            clearRadiusSettings();
+                                        }}
+                                        className="px-3 flex items-center justify-center border-l bg-amber-100 dark:bg-transparent border-amber-300 dark:border-amber-700 hover:bg-amber-200 dark:hover:bg-amber-800 rounded-r-xl transition-colors font-bold text-amber-700 dark:text-amber-400"
+                                        title="Clear Radius"
+                                    >
+                                        ✕
+                                    </button>
+                                )}
+                            </div>
                             <select
                                 value={categoryFilter}
                                 onChange={(e) => setCategoryFilter(e.target.value)}
@@ -918,20 +1065,20 @@ export function MarketplacePage({ identity, marketClickCount = 0, onNavigate }: 
                         {/* Type filter chips */}
                         <div className="flex w-full gap-2 items-center pb-1">
                             {(['all', 'offer', 'need'] as const).map((t) => {
-                                const isSelected = !showMine && typeFilter === t;
+                                const isSelected = typeFilter === t;
                                 let activeStyles = 'bg-nature-800 border-nature-900 text-white';
-                                if (t === 'offer') activeStyles = 'bg-blue-600 border-blue-700 text-white';
-                                if (t === 'need') activeStyles = 'bg-orange-600 border-orange-700 text-white';
+                                if (t === 'offer') activeStyles = 'bg-emerald-600 border-emerald-700 text-white';
+                                if (t === 'need') activeStyles = 'bg-terra-600 border-terra-700 text-white';
 
                                 return (
                                     <button
                                         key={t}
-                                        onClick={() => { setTypeFilter(t); setShowMine(false); }}
+                                        onClick={() => setTypeFilter(t)}
                                         className={`${t === 'all' ? 'px-3' : 'flex-1'} py-2 rounded-xl border text-[11px] sm:text-xs font-bold text-center truncate shadow-sm transition-colors ${
                                             isSelected ? activeStyles : 'bg-white dark:bg-nature-950 border-nature-200 dark:border-nature-800 text-nature-500 dark:text-nature-400'
                                         }`}
                                     >
-                                        {t === 'all' ? 'All' : t === 'offer' ? '🔵 Offers' : '🟠 Needs'}
+                                        {t === 'all' ? 'All' : t === 'offer' ? '🟢 Offers' : '🟠 Needs'}
                                     </button>
                                 );
                             })}
