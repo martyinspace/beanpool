@@ -14,6 +14,9 @@ COPY packages/beanpool-core/package.json ./packages/beanpool-core/
 COPY apps/pwa/package.json ./apps/pwa/
 COPY apps/server/package.json ./apps/server/
 
+# Copy patches needed by pnpm install
+COPY patches ./patches
+
 # Install all dependencies (including devDependencies for building)
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
