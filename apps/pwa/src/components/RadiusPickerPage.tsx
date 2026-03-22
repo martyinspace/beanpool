@@ -12,6 +12,7 @@ import { type RadiusSettings } from '../lib/geo';
 
 interface Props {
     initial?: RadiusSettings | null;
+    defaultRadius?: number;
     onApply: (settings: RadiusSettings) => void;
     onCancel: () => void;
     onReset: () => void;
@@ -19,7 +20,7 @@ interface Props {
 
 const RADIUS_STEPS = [1, 2, 5, 10, 15, 20, 30, 50, 75, 100];
 
-export function RadiusPickerPage({ initial, onApply, onCancel, onReset }: Props) {
+export function RadiusPickerPage({ initial, defaultRadius = 20, onApply, onCancel, onReset }: Props) {
     const mapContainer = useRef<HTMLDivElement>(null);
     const mapRef = useRef<L.Map | null>(null);
     const circleRef = useRef<L.Circle | null>(null);
@@ -28,9 +29,9 @@ export function RadiusPickerPage({ initial, onApply, onCancel, onReset }: Props)
     const [center, setCenter] = useState<[number, number]>(
         initial ? [initial.lat, initial.lng] : [-33.8688, 151.2093] // Default: Sydney
     );
-    const [radiusKm, setRadiusKm] = useState(initial?.radiusKm ?? 20);
+    const [radiusKm, setRadiusKm] = useState(initial?.radiusKm ?? defaultRadius);
     const [radiusIdx, setRadiusIdx] = useState(() => {
-        const km = initial?.radiusKm ?? 20;
+        const km = initial?.radiusKm ?? defaultRadius;
         const idx = RADIUS_STEPS.findIndex(s => s >= km);
         return idx >= 0 ? idx : RADIUS_STEPS.length - 1;
     });

@@ -13,7 +13,6 @@ import { connectToAnchor, onSystemAnnouncement } from './lib/sync';
 import { getConversations } from './lib/api';
 import { useTheme } from './lib/useTheme';
 import { SyncStatus } from './components/SyncStatus';
-import { PrivacyBadge } from './components/PrivacyBadge';
 import { WelcomePage } from './pages/WelcomePage';
 import { MarketplacePage } from './pages/MarketplacePage';
 import { LedgerPage } from './pages/LedgerPage';
@@ -22,6 +21,69 @@ import { MapPage } from './pages/MapPage';
 import { PeoplePage } from './pages/PeoplePage';
 import { MessagesPage } from './pages/MessagesPage';
 import { InstallPrompt } from './components/InstallPrompt';
+
+function HeaderControls({ showSettings, setShowSettings }: { showSettings: boolean, setShowSettings: (v: boolean) => void }) {
+    const [locationEnabled, setLocationEnabled] = useState(() => {
+        // Tie to legacy tier 3 (Live) vs tier 0 (Ghost) logic
+        const saved = localStorage.getItem('beanpool-privacy-tier');
+        return saved === '3';
+    });
+
+    const toggleLocation = () => {
+        const nextState = !locationEnabled;
+        setLocationEnabled(nextState);
+        localStorage.setItem('beanpool-privacy-tier', nextState ? '3' : '0');
+        if ('vibrate' in navigator) navigator.vibrate(50);
+    };
+
+    return (
+        <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            padding: '0.3rem 0.6rem',
+            borderRadius: '9999px',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-secondary)',
+            height: '26px', // Geometric balance with SyncStatus
+        }}>
+            <button
+                onClick={toggleLocation}
+                title={locationEnabled ? "Location: On (Live)" : "Location: Off (Ghost)"}
+                className="text-nature-600 dark:text-nature-400 hover:text-nature-900 dark:hover:text-nature-200 transition-colors flex items-center justify-center p-0"
+            >
+                {locationEnabled ? (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                    </svg>
+                ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3l18 18" />
+                    </svg>
+                )}
+            </button>
+
+            <div className="w-[1px] h-[12px] bg-nature-200 dark:bg-nature-700 mx-[1px]" />
+
+            <button
+                onClick={() => setShowSettings(!showSettings)}
+                title="Settings"
+                className={`flex items-center justify-center transition-colors p-0 ${
+                    showSettings 
+                        ? 'text-accent dark:text-accent' 
+                        : 'text-nature-600 dark:text-nature-400 hover:text-nature-900 dark:hover:text-nature-200'
+                }`}
+            >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+                </svg>
+            </button>
+        </div>
+    );
+}
 
 type Tab = 'map' | 'marketplace' | 'messages' | 'people' | 'ledger';
 
@@ -35,6 +97,7 @@ export function App() {
     const [theme, toggleTheme] = useTheme();
     const [sysAnnouncement, setSysAnnouncement] = useState<{ title: string, body: string, severity: string } | null>(null);
     const [totalUnread, setTotalUnread] = useState(0);
+    const [marketClickCount, setMarketClickCount] = useState(0);
 
     function navigateToTab(tab: string, conversationId?: string) {
         if (tab === 'map-post') {
@@ -55,7 +118,7 @@ export function App() {
 
     // Connect to BeanPool Node once identity is loaded
     useEffect(() => {
-        let unsub = () => {};
+        let unsub = () => { };
         if (identity) {
             connectToAnchor();
             unsub = onSystemAnnouncement((a) => {
@@ -63,7 +126,7 @@ export function App() {
             });
             // Ensure existing users are registered with the node
             import('./lib/api').then(({ registerMember }) =>
-                registerMember(identity.publicKey, identity.callsign).catch(() => {})
+                registerMember(identity.publicKey, identity.callsign).catch(() => { })
             );
         }
         return unsub;
@@ -120,39 +183,46 @@ export function App() {
             background: 'var(--bg-primary)',
             color: 'var(--text-primary)',
         }}>
-            {/* Header — overlay on map, normal on other tabs and settings */}
-            <header style={{
+            {/* Header with Premium Dynamic AI Banner */}
+            <header className="relative shadow-md" style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                padding: '0.75rem 1rem',
-                borderBottom: (activeTab === 'map' && !showSettings) ? 'none' : '1px solid var(--border-secondary)',
-                background: (activeTab === 'map' && !showSettings) ? 'var(--header-overlay)' : 'var(--header-bg)',
+                padding: '0.3rem 0.75rem',
+                borderBottom: (activeTab === 'map' && !showSettings) ? 'none' : '1px solid rgba(255,255,255,0.1)',
                 position: (activeTab === 'map' && !showSettings) ? 'absolute' : 'sticky',
                 top: 0,
                 left: 0,
                 right: 0,
                 zIndex: 100,
-                backdropFilter: (activeTab === 'map' && !showSettings) ? 'blur(8px)' : 'none',
-                WebkitBackdropFilter: (activeTab === 'map' && !showSettings) ? 'blur(8px)' : 'none',
+                backgroundImage: "url('/assets/header-bg.png')",
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
             }}>
-                <SyncStatus />
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <PrivacyBadge />
-                    <button
-                        onClick={() => setShowSettings(true)}
-                        style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--text-muted)',
-                            fontSize: '1.2rem',
-                            cursor: 'pointer',
-                            padding: '0.25rem',
-                        }}
-                        title="Settings"
-                    >
-                        ⚙️
-                    </button>
+                {/* Subtle dark overlay to ensure text/buttons pop against the complex glowing mesh */}
+                <div className="absolute inset-0 bg-black/10 dark:bg-black/50 pointer-events-none" />
+
+                <div className="relative z-10">
+                    <SyncStatus />
+                </div>
+
+                {/* Dynamic Page Title or Map Banner (Absolutely Centered) */}
+                <div className="absolute left-1/2 -translate-x-1/2 flex justify-center items-center pointer-events-none z-10">
+                    {activeTab !== 'map' || showSettings ? (
+                        <span className="font-extrabold text-[1.2rem] tracking-tight text-nature-900 dark:text-white drop-shadow-md dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] pointer-events-auto">
+                            {TABS.find(t => t.id === activeTab)?.label === 'Market' ? 'Marketplace' : TABS.find(t => t.id === activeTab)?.label}
+                        </span>
+                    ) : (
+                        <div className="bg-white/60 dark:bg-nature-900/80 backdrop-blur-md px-5 py-1.5 rounded-full border border-white/50 dark:border-nature-700 shadow-sm pointer-events-auto flex items-center">
+                            <span className="font-bold text-sm tracking-widest text-nature-900 dark:text-white lowercase drop-shadow-sm">
+                                beanpool<span className="text-terra-600 dark:text-terra-400">.org</span>
+                            </span>
+                        </div>
+                    )}
+                </div>
+
+                <div className="relative z-10" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <HeaderControls showSettings={showSettings} setShowSettings={setShowSettings} />
                 </div>
             </header>
 
@@ -175,7 +245,7 @@ export function App() {
                 ) : (
                     <>
                         {activeTab === 'map' && <MapPage identity={identity} openNewPost={openNewPost} onOpenNewPostHandled={() => setOpenNewPost(false)} onNavigate={(tab) => navigateToTab(tab)} />}
-                        {activeTab === 'marketplace' && <MarketplacePage identity={identity} onNavigate={(tab, convId) => navigateToTab(tab, convId)} />}
+                        {activeTab === 'marketplace' && <MarketplacePage identity={identity} marketClickCount={marketClickCount} onNavigate={(tab, convId) => navigateToTab(tab, convId)} />}
                         {activeTab === 'messages' && <MessagesPage identity={identity} openConversationId={openConversationId} onConversationOpened={() => setOpenConversationId(null)} />}
                         {activeTab === 'people' && <PeoplePage identity={identity} />}
                         {activeTab === 'ledger' && <LedgerPage identity={identity} />}
@@ -194,18 +264,26 @@ export function App() {
                 borderTop: '1px solid var(--border-secondary)',
                 zIndex: 100,
             }}>
-                {TABS.map((tab) => (
+                {TABS.map((tab) => {
+                    const isActive = activeTab === tab.id && !showSettings;
+                    return (
                     <button
                         key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
+                        onClick={() => {
+                            if (tab.id === 'marketplace') {
+                                setMarketClickCount(c => c + 1);
+                            }
+                            setActiveTab(tab.id);
+                            setShowSettings(false);
+                        }}
                         style={{
                             flex: 1,
-                            padding: '0.75rem',
+                            padding: '0.4rem',
                             background: 'transparent',
                             border: 'none',
-                            color: activeTab === tab.id ? '#2563eb' : '#666',
-                            fontSize: '0.75rem',
-                            fontWeight: activeTab === tab.id ? 700 : 400,
+                            color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+                            fontSize: '0.7rem',
+                            fontWeight: isActive ? 700 : 400,
                             cursor: 'pointer',
                             fontFamily: 'inherit',
                             display: 'flex',
@@ -213,7 +291,7 @@ export function App() {
                             alignItems: 'center',
                             gap: '0.2rem',
                             transition: 'color 0.2s',
-                            borderTop: activeTab === tab.id ? '2px solid var(--accent)' : '2px solid transparent',
+                            borderTop: isActive ? '2px solid var(--accent)' : '2px solid transparent',
                         }}
                     >
                         <span style={{ fontSize: '1.2rem', position: 'relative' }}>
@@ -223,7 +301,7 @@ export function App() {
                                     position: 'absolute',
                                     top: '-6px',
                                     right: '-10px',
-                                    background: '#ef4444',
+                                    background: 'var(--danger)',
                                     color: '#fff',
                                     fontSize: '0.6rem',
                                     fontWeight: 700,
@@ -235,7 +313,7 @@ export function App() {
                                     justifyContent: 'center',
                                     padding: '0 3px',
                                     lineHeight: 1,
-                                    boxShadow: '0 0 6px rgba(239,68,68,0.6)',
+                                    boxShadow: '0 0 6px var(--danger)',
                                 }}>
                                     {totalUnread > 99 ? '99+' : totalUnread}
                                 </span>
@@ -243,7 +321,8 @@ export function App() {
                         </span>
                         <span>{tab.label}</span>
                     </button>
-                ))}
+                    );
+                })}
             </nav>
 
             {/* System Announcement Modal */}

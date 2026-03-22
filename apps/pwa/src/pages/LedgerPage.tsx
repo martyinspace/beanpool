@@ -90,61 +90,38 @@ export function LedgerPage({ identity }: Props) {
     const balance = balanceInfo?.balance ?? 0;
 
     return (
-        <div style={{ padding: '1rem', maxWidth: '600px', margin: '0 auto' }}>
+        <div className="p-4 max-w-[600px] mx-auto min-h-full">
             {/* Identity header */}
-            <div style={{
-                textAlign: 'center',
-                marginBottom: '1.5rem',
-                padding: '1.5rem',
-                background: 'var(--bg-card)',
-                borderRadius: '16px',
-                border: '1px solid var(--border-primary)',
-            }}>
-                <div style={{
-                    width: '80px', height: '80px', borderRadius: '50%',
-                    border: '3px solid #10b981',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '2rem', margin: '0 auto 1rem',
-                    background: 'rgba(16, 185, 129, 0.1)',
-                }}>
-                    🫘
+            <div className="text-center mb-6 p-6 bg-white dark:bg-nature-900 rounded-2xl border border-nature-200 dark:border-nature-800 shadow-sm transition-transform hover:-translate-y-0.5">
+                <div className="w-20 h-20 rounded-full border-4 border-emerald-500 flex items-center justify-center text-3xl mx-auto mb-4 bg-emerald-50 dark:bg-nature-800 shadow-inner overflow-hidden">
+                    <img src="/assets/logo-192x192.png" className="w-[70%] h-[70%] object-contain" alt="Identity" />
                 </div>
-                <h2 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                <h2 className="text-xl font-bold mb-1 text-nature-950 dark:text-white">
                     {identity.callsign}
                 </h2>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontFamily: 'monospace' }}>
+                <p className="text-nature-500 text-xs font-mono">
                     {identity.publicKey.substring(0, 16)}...
                 </p>
             </div>
 
             {/* Balance */}
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-                <div style={{
-                    flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
-                    borderRadius: '12px', padding: '1.25rem', textAlign: 'center',
-                }}>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>Balance</p>
-                    <p style={{
-                        fontSize: '2rem', fontWeight: 700,
-                        color: loading ? '#555' : balance >= 0 ? '#10b981' : '#ef4444',
-                        fontFamily: 'monospace',
-                    }}>
-                        {loading ? '...' : `${balance >= 0 ? '+' : ''}${balance.toFixed(2)}Ʀ`}
+            <div className="flex gap-4 mb-6">
+                <div className="flex-1 bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-2xl p-5 text-center shadow-sm">
+                    <p className="text-nature-500 dark:text-nature-400 text-sm font-semibold mb-2">Balance</p>
+                    <p className={`text-3xl font-bold font-mono ${loading ? 'text-nature-400' : balance >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                        {loading ? '...' : `${balance >= 0 ? '+' : ''}${balance.toFixed(2)}B`}
                     </p>
-                    <p style={{ color: 'var(--text-faint)', fontSize: '0.7rem', marginTop: '0.25rem' }}>
-                        Floor: {balanceInfo?.floor ?? -100}Ʀ
+                    <p className="text-nature-400 text-xs mt-1 font-medium">
+                        Floor: {balanceInfo?.floor ?? -100}B
                     </p>
                 </div>
 
-                <div style={{
-                    flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
-                    borderRadius: '12px', padding: '1.25rem', textAlign: 'center',
-                }}>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>Commons</p>
-                    <p style={{ fontSize: '2rem', fontWeight: 700, color: '#f59e0b', fontFamily: 'monospace' }}>
-                        {loading ? '...' : `${(balanceInfo?.commonsBalance ?? 0).toFixed(2)}Ʀ`}
+                <div className="flex-1 bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-2xl p-5 text-center shadow-sm">
+                    <p className="text-nature-500 dark:text-nature-400 text-sm font-semibold mb-2">Commons</p>
+                    <p className="text-3xl font-bold text-amber-500 font-mono">
+                        {loading ? '...' : `${(balanceInfo?.commonsBalance ?? 0).toFixed(2)}B`}
                     </p>
-                    <p style={{ color: 'var(--text-faint)', fontSize: '0.7rem', marginTop: '0.25rem' }}>
+                    <p className="text-nature-400 text-xs mt-1 font-medium">
                         🌱 Community Pool
                     </p>
                 </div>
@@ -153,32 +130,20 @@ export function LedgerPage({ identity }: Props) {
             {/* Send Credits Button */}
             <button
                 onClick={() => setShowSend(!showSend)}
-                style={{
-                    width: '100%', padding: '0.85rem', borderRadius: '12px',
-                    background: showSend ? '#333' : '#2563eb', color: 'var(--text-primary)',
-                    border: 'none', fontSize: '1rem', fontWeight: 700,
-                    cursor: 'pointer', marginBottom: '1rem', fontFamily: 'inherit',
-                    transition: 'background 0.2s',
-                }}
+                className={`w-full p-4 rounded-xl text-[15px] font-bold border-none cursor-pointer mb-4 transition-all shadow-md ${
+                    showSend ? 'bg-nature-800 text-white hover:bg-nature-900' : 'bg-[#d97757] text-white hover:bg-[#c26749] hover:shadow-lg'
+                }`}
             >
                 {showSend ? '✕ Cancel' : '💸 Send Credits'}
             </button>
 
             {/* Send Form */}
             {showSend && (
-                <div style={{
-                    background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
-                    borderRadius: '12px', padding: '1rem', marginBottom: '1.5rem',
-                }}>
+                <div className="animate-in fade-in slide-in-from-top-2 bg-nature-50 dark:bg-[#1a201a] border border-nature-200 dark:border-nature-800 rounded-2xl p-4 mb-6 shadow-sm">
                     <select
                         value={sendTo}
                         onChange={(e) => setSendTo(e.target.value)}
-                        style={{
-                            width: '100%', padding: '0.6rem', borderRadius: '8px',
-                            border: '1px solid var(--border-input)', background: 'var(--bg-secondary)',
-                            color: 'var(--text-primary)', fontSize: '0.9rem', marginBottom: '0.5rem',
-                            fontFamily: 'inherit',
-                        }}
+                        className="w-full p-3.5 rounded-xl border border-nature-200 bg-white text-nature-900 dark:text-white text-[15px] font-medium mb-3 focus:ring-2 focus:ring-[#d97757] outline-none shadow-sm transition-all"
                     >
                         <option value="">Select recipient...</option>
                         {members.map(m => (
@@ -189,39 +154,28 @@ export function LedgerPage({ identity }: Props) {
                     </select>
                     <input
                         type="number"
-                        placeholder="Amount (Ʀ)"
+                        placeholder="Amount (B)"
                         value={sendAmount}
                         onChange={(e) => setSendAmount(e.target.value)}
                         min="0.01"
                         step="0.01"
-                        style={{
-                            width: '100%', padding: '0.6rem', borderRadius: '8px',
-                            border: '1px solid var(--border-input)', background: 'var(--bg-secondary)',
-                            color: 'var(--text-primary)', fontSize: '0.9rem', marginBottom: '0.5rem',
-                            fontFamily: 'inherit', boxSizing: 'border-box',
-                        }}
+                        className="w-full p-3.5 rounded-xl border border-nature-200 bg-white text-nature-900 dark:text-white text-[15px] font-medium mb-3 focus:ring-2 focus:ring-[#d97757] outline-none shadow-sm transition-all"
                     />
                     <input
                         type="text"
                         placeholder="Memo (optional)"
                         value={sendMemo}
                         onChange={(e) => setSendMemo(e.target.value)}
-                        style={{
-                            width: '100%', padding: '0.6rem', borderRadius: '8px',
-                            border: '1px solid var(--border-input)', background: 'var(--bg-secondary)',
-                            color: 'var(--text-primary)', fontSize: '0.9rem', marginBottom: '0.75rem',
-                            fontFamily: 'inherit', boxSizing: 'border-box',
-                        }}
+                        className="w-full p-3.5 rounded-xl border border-nature-200 bg-white text-nature-900 dark:text-white text-[15px] font-medium mb-4 focus:ring-2 focus:ring-[#d97757] outline-none shadow-sm transition-all"
                     />
                     <button
                         onClick={handleSend}
                         disabled={sending || !sendTo || !sendAmount}
-                        style={{
-                            width: '100%', padding: '0.7rem', borderRadius: '8px',
-                            background: sending ? '#555' : '#10b981', color: 'var(--text-primary)',
-                            border: 'none', fontSize: '0.9rem', fontWeight: 600,
-                            cursor: sending ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                        }}
+                        className={`w-full p-3.5 rounded-xl text-[15px] font-bold border-none transition-all shadow-md ${
+                            sending || !sendTo || !sendAmount 
+                                ? 'bg-nature-300 text-white cursor-not-allowed' 
+                                : 'bg-emerald-500 text-white cursor-pointer hover:bg-emerald-600 hover:shadow-lg'
+                        }`}
                     >
                         {sending ? 'Sending...' : 'Confirm Transfer'}
                     </button>
@@ -230,52 +184,36 @@ export function LedgerPage({ identity }: Props) {
 
             {/* Error */}
             {error && (
-                <div style={{
-                    background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)',
-                    borderRadius: '10px', padding: '0.75rem', marginBottom: '1rem',
-                    color: '#ef4444', fontSize: '0.85rem', textAlign: 'center',
-                }}>
+                <div className="animate-in fade-in bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-red-600 text-sm text-center font-bold shadow-sm">
                     {error}
                 </div>
             )}
 
             {/* Decay info */}
             {balance > 0 && (
-                <div style={{
-                    background: 'rgba(239, 68, 68, 0.08)',
-                    border: '1px solid rgba(239, 68, 68, 0.2)',
-                    borderRadius: '10px', padding: '0.75rem 1rem', marginBottom: '1.5rem',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                }}>
-                    <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>
+                <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-6 flex justify-between items-center shadow-sm">
+                    <span className="text-[13px] font-bold text-red-600">
                         🔥 Monthly Decay (0.5%)
                     </span>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                        −{(balance * 0.005).toFixed(3)}Ʀ/mo → Commons
+                    <span className="text-[13px] font-bold text-red-700 font-mono">
+                        −{(balance * 0.005).toFixed(3)}B/mo → Commons
                     </span>
                 </div>
             )}
 
             {/* Community Projects */}
-            <div style={{
-                background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
-                borderRadius: '16px', padding: '1.25rem', marginBottom: '1.5rem',
-            }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div className="bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-2xl p-5 mb-6 shadow-sm">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-nature-950">
                     🏛️ Community Projects
                 </h3>
 
                 {/* Active Voting Round */}
                 {activeRound && (
-                    <div style={{
-                        background: 'rgba(37, 99, 235, 0.1)', border: '1px solid rgba(37, 99, 235, 0.3)',
-                        borderRadius: '10px', padding: '0.75rem 1rem', marginBottom: '1rem',
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#60a5fa' }}>
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 mb-4 flex justify-between items-center shadow-sm">
+                        <span className="text-[13px] font-bold text-emerald-700">
                             🗳️ Voting Open
                         </span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        <span className="text-xs font-semibold text-emerald-600">
                             Closes {new Date(activeRound.closesAt).toLocaleDateString()}
                         </span>
                     </div>
@@ -283,11 +221,11 @@ export function LedgerPage({ identity }: Props) {
 
                 {/* Project cards */}
                 {projects.filter(p => p.status === 'active' || p.status === 'proposed').length === 0 ? (
-                    <p style={{ color: 'var(--text-faint)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem 0' }}>
+                    <p className="text-nature-500 dark:text-nature-400 text-[13px] text-center p-4 font-medium bg-oat-50 rounded-xl border border-nature-200">
                         No proposals yet. Be the first to suggest a community project!
                     </p>
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                    <div className="flex flex-col gap-3 mb-4">
                         {projects.filter(p => p.status === 'active' || p.status === 'proposed').map(project => {
                             const totalVotes = project.votes.length;
                             const maxVotes = Math.max(...projects.filter(p => p.status === 'active').map(p => p.votes.length), 1);
@@ -295,22 +233,19 @@ export function LedgerPage({ identity }: Props) {
                             const isActive = project.status === 'active';
 
                             return (
-                                <div key={project.id} style={{
-                                    background: 'var(--bg-secondary)', border: hasVoted ? '2px solid #2563eb' : '1px solid var(--border-primary)',
-                                    borderRadius: '10px', padding: '0.75rem 1rem',
-                                }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                                <div key={project.id} className={`bg-white rounded-xl p-4 transition-all shadow-sm ${hasVoted ? 'border-2 border-emerald-500 ring-2 ring-emerald-50' : 'border border-nature-200 hover:border-nature-300'}`}>
+                                    <div className="flex justify-between items-start mb-2">
                                         <div>
-                                            <p style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                                            <p className="font-bold text-[15px] text-nature-950">
                                                 {project.title}
                                             </p>
                                             {project.description && (
-                                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                <p className="text-[13px] text-nature-500 dark:text-nature-400 mt-1 leading-relaxed">
                                                     {project.description}
                                                 </p>
                                             )}
-                                            <p style={{ fontSize: '0.7rem', color: 'var(--text-faint)', marginTop: '4px' }}>
-                                                by {project.proposerCallsign} · {project.requestedAmount.toFixed(2)}Ʀ
+                                            <p className="text-[11px] font-bold text-nature-400 mt-2 uppercase tracking-wide">
+                                                by {project.proposerCallsign} · <span className="text-amber-600 border border-amber-200 bg-amber-50 px-1.5 py-0.5 rounded text-xs lowercase font-mono">{project.requestedAmount.toFixed(2)}B</span>
                                             </p>
                                         </div>
                                         {isActive && (
@@ -321,14 +256,11 @@ export function LedgerPage({ identity }: Props) {
                                                         await refresh();
                                                     } catch { /* ignore */ }
                                                 }}
-                                                style={{
-                                                    padding: '0.35rem 0.75rem', borderRadius: '6px',
-                                                    background: hasVoted ? '#2563eb' : 'rgba(37, 99, 235, 0.15)',
-                                                    color: hasVoted ? '#fff' : '#60a5fa',
-                                                    border: 'none', fontSize: '0.75rem', fontWeight: 600,
-                                                    cursor: 'pointer', fontFamily: 'inherit',
-                                                    whiteSpace: 'nowrap',
-                                                }}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border-none cursor-pointer whitespace-nowrap transition-colors shadow-sm ${
+                                                    hasVoted 
+                                                        ? 'bg-emerald-600 text-white' 
+                                                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                                                }`}
                                             >
                                                 {hasVoted ? '✓ Voted' : 'Vote'}
                                             </button>
@@ -336,18 +268,14 @@ export function LedgerPage({ identity }: Props) {
                                     </div>
                                     {/* Vote bar */}
                                     {isActive && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                            <div style={{
-                                                flex: 1, height: '6px', background: 'rgba(255,255,255,0.08)',
-                                                borderRadius: '3px', overflow: 'hidden',
-                                            }}>
-                                                <div style={{
-                                                    height: '100%', width: `${(totalVotes / maxVotes) * 100}%`,
-                                                    background: 'linear-gradient(90deg, #2563eb, #7c3aed)',
-                                                    borderRadius: '3px', transition: 'width 0.3s',
-                                                }} />
+                                        <div className="flex items-center gap-2 mt-3">
+                                            <div className="flex-1 h-2 bg-oat-100 rounded-full overflow-hidden shadow-inner border border-nature-200/50">
+                                                <div 
+                                                    className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-emerald-400 to-teal-500"
+                                                    style={{ width: `${(totalVotes / maxVotes) * 100}%` }}
+                                                />
                                             </div>
-                                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', minWidth: '40px' }}>
+                                            <span className="text-[11px] font-bold text-nature-500 dark:text-nature-400 min-w-[40px] text-right">
                                                 {totalVotes} vote{totalVotes !== 1 ? 's' : ''}
                                             </span>
                                         </div>
@@ -362,63 +290,37 @@ export function LedgerPage({ identity }: Props) {
                 {!showPropose ? (
                     <button
                         onClick={() => setShowPropose(true)}
-                        style={{
-                            width: '100%', padding: '0.6rem', borderRadius: '8px',
-                            background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b',
-                            border: '1px dashed rgba(245, 158, 11, 0.4)',
-                            fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
-                            fontFamily: 'inherit',
-                        }}
+                        className="w-full p-3 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 border-dashed text-sm font-bold cursor-pointer hover:bg-amber-100 transition-colors"
                     >
                         + Propose a Project
                     </button>
                 ) : (
-                    <div style={{
-                        background: 'var(--bg-secondary)', borderRadius: '10px',
-                        padding: '1rem', border: '1px solid var(--border-primary)',
-                    }}>
+                    <div className="bg-oat-50/50 rounded-xl p-4 border border-nature-200 shadow-sm animate-in fade-in slide-in-from-top-2">
                         <input
                             type="text" placeholder="Project title"
                             value={propTitle} onChange={e => setPropTitle(e.target.value)}
                             maxLength={100}
-                            style={{
-                                width: '100%', padding: '0.5rem', borderRadius: '6px',
-                                border: '1px solid var(--border-input)', background: 'var(--bg-primary)',
-                                color: 'var(--text-primary)', fontSize: '0.85rem', marginBottom: '0.5rem',
-                                fontFamily: 'inherit', boxSizing: 'border-box',
-                            }}
+                            className="w-full p-3 rounded-xl border border-nature-200 bg-white text-nature-900 dark:text-white text-[14px] font-medium mb-2 focus:ring-2 focus:ring-amber-400 outline-none shadow-sm transition-all"
                         />
                         <textarea
                             placeholder="Description (optional)"
                             value={propDesc} onChange={e => setPropDesc(e.target.value)}
                             maxLength={500} rows={2}
-                            style={{
-                                width: '100%', padding: '0.5rem', borderRadius: '6px',
-                                border: '1px solid var(--border-input)', background: 'var(--bg-primary)',
-                                color: 'var(--text-primary)', fontSize: '0.85rem', marginBottom: '0.5rem',
-                                fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box',
-                            }}
+                            className="w-full p-3 rounded-xl border border-nature-200 bg-white text-nature-900 dark:text-white text-[14px] font-medium mb-2 focus:ring-2 focus:ring-amber-400 outline-none shadow-sm transition-all resize-y min-h-[60px]"
                         />
                         <input
-                            type="number" placeholder="Requested amount (Ʀ)"
+                            type="number" placeholder="Requested amount (B)"
                             value={propAmount} onChange={e => setPropAmount(e.target.value)}
                             min="0.01" step="0.01"
-                            style={{
-                                width: '100%', padding: '0.5rem', borderRadius: '6px',
-                                border: '1px solid var(--border-input)', background: 'var(--bg-primary)',
-                                color: 'var(--text-primary)', fontSize: '0.85rem', marginBottom: '0.75rem',
-                                fontFamily: 'inherit', boxSizing: 'border-box',
-                            }}
+                            className="w-full p-3 rounded-xl border border-nature-200 bg-white text-nature-900 dark:text-white text-[14px] font-medium mb-3 focus:ring-2 focus:ring-amber-400 outline-none shadow-sm transition-all"
                         />
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <div className="flex gap-2">
                             <button
                                 onClick={() => { setShowPropose(false); setPropTitle(''); setPropDesc(''); setPropAmount(''); }}
-                                style={{
-                                    flex: 1, padding: '0.5rem', borderRadius: '6px',
-                                    background: '#333', color: 'var(--text-primary)',
-                                    border: 'none', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit',
-                                }}
-                            >Cancel</button>
+                                className="flex-1 p-2.5 rounded-lg bg-white dark:bg-nature-800 border border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 text-[13px] font-bold cursor-pointer hover:bg-nature-50 shadow-sm transition-colors"
+                            >
+                                Cancel
+                            </button>
                             <button
                                 disabled={proposing || !propTitle.trim() || !propAmount}
                                 onClick={async () => {
@@ -430,28 +332,28 @@ export function LedgerPage({ identity }: Props) {
                                     } catch { setError('Failed to propose project'); }
                                     setProposing(false);
                                 }}
-                                style={{
-                                    flex: 1, padding: '0.5rem', borderRadius: '6px',
-                                    background: proposing ? '#555' : '#f59e0b', color: '#000',
-                                    border: 'none', fontSize: '0.8rem', fontWeight: 600,
-                                    cursor: proposing ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                                }}
-                            >{proposing ? 'Submitting...' : 'Submit Proposal'}</button>
+                                className={`flex-[2] p-2.5 rounded-lg border-none text-[13px] font-bold shadow-sm transition-all ${
+                                    proposing || !propTitle.trim() || !propAmount
+                                        ? 'bg-nature-200 text-nature-500 dark:text-nature-400 cursor-not-allowed'
+                                        : 'bg-amber-500 text-white cursor-pointer hover:bg-amber-600 hover:shadow-md'
+                                }`}
+                            >
+                                {proposing ? 'Submitting...' : 'Submit Proposal'}
+                            </button>
                         </div>
                     </div>
                 )}
 
                 {/* Funded projects history */}
                 {projects.filter(p => p.status === 'funded').length > 0 && (
-                    <div style={{ marginTop: '1rem' }}>
-                        <p style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>✅ Funded</p>
+                    <div className="mt-5 border-t border-nature-200 pt-4">
+                        <p className="text-[13px] font-bold text-emerald-600 mb-3 uppercase tracking-wider">✅ Funded Projects</p>
                         {projects.filter(p => p.status === 'funded').map(p => (
-                            <div key={p.id} style={{
-                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                padding: '0.4rem 0', borderBottom: '1px solid var(--border-primary)',
-                            }}>
-                                <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)' }}>{p.title}</span>
-                                <span style={{ fontSize: '0.75rem', color: '#10b981', fontFamily: 'monospace' }}>{p.requestedAmount.toFixed(2)}Ʀ</span>
+                            <div key={p.id} className="flex justify-between items-center py-2.5 border-b border-nature-100 dark:border-nature-800 last:border-0">
+                                <span className="text-[14px] font-medium text-nature-900 dark:text-white">{p.title}</span>
+                                <span className="text-[13px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded font-mono shadow-sm">
+                                    {p.requestedAmount.toFixed(2)}B
+                                </span>
                             </div>
                         ))}
                     </div>
@@ -459,42 +361,32 @@ export function LedgerPage({ identity }: Props) {
             </div>
 
             {/* Transaction history */}
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.75rem' }}>
+            <h3 className="text-lg font-bold mb-3 text-nature-950 px-1">
                 Recent Transactions
             </h3>
             {txns.length === 0 ? (
-                <div style={{
-                    background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: '12px',
-                    padding: '2rem', textAlign: 'center', color: 'var(--text-faint)', fontSize: '0.9rem',
-                }}>
+                <div className="bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-2xl p-8 text-center text-nature-500 dark:text-nature-400 text-[14px] shadow-sm font-medium">
                     No transactions yet. Start trading on the Marketplace!
                 </div>
             ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div className="flex flex-col gap-2.5 pb-20">
                     {txns.map(tx => {
                         const isSent = tx.from === identity.publicKey;
                         return (
-                            <div key={tx.id} style={{
-                                background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
-                                borderRadius: '10px', padding: '0.75rem 1rem',
-                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                            }}>
+                            <div key={tx.id} className="bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-xl p-4 flex justify-between items-center shadow-sm transition-transform hover:-translate-y-0.5">
                                 <div>
-                                    <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                    <p className={`text-[14px] font-bold ${isSent ? 'text-nature-900 dark:text-white' : 'text-emerald-700'}`}>
                                         {isSent ? '↑ Sent' : '↓ Received'}
                                     </p>
                                     {tx.memo && (
-                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>{tx.memo}</p>
+                                        <p className="text-[13px] text-nature-500 dark:text-nature-400 mt-1 leading-snug">{tx.memo}</p>
                                     )}
-                                    <p style={{ fontSize: '0.7rem', color: 'var(--text-faint)', marginTop: '2px' }}>
+                                    <p className="text-[11px] font-bold text-nature-400 mt-1.5 uppercase tracking-wide">
                                         {new Date(tx.timestamp).toLocaleString()}
                                     </p>
                                 </div>
-                                <p style={{
-                                    fontSize: '1.1rem', fontWeight: 700, fontFamily: 'monospace',
-                                    color: isSent ? '#ef4444' : '#10b981',
-                                }}>
-                                    {isSent ? '−' : '+'}{tx.amount.toFixed(2)}Ʀ
+                                <p className={`text-lg font-bold font-mono ${isSent ? 'text-red-500' : 'text-emerald-500'}`}>
+                                    {isSent ? '−' : '+'}{tx.amount.toFixed(2)}B
                                 </p>
                             </div>
                         );

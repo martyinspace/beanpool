@@ -14,15 +14,18 @@ const STORAGE_KEY = 'beanpool-theme';
 export function useTheme(): [Theme, () => void] {
     const [theme, setTheme] = useState<Theme>(() => {
         const stored = localStorage.getItem(STORAGE_KEY);
-        return stored === 'light' ? 'light' : 'dark';
+        // Default to light if no stored preference
+        return stored === 'dark' ? 'dark' : 'light';
     });
 
     useEffect(() => {
         const root = document.documentElement;
-        if (theme === 'light') {
-            root.classList.add('light-theme');
-        } else {
+        if (theme === 'dark') {
+            root.classList.add('dark', 'dark-theme');
             root.classList.remove('light-theme');
+        } else {
+            root.classList.remove('dark', 'dark-theme');
+            root.classList.add('light-theme');
         }
         localStorage.setItem(STORAGE_KEY, theme);
     }, [theme]);

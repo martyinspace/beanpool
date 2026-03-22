@@ -18,17 +18,18 @@ import {
     submitRating, getMemberRatings, reportAbuse,
     getNodeInfo, getRemotePosts, sendRemoteTransfer, sendFederationMessage,
     acceptMarketplacePost, completeMarketplaceTransaction,
-    cancelMarketplaceTransaction, getMyMarketplaceTransactions,
-    type MarketplacePost, type MemberProfile, type NodeInfo, type MarketplaceTransaction,
+    cancelMarketplaceTransaction, getMyMarketplaceTransactions, getNodeConfig,
+    type MarketplacePost, type MemberProfile, type NodeInfo, type MarketplaceTransaction, type NodeConfig,
 } from '../lib/api';
 import { type BeanPoolIdentity } from '../lib/identity';
 
 interface Props {
     identity: BeanPoolIdentity | null;
+    marketClickCount?: number;
     onNavigate?: (tab: string, conversationId?: string) => void;
 }
 
-export function MarketplacePage({ identity, onNavigate }: Props) {
+export function MarketplacePage({ identity, marketClickCount = 0, onNavigate }: Props) {
     const [posts, setPosts] = useState<MarketplacePost[]>([]);
     const [typeFilter, setTypeFilter] = useState<PostType | 'all'>('all');
     const [categoryFilter, setCategoryFilter] = useState<string | 'all'>('all');
@@ -45,9 +46,26 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
     // Radius filter
     const [radiusSettings, setRadiusSettings] = useState<RadiusSettings | null>(() => loadRadiusSettings());
     const [showRadiusPicker, setShowRadiusPicker] = useState(false);
+    const [nodeConfig, setNodeConfig] = useState<NodeConfig | null>(null);
+
+    // Fetch config once on mount
+    useEffect(() => {
+        getNodeConfig().then(setNodeConfig).catch(console.error);
+    }, []);
+
+    // Layout configuration
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [showFilters, setShowFilters] = useState(false);
 
     // Detail view
     const [selectedPost, setSelectedPost] = useState<MarketplacePost | null>(null);
+
+    // Reset detail view when bottom tab is double-tapped
+    useEffect(() => {
+        if (marketClickCount > 0) {
+            setSelectedPost(null);
+        }
+    }, [marketClickCount]);
     const [authorProfile, setAuthorProfile] = useState<MemberProfile | null>(null);
     const [loadingProfile, setLoadingProfile] = useState(false);
     const [messaging, setMessaging] = useState(false);
@@ -214,166 +232,116 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
         const isOwnPost = identity?.publicKey === selectedPost.authorPublicKey;
 
         return (
-            <div style={{ padding: '1rem' }}>
-                {/* Back button */}
-                <button
-                    onClick={() => setSelectedPost(null)}
-                    style={{
-                        background: 'none', border: 'none', color: '#2563eb',
-                        fontSize: '0.9rem', cursor: 'pointer', padding: '0.25rem 0',
-                        fontFamily: 'inherit', marginBottom: '0.75rem',
-                        display: 'flex', alignItems: 'center', gap: '0.3rem',
-                    }}
-                >
-                    ← Back to Market
-                </button>
-
+            <div className="p-4 max-w-lg mx-auto pb-24">
                 {/* Post card */}
-                <div style={{
-                    background: 'var(--bg-card)', borderRadius: '16px',
-                    border: `1px solid ${typeColor}44`,
-                    overflow: 'hidden',
-                }}>
+                <div className="bg-white dark:bg-nature-950 rounded-2xl border border-nature-200 dark:border-nature-800 shadow-soft overflow-hidden mb-4">
                     {/* Type + category header */}
-                    <div style={{
-                        background: `${typeColor}15`, padding: '0.75rem 1rem',
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        borderBottom: `1px solid ${typeColor}33`,
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <span style={{ fontSize: '1.3rem' }}>{cat?.emoji ?? '🌐'}</span>
-                            <span style={{
-                                fontSize: '0.75rem', fontWeight: 700,
-                                textTransform: 'uppercase', letterSpacing: '0.05em',
-                                color: typeColor,
-                            }}>
-                                {selectedPost.type === 'offer' ? '🔵 Offer' : '🟠 Need'} · {cat?.label ?? selectedPost.category}
+                    <div 
+                        className="flex justify-between items-center px-4 py-3 border-b"
+                        style={{ backgroundColor: `${typeColor}15`, borderBottomColor: `${typeColor}30` }}
+                    >
+                        <div className="flex items-center gap-2">
+                            <span className="text-2xl">{cat?.emoji ?? '🌐'}</span>
+                            <span 
+                                className="text-xs font-black uppercase tracking-wider"
+                                style={{ color: typeColor }}
+                            >
+                                {selectedPost.type === 'offer' ? '🔵 Offer' : '🟠 Need'} <span className="text-nature-400 font-medium">·</span> {cat?.label ?? selectedPost.category}
                             </span>
                         </div>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{ago}</span>
+                        <span className="text-xs font-semibold text-nature-500">{ago}</span>
                     </div>
 
                     {/* Content */}
-                    <div style={{ padding: '1rem' }}>
-                        <h2 style={{
-                            fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)',
-                            margin: '0 0 0.5rem',
-                        }}>
+                    <div className="p-5">
+                        <h2 className="text-xl font-bold text-nature-950 dark:text-white mb-3 leading-tight">
                             {selectedPost.title}
                         </h2>
 
                         {selectedPost.description && (
-                            <p style={{
-                                fontSize: '0.9rem', color: '#bbb', lineHeight: 1.6,
-                                margin: '0 0 1rem', whiteSpace: 'pre-wrap',
-                            }}>
+                            <p className="text-base text-nature-600 leading-relaxed mb-5 whitespace-pre-wrap">
                                 {selectedPost.description}
                             </p>
                         )}
 
                         {/* Photos */}
                         {selectedPost.photos && selectedPost.photos.length > 0 && (
-                            <div style={{
-                                display: 'flex', gap: '0.5rem', overflowX: 'auto',
-                                marginBottom: '1rem', paddingBottom: '0.25rem',
-                            }}>
+                            <div className="flex gap-2 overflow-x-auto mb-5 pb-2 snap-x">
                                 {selectedPost.photos.map((photo, i) => (
                                     <img
                                         key={i}
                                         src={photo}
                                         alt={`photo ${i+1}`}
-                                        style={{
-                                            height: '140px', borderRadius: '10px',
-                                            objectFit: 'cover', flexShrink: 0,
-                                            border: '1px solid var(--border-primary)',
-                                        }}
+                                        className="h-40 w-auto rounded-xl object-cover border border-nature-200 shrink-0 snap-start shadow-sm"
                                     />
                                 ))}
                             </div>
                         )}
 
                         {/* Credits */}
-                        <div style={{
-                            background: 'var(--bg-secondary)', borderRadius: '12px',
-                            padding: '0.75rem 1rem', textAlign: 'center',
-                            marginBottom: '1rem',
-                        }}>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
-                                {selectedPost.type === 'offer' ? 'Asking' : 'Willing to pay'}
+                        <div className="bg-oat-50 dark:bg-nature-900 rounded-xl p-4 text-center border border-nature-100 dark:border-nature-800 shadow-inner block">
+                            <span className="text-xs font-bold text-nature-500 dark:text-nature-400 uppercase tracking-widest block mb-1">
+                                {selectedPost.type === 'offer' ? 'Asking Price' : 'Willing to Pay'}
                             </span>
-                            <span style={{
-                                fontSize: '1.8rem', fontWeight: 700, color: 'var(--text-primary)',
-                                fontFamily: 'monospace',
-                            }}>
-                                {selectedPost.credits}<span style={{ fontSize: '1.2rem', color: 'var(--text-muted)' }}>Ʀ</span>
-                            </span>
+                            <div className="text-3xl font-bold text-nature-900 dark:text-white font-mono tracking-tight">
+                                {selectedPost.credits}<span className="text-xl text-nature-400 ml-1 font-sans font-medium">B</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Author section */}
-                <div style={{
-                    background: 'var(--bg-card)', borderRadius: '16px',
-                    border: '1px solid var(--border-primary)', padding: '1rem',
-                    marginTop: '0.75rem',
-                }}>
-                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.5rem' }}>
+                <div className="bg-white dark:bg-nature-950 rounded-2xl border border-nature-200 dark:border-nature-800 p-4 shadow-sm mb-4">
+                    <p className="text-[0.65rem] text-nature-400 dark:text-nature-500 font-bold uppercase tracking-widest mb-3">
                         Posted by
                     </p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div className="flex items-start gap-4">
                         {/* Avatar */}
                         {loadingProfile ? (
-                            <div style={{
-                                width: '48px', height: '48px', borderRadius: '50%',
-                                background: '#333', flexShrink: 0,
-                            }} />
+                            <div className="w-14 h-14 rounded-full bg-nature-100 animate-pulse shrink-0" />
                         ) : authorProfile?.avatar ? (
                             <img
                                 src={authorProfile.avatar}
                                 alt="avatar"
-                                style={{
-                                    width: '48px', height: '48px', borderRadius: '50%',
-                                    objectFit: 'cover', border: '2px solid #333', flexShrink: 0,
-                                }}
+                                className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
                             />
                         ) : (
-                            <div style={{
-                                width: '48px', height: '48px', borderRadius: '50%',
-                                background: '#2563eb', display: 'flex', alignItems: 'center',
-                                justifyContent: 'center', fontSize: '1.2rem', color: 'var(--text-primary)',
-                                fontWeight: 700, flexShrink: 0,
-                            }}>
+                            <div className="w-14 h-14 rounded-full bg-terra-100 border-2 border-white shadow-sm flex items-center justify-center text-terra-600 font-bold text-xl shrink-0">
                                 {selectedPost.authorCallsign.charAt(0).toUpperCase()}
                             </div>
                         )}
-                        <div>
-                            <p style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 0.15rem' }}>
-                                🤝 {selectedPost.authorCallsign}
+                        <div className="flex-1 min-w-0">
+                            <p className="font-bold text-lg text-nature-950 dark:text-white mb-0.5 truncate flex items-center gap-1.5">
+                                <span className="text-base text-amber-600">🤝</span> {selectedPost.authorCallsign}
                             </p>
                             {/* Star rating */}
-                            <p style={{ fontSize: '0.8rem', color: '#fbbf24', margin: '0 0 0.15rem' }}>
+                            <p className="text-amber-500 text-sm mb-1.5 flex items-center flex-wrap gap-1">
                                 {'★'.repeat(Math.round(authorAvgRating.average))}{'☆'.repeat(5 - Math.round(authorAvgRating.average))}
-                                <span style={{ color: 'var(--text-muted)', marginLeft: '0.35rem' }}>
+                                <span className="text-nature-500 text-xs ml-1 font-medium">
                                     {authorAvgRating.count > 0 ? (
                                         <>
-                                            {`${authorAvgRating.average}/5 (${authorAvgRating.count})`}
+                                            {`${authorAvgRating.average.toFixed(1)} (${authorAvgRating.count})`}
                                             {authorAvgRating.asProvider && authorAvgRating.asProvider.count > 0 && (
-                                                <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem' }}>📤 {authorAvgRating.asProvider.average}</span>
+                                                <span className="ml-2 text-[0.65rem] bg-amber-50 px-1.5 py-0.5 rounded text-amber-700">
+                                                    📤 {authorAvgRating.asProvider.average.toFixed(1)}
+                                                </span>
                                             )}
                                             {authorAvgRating.asReceiver && authorAvgRating.asReceiver.count > 0 && (
-                                                <span style={{ marginLeft: '0.3rem', fontSize: '0.7rem' }}>📥 {authorAvgRating.asReceiver.average}</span>
+                                                <span className="ml-1 text-[0.65rem] bg-indigo-50 px-1.5 py-0.5 rounded text-indigo-700">
+                                                    📥 {authorAvgRating.asReceiver.average.toFixed(1)}
+                                                </span>
                                             )}
                                         </>
                                     ) : 'No ratings yet'}
                                 </span>
                             </p>
                             {authorProfile?.bio && (
-                                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>
+                                <p className="text-sm text-nature-600 leading-snug mb-0">
                                     {authorProfile.bio}
                                 </p>
                             )}
                             {authorProfile?.contact && authorProfile.contact.visibility !== 'hidden' && (
-                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+                                <p className="text-xs text-nature-500 mt-2 font-medium bg-oat-50 px-2 py-1 rounded-lg inline-block border border-nature-100">
                                     📧 {authorProfile.contact.value}
                                 </p>
                             )}
@@ -405,10 +373,10 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                 const isOffer = selectedPost.type === 'offer';
                                 const action = isOffer ? 'accept this offer' : 'fulfill this need';
                                 const direction = isOffer
-                                    ? `You will pay ${selectedPost.authorCallsign} ${selectedPost.credits} 🫘 when completed`
-                                    : `${selectedPost.authorCallsign} will pay you ${selectedPost.credits} 🫘 when completed`;
+                                    ? `You will pay ${selectedPost.authorCallsign} ${selectedPost.credits} B when completed`
+                                    : `${selectedPost.authorCallsign} will pay you ${selectedPost.credits} B when completed`;
                                 const msg = selectedPost.credits === 0
-                                    ? `${action.charAt(0).toUpperCase() + action.slice(1)}?\n\nThis is a free listing (0 🫘). No credits will be transferred.`
+                                    ? `${action.charAt(0).toUpperCase() + action.slice(1)}?\n\nThis is a free listing (0 B). No credits will be transferred.`
                                     : `${action.charAt(0).toUpperCase() + action.slice(1)}?\n\n${direction}\n\nCredits are held until the poster confirms completion.`;
                                 if (!confirm(msg)) return;
 
@@ -437,20 +405,17 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                 }
                             }}
                             disabled={accepting || selectedPost.status === 'pending'}
-                            style={{
-                                width: '100%', padding: '0.85rem', borderRadius: '12px',
-                                background: selectedPost.status === 'pending' ? '#555' : typeColor,
-                                color: 'var(--text-primary)', border: 'none',
-                                fontSize: '0.95rem', fontWeight: 600,
-                                cursor: accepting || selectedPost.status === 'pending' ? 'not-allowed' : 'pointer',
-                                fontFamily: 'inherit', opacity: accepting ? 0.6 : 1,
-                            }}
+                            className={`w-full py-3.5 rounded-xl font-bold text-white text-[15px] transition-all shadow-md ${
+                                accepting || selectedPost.status === 'pending'
+                                    ? 'bg-nature-400 cursor-not-allowed opacity-60'
+                                    : selectedPost.type === 'offer' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-600 hover:bg-orange-700'
+                            }`}
                         >
-                            {accepting ? 'Processing...' : (
-                                selectedPost.status === 'pending'
-                                    ? '⏳ Pending Confirmation'
-                                    : (selectedPost.type === 'offer' ? '🤝 Accept Offer' : '🤝 Fulfill Need')
-                            )}
+                             {accepting ? 'Processing...' : (
+                                 selectedPost.status === 'pending'
+                                     ? '⏳ Pending Confirmation'
+                                     : (selectedPost.type === 'offer' ? '🤝 Accept Offer' : '🤝 Fulfill Need')
+                             )}
                         </button>
                         {/* Transaction-gated rating — only show on completed posts where user was a participant */}
                         {identity && selectedPost.status === 'completed' && selectedPost.pendingTransactionId && (
@@ -473,38 +438,28 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                 <>
                                     <button
                                         onClick={() => setShowRatingForm(!showRatingForm)}
-                                        style={{
-                                            width: '100%', padding: '0.7rem', borderRadius: '12px',
-                                            background: showRatingForm ? '#92400e' : '#1a1a1a',
-                                            color: '#fbbf24',
-                                            border: '1px solid var(--border-primary)',
-                                            fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
-                                            fontFamily: 'inherit',
-                                        }}
+                                        className={`w-full py-3 mt-3 rounded-xl font-bold text-[14px] transition-all border ${
+                                            showRatingForm 
+                                                ? 'bg-amber-100 dark:bg-amber-900/40 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-500' 
+                                                : 'bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-amber-600 dark:text-amber-500 hover:bg-amber-50 dark:hover:bg-nature-800 shadow-sm'
+                                        }`}
                                     >
                                         ⭐ Rate {targetName} as {targetRole}
                                     </button>
 
                                     {showRatingForm && (
-                                        <div style={{
-                                            background: 'var(--bg-card)', borderRadius: '12px',
-                                            border: '1px solid var(--border-primary)', padding: '1rem',
-                                        }}>
-                                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 0.75rem', textAlign: 'center' }}>
-                                                How was <strong>{targetName}</strong> as a <strong>{targetRole}</strong>?
+                                        <div className="bg-oat-50 dark:bg-nature-950 border border-nature-200 dark:border-nature-800 rounded-xl p-4 mt-2 shadow-inner">
+                                            <p className="text-sm text-nature-600 mb-3 text-center">
+                                                How was <strong className="text-nature-900">{targetName}</strong> as a <strong className="text-nature-900">{targetRole}</strong>?
                                             </p>
-                                            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                            <div className="flex justify-center gap-2 mb-3">
                                                 {[1, 2, 3, 4, 5].map(star => (
                                                     <button
                                                         key={star}
                                                         onClick={() => setMyRating(star)}
-                                                        style={{
-                                                            background: 'none', border: 'none', cursor: 'pointer',
-                                                            fontSize: '1.8rem', padding: '0.1rem',
-                                                            color: star <= myRating ? '#fbbf24' : '#444',
-                                                            transition: 'transform 0.15s',
-                                                            transform: star <= myRating ? 'scale(1.15)' : 'scale(1)',
-                                                        }}
+                                                        className={`text-4xl leading-none transition-transform focus:outline-none ${
+                                                            star <= myRating ? 'text-amber-400 scale-110 drop-shadow-sm' : 'text-nature-300 scale-100'
+                                                        }`}
                                                     >
                                                         {star <= myRating ? '★' : '☆'}
                                                     </button>
@@ -515,13 +470,8 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                                 onChange={(e) => setRatingComment(e.target.value)}
                                                 placeholder="Leave a comment (optional)..."
                                                 maxLength={200}
-                                                style={{
-                                                    width: '100%', padding: '0.6rem', borderRadius: '8px',
-                                                    border: '1px solid var(--border-input)', background: 'var(--bg-secondary)',
-                                                    color: 'var(--text-primary)', fontSize: '0.85rem', fontFamily: 'inherit',
-                                                    minHeight: '60px', resize: 'none', outline: 'none',
-                                                    marginBottom: '0.5rem', boxSizing: 'border-box',
-                                                }}
+                                                className="w-full p-2.5 rounded-lg border border-nature-200 bg-white text-nature-900 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none mb-2"
+                                                rows={2}
                                             />
                                             <button
                                                 onClick={async () => {
@@ -541,13 +491,9 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                                     }
                                                 }}
                                                 disabled={myRating < 1 || submittingRating}
-                                                style={{
-                                                    width: '100%', padding: '0.6rem', borderRadius: '8px',
-                                                    background: myRating >= 1 ? '#2563eb' : '#333',
-                                                    color: 'var(--text-primary)', border: 'none', fontSize: '0.85rem',
-                                                    fontWeight: 600, cursor: myRating >= 1 ? 'pointer' : 'not-allowed',
-                                                    fontFamily: 'inherit',
-                                                }}
+                                                className={`w-full py-2.5 rounded-lg font-bold text-sm text-white transition-colors ${
+                                                    myRating >= 1 ? 'bg-amber-500 hover:bg-amber-600 shadow-sm' : 'bg-nature-300 cursor-not-allowed'
+                                                }`}
                                             >
                                                 {submittingRating ? 'Submitting...' : myRating < 1 ? 'Tap stars to rate' : `Submit ${myRating}⭐ Rating`}
                                             </button>
@@ -559,29 +505,17 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
 
                         <button
                             onClick={() => setShowReportForm(!showReportForm)}
-                            style={{
-                                width: '100%', padding: '0.6rem', borderRadius: '12px',
-                                background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border-primary)',
-                                fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit',
-                            }}
+                            className="w-full py-2.5 mt-3 rounded-xl border border-nature-200 bg-transparent text-nature-500 font-semibold text-sm hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
                         >
                             🚩 Report
                         </button>
 
                         {showReportForm && (
-                            <div style={{
-                                background: 'var(--bg-card)', borderRadius: '12px',
-                                border: '1px solid var(--border-primary)', padding: '1rem',
-                            }}>
+                            <div className="bg-red-50 border border-red-100 rounded-xl p-4 mt-2 shadow-inner">
                                 <select
                                     value={reportReason}
                                     onChange={(e) => setReportReason(e.target.value)}
-                                    style={{
-                                        width: '100%', padding: '0.6rem', borderRadius: '8px',
-                                        background: 'var(--bg-secondary)', border: '1px solid var(--border-input)',
-                                        color: '#ccc', fontSize: '0.85rem', fontFamily: 'inherit',
-                                        cursor: 'pointer', marginBottom: '0.5rem',
-                                    }}
+                                    className="w-full p-2.5 rounded-lg bg-white border border-red-200 text-nature-900 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 cursor-pointer mb-2"
                                 >
                                     <option value="">Select a reason...</option>
                                     <option value="Spam or scam">Spam or scam</option>
@@ -606,13 +540,9 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                         }
                                     }}
                                     disabled={!reportReason || submittingReport}
-                                    style={{
-                                        width: '100%', padding: '0.6rem', borderRadius: '8px',
-                                        background: reportReason ? '#dc2626' : '#333',
-                                        color: 'var(--text-primary)', border: 'none', fontSize: '0.85rem',
-                                        fontWeight: 600, cursor: reportReason ? 'pointer' : 'not-allowed',
-                                        fontFamily: 'inherit',
-                                    }}
+                                    className={`w-full py-2.5 rounded-lg font-bold text-sm text-white transition-colors ${
+                                        reportReason ? 'bg-red-600 hover:bg-red-700 shadow-sm' : 'bg-nature-300 cursor-not-allowed'
+                                    }`}
                                 >
                                     {submittingReport ? 'Sending...' : 'Submit Report'}
                                 </button>
@@ -622,14 +552,11 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                 )}
 
                 {isOwnPost && (
-                    <div style={{
-                        display: 'flex', gap: '0.5rem', flexDirection: 'column',
-                        marginTop: '0.75rem',
-                    }}>
+                    <div className="flex flex-col gap-2 mt-4">
                         {!editMode ? (
                             selectedPost.status === 'pending' ? (
                                 <>
-                                    <p style={{ color: '#fbbf24', fontSize: '0.9rem', textAlign: 'center', margin: '0 0 0.5rem' }}>
+                                    <p className="text-amber-500 text-sm font-semibold text-center mb-2">
                                         ⏳ Pending Completion by {selectedPost.acceptedByCallsign || 'Buyer'}
                                     </p>
                                     <button
@@ -648,12 +575,9 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                             }
                                         }}
                                         disabled={accepting}
-                                        style={{
-                                            width: '100%', padding: '0.85rem', borderRadius: '12px',
-                                            background: '#10b981', color: '#fff', border: 'none',
-                                            fontSize: '0.95rem', fontWeight: 600, cursor: accepting ? 'not-allowed' : 'pointer',
-                                            fontFamily: 'inherit', opacity: accepting ? 0.6 : 1,
-                                        }}
+                                        className={`w-full py-3.5 rounded-xl font-bold text-white text-[15px] transition-all shadow-md ${
+                                            accepting ? 'bg-emerald-400 cursor-not-allowed opacity-60' : 'bg-emerald-500 hover:bg-emerald-600'
+                                        }`}
                                     >
                                         {accepting ? 'Processing...' : '✅ Release Credits'}
                                     </button>
@@ -673,12 +597,9 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                             }
                                         }}
                                         disabled={accepting}
-                                        style={{
-                                            width: '100%', padding: '0.7rem', borderRadius: '12px',
-                                            background: 'transparent', color: '#ef4444', border: '1px solid #ef4444',
-                                            fontSize: '0.85rem', fontWeight: 600, cursor: accepting ? 'not-allowed' : 'pointer',
-                                            fontFamily: 'inherit', opacity: accepting ? 0.6 : 1,
-                                        }}
+                                        className={`w-full py-3 rounded-xl border font-bold text-sm transition-colors ${
+                                            accepting ? 'border-red-200 text-red-300 cursor-not-allowed' : 'border-red-300 text-red-500 hover:bg-red-50'
+                                        }`}
                                     >
                                         ❌ Cancel Transaction
                                     </button>
@@ -695,12 +616,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                         setEditPhotos(selectedPost.photos || []);
                                         setEditMode(true);
                                     }}
-                                    style={{
-                                        width: '100%', padding: '0.85rem', borderRadius: '12px',
-                                        background: '#2563eb', color: '#fff', border: 'none',
-                                        fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer',
-                                        fontFamily: 'inherit',
-                                    }}
+                                    className="w-full py-3.5 rounded-xl bg-terra-500 hover:bg-terra-600 font-bold text-white text-[15px] transition-all shadow-md"
                                 >
                                     ✏️ Edit Post
                                 </button>
@@ -720,38 +636,28 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                         }
                                     }}
                                     disabled={deleting === selectedPost.id}
-                                    style={{
-                                        width: '100%', padding: '0.7rem', borderRadius: '12px',
-                                        background: deleting === selectedPost.id ? '#555' : 'transparent',
-                                        color: '#ef4444', border: '1px solid #ef4444',
-                                        fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
-                                        fontFamily: 'inherit',
-                                    }}
+                                    className={`w-full py-3 rounded-xl border font-bold text-sm transition-colors mt-2 ${
+                                        deleting === selectedPost.id ? 'border-red-200 text-red-300 cursor-not-allowed' : 'border-red-300 text-red-500 hover:bg-red-50'
+                                    }`}
                                 >
                                     {deleting === selectedPost.id ? 'Deleting...' : '🗑️ Delete Post'}
                                 </button>
                             </>
                         )) : (
-                            <div style={{
-                                background: 'var(--bg-card)', borderRadius: '16px',
-                                border: '1px solid var(--border-primary)', padding: '1rem',
-                            }}>
-                                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>✏️ Edit Post</h3>
+                            <div className="bg-white dark:bg-nature-950 border border-nature-200 dark:border-nature-800 rounded-2xl p-5 shadow-sm">
+                                <h3 className="font-bold text-lg text-nature-950 dark:text-white mb-4 tracking-tight">✏️ Edit Post</h3>
 
                                 {/* Type */}
-                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                <div className="flex gap-2 mb-4">
                                     {(['offer', 'need'] as const).map(t => (
                                         <button
                                             key={t}
                                             onClick={() => setEditType(t)}
-                                            style={{
-                                                flex: 1, padding: '0.5rem', borderRadius: '8px',
-                                                border: `1px solid ${t === 'offer' ? '#3b82f6' : '#f97316'}`,
-                                                background: editType === t ? (t === 'offer' ? '#3b82f6' : '#f97316') : 'transparent',
-                                                color: editType === t ? '#fff' : 'var(--text-muted)',
-                                                fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
-                                                fontFamily: 'inherit', textTransform: 'capitalize',
-                                            }}
+                                            className={`flex-1 py-2.5 rounded-xl border text-sm font-bold capitalize transition-colors ${
+                                                editType === t
+                                                    ? (t === 'offer' ? 'bg-blue-600 border-blue-600 text-white shadow-sm' : 'bg-orange-600 border-orange-600 text-white shadow-sm')
+                                                    : 'bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-500 dark:text-nature-400 hover:bg-oat-50 dark:hover:bg-nature-800'
+                                            }`}
                                         >
                                             {t === 'offer' ? '🔵 Offer' : '🟠 Need'}
                                         </button>
@@ -762,10 +668,8 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                 <select
                                     value={editCategory}
                                     onChange={(e) => setEditCategory(e.target.value)}
-                                    style={{
-                                        ...inputStyle,
-                                        appearance: 'auto', cursor: 'pointer',
-                                    }}
+                                    className="w-full mb-3 py-3 px-4 rounded-xl border border-nature-200 bg-white text-nature-900 text-[15px] focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm appearance-auto cursor-pointer"
+                                    style={inputStyle}
                                 >
                                     {MARKETPLACE_CATEGORIES.map(cat => (
                                         <option key={cat.id} value={cat.id}>{cat.emoji} {cat.label}</option>
@@ -777,6 +681,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                     value={editTitle}
                                     onChange={(e) => setEditTitle(e.target.value)}
                                     placeholder="Title"
+                                    className="w-full mb-3 py-3 px-4 rounded-xl border border-nature-200 bg-white text-nature-900 text-[15px] focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm"
                                     style={inputStyle}
                                 />
 
@@ -785,10 +690,8 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                     value={editDescription}
                                     onChange={(e) => setEditDescription(e.target.value)}
                                     placeholder="Description"
-                                    style={{
-                                        ...inputStyle,
-                                        minHeight: '80px', resize: 'vertical',
-                                    }}
+                                    className="w-full mb-3 py-3 px-4 rounded-xl border border-nature-200 bg-white text-nature-900 text-[15px] focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm min-h-[100px] resize-y"
+                                    style={{ ...inputStyle, minHeight: '100px' }}
                                 />
 
                                 {/* Credits */}
@@ -796,46 +699,33 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                     type="number"
                                     value={editCredits}
                                     onChange={(e) => setEditCredits(Number(e.target.value) || 0)}
-                                    placeholder="Credits (Ʀ)"
+                                    placeholder="Credits (B)"
+                                    className="w-full mb-4 py-3 px-4 rounded-xl border border-nature-200 bg-white text-nature-900 text-[15px] focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm"
                                     style={inputStyle}
                                 />
 
                                 {/* Photos */}
-                                <div style={{ marginBottom: '0.75rem' }}>
-                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>Photos ({editPhotos.length}/3)</p>
-                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <div className="mb-5">
+                                    <p className="text-xs font-bold text-nature-400 uppercase tracking-widest mb-2">Photos ({editPhotos.length}/3)</p>
+                                    <div className="flex gap-2 flex-wrap">
                                         {editPhotos.map((photo, i) => (
-                                            <div key={i} style={{ position: 'relative' }}>
-                                                <img src={photo} alt={`photo ${i+1}`} style={{
-                                                    width: '70px', height: '70px', objectFit: 'cover',
-                                                    borderRadius: '8px', border: '1px solid var(--border-primary)',
-                                                }} />
+                                            <div key={i} className="relative">
+                                                <img src={photo} alt={`photo ${i+1}`} className="w-16 h-16 object-cover rounded-xl border border-nature-200 shadow-sm" />
                                                 <button
                                                     onClick={() => setEditPhotos(editPhotos.filter((_, j) => j !== i))}
-                                                    style={{
-                                                        position: 'absolute', top: '-6px', right: '-6px',
-                                                        width: '20px', height: '20px', borderRadius: '50%',
-                                                        background: '#ef4444', border: 'none', color: '#fff',
-                                                        fontSize: '0.7rem', cursor: 'pointer', display: 'flex',
-                                                        alignItems: 'center', justifyContent: 'center',
-                                                    }}
+                                                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 border-none text-white text-[10px] flex items-center justify-center cursor-pointer shadow-sm hover:bg-red-600 transition-colors"
                                                 >
                                                     ✕
                                                 </button>
                                             </div>
                                         ))}
                                         {editPhotos.length < 3 && (
-                                            <label style={{
-                                                width: '70px', height: '70px', borderRadius: '8px',
-                                                border: '2px dashed var(--border-primary)',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.5rem',
-                                            }}>
+                                            <label className="w-16 h-16 rounded-xl border-2 border-dashed border-nature-300 flex items-center justify-center cursor-pointer text-nature-400 text-2xl hover:bg-nature-50 hover:border-nature-400 transition-colors">
                                                 +
                                                 <input
                                                     type="file"
                                                     accept="image/*"
-                                                    style={{ display: 'none' }}
+                                                    className="hidden"
                                                     onChange={(e) => {
                                                         const file = e.target.files?.[0];
                                                         if (!file) return;
@@ -866,15 +756,10 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                 </div>
 
                                 {/* Save/Cancel */}
-                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <div className="flex gap-2">
                                     <button
                                         onClick={() => setEditMode(false)}
-                                        style={{
-                                            flex: 1, padding: '0.7rem', borderRadius: '10px',
-                                            background: 'transparent', border: '1px solid var(--border-primary)',
-                                            color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600,
-                                            cursor: 'pointer', fontFamily: 'inherit',
-                                        }}
+                                        className="flex-1 py-3 is-bold rounded-xl border border-nature-300 text-nature-600 bg-white hover:bg-nature-50 transition-colors text-[15px] font-bold shadow-sm"
                                     >
                                         Cancel
                                     </button>
@@ -901,13 +786,9 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                                             }
                                         }}
                                         disabled={saving || !editTitle.trim()}
-                                        style={{
-                                            flex: 1, padding: '0.7rem', borderRadius: '10px',
-                                            background: editTitle.trim() ? '#2563eb' : '#333',
-                                            border: 'none', color: '#fff', fontSize: '0.85rem',
-                                            fontWeight: 600, cursor: editTitle.trim() ? 'pointer' : 'not-allowed',
-                                            fontFamily: 'inherit',
-                                        }}
+                                        className={`flex-1 py-3 rounded-xl font-bold text-white text-[15px] transition-colors shadow-sm ${
+                                            saving || !editTitle.trim() ? 'bg-nature-300 cursor-not-allowed' : 'bg-terra-500 hover:bg-terra-600'
+                                        }`}
                                     >
                                         {saving ? 'Saving...' : '💾 Save'}
                                     </button>
@@ -918,11 +799,7 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                 )}
 
                 {error && (
-                    <div style={{
-                        background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)',
-                        borderRadius: '10px', padding: '0.75rem', marginTop: '0.75rem',
-                        color: '#ef4444', fontSize: '0.85rem', textAlign: 'center',
-                    }}>
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-3 mt-4 text-red-600 text-sm text-center shadow-sm">
                         {error}
                     </div>
                 )}
@@ -932,11 +809,12 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
 
     // =================== LIST VIEW ===================
     return (
-        <div style={{ padding: '1rem' }}>
+        <div className="px-3 pt-2 pb-24 max-w-lg mx-auto">
             {/* Radius Picker Full Screen */}
             {showRadiusPicker && (
                 <RadiusPickerPage
                     initial={radiusSettings}
+                    defaultRadius={nodeConfig?.serviceRadius?.radiusKm}
                     onApply={(settings) => {
                         setRadiusSettings(settings);
                         saveRadiusSettings(settings);
@@ -951,168 +829,135 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                 />
             )}
 
-            {/* ── Linear-style Header ── */}
-            <div style={{
-                background: '#0a0a0a', borderRadius: '14px',
-                border: '1px solid #1f1f1f', padding: '0.75rem',
-                marginBottom: '0.75rem',
-            }}>
-                {/* Title + New Post */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
-                    <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#e5e5e5', margin: 0 }}>🤝 Marketplace</h2>
-                    <button
-                        onClick={() => onNavigate?.('map-post')}
-                        style={{
-                            padding: '0.3rem 0.7rem', borderRadius: '8px',
-                            background: '#2563eb', border: 'none', color: '#fff',
-                            fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                        }}
-                    >
-                        ＋ New Post
-                    </button>
-                </div>
-
-                {/* Search + Radius + Category — one compact row */}
-                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginBottom: '0.5rem' }}>
-                    <div style={{ flex: 1, position: 'relative' }}>
-                        <span style={{
-                            position: 'absolute', left: '0.55rem', top: '50%', transform: 'translateY(-50%)',
-                            fontSize: '0.75rem', opacity: 0.4, pointerEvents: 'none',
-                        }}>🔍</span>
+            {/* ── Compact Top Header ── */}
+            <div className="mb-2">
+                {/* Search + Primary Actions */}
+                <div className="flex gap-2 items-center">
+                    <div className="flex-1 relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm opacity-40 pointer-events-none text-nature-500 dark:text-nature-400">🔍</span>
                         <input
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search..."
-                            style={{
-                                width: '100%', padding: '0.4rem 0.5rem 0.4rem 1.7rem', borderRadius: '8px',
-                                border: '1px solid #1f1f1f', background: '#141414',
-                                color: '#e5e5e5', fontSize: '0.8rem', fontFamily: 'inherit',
-                                outline: 'none', boxSizing: 'border-box',
-                            }}
+                            className="w-full py-2.5 pl-10 pr-4 rounded-full border border-nature-200 dark:border-nature-800 bg-white dark:bg-nature-900 text-nature-900 dark:text-white text-[14px] font-medium focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm transition-all hover:shadow-md"
                         />
                     </div>
+                    
                     <button
-                        onClick={() => setShowRadiusPicker(true)}
-                        title={radiusSettings ? `${radiusSettings.radiusKm}km radius` : 'Set radius'}
-                        style={{
-                            width: '34px', height: '34px', borderRadius: '8px', flexShrink: 0,
-                            border: `1px solid ${radiusSettings ? '#f59e0b' : '#1f1f1f'}`,
-                            background: radiusSettings ? 'rgba(245, 158, 11, 0.1)' : '#141414',
-                            color: radiusSettings ? '#f59e0b' : '#666',
-                            fontSize: '0.85rem', cursor: 'pointer', display: 'flex',
-                            alignItems: 'center', justifyContent: 'center', padding: 0,
-                        }}
+                        onClick={() => setShowFilters(!showFilters)}
+                        title="Toggle Filters"
+                        className={`w-10 h-10 rounded-full flex-shrink-0 border flex items-center justify-center transition-colors hover:shadow-md ${
+                            showFilters ? 'bg-nature-800 dark:bg-white text-white dark:text-nature-950 border-nature-900 dark:border-white shadow-inner' : 'bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 hover:bg-oat-50 shadow-sm'
+                        }`}
                     >
-                        📍
+                        <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+                        </svg>
                     </button>
-                    <select
-                        value={categoryFilter}
-                        onChange={(e) => setCategoryFilter(e.target.value)}
-                        style={{
-                            padding: '0.4rem 0.4rem', borderRadius: '8px', flexShrink: 0,
-                            background: categoryFilter !== 'all' ? '#1a1a2e' : '#141414',
-                            border: `1px solid ${categoryFilter !== 'all' ? '#6366f1' : '#1f1f1f'}`,
-                            color: categoryFilter !== 'all' ? '#a5b4fc' : '#888',
-                            fontSize: '0.75rem', fontFamily: 'inherit', cursor: 'pointer',
-                            appearance: 'auto', maxWidth: '110px',
-                        }}
+                    
+                    <button
+                        onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+                        className="w-10 h-10 rounded-full flex-shrink-0 border bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 hover:bg-oat-50 dark:hover:bg-nature-800 transition-colors shadow-sm flex items-center justify-center text-md hover:shadow-md"
+                        title={viewMode === 'grid' ? "Switch to List View" : "Switch to Grid View"}
                     >
-                        <option value="all">All Categories</option>
-                        {MARKETPLACE_CATEGORIES.map((cat) => (
-                            <option key={cat.id} value={cat.id}>{cat.emoji} {cat.label}</option>
-                        ))}
-                    </select>
+                        {viewMode === 'grid' ? '☰' : '⊞'}
+                    </button>
                 </div>
 
-                {/* Connected Communities — multi-toggle */}
-                {peerNodes.length > 0 && (
-                    <div style={{
-                        display: 'flex', gap: '0.3rem', marginBottom: '0.5rem',
-                        overflowX: 'auto', paddingBottom: '0.15rem',
-                    }}>
-                        <span style={{
-                            padding: '0.25rem 0.55rem', borderRadius: '6px',
-                            border: '1px solid #10b981',
-                            background: 'rgba(16,185,129,0.1)',
-                            color: '#10b981',
-                            fontSize: '0.7rem', fontWeight: 600,
-                            whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center',
-                        }}>
-                            🏠 Home
-                        </span>
-                        {peerNodes.map(peer => {
-                            const isOn = enabledPeers.has(peer.publicUrl);
-                            return (
-                                <button
-                                    key={peer.publicUrl}
-                                    onClick={() => { setEnabledPeers(togglePeer(enabledPeers, peer.publicUrl)); }}
-                                    style={{
-                                        padding: '0.25rem 0.55rem', borderRadius: '6px',
-                                        border: `1px solid ${isOn ? '#6366f1' : '#1f1f1f'}`,
-                                        background: isOn ? 'rgba(99,102,241,0.15)' : 'transparent',
-                                        color: isOn ? '#818cf8' : '#555',
-                                        fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
-                                        fontFamily: 'inherit', whiteSpace: 'nowrap',
-                                        transition: 'all 0.15s ease',
-                                    }}
-                                >
-                                    {isOn ? '🌐' : '○'} {peer.callsign}
-                                </button>
-                            );
-                        })}
+                {/* Collapsible Filters Panel */}
+                {showFilters && (
+                    <div className="mt-4 bg-oat-50/50 dark:bg-nature-900/40 rounded-[24px] border border-nature-200 dark:border-nature-800 p-4 shadow-inner animate-in slide-in-from-top-2 duration-200">
+                        {/* Radius + Category */}
+                        <div className="flex gap-2 items-center mb-4">
+                            <button
+                                onClick={() => setShowRadiusPicker(true)}
+                                title={radiusSettings ? `${radiusSettings.radiusKm}km radius` : 'Set radius'}
+                                className={`flex-1 py-2.5 px-4 rounded-xl border flex items-center gap-2 text-sm font-bold shadow-sm transition-colors ${
+                                    radiusSettings ? 'bg-amber-100 dark:bg-amber-900/60 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400' : 'bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400'
+                                }`}
+                            >
+                                <span>📍</span> {radiusSettings ? `${radiusSettings.radiusKm}km Radius` : 'Location Radius'}
+                            </button>
+                            <select
+                                value={categoryFilter}
+                                onChange={(e) => setCategoryFilter(e.target.value)}
+                                className={`flex-1 py-2.5 px-4 rounded-xl appearance-auto cursor-pointer text-sm font-bold shadow-sm border transition-colors ${
+                                    categoryFilter !== 'all' ? 'bg-indigo-100 dark:bg-indigo-900/60 border-indigo-300 dark:border-indigo-700 text-indigo-800 dark:text-indigo-300' : 'bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400'
+                                }`}
+                            >
+                                <option value="all">🏷️ All Categories</option>
+                                {MARKETPLACE_CATEGORIES.map((cat) => (
+                                    <option key={cat.id} value={cat.id}>{cat.emoji} {cat.label}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Connected Communities — multi-toggle */}
+                        {peerNodes.length > 0 && (
+                            <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide">
+                                <span className="px-3 py-1.5 rounded-lg border-2 border-emerald-300 bg-emerald-50 text-emerald-700 text-xs font-black uppercase tracking-widest whitespace-nowrap inline-flex items-center shadow-sm">
+                                    🏠 Internal
+                                </span>
+                                {peerNodes.map(peer => {
+                                    const isOn = enabledPeers.has(peer.publicUrl);
+                                    return (
+                                        <button
+                                            key={peer.publicUrl}
+                                            onClick={() => { setEnabledPeers(togglePeer(enabledPeers, peer.publicUrl)); }}
+                                            className={`px-3 py-1.5 rounded-lg border-2 text-xs font-bold cursor-pointer whitespace-nowrap transition-all shadow-sm ${
+                                                isOn ? 'border-indigo-400 dark:border-indigo-600 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300' : 'border-nature-200 dark:border-nature-800 bg-white/50 dark:bg-nature-950/50 text-nature-500 dark:text-nature-400'
+                                            }`}
+                                        >
+                                            {isOn ? '🌐' : '○'} {peer.callsign}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Type filter chips */}
+                        <div className="flex w-full gap-2 items-center pb-1">
+                            {(['all', 'offer', 'need'] as const).map((t) => {
+                                const isSelected = !showMine && typeFilter === t;
+                                let activeStyles = 'bg-nature-800 border-nature-900 text-white';
+                                if (t === 'offer') activeStyles = 'bg-blue-600 border-blue-700 text-white';
+                                if (t === 'need') activeStyles = 'bg-orange-600 border-orange-700 text-white';
+
+                                return (
+                                    <button
+                                        key={t}
+                                        onClick={() => { setTypeFilter(t); setShowMine(false); }}
+                                        className={`${t === 'all' ? 'px-3' : 'flex-1'} py-2 rounded-xl border text-[11px] sm:text-xs font-bold text-center truncate shadow-sm transition-colors ${
+                                            isSelected ? activeStyles : 'bg-white dark:bg-nature-950 border-nature-200 dark:border-nature-800 text-nature-500 dark:text-nature-400'
+                                        }`}
+                                    >
+                                        {t === 'all' ? 'All' : t === 'offer' ? '🔵 Offers' : '🟠 Needs'}
+                                    </button>
+                                );
+                            })}
+                            <button
+                                onClick={() => setShowMine(!showMine)}
+                                className={`flex-[1.2] px-1 py-2 rounded-xl border text-[11px] sm:text-xs font-bold text-center truncate shadow-sm transition-colors ${
+                                    showMine ? 'bg-purple-600 border-purple-700 text-white' : 'bg-white dark:bg-nature-950 border-nature-200 dark:border-nature-800 text-nature-500 dark:text-nature-400'
+                                }`}
+                            >
+                                👤 My Listings
+                            </button>
+                        </div>
                     </div>
                 )}
-
-                {/* Type filter chips — compact row */}
-                <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
-                    {(['all', 'offer', 'need'] as const).map((t) => (
-                        <button
-                            key={t}
-                            onClick={() => { setTypeFilter(t); setShowMine(false); }}
-                            style={{
-                                padding: '0.25rem 0.55rem', borderRadius: '6px',
-                                border: `1px solid ${t === 'offer' ? '#3b82f633' : t === 'need' ? '#f9731633' : '#1f1f1f'}`,
-                                background: !showMine && typeFilter === t
-                                    ? (t === 'offer' ? '#1e3a5f' : t === 'need' ? '#3b1f0b' : '#1f1f1f')
-                                    : 'transparent',
-                                color: !showMine && typeFilter === t ? '#e5e5e5' : '#666',
-                                fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
-                                fontFamily: 'inherit', whiteSpace: 'nowrap',
-                            }}
-                        >
-                            {t === 'all' ? 'All' : t === 'offer' ? '🔵 Offers' : '🟠 Needs'}
-                        </button>
-                    ))}
-                    <button
-                        onClick={() => setShowMine(!showMine)}
-                        style={{
-                            padding: '0.25rem 0.55rem', borderRadius: '6px',
-                            border: '1px solid #a855f733',
-                            background: showMine ? '#2d1b4e' : 'transparent',
-                            color: showMine ? '#c084fc' : '#666',
-                            fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
-                            fontFamily: 'inherit', whiteSpace: 'nowrap',
-                        }}
-                    >
-                        👤 Mine
-                    </button>
-                </div>
             </div>
 
             {/* Error */}
             {error && (
-                <div style={{
-                    background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)',
-                    borderRadius: '10px', padding: '0.75rem', marginBottom: '1rem',
-                    color: '#ef4444', fontSize: '0.85rem', textAlign: 'center',
-                }}>
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-red-600 text-sm text-center shadow-sm">
                     {error}
                 </div>
             )}
 
             {/* Posts */}
             {loading ? (
-                <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>Loading...</p>
+                <p className="text-nature-500 text-center py-8">Loading...</p>
             ) : (() => {
                 let filtered = showMine && identity
                     ? posts.filter(p => p.authorPublicKey === identity.publicKey)
@@ -1137,31 +982,43 @@ export function MarketplacePage({ identity, onNavigate }: Props) {
                 }
 
                 return filtered.length === 0 ? (
-                    <div style={{
-                        background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: '12px',
-                        padding: '2rem', textAlign: 'center', color: 'var(--text-faint)', fontSize: '0.9rem',
-                    }}>
-                        {searchQuery.trim() ? `No results for "${searchQuery}".`
-                            : radiusSettings ? 'No posts within this radius.'
-                            : showMine ? 'You haven\'t posted anything yet.'
-                            : 'No posts yet. Be the first to post!'}
+                    <div className="bg-white dark:bg-nature-950 border border-nature-200 dark:border-nature-800 rounded-3xl p-10 mt-6 text-center shadow-soft">
+                        <div className="text-5xl opacity-30 mb-4">
+                            {searchQuery.trim() ? '🔍' : radiusSettings ? '📍' : showMine ? '👤' : '🛒'}
+                        </div>
+                        <h4 className="font-bold text-lg text-nature-900 dark:text-white mb-2">No items found</h4>
+                        <p className="text-nature-500 dark:text-nature-400 text-sm">
+                            {searchQuery.trim() ? `No matches for "${searchQuery}".`
+                                : radiusSettings ? 'Expand your radius to see more posts.'
+                                : showMine ? 'You haven\'t added any posts yet.'
+                                : 'The market is quiet right now. Post an offer!'}
+                        </p>
                     </div>
                 ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                    <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 pb-32' : 'flex flex-col gap-5 pb-32'}>
                         {filtered.map((post) => (
-                            <div key={post.id} onClick={() => setSelectedPost(post)}>
+                            <div key={post.id} onClick={() => setSelectedPost(post)} className="h-full">
                                 <MarketplaceCard
                                     post={post as any}
                                     authorRating={authorRatingsCache[post.authorPublicKey]}
                                     remoteNode={(post as any)._remoteNode}
-                                    onTrade={(p) => setSelectedPost(p as any)}
+                                    viewMode={viewMode}
                                 />
                             </div>
                         ))}
                     </div>
                 );
-            })()
-            }
+            })()}
+
+            {/* Floating 'Add Offer/Need' Button */}
+            {!selectedPost && (
+                <button
+                    onClick={() => onNavigate?.('map-post')}
+                    className="fixed bottom-[90px] right-4 z-50 flex items-center justify-center gap-1.5 px-4 py-3 bg-gradient-to-r from-terra-500 to-terra-600 hover:from-terra-600 hover:to-terra-700 text-white font-bold rounded-full shadow-[0_6px_20px_rgb(203,83,38,0.35)] hover:shadow-[0_8px_25px_rgb(203,83,38,0.45)] transition-all hover:-translate-y-1 group text-sm"
+                >
+                    <span className="text-lg leading-none block group-hover:rotate-90 transition-transform duration-300">+</span> ADD POST
+                </button>
+            )}
         </div>
     );
 }

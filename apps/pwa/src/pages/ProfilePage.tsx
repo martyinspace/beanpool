@@ -102,81 +102,44 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
         reader.readAsDataURL(file);
     }
 
-    const inputStyle: React.CSSProperties = {
-        width: '100%',
-        padding: '0.75rem 1rem',
-        borderRadius: '10px',
-        border: '1px solid var(--border-input)',
-        background: 'var(--bg-secondary)',
-        color: 'var(--text-primary)',
-        fontSize: '1rem',
-        fontFamily: 'inherit',
-        outline: 'none',
-    };
-
-    const labelStyle: React.CSSProperties = {
-        display: 'block',
-        fontSize: '0.85rem',
-        fontWeight: 600,
-        color: 'var(--text-secondary)',
-        marginBottom: '0.5rem',
-    };
-
     if (loading) {
         return (
-            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <div className="p-8 text-center text-nature-500 font-medium animate-pulse">
                 Loading profile...
             </div>
         );
     }
 
     return (
-        <div style={{ padding: '1rem', maxWidth: '500px', margin: '0 auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+        <div className="p-5 max-w-[500px] mx-auto min-h-full">
+            <div className="flex items-center gap-3 mb-6">
                 <button
                     onClick={onBack}
-                    style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#2563eb',
-                        fontSize: '1rem',
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                        padding: 0,
-                    }}
+                    className="bg-transparent border-none text-nature-600 hover:text-nature-900 text-base cursor-pointer px-1 transition-colors font-semibold"
                 >
                     ← Back
                 </button>
-                <h2 style={{ fontSize: '1.3rem', margin: 0 }}>Your Profile</h2>
+                <h2 className="text-xl font-bold text-nature-950 m-0 tracking-tight">Your Profile</h2>
             </div>
 
             {/* Avatar */}
-            <div style={{
-                textAlign: 'center',
-                marginBottom: '1.5rem',
-            }}>
+            <div className="text-center mb-8 relative">
                 <div
-                    style={{
-                        width: '96px',
-                        height: '96px',
-                        borderRadius: '50%',
-                        background: avatar ? `url(${avatar}) center/cover` : '#333',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto',
-                        fontSize: '2.5rem',
-                        border: '2px solid #444',
-                    }}
+                    className="w-24 h-24 rounded-full flex items-center justify-center mx-auto text-4xl shadow-md border-4 border-white bg-oat-100 overflow-hidden relative group transition-transform hover:scale-105"
+                    style={{ background: avatar ? `url(${avatar}) center/cover` : undefined }}
                 >
                     {!avatar && '📷'}
+                    <div className="absolute inset-0 bg-black/20 hidden group-hover:flex items-center justify-center transition-opacity">
+                        <span className="text-white text-xs font-bold bg-black/50 px-2 py-1 rounded-full backdrop-blur-sm">Edit</span>
+                    </div>
                 </div>
+                
                 <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
                     onChange={handleAvatarUpload}
-                    style={{ display: 'none' }}
+                    className="hidden"
                 />
                 <input
                     ref={cameraInputRef}
@@ -184,28 +147,18 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
                     accept="image/*"
                     capture="environment"
                     onChange={handleAvatarUpload}
-                    style={{ display: 'none' }}
+                    className="hidden"
                 />
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <div className="flex justify-center gap-3 mt-4">
                     <button
                         onClick={() => cameraInputRef.current?.click()}
-                        style={{
-                            background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
-                            borderRadius: '8px', padding: '0.4rem 0.75rem',
-                            color: '#ccc', fontSize: '0.75rem', cursor: 'pointer',
-                            fontFamily: 'inherit',
-                        }}
+                        className="bg-white border border-nature-200 rounded-xl px-4 py-2 text-nature-700 text-sm font-semibold cursor-pointer hover:bg-nature-50 hover:border-nature-300 shadow-sm transition-all"
                     >
                         📸 Camera
                     </button>
                     <button
                         onClick={() => fileInputRef.current?.click()}
-                        style={{
-                            background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
-                            borderRadius: '8px', padding: '0.4rem 0.75rem',
-                            color: '#ccc', fontSize: '0.75rem', cursor: 'pointer',
-                            fontFamily: 'inherit',
-                        }}
+                        className="bg-white border border-nature-200 rounded-xl px-4 py-2 text-nature-700 text-sm font-semibold cursor-pointer hover:bg-nature-50 hover:border-nature-300 shadow-sm transition-all"
                     >
                         🖼️ Gallery
                     </button>
@@ -213,15 +166,7 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
                 {avatar && (
                     <button
                         onClick={() => setAvatar(null)}
-                        style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#ef4444',
-                            fontSize: '0.8rem',
-                            cursor: 'pointer',
-                            fontFamily: 'inherit',
-                            marginTop: '0.25rem',
-                        }}
+                        className="bg-transparent mt-3 border-none text-red-500 hover:text-red-700 text-sm font-medium cursor-pointer transition-colors px-2 py-1 rounded-md hover:bg-red-50"
                     >
                         Remove photo
                     </button>
@@ -229,64 +174,50 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
             </div>
 
             {/* Callsign */}
-            <div style={{ marginBottom: '1.25rem' }}>
-                <label style={labelStyle}>Callsign ✏️</label>
+            <div className="mb-6">
+                <label className="block text-[15px] font-bold text-nature-950 mb-2">Callsign ✏️</label>
                 <input
                     type="text"
                     value={callsign}
                     onChange={(e) => setCallsign(e.target.value)}
                     maxLength={20}
-                    style={{
-                        ...inputStyle,
-                        border: '1px solid #2563eb',
-                        background: '#0a1628',
-                    }}
+                    className="w-full py-3 px-4 rounded-xl border border-terra-400 bg-terra-50/30 text-nature-900 text-base focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-inner font-semibold transition-all"
                 />
-                <p style={{ color: 'var(--text-faint)', fontSize: '0.7rem', margin: '0.25rem 0 0' }}>
+                <p className="text-nature-500 text-xs mt-2 font-medium">
                     Changing your callsign updates your display name everywhere
                 </p>
             </div>
 
             {/* Bio */}
-            <div style={{ marginBottom: '1.25rem' }}>
-                <label style={labelStyle}>Bio</label>
+            <div className="mb-6">
+                <label className="block text-[15px] font-bold text-nature-950 mb-2">Bio</label>
                 <textarea
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
                     placeholder="A short bio about yourself..."
                     maxLength={200}
-                    style={{
-                        ...inputStyle,
-                        minHeight: '80px',
-                        resize: 'none',
-                    }}
+                    className="w-full py-3 px-4 rounded-xl border border-nature-200 bg-oat-50/50 text-nature-900 text-base focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm min-h-[90px] resize-none transition-all placeholder:text-nature-400"
                 />
-                <p style={{ color: 'var(--text-faint)', fontSize: '0.7rem', textAlign: 'right' }}>
+                <p className="text-nature-400 text-xs text-right mt-1 font-medium">
                     {bio.length}/200
                 </p>
             </div>
 
             {/* Contact Details */}
-            <div style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border-primary)',
-                borderRadius: '12px',
-                padding: '1rem',
-                marginBottom: '1.5rem',
-            }}>
-                <label style={labelStyle}>Contact Details</label>
+            <div className="bg-oat-50/50 border border-nature-200 rounded-2xl p-5 mb-8 shadow-sm">
+                <label className="block text-[15px] font-bold text-nature-950 mb-2">Contact Details</label>
                 <input
                     type="text"
                     value={contactValue}
                     onChange={(e) => setContactValue(e.target.value)}
                     placeholder="Phone, email, or WhatsApp"
-                    style={{ ...inputStyle, marginBottom: '0.75rem' }}
+                    className="w-full py-3 px-4 mb-4 rounded-xl border border-nature-200 bg-white text-nature-900 text-base focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm transition-all placeholder:text-nature-400"
                 />
 
                 {contactValue.trim() && (
-                    <>
-                        <label style={{ ...labelStyle, marginTop: '0.5rem' }}>Who can see this?</label>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                        <label className="block text-sm font-bold text-nature-700 mb-2 mt-2">Who can see this?</label>
+                        <div className="flex flex-col gap-2">
                             {([
                                 { value: 'hidden', label: '🔒 Hidden', desc: 'Only you can see it' },
                                 { value: 'trade_partners', label: '🤝 Trade Partners', desc: 'Visible when you enter a trade' },
@@ -295,35 +226,28 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
                                 <button
                                     key={opt.value}
                                     onClick={() => setContactVisibility(opt.value)}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.75rem',
-                                        padding: '0.6rem 0.75rem',
-                                        borderRadius: '8px',
-                                        border: contactVisibility === opt.value
-                                            ? '1px solid #2563eb'
-                                            : '1px solid #333',
-                                        background: contactVisibility === opt.value
-                                            ? '#0f1729'
-                                            : 'transparent',
-                                        cursor: 'pointer',
-                                        fontFamily: 'inherit',
-                                        textAlign: 'left',
-                                        color: 'var(--text-primary)',
-                                    }}
+                                    className={`flex items-center gap-3 p-3.5 rounded-xl border transition-all text-left w-full cursor-pointer shadow-sm ${
+                                        contactVisibility === opt.value
+                                            ? 'border-blue-500 bg-blue-50 shadow-md ring-1 ring-blue-500'
+                                            : 'border-nature-200 bg-white hover:bg-nature-50'
+                                    }`}
                                 >
-                                    <span style={{ fontSize: '1.1rem' }}>{opt.label.split(' ')[0]}</span>
-                                    <div>
-                                        <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                                    <span className="text-xl leading-none">{opt.label.split(' ')[0]}</span>
+                                    <div className="flex-1">
+                                        <div className={`text-[15px] font-bold ${contactVisibility === opt.value ? 'text-blue-900' : 'text-nature-900'}`}>
                                             {opt.label.split(' ').slice(1).join(' ')}
                                         </div>
-                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{opt.desc}</div>
+                                        <div className={`text-xs mt-0.5 ${contactVisibility === opt.value ? 'text-blue-700' : 'text-nature-500'}`}>
+                                            {opt.desc}
+                                        </div>
                                     </div>
+                                    {contactVisibility === opt.value && (
+                                        <div className="text-blue-500 text-xl font-bold">✓</div>
+                                    )}
                                 </button>
                             ))}
                         </div>
-                    </>
+                    </div>
                 )}
             </div>
 
@@ -331,21 +255,15 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
             <button
                 onClick={handleSave}
                 disabled={saving}
-                style={{
-                    width: '100%',
-                    padding: '1rem',
-                    borderRadius: '12px',
-                    border: 'none',
-                    background: saved ? '#22c55e' : saving ? '#555' : '#2563eb',
-                    color: 'var(--text-primary)',
-                    fontSize: '1rem',
-                    fontWeight: 600,
-                    cursor: saving ? 'not-allowed' : 'pointer',
-                    fontFamily: 'inherit',
-                    transition: 'background 0.2s',
-                }}
+                className={`w-full py-4 rounded-xl font-bold transition-all shadow-md text-[15px] ${
+                    saved 
+                        ? 'bg-emerald-500 text-white border-emerald-600' 
+                        : saving 
+                            ? 'bg-nature-300 text-white cursor-not-allowed' 
+                            : 'bg-nature-900 text-white hover:bg-black hover:shadow-lg'
+                }`}
             >
-                {saved ? '✓ Saved!' : saving ? 'Saving...' : 'Save Profile'}
+                {saved ? '✓ Profile Saved Successfully!' : saving ? 'Saving...' : 'Save Profile Changes'}
             </button>
         </div>
     );

@@ -43,8 +43,6 @@ let totalNodes = 0;
 const bounds = [];
 
 async function pollNodes() {
-    const nodesList = document.getElementById('nodes-list');
-    nodesList.innerHTML = '<span style="color:#64748b;font-size:0.82rem;">Scanning nodes...</span>';
 
     const results = await Promise.allSettled(
         SEED_NODES.map(async (url) => {
@@ -56,7 +54,6 @@ async function pollNodes() {
         })
     );
 
-    nodesList.innerHTML = '';
     totalNodes = 0;
     totalMembers = 0;
 
@@ -104,11 +101,6 @@ async function pollNodes() {
             bounds.push([node.lat, node.lng]);
         }
 
-        // Node chip
-        const chip = document.createElement('div');
-        chip.className = 'node-chip';
-        chip.innerHTML = `<span class="node-dot"></span> ${node.name}`;
-        nodesList.appendChild(chip);
     });
 
     // Update hero stats
@@ -116,12 +108,16 @@ async function pollNodes() {
     document.getElementById('stat-members').textContent = totalMembers || '—';
 
     if (totalNodes === 0) {
-        nodesList.innerHTML = '<span style="color:#64748b;font-size:0.82rem;">No nodes online right now. Start yours!</span>';
+        document.getElementById('nodes-map').style.opacity = '0.5';
+    } else {
+        document.getElementById('nodes-map').style.opacity = '1';
     }
 
     // Fit map to bounds
-    if (bounds.length > 0) {
-        nodesMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 10 });
+    if (bounds.length === 1) {
+        nodesMap.setView(bounds[0], 8);
+    } else if (bounds.length > 1) {
+        nodesMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
     }
 }
 

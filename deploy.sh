@@ -25,9 +25,9 @@ fi
 # Active nodes: number:name:IP:DNS:user
 # Azure nodes use azureuser + SSH key; Debian uses marty + default key
 NODES=(
-  "1:beanpool-node-sydney:20.211.27.68:sydney.beanpool.org:azureuser"
+  "1:mullum2:20.211.27.68:mullum2.beanpool.org:azureuser"
   "2:bp-brisbane:20.5.121.158:brisbane.beanpool.org:azureuser"
-  "3:bp-mullum:192.168.1.219:mullum.beanpool.org:marty"
+  "3:mullum1:192.168.1.219:mullum1.beanpool.org:marty"
 )
 
 # Package docker-compose.yml + data-preserving deploy config

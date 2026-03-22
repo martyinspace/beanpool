@@ -72,23 +72,18 @@ export function PeoplePage({ identity }: Props) {
     const guardians = friends.filter(f => f.isGuardian);
 
     return (
-        <div style={{ padding: '1rem', maxWidth: 480, margin: '0 auto' }}>
+        <div className="p-4 max-w-[480px] mx-auto">
             {/* Sub-nav pills */}
-            <div style={{
-                display: 'flex', gap: '0.25rem', marginBottom: '1rem',
-                background: 'var(--bg-secondary, #1e293b)', borderRadius: 10, padding: 3,
-            }}>
+            <div className="flex gap-1 mb-5 bg-oat-100 dark:bg-nature-900 rounded-xl p-1 shadow-inner border border-nature-200 dark:border-nature-800">
                 {(['friends', 'community', 'invites', 'guardians'] as SubView[]).map(v => (
                     <button
                         key={v}
                         onClick={() => setView(v)}
-                        style={{
-                            flex: 1, padding: '0.5rem 0.25rem', border: 'none', borderRadius: 8,
-                            fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
-                            background: view === v ? 'var(--bg-primary, #0f172a)' : 'transparent',
-                            color: view === v ? '#fff' : 'var(--text-muted, #64748b)',
-                            transition: 'all 0.2s',
-                        }}
+                        className={`flex-1 py-2 px-1 border-none rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                            view === v 
+                                ? 'bg-white dark:bg-nature-800 text-nature-900 dark:text-white shadow-sm border border-nature-200/50 dark:border-nature-700/50 scale-95' 
+                                : 'bg-transparent text-nature-500 dark:text-nature-400 hover:text-nature-700 dark:hover:text-oat-50 hover:bg-oat-200 dark:hover:bg-nature-800'
+                        }`}
                     >
                         {v === 'friends' && '👫 Friends'}
                         {v === 'community' && '🏘️ Community'}
@@ -100,38 +95,36 @@ export function PeoplePage({ identity }: Props) {
 
             {/* ===== FRIENDS ===== */}
             {view === 'friends' && (
-                <div>
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                     {friends.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted, #64748b)' }}>
-                            <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>👫</p>
-                            <p style={{ fontSize: '0.9rem' }}>No friends yet</p>
-                            <p style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
-                                Go to <strong>Community</strong> to browse members and add friends.
+                        <div className="text-center p-10 text-nature-500 dark:text-nature-400 bg-white dark:bg-nature-900 rounded-2xl border border-nature-200 dark:border-nature-800 shadow-sm mt-4">
+                            <p className="text-4xl mb-3">👫</p>
+                            <p className="text-[15px] font-semibold text-nature-800 dark:text-white">No friends yet</p>
+                            <p className="text-xs mt-2 text-nature-500 dark:text-nature-400 leading-relaxed">
+                                Go to <strong className="text-nature-700 dark:text-oat-50">Community</strong> to browse members and add friends.
                             </p>
                         </div>
                     ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div className="flex flex-col gap-3">
                             {friends.map(f => (
-                                <div key={f.publicKey} style={{
-                                    background: 'var(--bg-secondary, #1e293b)', borderRadius: 12,
-                                    padding: '0.75rem 1rem', display: 'flex', alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                }}>
-                                    <div>
-                                        <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                            {f.callsign}
-                                            {f.isGuardian && <span style={{ marginLeft: 6, fontSize: '0.7rem', color: '#f59e0b' }}>🛡️</span>}
+                                <div key={f.publicKey} className="bg-white dark:bg-nature-900 rounded-2xl p-4 flex items-center justify-between border border-nature-200 dark:border-nature-800 shadow-sm transition-transform hover:-translate-y-0.5">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-oat-100 dark:bg-nature-800 border border-nature-200 dark:border-nature-700 flex items-center justify-center text-lg">
+                                            {f.isGuardian ? '🛡️' : '👤'}
                                         </div>
-                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)' }}>
-                                            Added {new Date(f.addedAt).toLocaleDateString()}
+                                        <div>
+                                            <div className="font-bold text-[15px] text-nature-900 dark:text-white flex items-center gap-1.5">
+                                                {f.callsign}
+                                                {f.isGuardian && <span className="text-xs text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/40 border border-amber-100 dark:border-amber-800 px-1.5 py-0.5 rounded-md">Guardian</span>}
+                                            </div>
+                                            <div className="text-xs text-nature-400 dark:text-nature-500 font-medium mt-0.5">
+                                                Added {new Date(f.addedAt).toLocaleDateString()}
+                                            </div>
                                         </div>
                                     </div>
                                     <button
                                         onClick={() => handleRemoveFriend(f.publicKey)}
-                                        style={{
-                                            background: 'none', border: 'none', color: '#ef4444',
-                                            fontSize: '0.75rem', cursor: 'pointer', padding: '0.25rem 0.5rem',
-                                        }}
+                                        className="bg-transparent border-none text-red-500 text-xs font-semibold cursor-pointer px-3 py-2 rounded-lg hover:bg-red-50 transition-colors"
                                     >
                                         Remove
                                     </button>
@@ -144,38 +137,37 @@ export function PeoplePage({ identity }: Props) {
 
             {/* ===== COMMUNITY ===== */}
             {view === 'community' && (
-                <div>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted, #64748b)', marginBottom: '0.75rem' }}>
-                        All members on this node. Tap <strong>+ Add</strong> to add someone as a friend.
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <p className="text-[13px] font-medium text-nature-500 dark:text-nature-400 mb-4 bg-oat-50 dark:bg-nature-900 p-3 rounded-xl border border-nature-200 dark:border-nature-800 shadow-sm">
+                        All members on this node. Tap <strong className="text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded shadow-sm border border-emerald-100 dark:border-emerald-800">+ Add</strong> to add someone as a friend.
                     </p>
                     {loading ? (
-                        <p style={{ textAlign: 'center', color: 'var(--text-muted, #64748b)', padding: '2rem' }}>Loading...</p>
+                        <p className="text-center text-nature-500 p-8 font-medium animate-pulse">Loading community...</p>
                     ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div className="flex flex-col gap-3">
                             {members
                                 .filter(m => m.publicKey !== identity.publicKey)
                                 .map(m => (
-                                    <div key={m.publicKey} style={{
-                                        background: 'var(--bg-secondary, #1e293b)', borderRadius: 12,
-                                        padding: '0.75rem 1rem', display: 'flex', alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                    }}>
-                                        <div>
-                                            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{m.callsign}</div>
-                                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted, #64748b)' }}>
-                                                Joined {new Date(m.joinedAt).toLocaleDateString()}
+                                    <div key={m.publicKey} className="bg-white dark:bg-nature-900 rounded-2xl p-4 flex items-center justify-between border border-nature-200 dark:border-nature-800 shadow-sm transition-transform hover:-translate-y-0.5">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-oat-100 dark:bg-nature-800 border border-nature-200 dark:border-nature-700 flex items-center justify-center text-lg shadow-inner">
+                                                👤
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-[15px] text-nature-900 dark:text-white">{m.callsign}</div>
+                                                <div className="text-xs text-nature-400 dark:text-nature-500 font-medium mt-0.5">
+                                                    Joined {new Date(m.joinedAt).toLocaleDateString()}
+                                                </div>
                                             </div>
                                         </div>
                                         {friendPubkeys.has(m.publicKey) ? (
-                                            <span style={{ fontSize: '0.75rem', color: '#10b981' }}>✓ Friend</span>
+                                            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/40 px-3 py-1.5 rounded-xl border border-emerald-100 dark:border-emerald-800 shadow-sm">
+                                                ✓ Friend
+                                            </span>
                                         ) : (
                                             <button
                                                 onClick={() => handleAddFriend(m.publicKey)}
-                                                style={{
-                                                    background: '#2563eb', color: 'white', border: 'none',
-                                                    borderRadius: 8, padding: '0.35rem 0.75rem',
-                                                    fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
-                                                }}
+                                                className="bg-emerald-600 border-none text-white rounded-xl px-4 py-2 text-xs font-bold cursor-pointer hover:bg-emerald-700 shadow-sm transition-all hover:shadow-md"
                                             >
                                                 + Add
                                             </button>
@@ -189,55 +181,58 @@ export function PeoplePage({ identity }: Props) {
 
             {/* ===== INVITES ===== */}
             {view === 'invites' && (
-                <InvitePage identity={identity} />
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 bg-white dark:bg-nature-900 rounded-2xl shadow-soft border border-nature-200 dark:border-nature-800 overflow-hidden">
+                    <InvitePage identity={identity} />
+                </div>
             )}
 
             {/* ===== GUARDIANS ===== */}
             {view === 'guardians' && (
-                <div>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #64748b)', marginBottom: '1rem', lineHeight: 1.5 }}>
-                        Choose up to <strong>5 trusted friends</strong> as recovery guardians. 
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <p className="text-[13px] text-nature-600 dark:text-nature-300 mb-5 leading-relaxed bg-emerald-50/50 dark:bg-emerald-900/20 p-4 rounded-xl border border-emerald-100 dark:border-emerald-800 shadow-sm">
+                        Choose up to <strong className="text-nature-900 dark:text-white">5 trusted friends</strong> as recovery guardians. 
                         If you ever lose your device, any 3 of them can help you get your identity back.
                     </p>
 
                     {friends.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted, #64748b)' }}>
-                            <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🛡️</p>
-                            <p style={{ fontSize: '0.85rem' }}>Add some friends first, then come back here to choose your guardians.</p>
+                        <div className="text-center p-10 text-nature-500 bg-white rounded-2xl border border-nature-200 shadow-sm mt-4">
+                            <p className="text-4xl mb-3">🛡️</p>
+                            <p className="text-[14px] font-semibold text-nature-800 leading-relaxed max-w-[250px] mx-auto">
+                                Add some friends first, then come back here to choose your guardians.
+                            </p>
                         </div>
                     ) : (
-                        <>
-                            <p style={{
-                                fontSize: '0.8rem', color: guardians.length >= 5 ? '#10b981' : '#f59e0b',
-                                marginBottom: '0.75rem', fontWeight: 600,
-                            }}>
-                                {guardians.length}/5 guardians selected
-                            </p>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-nature-200">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="font-bold text-nature-950 text-[15px] m-0">Your Guardians</h3>
+                                <div className={`text-xs font-bold px-3 py-1 rounded-full ${guardians.length >= 5 ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-amber-100 text-amber-700 border border-amber-200'}`}>
+                                    {guardians.length}/5 selected
+                                </div>
+                            </div>
+                            
+                            <div className="flex flex-col gap-3">
                                 {friends.map(f => (
-                                    <div key={f.publicKey} style={{
-                                        background: f.isGuardian
-                                            ? 'linear-gradient(135deg, #1a1a2e, #1e3a5f)'
-                                            : 'var(--bg-secondary, #1e293b)',
-                                        border: f.isGuardian ? '1px solid #f59e0b44' : '1px solid transparent',
-                                        borderRadius: 12, padding: '0.75rem 1rem',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                    }}>
-                                        <div>
-                                            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                                {f.isGuardian && '🛡️ '}{f.callsign}
+                                    <div key={f.publicKey} className={`rounded-xl p-3.5 flex items-center justify-between border transition-all ${
+                                        f.isGuardian
+                                            ? 'bg-amber-50 border-amber-200 shadow-sm'
+                                            : 'bg-oat-50 border-nature-200'
+                                    }`}>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-white border border-nature-200 flex items-center justify-center text-lg shadow-sm">
+                                                {f.isGuardian ? '🛡️' : '👤'}
+                                            </div>
+                                            <div className={`font-bold text-[15px] ${f.isGuardian ? 'text-amber-900' : 'text-nature-900'}`}>
+                                                {f.callsign}
                                             </div>
                                         </div>
                                         <button
                                             onClick={() => handleToggleGuardian(f.publicKey, !f.isGuardian)}
                                             disabled={!f.isGuardian && guardians.length >= 5}
-                                            style={{
-                                                background: f.isGuardian ? '#92400e' : '#1e40af',
-                                                color: 'white', border: 'none', borderRadius: 8,
-                                                padding: '0.35rem 0.75rem', fontSize: '0.75rem',
-                                                fontWeight: 600, cursor: 'pointer',
-                                                opacity: (!f.isGuardian && guardians.length >= 5) ? 0.4 : 1,
-                                            }}
+                                            className={`border-none rounded-xl px-4 py-2 text-xs font-bold cursor-pointer transition-all shadow-sm ${
+                                                f.isGuardian 
+                                                    ? 'bg-amber-600 text-white hover:bg-amber-700' 
+                                                    : 'bg-nature-800 text-white hover:bg-nature-900'
+                                            } ${(!f.isGuardian && guardians.length >= 5) ? 'opacity-40 cursor-not-allowed' : 'hover:shadow-md'}`}
                                         >
                                             {f.isGuardian ? 'Remove' : 'Make Guardian'}
                                         </button>
@@ -246,17 +241,17 @@ export function PeoplePage({ identity }: Props) {
                             </div>
 
                             {guardians.length >= 3 && (
-                                <div style={{
-                                    marginTop: '1rem', padding: '0.75rem', borderRadius: 10,
-                                    background: '#064e3b', fontSize: '0.8rem', color: '#a7f3d0',
-                                    textAlign: 'center', lineHeight: 1.5,
-                                }}>
-                                    ✅ You have enough guardians for social recovery. 
+                                <div className="mt-5 p-4 rounded-xl bg-emerald-50 text-[13px] text-emerald-800 text-center leading-relaxed border border-emerald-200 shadow-sm font-medium">
+                                    <div className="font-bold text-emerald-700 mb-1 flex items-center justify-center gap-1.5 animate-pulse">
+                                        <span className="text-base">✅</span> Social Recovery Ready
+                                    </div>
                                     If you lose your device, any 3 of them can help restore your identity.
-                                    <br/><em style={{ fontSize: '0.75rem', color: '#6ee7b7' }}>Full recovery flow coming soon.</em>
+                                    <div className="mt-2 text-[11px] font-bold text-emerald-600/70 border-t border-emerald-200/50 pt-2 uppercase tracking-wider">
+                                        Full recovery flow coming soon.
+                                    </div>
                                 </div>
                             )}
-                        </>
+                        </div>
                     )}
                 </div>
             )}

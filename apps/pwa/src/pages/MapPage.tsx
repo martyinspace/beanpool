@@ -275,7 +275,9 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             }
             setShowNewPost(false);
             refreshPosts();
-        } catch { /* offline */ }
+        } catch (e: any) {
+            alert(e.message || 'Failed to create post. Are you offline?');
+        }
         setPosting(false);
     }
 
@@ -314,14 +316,25 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             pinDropMarkerRef.current.setLatLng([lat, lng]);
         } else {
             const icon = L.divIcon({
-                className: '',
-                html: `<div style="
-                    width: 28px; height: 28px; border-radius: 50%;
-                    background: #2563eb; border: 3px solid #fff;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-                "></div>`,
-                iconSize: [28, 28],
-                iconAnchor: [14, 14],
+                className: 'custom-preview-pin',
+                html: `
+                <div style="position: relative; width: 36px; height: 46px; display: flex; flex-direction: column; align-items: center; opacity: 0.8;">
+                    <div style="
+                        width: 36px; height: 36px; border-radius: 50%;
+                        background: #fff; border: 3px dashed #d97757;
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+                        z-index: 2; box-sizing: border-box;
+                    "></div>
+                    <div style="
+                        width: 0; height: 0;
+                        border-left: 6px solid transparent;
+                        border-right: 6px solid transparent;
+                        border-top: 10px solid #d97757;
+                        margin-top: -2px; z-index: 1;
+                    "></div>
+                </div>`,
+                iconSize: [36, 46],
+                iconAnchor: [18, 46],
             });
             pinDropMarkerRef.current = L.marker([lat, lng], { icon }).addTo(mapRef.current);
         }
@@ -368,18 +381,33 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                 lng = DEFAULT_CENTER[1] + ((Math.floor(hash / 1000) % 1000) - 500) * 0.00004;
             }
 
+            const typeLabel = post.type === 'offer' ? 'Offer' : 'Need';
             const icon = L.divIcon({
-                className: '',
-                html: `<div style="
-                    width: 32px; height: 32px; border-radius: 50%;
-                    background: #1a1a1a; border: 2px solid ${borderColor};
-                    display: flex; align-items: center; justify-content: center;
-                    font-size: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-                ">${emoji}</div>`,
-                iconSize: [32, 32],
-                iconAnchor: [16, 16],
+                className: 'custom-map-pin hover:scale-110 transition-transform origin-bottom',
+                html: `
+                <div style="position: relative; width: 44px; height: 56px; display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 4px 6px rgba(0 0 0 / 0.15));">
+                    <div style="
+                        width: 44px; height: 44px; border-radius: 50%;
+                        background: rgba(255,255,255,0.95); border: 3px solid ${borderColor};
+                        display: flex; flex-direction: column; align-items: center; justify-content: center;
+                        box-sizing: border-box; z-index: 2; position: relative;
+                        backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+                    ">
+                        <span style="font-size: 18px; line-height: 1.1;">${emoji}</span>
+                        <span style="font-size: 8px; font-weight: 800; color: ${borderColor}; text-transform: uppercase; letter-spacing: -0.5px; opacity: 0.9; margin-top: -2px;">${typeLabel}</span>
+                    </div>
+                    <div style="
+                        width: 0; height: 0;
+                        border-left: 8px solid transparent;
+                        border-right: 8px solid transparent;
+                        border-top: 12px solid ${borderColor};
+                        margin-top: -3px; z-index: 1; position: relative;
+                    "></div>
+                </div>`,
+                iconSize: [44, 56],
+                iconAnchor: [22, 56],
+                popupAnchor: [0, -50]
             });
-
             const nodeBadge = isRemote
                 ? `<span style="display:inline-block;font-size:0.65em;background:rgba(99,102,241,0.2);color:#818cf8;padding:1px 5px;border-radius:9px;margin-left:4px;">🌐 ${remoteCallsign}</span>`
                 : '';
@@ -390,7 +418,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     <p style="font-weight: 700; margin: 0 0 4px;">${emoji} ${post.title}${nodeBadge}</p>
                     <p style="margin: 0 0 4px; color: #666; font-size: 0.85em;">${post.description || ''}</p>
                     <p style="margin: 0; font-weight: 600; color: ${typeColor};">
-                        ${post.type === 'offer' ? '🔵 Offer' : '🟠 Need'} · ${post.credits}Ʀ
+                        ${post.type === 'offer' ? '🔵 Offer' : '🟠 Need'} · ${post.credits}B
                     </p>
                     <p style="margin: 4px 0 0; color: #888; font-size: 0.8em;">by ${post.authorCallsign}</p>
                     <button data-navigate="marketplace" style="
@@ -406,92 +434,88 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
         });
     }, [posts]);
 
-    // Map control button style
-    const mapBtnStyle: React.CSSProperties = {
-        width: '48px', height: '48px', borderRadius: '14px',
-        background: 'rgba(30, 30, 30, 0.95)', border: '1.5px solid rgba(255,255,255,0.2)',
-        color: '#fff', fontSize: '1.4rem', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-        boxShadow: '0 3px 14px rgba(0,0,0,0.5)',
-        fontFamily: 'inherit',
-    };
-
     return (
         <>
-        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-            {/* Map custom styles */}
+        <div className="relative w-full h-full">
+            {/* Map custom styles overrides for glassmorphism and Earth-tone palettes */}
             <style>{`
                 .leaflet-container {
                     z-index: 0 !important;
                 }
+                .leaflet-top {
+                    top: 70px !important;
+                }
                 .user-marker-pulse {
                     width: 18px; height: 18px;
-                    background: rgba(139, 92, 246, 0.8);
+                    background: rgba(16, 185, 129, 0.9); /* emerald-500 */
                     border: 2px solid #fff;
                     border-radius: 50%;
-                    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.5);
+                    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
                     animation: pulse 2s ease-out infinite;
                 }
                 @keyframes pulse {
-                    0% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.5); }
-                    100% { box-shadow: 0 0 0 16px rgba(139, 92, 246, 0); }
+                    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+                    100% { box-shadow: 0 0 0 16px rgba(16, 185, 129, 0); }
                 }
                 .leaflet-control-zoom a {
-                    background: rgba(26, 26, 26, 0.9) !important;
-                    color: #fff !important;
-                    border-color: #444 !important;
+                    background: rgba(255, 255, 255, 0.9) !important;
+                    color: #4b5563 !important; /* text-nature-600 */
+                    border-color: #e5e7eb !important; /* border-nature-200 */
                     backdrop-filter: blur(8px);
                     -webkit-backdrop-filter: blur(8px);
                 }
                 .leaflet-control-zoom a:hover {
-                    background: rgba(40, 40, 40, 0.95) !important;
+                    background: rgba(249, 250, 251, 0.95) !important; /* bg-nature-50 */
                 }
                 .leaflet-control-attribution {
-                    background: rgba(0,0,0,0.4) !important;
-                    color: #888 !important;
+                    background: rgba(255, 255, 255, 0.7) !important;
+                    color: #6b7280 !important; /* text-nature-500 */
                     font-size: 10px !important;
+                    backdrop-filter: blur(4px);
+                    border-top-left-radius: 8px;
                 }
                 .leaflet-control-attribution a {
-                    color: #aaa !important;
+                    color: #4b5563 !important;
                 }
                 .leaflet-popup-content-wrapper {
-                    background: #1a1a1a !important;
-                    color: #e0e0e0 !important;
-                    border-radius: 12px !important;
-                    box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
+                    background: rgba(255, 255, 255, 0.95) !important;
+                    color: #111827 !important; /* text-nature-950 */
+                    border-radius: 16px !important;
+                    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important; /* shadow-soft */
+                    border: 1px solid #e5e7eb !important; /* border-nature-200 */
+                    backdrop-filter: blur(12px);
                 }
                 .leaflet-popup-tip {
-                    background: #1a1a1a !important;
+                    background: rgba(255, 255, 255, 0.95) !important;
                 }
             `}</style>
 
             {/* Map container */}
-            <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
+            <div ref={mapContainer} className="w-full h-full" />
 
             {/* Bottom-left controls: dark mode + GPS */}
-            <div style={{
-                position: 'fixed', bottom: '5.5rem', left: '0.75rem',
-                display: 'flex', flexDirection: 'column', gap: '0.5rem',
-                zIndex: 101,
-            }}>
+            <div className="fixed bottom-[5.5rem] left-3 flex flex-col gap-2 z-[101]">
                 {/* Dark/Light map toggle */}
-                <button onClick={toggleDarkMode} style={mapBtnStyle} title="Toggle dark/light map">
+                <button 
+                    onClick={toggleDarkMode} 
+                    className="w-12 h-12 rounded-2xl bg-white/90 dark:bg-nature-900/90 border border-nature-200 dark:border-nature-700 text-nature-700 dark:text-oat-50 text-xl flex items-center justify-center backdrop-blur-md shadow-soft hover:bg-white dark:hover:bg-nature-800 transition-all transform hover:scale-105"
+                    title="Toggle map style"
+                >
                     {isDark ? '☀️' : '🌙'}
                 </button>
 
                 {/* GPS locate */}
                 <button
                     onClick={handleLocate}
-                    style={{
-                        ...mapBtnStyle,
-                        background: locating ? 'rgba(139, 92, 246, 0.4)' : mapBtnStyle.background,
-                        border: locating ? '1.5px solid #8b5cf6' : mapBtnStyle.border,
-                    }}
+                    className={`w-12 h-12 rounded-2xl text-xl flex items-center justify-center backdrop-blur-md shadow-soft transition-all transform hover:scale-105 ${
+                        locating 
+                            ? 'bg-emerald-100/90 border-2 border-emerald-500 text-emerald-600' 
+                            : 'bg-white/90 dark:bg-nature-900/90 border border-nature-200 dark:border-nature-700 text-nature-700 dark:text-oat-50 hover:bg-white dark:hover:bg-nature-800'
+                    }`}
                     title="My location"
                 >
                     {locating ? '⏳' : (
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                             <circle cx="12" cy="12" r="4" />
                             <line x1="12" y1="2" x2="12" y2="6" />
                             <line x1="12" y1="18" x2="12" y2="22" />
@@ -506,16 +530,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             {!showNewPost && (
                 <button
                     onClick={() => setShowNewPost(true)}
-                    style={{
-                        position: 'fixed', bottom: '5.5rem', right: '0.75rem',
-                        width: '54px', height: '54px', borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #f59e0b, #d97706)', border: '2px solid rgba(255,255,255,0.2)',
-                        color: '#fff', fontSize: '1.8rem', fontWeight: 300,
-                        cursor: 'pointer', zIndex: 101,
-                        boxShadow: '0 4px 20px rgba(245, 158, 11, 0.5)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontFamily: 'inherit',
-                    }}
+                    className="fixed bottom-[5.5rem] right-3 w-14 h-14 rounded-full bg-terra-500 hover:bg-terra-600 text-white text-3xl font-light z-[101] shadow-[0_8px_30px_rgb(226,114,91,0.4)] flex items-center justify-center transition-transform transform hover:scale-105 border-2 border-white/20"
                     title="New Post"
                 >
                     +
@@ -525,17 +540,9 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
 
         {/* Quick Post Panel — rendered OUTSIDE the map div so Leaflet touch handlers don't interfere */}
         {showNewPost && (
-            <div style={{
-                position: 'fixed', bottom: '4.5rem', left: '0.75rem', right: '0.75rem',
-                maxHeight: '60vh', overflowY: 'auto',
-                background: 'rgba(15, 15, 15, 0.95)', borderRadius: '16px',
-                padding: '1rem', zIndex: 1000,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid var(--border-primary)',
-            }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                    <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.95rem' }}>New Post</span>
+            <div className="fixed bottom-[4.5rem] left-3 right-3 max-h-[60vh] overflow-y-auto bg-white/95 dark:bg-nature-900/95 backdrop-blur-xl rounded-3xl p-5 z-[1000] shadow-soft border border-nature-200 dark:border-nature-800 overscroll-contain">
+                <div className="flex justify-between items-center mb-4">
+                    <span className="font-bold text-lg text-nature-950 dark:text-white tracking-tight">New Post</span>
                     <button onClick={() => {
                         setShowNewPost(false);
                         setPinDropMode(false);
@@ -545,22 +552,19 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                             pinDropMarkerRef.current.remove();
                             pinDropMarkerRef.current = null;
                         }
-                    }} style={{
-                        background: 'none', border: 'none', color: 'var(--text-muted)',
-                        fontSize: '1.2rem', cursor: 'pointer',
-                    }}>✕</button>
+                    }} className="bg-transparent border-none text-nature-400 hover:text-nature-600 text-2xl cursor-pointer transition-colors leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-nature-50">
+                        ✕
+                    </button>
                 </div>
 
                 {/* Type toggle */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <div className="flex gap-2 mb-4">
                     {(['offer', 'need'] as const).map(t => (
-                        <button key={t} onClick={() => setNewPostType(t)} style={{
-                            flex: 1, padding: '0.4rem', borderRadius: '8px',
-                            background: newPostType === t ? (t === 'offer' ? '#1d4ed8' : '#c2410c') : '#222',
-                            color: 'var(--text-primary)', border: 'none', fontSize: '0.85rem',
-                            fontWeight: newPostType === t ? 700 : 400,
-                            cursor: 'pointer', fontFamily: 'inherit',
-                        }}>
+                        <button key={t} onClick={() => setNewPostType(t)} className={`flex-1 py-3 rounded-xl border text-[15px] font-bold capitalize transition-all shadow-sm ${
+                            newPostType === t
+                                ? (t === 'offer' ? 'bg-blue-600 border-blue-600 text-white shadow-md scale-[1.02]' : 'bg-orange-600 border-orange-600 text-white shadow-md scale-[1.02]')
+                                : 'bg-white dark:bg-nature-800 border-nature-200 dark:border-nature-700 text-nature-500 dark:text-nature-300 hover:bg-oat-50 dark:hover:bg-nature-700'
+                        }`}>
                             {t === 'offer' ? '🔵 Offer' : '🟠 Need'}
                         </button>
                     ))}
@@ -570,11 +574,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                 <select
                     value={newPostCategory}
                     onChange={e => setNewPostCategory(e.target.value)}
-                    style={{
-                        width: '100%', padding: '0.5rem', borderRadius: '8px',
-                        background: 'var(--bg-hover)', color: 'var(--text-primary)', border: '1px solid var(--border-input)',
-                        marginBottom: '0.5rem', fontSize: '0.85rem', fontFamily: 'inherit',
-                    }}
+                    className="w-full mb-3 py-3 px-4 rounded-xl border border-nature-200 dark:border-nature-700 bg-white dark:bg-nature-800 text-nature-900 dark:text-white text-[15px] focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm appearance-auto cursor-pointer"
                 >
                     {MARKETPLACE_CATEGORIES.map(c => (
                         <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>
@@ -582,79 +582,59 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                 </select>
 
                 {/* Location picker */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <button onClick={() => { useMyLocation(); setValidationErrors(prev => { const n = new Set(prev); n.delete('location'); return n; }); }} style={{
-                        flex: 1, padding: '0.4rem', borderRadius: '8px',
-                        background: (postLat != null && !pinDropMode) ? '#1a4d2e' : '#222',
-                        color: 'var(--text-primary)',
-                        border: validationErrors.has('location') ? '1px solid #ef4444' : (postLat != null && !pinDropMode) ? '1px solid #22c55e' : '1px solid #444',
-                        boxShadow: validationErrors.has('location') ? '0 0 8px rgba(239, 68, 68, 0.5)' : 'none',
-                        fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit',
-                    }}>
-                        📍 My location
+                <div className="flex gap-2 mb-2">
+                    <button onClick={() => { useMyLocation(); setValidationErrors(prev => { const n = new Set(prev); n.delete('location'); return n; }); }} className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl border transition-all text-sm font-bold shadow-sm ${
+                        validationErrors.has('location') ? 'border-red-400 bg-red-50 text-red-600 shadow-md ring-1 ring-red-400' 
+                        : (postLat != null && !pinDropMode) ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-md ring-1 ring-emerald-500' : 'border-nature-200 dark:border-nature-700 bg-white dark:bg-nature-800 text-nature-600 dark:text-nature-300 hover:bg-nature-50 dark:hover:bg-nature-700'
+                    }`}>
+                        <span className="text-xl leading-none">📍</span> My location
                     </button>
-                    <button onClick={() => { enterPinDrop(); setValidationErrors(prev => { const n = new Set(prev); n.delete('location'); return n; }); }} style={{
-                        flex: 1, padding: '0.4rem', borderRadius: '8px',
-                        background: pinDropMode ? '#1a3a5c' : '#222',
-                        color: 'var(--text-primary)',
-                        border: validationErrors.has('location') ? '1px solid #ef4444' : pinDropMode ? '1px solid #3b82f6' : '1px solid #444',
-                        boxShadow: validationErrors.has('location') ? '0 0 8px rgba(239, 68, 68, 0.5)' : 'none',
-                        fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'inherit',
-                    }}>
-                        📌 Drop a pin
+                    <button onClick={() => { enterPinDrop(); setValidationErrors(prev => { const n = new Set(prev); n.delete('location'); return n; }); }} className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl border transition-all text-sm font-bold shadow-sm ${
+                        validationErrors.has('location') ? 'border-red-400 bg-red-50 text-red-600 shadow-md ring-1 ring-red-400' 
+                        : pinDropMode ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-md ring-1 ring-blue-500' : 'border-nature-200 dark:border-nature-700 bg-white dark:bg-nature-800 text-nature-600 dark:text-nature-300 hover:bg-nature-50 dark:hover:bg-nature-700'
+                    }`}>
+                        <span className="text-xl leading-none">📌</span> Drop a pin
                     </button>
                 </div>
                 {pinDropMode && postLat == null && (
-                    <p style={{ margin: '0 0 0.5rem', color: '#3b82f6', fontSize: '0.75rem', textAlign: 'center' }}>
+                    <p className="m-0 mb-3 text-blue-600 text-sm font-semibold text-center animate-pulse">
                         Tap the map to place your pin
                     </p>
                 )}
                 {postLat != null && postLng != null && (
-                    <p style={{ margin: '0 0 0.5rem', color: '#22c55e', fontSize: '0.75rem', textAlign: 'center' }}>
-                        ✓ Location set ({postLat}, {postLng})
+                    <p className="m-0 mb-3 text-emerald-600 text-sm font-semibold text-center flex items-center justify-center gap-1">
+                        ✓ Location set
                     </p>
                 )}
 
                 {/* Title + Credits */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <div className="flex gap-2 mb-3">
                     <input
                         placeholder="What do you need/offer?"
                         value={newPostTitle}
                         onChange={e => { setNewPostTitle(e.target.value); setValidationErrors(prev => { const n = new Set(prev); n.delete('title'); return n; }); }}
-                        style={{
-                            flex: 1, padding: '0.5rem', borderRadius: '8px',
-                            background: 'var(--bg-hover)', color: 'var(--text-primary)',
-                            border: validationErrors.has('title') ? '1px solid #ef4444' : '1px solid #444',
-                            boxShadow: validationErrors.has('title') ? '0 0 8px rgba(239, 68, 68, 0.5)' : 'none',
-                            fontSize: '0.85rem', fontFamily: 'inherit',
-                        }}
+                        className={`flex-1 py-3 px-4 rounded-xl border bg-white dark:bg-nature-800 text-nature-900 dark:text-white text-[15px] focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm transition-all ${
+                            validationErrors.has('title') ? 'border-red-400 bg-red-50 ring-1 ring-red-400' : 'border-nature-200 dark:border-nature-700'
+                        }`}
                     />
                     <input
-                        placeholder="Ʀ"
+                        placeholder="B"
                         type="number"
                         value={newPostCredits}
                         onChange={e => { setNewPostCredits(e.target.value); setValidationErrors(prev => { const n = new Set(prev); n.delete('credits'); return n; }); }}
-                        style={{
-                            width: '60px', padding: '0.5rem', borderRadius: '8px',
-                            background: 'var(--bg-hover)', color: 'var(--text-primary)',
-                            border: validationErrors.has('credits') ? '1px solid #ef4444' : '1px solid #444',
-                            boxShadow: validationErrors.has('credits') ? '0 0 8px rgba(239, 68, 68, 0.5)' : 'none',
-                            fontSize: '0.85rem', fontFamily: 'inherit', textAlign: 'center',
-                        }}
+                        className={`w-20 py-3 px-2 rounded-xl border bg-white dark:bg-nature-800 text-nature-900 dark:text-white text-[15px] focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm text-center font-bold tracking-tight transition-all ${
+                            validationErrors.has('credits') ? 'border-red-400 bg-red-50 ring-1 ring-red-400' : 'border-nature-200 dark:border-nature-700'
+                        }`}
                     />
                 </div>
 
                 {/* Repeatable toggle */}
-                <label style={{
-                    display: 'flex', alignItems: 'center', gap: '0.5rem',
-                    fontSize: '0.82rem', color: 'var(--text-muted)', cursor: 'pointer',
-                    padding: '0.25rem 0',
-                }}>
+                <label className="flex items-center gap-3 text-sm font-medium text-nature-700 cursor-pointer py-2 px-1 mb-1">
                     <input
                         type="checkbox"
                         checked={newPostRepeatable}
                         onChange={e => setNewPostRepeatable(e.target.checked)}
-                        style={{ width: '16px', height: '16px', accentColor: '#2563eb' }}
+                        className="w-5 h-5 rounded border-nature-300 text-blue-600 focus:ring-blue-500 shadow-sm accent-blue-600 cursor-pointer transition-all"
                     />
                     🔁 Repeatable — keep listing active for ongoing bookings
                 </label>
@@ -665,52 +645,32 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     value={newPostDescription}
                     onChange={e => { setNewPostDescription(e.target.value); setValidationErrors(prev => { const n = new Set(prev); n.delete('description'); return n; }); }}
                     rows={2}
-                    style={{
-                        width: '100%', padding: '0.5rem', borderRadius: '8px',
-                        background: 'var(--bg-hover)', color: 'var(--text-primary)',
-                        border: validationErrors.has('description') ? '1px solid #ef4444' : '1px solid #444',
-                        boxShadow: validationErrors.has('description') ? '0 0 8px rgba(239, 68, 68, 0.5)' : 'none',
-                        fontSize: '0.85rem', fontFamily: 'inherit', resize: 'vertical',
-                        marginBottom: '0.5rem',
-                    }}
+                    className={`w-full mb-4 py-3 px-4 rounded-xl border bg-white dark:bg-nature-800 text-nature-900 dark:text-white text-[15px] focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm min-h-[90px] resize-y transition-all ${
+                        validationErrors.has('description') ? 'border-red-400 bg-red-50 ring-1 ring-red-400' : 'border-nature-200 dark:border-nature-700'
+                    }`}
                 />
 
                 {/* Photos */}
-                <div style={{ marginBottom: '0.5rem' }}>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div className="mb-5">
+                    <div className="flex gap-2 flex-wrap items-center">
                         {newPostPhotos.map((photo, i) => (
-                            <div key={i} style={{ position: 'relative' }}>
-                                <img src={photo} alt={`photo ${i+1}`} style={{
-                                    width: '60px', height: '60px', objectFit: 'cover',
-                                    borderRadius: '8px', border: '1px solid var(--border-input)',
-                                }} />
+                            <div key={i} className="relative">
+                                <img src={photo} alt={`photo ${i+1}`} className="w-16 h-16 object-cover rounded-xl border border-nature-200 shadow-sm" />
                                 <button
                                     onClick={() => setNewPostPhotos(prev => prev.filter((_, j) => j !== i))}
-                                    style={{
-                                        position: 'absolute', top: '-6px', right: '-6px',
-                                        background: '#ef4444', border: 'none', borderRadius: '50%',
-                                        width: '18px', height: '18px', color: 'var(--text-primary)',
-                                        fontSize: '0.65rem', cursor: 'pointer', lineHeight: '18px',
-                                        padding: 0, textAlign: 'center',
-                                    }}
+                                    className="absolute -top-1.5 -right-1.5 w-6 h-6 bg-red-500 border-none rounded-full text-white text-[11px] font-bold cursor-pointer flex items-center justify-center shadow-md hover:bg-red-600 transition-colors transform hover:scale-110"
                                 >
                                     ✕
                                 </button>
                             </div>
                         ))}
                         {newPostPhotos.length < 3 && (
-                            <label style={{
-                                width: '60px', height: '60px', borderRadius: '8px',
-                                border: '1px dashed #555', display: 'flex',
-                                alignItems: 'center', justifyContent: 'center',
-                                cursor: 'pointer', background: 'var(--bg-hover)', fontSize: '1.2rem',
-                                color: 'var(--text-muted)',
-                            }}>
+                            <label className="w-16 h-16 rounded-xl border-2 border-dashed border-nature-300 flex items-center justify-center cursor-pointer bg-nature-50 text-2xl text-nature-400 hover:text-nature-500 hover:border-nature-400 hover:bg-oat-50 transition-all shadow-sm">
                                 📷
                                 <input
                                     type="file"
                                     accept="image/*"
-                                    style={{ display: 'none' }}
+                                    className="hidden"
                                     onChange={(e) => {
                                         const file = e.target.files?.[0];
                                         if (!file) return;
@@ -737,22 +697,24 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                             </label>
                         )}
                     </div>
-                    <p style={{ color: 'var(--text-faint)', fontSize: '0.65rem', marginTop: '0.25rem' }}>
+                    <p className="text-xs font-semibold text-nature-400 mt-2 uppercase tracking-wide">
                         {newPostPhotos.length}/3 photos {newPostPhotos.length === 0 ? '(optional)' : ''}
                     </p>
                 </div>
 
                 <button
                     onClick={handleCreatePost}
-                    disabled={posting}
-                    style={{
-                        width: '100%', padding: '0.6rem', borderRadius: '10px',
-                        background: posting ? '#333' : '#2563eb', color: 'var(--text-primary)',
-                        border: 'none', fontSize: '0.9rem', fontWeight: 600,
-                        cursor: posting ? 'default' : 'pointer', fontFamily: 'inherit',
-                    }}
+                    disabled={posting || !newPostTitle.trim() || !newPostDescription.trim() || newPostCredits === '' || postLat == null}
+                    className={`w-full p-3 rounded-xl font-semibold transition-all ${
+                        posting || !newPostTitle.trim() || !newPostDescription.trim() || newPostCredits === '' || postLat == null
+                            ? 'bg-oat-200 text-oat-500 cursor-not-allowed'
+                            : 'bg-nature-600 text-white hover:bg-nature-700 shadow-md'
+                    }`}
                 >
-                    {posting ? 'Posting...' : `Post ${newPostType === 'offer' ? 'Offer' : 'Need'}`}
+                    {posting ? 'Posting...' : 
+                     postLat == null ? '📍 Map location required' :
+                     !newPostTitle.trim() || !newPostDescription.trim() || newPostCredits === '' ? '✏️ Fill required fields' : 
+                     `Post ${newPostType === 'offer' ? 'Offer' : 'Need'}`}
                 </button>
             </div>
         )}

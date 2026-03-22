@@ -37,6 +37,7 @@
 |----------|-------------|
 | [HANDOVER.md](HANDOVER.md) | Agent handover: current state, LE rate limits, architecture, how to deploy |
 | [docs/NODE_ADMIN_SETUP.md](docs/NODE_ADMIN_SETUP.md) | Admin setup guide — Docker, Let's Encrypt, no-domain, maintenance |
+| [docs/MIRRORING_AND_FAILOVER.md](docs/MIRRORING_AND_FAILOVER.md) | High availability guide — CRDT mirrors, DNS failover, and community merging |
 | [deploy.sh](deploy.sh) | Deploy script — `bash deploy.sh 1 2 3` for node-specific deploys |
 
 ## Contributing

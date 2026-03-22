@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* BeanPool PWA — Global Styles */
 
 * {
@@ -6,54 +10,54 @@
   box-sizing: border-box;
 }
 
-/* ——— Theme CSS Variables ——— */
+/* ——— Premium Earth-Tone Theme (Default) ——— */
 :root {
-  /* Dark theme (default) */
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #0f0f0f;
-  --bg-card: #1a1a1a;
-  --bg-input: #0f0f0f;
-  --bg-hover: #222;
-  --text-primary: #e0e0e0;
-  --text-secondary: #aaa;
-  --text-muted: #666;
-  --text-faint: #555;
-  --border-primary: #333;
-  --border-secondary: #222;
-  --border-input: #444;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --danger: #ef4444;
-  --success: #22c55e;
-  --scrollbar-thumb: #333;
-  --header-bg: #0f0f0f;
-  --header-overlay: rgba(15, 15, 15, 0.7);
-  --nav-bg: #0f0f0f;
-  --shadow-card: none;
+  --bg-primary: #f6f4f0;      /* oat-100 */
+  --bg-secondary: #fbfaf8;    /* oat-50 */
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --bg-hover: #ebe6df;        /* oat-200 */
+  --text-primary: #1d231d;    /* nature-950 (Charcoal) */
+  --text-secondary: #384038;  /* nature-900 */
+  --text-muted: #647664;      /* nature-600 (Sage Green) */
+  --text-faint: #9eaf9e;      /* nature-400 */
+  --border-primary: #dce3dc;  /* nature-200 */
+  --border-secondary: #eef1ee;/* nature-100 */
+  --border-input: #c0ccc0;    /* nature-300 */
+  --accent: #647664;          /* nature-600 (Sage Green) */
+  --accent-hover: #526052;    /* nature-700 */
+  --danger: #c2583b;          /* terra-600 (Soft Terracotta) */
+  --success: #647664;         /* nature-600 */
+  --scrollbar-thumb: #c0ccc0; /* nature-300 */
+  --header-bg: #fbfaf8;       /* oat-50 */
+  --header-overlay: rgba(251, 250, 248, 0.85);
+  --nav-bg: #ffffff;
+  --shadow-card: 0 4px 6px -1px rgba(100, 118, 100, 0.1), 0 2px 4px -2px rgba(100, 118, 100, 0.05);
 }
 
-:root.light-theme {
-  --bg-primary: #f5f5f5;
-  --bg-secondary: #ffffff;
-  --bg-card: #ffffff;
-  --bg-input: #f0f0f0;
-  --bg-hover: #e8e8e8;
-  --text-primary: #1a1a1a;
-  --text-secondary: #555;
-  --text-muted: #888;
-  --text-faint: #aaa;
-  --border-primary: #ddd;
-  --border-secondary: #e5e5e5;
-  --border-input: #ccc;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --danger: #dc2626;
-  --success: #16a34a;
-  --scrollbar-thumb: #ccc;
-  --header-bg: #ffffff;
-  --header-overlay: rgba(255, 255, 255, 0.85);
-  --nav-bg: #ffffff;
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.08);
+/* Optional Dark Mode / High Contrast */
+:root.dark-theme {
+  --bg-primary: #1d231d;
+  --bg-secondary: #384038;
+  --bg-card: #2a322a;
+  --bg-input: #2a322a;
+  --bg-hover: #434e43;
+  --text-primary: #f6f4f0;
+  --text-secondary: #dce3dc;
+  --text-muted: #9eaf9e;
+  --text-faint: #647664;
+  --border-primary: #434e43;
+  --border-secondary: #384038;
+  --border-input: #526052;
+  --accent: #809380;
+  --accent-hover: #9eaf9e;
+  --danger: #e5967f;
+  --success: #809380;
+  --scrollbar-thumb: #526052;
+  --header-bg: #1d231d;
+  --header-overlay: rgba(29, 35, 29, 0.85);
+  --nav-bg: #2a322a;
+  --shadow-card: 0 4px 12px rgba(0,0,0,0.3);
 }
 
 html, body, #root {

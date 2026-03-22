@@ -31,20 +31,27 @@ export function PrivacyBadge() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.4rem',
-                padding: '0.4rem 0.8rem',
+                padding: '0.3rem 0.75rem',
                 borderRadius: '9999px',
-                background: 'rgba(255,255,255,0.06)',
-                border: `1px solid ${config.color}`,
+                background: 'var(--bg-card)',
+                border: `1px solid ${config.color}40`,
                 color: config.color,
-                fontSize: '0.85rem',
+                fontSize: '0.75rem',
                 fontWeight: 500,
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
                 fontFamily: 'inherit',
             }}
         >
-            <span style={{ fontSize: '1.1rem' }}>{config.emoji}</span>
-            <span>{config.name}</span>
+            <span style={{
+                width: '7px',
+                height: '7px',
+                borderRadius: '50%',
+                background: config.color,
+                boxShadow: `0 0 6px ${config.color}80`,
+                flexShrink: 0,
+            }} />
+            <span style={{ whiteSpace: 'nowrap' }}>{config.name}</span>
         </button>
     );
 }

@@ -72,149 +72,76 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
         }
     }
 
-    const cardStyle: React.CSSProperties = {
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border-primary)',
-        borderRadius: '16px',
-        padding: '1.5rem',
-        marginBottom: '1rem',
-        boxShadow: 'var(--shadow-card)',
-    };
-
-    const inputStyle: React.CSSProperties = {
-        width: '100%',
-        padding: '0.75rem 1rem',
-        borderRadius: '10px',
-        border: '1px solid var(--border-input)',
-        background: 'var(--bg-input)',
-        color: 'var(--text-primary)',
-        fontSize: '1rem',
-        fontFamily: 'inherit',
-        outline: 'none',
-        marginBottom: '0.75rem',
-    };
-
-    const btnStyle = (active: boolean): React.CSSProperties => ({
-        width: '100%',
-        padding: '0.85rem',
-        borderRadius: '10px',
-        border: 'none',
-        background: active ? '#2563eb' : '#333',
-        color: 'var(--text-primary)',
-        fontSize: '1rem',
-        fontWeight: 600,
-        cursor: active ? 'pointer' : 'not-allowed',
-        fontFamily: 'inherit',
-        transition: 'background 0.2s',
-    });
-
     return (
-        <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            padding: '2rem',
-            minHeight: '100vh',
-        }}>
-            <div style={{ maxWidth: '420px', width: '100%' }}>
+        <div className="flex justify-center p-4 min-h-screen bg-oat-50 dark:bg-nature-950 transition-colors">
+            <div className="max-w-[420px] w-full mt-4">
                 {/* Header */}
-                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <button
-                        onClick={onBack}
-                        style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#2563eb',
-                            fontSize: '1rem',
-                            cursor: 'pointer',
-                            fontFamily: 'inherit',
-                            padding: '0.5rem',
-                        }}
-                    >
-                        ← Back
-                    </button>
-                    <h2 style={{ flex: 1, textAlign: 'center', fontSize: '1.2rem', fontWeight: 700 }}>
+                <div className="flex items-center mb-6">
+                    <div className="w-16" />
+                    <h2 className="flex-1 text-center text-xl font-bold text-nature-950 dark:text-white tracking-tight m-0 transition-colors">
                         Settings
                     </h2>
-                    <div style={{ width: '60px' }} />
+                    <div className="w-16" />
                 </div>
 
                 {/* Identity Card */}
-                <div style={cardStyle}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Callsign</div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '0.75rem' }}>{identity.callsign}</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Public Key</div>
-                    <div style={{ fontSize: '0.85rem', fontFamily: 'monospace', color: 'var(--accent)' }}>{fingerprint}</div>
+                <div className="bg-white dark:bg-nature-900 rounded-2xl p-6 mb-4 shadow-soft border border-nature-200 dark:border-nature-800 transition-colors">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-nature-500 dark:text-nature-400 mb-1">Callsign</div>
+                    <div className="text-xl font-bold text-nature-950 dark:text-white mb-4 transition-colors">{identity.callsign}</div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-nature-500 dark:text-nature-400 mb-1">Public Key</div>
+                    <div className="text-sm font-mono text-terra-600 dark:text-terra-400 bg-terra-50 dark:bg-terra-900/30 px-3 py-2 rounded-lg border border-terra-100 dark:border-terra-800/50 transition-colors break-all">{fingerprint}</div>
                 </div>
 
                 {/* Theme Toggle */}
-                <div style={{
-                    ...cardStyle,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '1rem 1.5rem',
-                }}>
-                    <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>
+                <div className="bg-white dark:bg-nature-900 rounded-2xl px-6 py-5 mb-6 shadow-soft border border-nature-200 dark:border-nature-800 flex justify-between items-center transition-colors">
+                    <span className="text-[15px] font-bold text-nature-900 dark:text-white transition-colors">
                         {theme === 'dark' ? '🌙 Dark Theme' : '☀️ Light Theme'}
                     </span>
                     <button
                         onClick={onToggleTheme}
-                        style={{
-                            width: '52px',
-                            height: '28px',
-                            borderRadius: '14px',
-                            border: 'none',
-                            background: theme === 'light' ? 'var(--accent)' : '#444',
-                            position: 'relative',
-                            cursor: 'pointer',
-                            transition: 'background 0.3s',
-                            padding: 0,
-                        }}
+                        className={`w-14 h-[30px] rounded-full relative cursor-pointer outline-none transition-colors duration-300 ease-in-out border-2 shadow-inner ${
+                            theme === 'light' ? 'bg-terra-100 border-terra-200' : 'bg-slate-700 border-slate-600'
+                        }`}
+                        aria-label="Toggle Theme"
                     >
-                        <span style={{
-                            display: 'block',
-                            width: '22px',
-                            height: '22px',
-                            borderRadius: '50%',
-                            background: '#fff',
-                            position: 'absolute',
-                            top: '3px',
-                            left: theme === 'light' ? '27px' : '3px',
-                            transition: 'left 0.3s',
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                        }} />
+                        <span className={`block w-[22px] h-[22px] rounded-full bg-white absolute top-[2px] shadow-sm transform transition-transform duration-300 ease-in-out ${
+                            theme === 'dark' ? 'translate-x-[26px]' : 'translate-x-[2px] drop-shadow-[0_2px_4px_rgba(226,114,91,0.4)]'
+                        }`} />
                     </button>
                 </div>
 
                 {mode === 'menu' && (
-                    <>
+                    <div className="space-y-3">
                         <button
                             onClick={() => setMode('profile')}
-                            style={{ ...btnStyle(true), marginBottom: '0.75rem' }}
+                            className="w-full py-4 px-5 rounded-2xl bg-white dark:bg-nature-900 text-nature-900 dark:text-white font-bold border border-nature-200 dark:border-nature-800 shadow-sm hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors text-left flex items-center justify-between group"
                         >
-                            👤 Edit Profile
+                            <span>👤 Edit Profile</span>
+                            <span className="text-nature-400 dark:text-nature-500 group-hover:text-nature-600 dark:group-hover:text-nature-300 transition-colors">→</span>
                         </button>
                         <button
                             onClick={() => { setMode('export'); setPin(''); setExportUri(''); setError(null); }}
-                            style={{ ...btnStyle(true), marginBottom: '0.75rem' }}
+                            className="w-full py-4 px-5 rounded-2xl bg-white dark:bg-nature-900 text-nature-900 dark:text-white font-bold border border-nature-200 dark:border-nature-800 shadow-sm hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors text-left flex items-center justify-between group"
                         >
-                            📤 Export Identity to Another Device
+                            <span>📤 Export Identity</span>
+                            <span className="text-nature-400 dark:text-nature-500 group-hover:text-nature-600 dark:group-hover:text-nature-300 transition-colors">→</span>
                         </button>
                         <button
                             onClick={() => { setMode('import'); setPin(''); setImportData(''); setError(null); }}
-                            style={btnStyle(true)}
+                            className="w-full py-4 px-5 rounded-2xl bg-white dark:bg-nature-900 text-nature-900 dark:text-white font-bold border border-nature-200 dark:border-nature-800 shadow-sm hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors text-left flex items-center justify-between group"
                         >
-                            📥 Import Identity from Another Device
+                            <span>📥 Import Identity</span>
+                            <span className="text-nature-400 dark:text-nature-500 group-hover:text-nature-600 dark:group-hover:text-nature-300 transition-colors">→</span>
                         </button>
-                    </>
+                    </div>
                 )}
 
                 {mode === 'export' && (
-                    <div style={cardStyle}>
-                        <h3 style={{ fontSize: '1rem', marginBottom: '0.75rem' }}>📤 Export Identity</h3>
+                    <div className="bg-white dark:bg-nature-900 rounded-2xl p-6 shadow-soft border border-nature-200 dark:border-nature-800 animate-in fade-in slide-in-from-bottom-2 duration-300 transition-colors">
+                        <h3 className="text-lg font-bold text-nature-950 dark:text-white mb-3 m-0 transition-colors">📤 Export Identity</h3>
                         {!exportUri ? (
                             <>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
+                                <p className="text-nature-600 dark:text-nature-400 text-[15px] mb-5 leading-relaxed transition-colors">
                                     Choose a PIN to protect your identity during transfer.
                                     You'll need this same PIN on the receiving device.
                                 </p>
@@ -224,28 +151,31 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                                     value={pin}
                                     onChange={(e) => setPin(e.target.value)}
                                     placeholder="Enter PIN (4+ digits)"
-                                    style={inputStyle}
+                                    className="w-full py-3 px-4 mb-4 rounded-xl border border-nature-200 dark:border-nature-800 bg-oat-50/50 dark:bg-nature-950/50 text-nature-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-terra-300 dark:focus:ring-terra-600 transition-all font-mono text-center tracking-[0.2em] text-lg placeholder:tracking-normal placeholder:font-sans placeholder:text-sm"
                                 />
-                                {error && <p style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '0.75rem' }}>{error}</p>}
-                                <button onClick={handleExport} disabled={loading} style={btnStyle(!loading && pin.length >= 4)}>
+                                {error && <p className="text-red-500 dark:text-red-400 text-sm mb-4 font-medium px-1 animate-pulse">{error}</p>}
+                                <button 
+                                    onClick={handleExport} 
+                                    disabled={loading || pin.length < 4} 
+                                    className={`w-full py-3.5 rounded-xl font-bold transition-all shadow-sm ${
+                                        !loading && pin.length >= 4 
+                                            ? 'bg-nature-900 dark:bg-white text-white dark:text-nature-900 hover:bg-nature-800 dark:hover:bg-oat-100 hover:shadow-md' 
+                                            : 'bg-oat-200 dark:bg-nature-800 text-oat-500 dark:text-nature-500 cursor-not-allowed'
+                                    }`}
+                                >
                                     {loading ? 'Encrypting...' : 'Generate Transfer Code'}
                                 </button>
                             </>
                         ) : (
                             <>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '0.75rem', lineHeight: 1.5 }}>
+                                <p className="text-nature-600 dark:text-nature-400 text-[15px] mb-4 leading-relaxed transition-colors">
                                     Your encrypted identity link is ready. Send it to your other device.
                                 </p>
-                                <div style={{
-                                    background: 'var(--bg-secondary)', borderRadius: '10px',
-                                    border: '1px solid var(--border-input)', padding: '0.75rem',
-                                    marginBottom: '0.75rem', wordBreak: 'break-all',
-                                    fontSize: '0.7rem', fontFamily: 'monospace', color: 'var(--text-faint)',
-                                    maxHeight: '80px', overflow: 'hidden',
-                                }}>
-                                    {exportUri.slice(0, 120)}...
+                                <div className="bg-oat-50 dark:bg-nature-950 rounded-xl border border-nature-200 dark:border-nature-800 p-4 mb-4 break-all text-xs font-mono text-nature-500 dark:text-nature-400 h-24 overflow-hidden shadow-inner relative group transition-colors">
+                                    <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-oat-50 dark:from-nature-950 to-transparent transition-colors"></div>
+                                    {exportUri}
                                 </div>
-                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                <div className="flex gap-2 mb-4">
                                     <button
                                         onClick={async () => {
                                             try {
@@ -263,13 +193,11 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                                                 setTimeout(() => setCopied(false), 2000);
                                             }
                                         }}
-                                        style={{
-                                            ...btnStyle(true),
-                                            flex: 1,
-                                            background: copied ? '#22c55e' : '#2563eb',
-                                        }}
+                                        className={`flex-1 py-3 rounded-xl font-bold transition-all shadow-sm ${
+                                            copied ? 'bg-emerald-500 dark:bg-emerald-600 text-white' : 'bg-blue-600 dark:bg-blue-700 hover:bg-blue-700 dark:hover:bg-blue-600 text-white'
+                                        }`}
                                     >
-                                        {copied ? '✓ Copied!' : '📋 Copy Link'}
+                                        {copied ? '✓ Copied!' : '📋 Copy'}
                                     </button>
                                     <button
                                         onClick={async () => {
@@ -286,19 +214,19 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                                                 setTimeout(() => setCopied(false), 2000);
                                             }
                                         }}
-                                        style={{ ...btnStyle(true), flex: 1, background: '#333' }}
+                                        className="flex-1 py-3 rounded-xl font-bold bg-nature-800 dark:bg-nature-700 hover:bg-nature-900 dark:hover:bg-nature-600 text-white shadow-sm transition-colors"
                                     >
                                         📤 Share
                                     </button>
                                 </div>
-                                <p style={{ color: '#22c55e', fontSize: '0.85rem' }}>
-                                    🔑 PIN: <strong>{pin}</strong> — you'll need this on the receiving device
+                                <p className="text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800/50 py-3 px-4 rounded-xl text-[15px] text-center mb-6 shadow-sm transition-colors">
+                                    🔑 PIN: <strong className="font-mono text-lg tracking-widest bg-emerald-200/50 dark:bg-emerald-800/50 px-2 py-0.5 rounded mx-1 transition-colors">{pin}</strong>
                                 </p>
                             </>
                         )}
                         <button
                             onClick={() => setMode('menu')}
-                            style={{ ...btnStyle(true), background: '#333', marginTop: '0.5rem' }}
+                            className="w-full py-3 rounded-xl font-semibold bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors"
                         >
                             Cancel
                         </button>
@@ -306,22 +234,16 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                 )}
 
                 {mode === 'import' && (
-                    <div style={cardStyle}>
-                        <h3 style={{ fontSize: '1rem', marginBottom: '0.75rem' }}>📥 Import Identity</h3>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
+                    <div className="bg-white dark:bg-nature-900 rounded-2xl p-6 shadow-soft border border-nature-200 dark:border-nature-800 animate-in fade-in slide-in-from-bottom-2 duration-300 transition-colors">
+                        <h3 className="text-lg font-bold text-nature-950 dark:text-white mb-3 m-0 transition-colors">📥 Import Identity</h3>
+                        <p className="text-nature-600 dark:text-nature-400 text-[15px] mb-5 leading-relaxed transition-colors">
                             Paste the transfer code from your other device and enter the same PIN.
                         </p>
                         <textarea
                             value={importData}
                             onChange={(e) => setImportData(e.target.value)}
                             placeholder="Paste the identity transfer link here"
-                            style={{
-                                ...inputStyle,
-                                minHeight: '100px',
-                                resize: 'none',
-                                fontSize: '0.8rem',
-                                fontFamily: 'monospace',
-                            }}
+                            className="w-full p-4 mb-3 rounded-xl border border-nature-200 dark:border-nature-800 bg-oat-50/50 dark:bg-nature-950/50 text-nature-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-terra-300 dark:focus:ring-terra-600 transition-all font-mono text-xs min-h-[100px] resize-none"
                         />
                         <input
                             type="password"
@@ -329,16 +251,24 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                             value={pin}
                             onChange={(e) => setPin(e.target.value)}
                             placeholder="Enter PIN"
-                            style={inputStyle}
+                            className="w-full py-3 px-4 mb-4 rounded-xl border border-nature-200 dark:border-nature-800 bg-oat-50/50 dark:bg-nature-950/50 text-nature-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-terra-300 dark:focus:ring-terra-600 transition-all font-mono text-center tracking-[0.2em] text-lg placeholder:tracking-normal placeholder:font-sans placeholder:text-sm"
                         />
-                        {error && <p style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '0.75rem' }}>{error}</p>}
-                        {success && <p style={{ color: '#22c55e', fontSize: '0.85rem', marginBottom: '0.75rem' }}>{success}</p>}
-                        <button onClick={handleImport} disabled={loading} style={btnStyle(!loading && pin.length >= 4)}>
+                        {error && <p className="text-red-500 dark:text-red-400 text-sm mb-4 font-medium px-1 animate-pulse">{error}</p>}
+                        {success && <p className="text-emerald-600 dark:text-emerald-400 text-sm mb-4 font-medium px-1">{success}</p>}
+                        <button 
+                            onClick={handleImport} 
+                            disabled={loading || pin.length < 4} 
+                            className={`w-full py-3.5 rounded-xl font-bold transition-all shadow-sm mb-3 ${
+                                !loading && pin.length >= 4 
+                                    ? 'bg-blue-600 dark:bg-blue-700 text-white hover:bg-blue-700 dark:hover:bg-blue-600 hover:shadow-md' 
+                                    : 'bg-oat-200 dark:bg-nature-800 text-oat-500 dark:text-nature-500 cursor-not-allowed'
+                            }`}
+                        >
                             {loading ? 'Decrypting...' : 'Import Identity'}
                         </button>
                         <button
                             onClick={() => setMode('menu')}
-                            style={{ ...btnStyle(true), background: '#333', marginTop: '0.5rem' }}
+                            className="w-full py-3 rounded-xl font-semibold bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors"
                         >
                             Cancel
                         </button>
@@ -346,11 +276,13 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                 )}
 
                 {mode === 'profile' && (
-                    <ProfilePage
-                        identity={identity}
-                        onBack={() => setMode('menu')}
-                        onIdentityUpdated={onIdentityUpdated}
-                    />
+                    <div className="bg-white dark:bg-nature-900 rounded-2xl shadow-soft border border-nature-200 dark:border-nature-800 overflow-hidden transition-colors">
+                        <ProfilePage
+                            identity={identity}
+                            onBack={() => setMode('menu')}
+                            onIdentityUpdated={onIdentityUpdated}
+                        />
+                    </div>
                 )}
             </div>
         </div>

@@ -108,44 +108,39 @@ export function InvitePage({ identity }: Props) {
     const unusedInvites = invites.filter(i => !i.usedBy);
     const usedInvites = invites.filter(i => i.usedBy);
 
-    const cardStyle: React.CSSProperties = {
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border-primary)',
-        borderRadius: '12px',
-        padding: '1rem',
-        marginBottom: '0.75rem',
-    };
-
-    const tabStyle = (active: boolean): React.CSSProperties => ({
-        flex: 1,
-        padding: '0.5rem',
-        borderRadius: '8px',
-        border: 'none',
-        background: active ? '#2563eb' : '#1a1a1a',
-        color: active ? '#fff' : '#888',
-        fontSize: '0.8rem',
-        fontWeight: 600,
-        cursor: 'pointer',
-        fontFamily: 'inherit',
-    });
-
     return (
-        <div style={{ padding: '1rem', maxWidth: '500px', margin: '0 auto' }}>
+        <div className="p-4 max-w-[500px] mx-auto min-h-full">
             {/* Section tabs */}
-            <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem' }}>
-                <button onClick={() => setActiveSection('invites')} style={tabStyle(activeSection === 'invites')}>
+            <div className="flex gap-2 mb-6">
+                <button 
+                    onClick={() => setActiveSection('invites')} 
+                    className={`flex-1 py-3 rounded-xl border-none text-[14px] font-bold cursor-pointer transition-all shadow-sm ${
+                        activeSection === 'invites' 
+                            ? 'bg-emerald-600 text-white shadow-md' 
+                            : 'bg-oat-100 dark:bg-nature-800 text-nature-600 dark:text-nature-400 hover:bg-oat-200 dark:hover:bg-nature-700'
+                    }`}
+                >
                     🎟️ Invites
                 </button>
-                <button onClick={() => setActiveSection('tree')} style={tabStyle(activeSection === 'tree')}>
+                <button 
+                    onClick={() => setActiveSection('tree')} 
+                    className={`flex-1 py-3 rounded-xl border-none text-[14px] font-bold cursor-pointer transition-all shadow-sm ${
+                        activeSection === 'tree' 
+                            ? 'bg-emerald-600 text-white shadow-md' 
+                            : 'bg-oat-100 dark:bg-nature-800 text-nature-600 dark:text-nature-400 hover:bg-oat-200 dark:hover:bg-nature-700'
+                    }`}
+                >
                     🌳 Tree
                 </button>
             </div>
 
             {/* =================== INVITES SECTION =================== */}
             {activeSection === 'invites' && (
-                <>
-                    <h2 style={{ fontSize: '1.3rem', marginBottom: '0.5rem' }}>🎟️ Invite Someone</h2>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <h2 className="text-xl font-bold mb-2 text-nature-950 dark:text-white flex items-center gap-2">
+                        🎟️ Invite Someone
+                    </h2>
+                    <p className="text-nature-500 dark:text-nature-400 text-[14px] mb-6 leading-relaxed">
                         Each invite code can only be used once. Generate a new one for each person you invite.
                     </p>
 
@@ -154,51 +149,46 @@ export function InvitePage({ identity }: Props) {
                         placeholder="Who is this invite for? (Optional)"
                         value={intendedFor}
                         onChange={e => setIntendedFor(e.target.value)}
-                        style={{
-                            width: '100%', padding: '0.8rem', borderRadius: '8px',
-                            border: '1px solid var(--border-input)', background: 'var(--bg-card)',
-                            color: 'var(--text-primary)', marginBottom: '1rem',
-                            fontFamily: 'inherit',
-                        }}
+                        className="w-full p-4 rounded-xl border border-nature-200 dark:border-nature-700 bg-white dark:bg-nature-900 text-nature-950 dark:text-white text-[15px] font-medium mb-4 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm transition-all"
                     />
 
                     <button
                         onClick={handleGenerate}
                         disabled={generating}
-                        style={{
-                            width: '100%', padding: '1rem', borderRadius: '12px',
-                            border: 'none', background: generating ? '#555' : '#2563eb',
-                            color: 'var(--text-primary)', fontSize: '1rem', fontWeight: 600,
-                            cursor: generating ? 'not-allowed' : 'pointer',
-                            fontFamily: 'inherit', marginBottom: '1.5rem',
-                        }}
+                        className={`w-full p-4 rounded-xl text-[15px] font-bold border-none cursor-pointer mb-6 transition-all shadow-md ${
+                            generating 
+                                ? 'bg-nature-400 text-white cursor-not-allowed' 
+                                : 'bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-lg'
+                        }`}
                     >
                         {generating ? 'Generating...' : '✨ Generate New Invite'}
                     </button>
 
                     {newCode && showQR && (
-                        <div style={{ ...cardStyle, textAlign: 'center', border: '1px solid #2563eb', background: '#0f1729', marginBottom: '1.5rem' }}>
-                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.75rem' }}>Share this code with someone you trust</p>
-                            <p style={{ fontFamily: 'monospace', fontSize: '1.8rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '2px', marginBottom: '1rem' }}>
+                        <div className="bg-oat-50 dark:bg-nature-950 border-2 border-emerald-500 rounded-2xl p-6 text-center mb-6 shadow-md transition-all">
+                            <p className="text-nature-600 dark:text-nature-400 text-[14px] font-medium mb-3">Share this code with someone you trust</p>
+                            <p className="font-mono text-3xl font-bold text-nature-950 dark:text-white tracking-widest mb-4">
                                 {newCode.toUpperCase()}
                             </p>
-                            <div style={{ background: '#fff', borderRadius: '12px', padding: '1rem', display: 'inline-block', marginBottom: '1rem' }}>
+                            <div className="bg-white rounded-xl p-4 inline-block mb-5 shadow-sm">
                                 {/* @ts-ignore */}
                                 <QRCodeSVG value={`${window.location.origin}/app?invite=${newCode}`} size={200} />
                             </div>
-                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                                <button onClick={() => handleCopy(`${window.location.origin}/app?invite=${newCode}`)} style={{
-                                    padding: '0.6rem 1.2rem', borderRadius: '8px', border: '1px solid var(--border-input)',
-                                    background: copied ? '#22c55e' : '#222', color: 'var(--text-primary)', fontSize: '0.85rem',
-                                    cursor: 'pointer', fontFamily: 'inherit',
-                                }}>
+                            <div className="flex gap-3 justify-center">
+                                <button 
+                                    onClick={() => handleCopy(`${window.location.origin}/app?invite=${newCode}`)} 
+                                    className={`py-3 px-6 rounded-xl border text-[14px] font-bold cursor-pointer transition-all ${
+                                        copied 
+                                            ? 'bg-emerald-100 border-emerald-500 text-emerald-700 dark:bg-emerald-900/50 dark:border-emerald-500 dark:text-emerald-400' 
+                                            : 'bg-white dark:bg-nature-800 border-nature-200 dark:border-nature-700 text-nature-900 dark:text-white hover:bg-nature-50 dark:hover:bg-nature-700'
+                                    }`}
+                                >
                                     {copied ? '✓ Copied!' : '📋 Copy'}
                                 </button>
-                                <button onClick={() => handleShare(newCode)} style={{
-                                    padding: '0.6rem 1.2rem', borderRadius: '8px', border: 'none',
-                                    background: '#2563eb', color: 'var(--text-primary)', fontSize: '0.85rem',
-                                    cursor: 'pointer', fontFamily: 'inherit',
-                                }}>
+                                <button 
+                                    onClick={() => handleShare(newCode)} 
+                                    className="py-3 px-6 rounded-xl border-none bg-emerald-600 text-white text-[14px] font-bold cursor-pointer hover:bg-emerald-700 shadow-sm transition-all"
+                                >
                                     📤 Share
                                 </button>
                             </div>
@@ -206,86 +196,92 @@ export function InvitePage({ identity }: Props) {
                     )}
 
                     {unusedInvites.length > 0 && (
-                        <>
-                            <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>⏳ Pending ({unusedInvites.length})</h3>
+                        <div className="mb-6">
+                            <h3 className="text-[13px] font-bold text-nature-500 dark:text-nature-400 mb-3 uppercase tracking-wider">⏳ Pending ({unusedInvites.length})</h3>
                             {unusedInvites.map(inv => (
-                                <div key={inv.code} style={cardStyle}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                <div key={inv.code} className="bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-xl p-4 mb-3 shadow-sm transition-transform hover:-translate-y-0.5">
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex flex-col gap-1">
                                             {inv.intendedFor && (
-                                                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>
+                                                <span className="text-[13px] font-bold text-nature-600 dark:text-nature-400">
                                                     For: {inv.intendedFor}
                                                 </span>
                                             )}
-                                            <span style={{ fontFamily: 'monospace', fontSize: '1rem', fontWeight: 600, letterSpacing: '1px' }}>
+                                            <span className="font-mono text-[16px] font-bold tracking-wider text-nature-950 dark:text-white">
                                                 {inv.code.toUpperCase()}
                                             </span>
                                         </div>
-                                        <div style={{ display: 'flex', gap: '0.3rem' }}>
-                                            <button onClick={() => handleCopy(`${window.location.origin}/app?invite=${inv.code}`)} style={{
-                                                padding: '0.3rem 0.6rem', borderRadius: '6px', border: '1px solid var(--border-input)',
-                                                background: 'var(--bg-hover)', color: 'var(--text-secondary)', fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit',
-                                            }}>📋</button>
-                                            <button onClick={() => handleShare(inv.code)} style={{
-                                                padding: '0.3rem 0.6rem', borderRadius: '6px', border: 'none',
-                                                background: '#2563eb', color: '#fff', fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'inherit',
-                                            }}>📤</button>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => handleCopy(`${window.location.origin}/app?invite=${inv.code}`)} 
+                                                className="p-2 rounded-lg bg-oat-50 dark:bg-nature-800 border border-nature-200 dark:border-nature-700 text-nature-600 dark:text-nature-400 hover:bg-oat-100 dark:hover:bg-nature-700 cursor-pointer transition-colors shadow-sm"
+                                            >
+                                                📋
+                                            </button>
+                                            <button 
+                                                onClick={() => handleShare(inv.code)} 
+                                                className="p-2 rounded-lg bg-emerald-600 border-none text-white hover:bg-emerald-700 cursor-pointer shadow-sm transition-colors"
+                                            >
+                                                📤
+                                            </button>
                                         </div>
                                     </div>
-                                    <p style={{ color: 'var(--text-faint)', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                                    <p className="text-nature-400 dark:text-nature-500 text-[11px] font-semibold mt-2 uppercase tracking-wide">
                                         Created {new Date(inv.createdAt).toLocaleDateString()}
                                     </p>
                                 </div>
                             ))}
-                        </>
+                        </div>
                     )}
 
                     {usedInvites.length > 0 && (
-                        <>
-                            <h3 style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '1rem', marginBottom: '0.5rem' }}>✅ Redeemed ({usedInvites.length})</h3>
+                        <div>
+                            <h3 className="text-[13px] font-bold text-nature-500 dark:text-nature-400 mb-3 uppercase tracking-wider mt-6">✅ Redeemed ({usedInvites.length})</h3>
                             {usedInvites.map(inv => (
-                                <div key={inv.code} style={{ ...cardStyle, opacity: 0.6 }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                <div key={inv.code} className="bg-oat-50 dark:bg-nature-950 border border-nature-200 dark:border-nature-800 rounded-xl p-4 mb-3 opacity-70">
+                                    <div className="flex flex-col gap-1">
                                         {inv.intendedFor && (
-                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                            <span className="text-[13px] text-nature-500 dark:text-nature-400 font-medium">
                                                 For: {inv.intendedFor}
                                             </span>
                                         )}
-                                        <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: 'var(--text-muted)', textDecoration: 'line-through' }}>
+                                        <span className="font-mono text-[14px] text-nature-500 dark:text-nature-500 line-through">
                                             {inv.code.toUpperCase()}
                                         </span>
                                     </div>
-                                    <p style={{ color: 'var(--text-faint)', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                                    <p className="text-nature-400 dark:text-nature-600 text-[11px] font-semibold mt-2 uppercase tracking-wide">
                                         Used {inv.usedAt ? new Date(inv.usedAt).toLocaleDateString() : ''}
                                     </p>
                                 </div>
                             ))}
-                        </>
+                        </div>
                     )}
-                </>
+                </div>
             )}
 
             {/* =================== TREE SECTION =================== */}
             {activeSection === 'tree' && (
-                <>
-                    <h2 style={{ fontSize: '1.3rem', marginBottom: '0.5rem' }}>🌳 Community Tree</h2>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <h2 className="text-xl font-bold mb-2 text-nature-950 dark:text-white flex items-center gap-2">
+                        🌳 Community Tree
+                    </h2>
+                    <p className="text-nature-500 dark:text-nature-400 text-[14px] mb-6 leading-relaxed">
                         Who invited whom. The tree shows how your community grows.
                     </p>
 
                     {tree.length === 0 ? (
-                        <div style={{ ...cardStyle, textAlign: 'center', color: 'var(--text-faint)' }}>
-                            <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🌱</p>
-                            <p>No members yet. Generate an invite to start growing!</p>
+                        <div className="bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-2xl p-8 text-center text-nature-500 dark:text-nature-400 shadow-sm">
+                            <p className="text-4xl mb-3">🌱</p>
+                            <p className="font-medium">No members yet. Generate an invite to start growing!</p>
                         </div>
                     ) : (
-                        <div style={{ ...cardStyle, padding: '0.75rem' }}>
+                        <div className="bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-2xl p-4 shadow-sm">
                             {tree.map(node => (
                                 <TreeNodeView key={node.publicKey} node={node} depth={0} identity={identity} />
                             ))}
                         </div>
                     )}
-                </>
+                </div>
             )}
         </div>
     );
@@ -299,51 +295,42 @@ function TreeNodeView({ node, depth, identity }: { node: TreeNode; depth: number
     const joinDate = new Date(node.joinedAt).toLocaleDateString();
 
     return (
-        <div style={{ marginLeft: depth > 0 ? '1.25rem' : 0 }}>
+        <div className={`${depth > 0 ? 'ml-5' : 'ml-0'}`}>
             <div
                 onClick={() => hasChildren && setExpanded(!expanded)}
-                style={{
-                    display: 'flex', alignItems: 'center', gap: '0.5rem',
-                    padding: '0.4rem 0.25rem', cursor: hasChildren ? 'pointer' : 'default',
-                    borderLeft: depth > 0 ? '2px solid #333' : 'none',
-                    paddingLeft: depth > 0 ? '0.75rem' : '0.25rem',
-                }}
+                className={`flex items-center gap-3 py-2 px-1 rounded-lg transition-colors ${
+                    hasChildren ? 'cursor-pointer hover:bg-oat-50 dark:hover:bg-nature-800/50' : 'cursor-default'
+                } ${depth > 0 ? 'border-l-2 border-nature-200 dark:border-nature-700 pl-4' : ''}`}
             >
                 {/* Expand/collapse */}
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)', width: '1rem', textAlign: 'center' }}>
+                <span className="text-[12px] text-nature-400 dark:text-nature-500 w-4 text-center">
                     {hasChildren ? (expanded ? '▼' : '▶') : '·'}
                 </span>
 
                 {/* Avatar dot */}
-                <div style={{
-                    width: '28px', height: '28px', borderRadius: '50%',
-                    background: isMe ? '#2563eb' : '#333',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '0.75rem', fontWeight: 700, flexShrink: 0,
-                    border: isMe ? '2px solid #60a5fa' : 'none',
-                }}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 shadow-sm ${
+                    isMe 
+                        ? 'bg-emerald-600 text-white border-2 border-emerald-300 dark:border-emerald-800' 
+                        : 'bg-oat-200 dark:bg-nature-800 text-nature-700 dark:text-nature-300'
+                }`}>
                     {node.callsign.charAt(0).toUpperCase()}
                 </div>
 
                 {/* Name + info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span style={{
-                            fontSize: '0.85rem', fontWeight: 600,
-                            color: isMe ? '#60a5fa' : '#ddd',
-                        }}>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                        <span className={`text-[14px] font-bold truncate ${
+                            isMe ? 'text-emerald-600 dark:text-emerald-500' : 'text-nature-900 dark:text-white'
+                        }`}>
                             {node.callsign}
                         </span>
                         {isMe && (
-                            <span style={{
-                                fontSize: '0.6rem', background: '#2563eb33', color: '#60a5fa',
-                                padding: '0.1rem 0.3rem', borderRadius: '4px',
-                            }}>
+                            <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded-md border border-emerald-100 dark:border-emerald-800">
                                 you
                             </span>
                         )}
                     </div>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-faint)' }}>
+                    <span className="text-[11px] font-medium text-nature-500 dark:text-nature-400 block mt-0.5">
                         Joined {joinDate}
                         {hasChildren && ` · ${node.children.length} invite${node.children.length !== 1 ? 's' : ''}`}
                     </span>
@@ -352,7 +339,7 @@ function TreeNodeView({ node, depth, identity }: { node: TreeNode; depth: number
 
             {/* Children */}
             {expanded && hasChildren && (
-                <div>
+                <div className="mt-1">
                     {node.children.map(child => (
                         <TreeNodeView key={child.publicKey} node={child} depth={depth + 1} identity={identity} />
                     ))}

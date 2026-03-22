@@ -15,9 +15,10 @@ interface Props {
     authorRating?: { average: number; count: number };
     remoteNode?: string;
     onTrade?: (post: MarketplacePost) => void;
+    viewMode?: 'grid' | 'list';
 }
 
-export function MarketplaceCard({ post, authorRating, remoteNode }: Props) {
+export function MarketplaceCard({ post, authorRating, remoteNode, viewMode = 'grid' }: Props) {
     const categoryConfig = MARKETPLACE_CATEGORIES.find((c) => c.id === post.category);
     const typeColor = POST_TYPE_COLORS[post.type];
     const emoji = categoryConfig?.emoji ?? '📦';
@@ -28,137 +29,85 @@ export function MarketplaceCard({ post, authorRating, remoteNode }: Props) {
 
     const hasPhoto = post.photos && post.photos.length > 0;
 
+    const isList = viewMode === 'list';
+
+    const isGrid = viewMode === 'grid';
+
     return (
-        <div style={{
-            background: '#0f0f0f',
-            borderRadius: '12px',
-            overflow: 'hidden',
-            cursor: 'pointer',
-            border: '1px solid #1a1a1a',
-            transition: 'transform 0.12s ease',
-        }}>
-            {/* Image area */}
-            <div style={{
-                position: 'relative',
-                width: '100%',
-                aspectRatio: '1/1',
-                background: '#1a1a1a',
-                overflow: 'hidden',
-            }}>
-                {hasPhoto ? (
-                    <img
-                        src={post.photos![0]}
-                        alt={post.title}
-                        style={{
-                            width: '100%', height: '100%',
-                            objectFit: 'cover',
-                        }}
-                    />
-                ) : (
-                    /* No photo — show large emoji */
-                    <div style={{
-                        width: '100%', height: '100%',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '3rem', opacity: 0.4,
-                    }}>
-                        {emoji}
+        <div
+            className={`bg-white dark:bg-nature-950 overflow-hidden cursor-pointer transition-all duration-300 shadow-md hover:shadow-xl dark:shadow-2xl dark:shadow-black/40 border border-nature-100/50 dark:border-nature-800 flex flex-col h-full
+                ${isGrid ? 'rounded-[20px] p-3' : 'rounded-[28px] p-4'}
+            `}
+        >
+            {/* Top Handle: Author + Title + Rating */}
+            <div className={`flex justify-between items-start ${isGrid ? 'mb-2' : 'mb-3'}`}>
+                <div className={`flex items-center overflow-hidden ${isGrid ? 'gap-2' : 'gap-3'}`}>
+                    <div className={`${isGrid ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'} rounded-full bg-terra-100 dark:bg-nature-800 shrink-0 flex items-center justify-center text-terra-700 dark:text-terra-400 font-bold shadow-inner`}>
+                        {post.authorCallsign.charAt(0).toUpperCase()}
                     </div>
-                )}
+                    <div className="flex flex-col truncate">
+                        <span className={`font-black uppercase text-nature-500 dark:text-nature-400 tracking-wider truncate ${isGrid ? 'text-[9px]' : 'text-[10px]'}`}>
+                            {post.authorCallsign}
+                        </span>
+                        <span className={`font-bold text-nature-950 dark:text-white truncate ${isGrid ? 'text-xs' : 'text-sm'}`}>
+                            {post.title}
+                        </span>
+                    </div>
+                </div>
 
-                {/* Type indicator — top-left colored dot */}
-                <div style={{
-                    position: 'absolute', top: '0.4rem', left: '0.4rem',
-                    width: '8px', height: '8px', borderRadius: '50%',
-                    background: typeColor,
-                    boxShadow: `0 0 6px ${typeColor}`,
-                }} />
-
-                {/* Category badge — top-right */}
-                <span style={{
-                    position: 'absolute', top: '0.35rem', right: '0.35rem',
-                    fontSize: '0.95rem',
-                    background: 'rgba(0,0,0,0.6)',
-                    borderRadius: '6px', padding: '0.15rem 0.3rem',
-                    lineHeight: 1,
-                }}>
-                    {emoji}
-                </span>
-
-                {/* Status badges */}
-                {post.status === 'pending' && (
-                    <span style={{
-                        position: 'absolute', bottom: '0.35rem', right: '0.35rem',
-                        fontSize: '0.6rem', fontWeight: 600,
-                        background: 'rgba(245,158,11,0.9)',
-                        color: '#000',
-                        padding: '0.15rem 0.4rem', borderRadius: '4px',
-                    }}>
-                        ⏳ PENDING
-                    </span>
-                )}
-                {post.repeatable && (
-                    <span style={{
-                        position: 'absolute', top: '0.35rem', left: '1.2rem',
-                        fontSize: '0.55rem', fontWeight: 600,
-                        background: 'rgba(99,102,241,0.85)',
-                        color: '#fff',
-                        padding: '0.1rem 0.3rem', borderRadius: '4px',
-                    }}>
-                        🔁
-                    </span>
-                )}
-
-                {/* Remote node badge — bottom-left */}
-                {nodeBadge && (
-                    <span style={{
-                        position: 'absolute', bottom: '0.35rem', left: '0.35rem',
-                        fontSize: '0.55rem', fontWeight: 600,
-                        background: 'rgba(99,102,241,0.85)',
-                        color: '#fff',
-                        padding: '0.15rem 0.35rem', borderRadius: '4px',
-                        whiteSpace: 'nowrap',
-                    }}>
-                        🌐 {nodeBadge}
-                    </span>
-                )}
+                <div className={`flex items-center shrink-0 bg-oat-50 dark:bg-nature-900 rounded-lg ${isGrid ? 'gap-0.5 px-1.5 py-0.5' : 'gap-1 px-2 py-1'}`}>
+                    {!isGrid && <span className="text-xs font-bold text-nature-900 dark:text-white">{authorRating && authorRating.average > 0 ? authorRating.average.toFixed(1) : 'New'}</span>}
+                    {!isGrid && <span className="text-nature-400 dark:text-nature-500 text-[10px]">★</span>}
+                    <span className={isGrid ? 'text-xs my-0.5' : 'ml-1 text-sm'}>{emoji}</span>
+                </div>
             </div>
 
-            {/* Text area — compact */}
-            <div style={{ padding: '0.4rem 0.5rem 0.5rem' }}>
-                {/* Price */}
-                <div style={{
-                    fontSize: '0.85rem', fontWeight: 700,
-                    color: '#e5e5e5', fontFamily: 'monospace',
-                    lineHeight: 1.2,
-                }}>
-                    {post.credits}Ʀ
-                </div>
+            {/* Image Area */}
+            {hasPhoto ? (
+                <div className={`relative w-full rounded-[20px] overflow-hidden shadow-sm ${isGrid ? 'h-[110px] mb-3' : 'h-[180px] mb-4'}`}>
+                    <img src={post.photos![0]} alt={post.title} className="w-full h-full object-cover" />
 
-                {/* Title */}
-                <div style={{
-                    fontSize: '0.75rem', color: '#999',
-                    lineHeight: 1.3, marginTop: '0.15rem',
-                    overflow: 'hidden', textOverflow: 'ellipsis',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                }}>
-                    {post.title}
-                </div>
+                    {/* Status Overlays */}
+                    <div className={`absolute left-2 flex flex-col gap-1 items-start ${isGrid ? 'top-1.5' : 'top-2'}`}>
+                        {post.status === 'pending' && (
+                            <span className={`font-bold bg-amber-400 text-amber-950 rounded-lg shadow-sm ${isGrid ? 'text-[0.6rem] px-1.5 py-0.5' : 'text-[0.65rem] px-2 py-1'}`}>
+                                ⏳ PENDING
+                            </span>
+                        )}
+                        {nodeBadge && (
+                            <span className={`font-bold bg-indigo-500/90 text-white backdrop-blur-sm rounded-lg shadow-sm ${isGrid ? 'text-[0.6rem] px-1.5 py-0.5' : 'text-[0.65rem] px-2 py-1'}`}>
+                                🌐 {nodeBadge}
+                            </span>
+                        )}
+                    </div>
 
-                {/* Author + rating — tiny */}
-                <div style={{
-                    fontSize: '0.6rem', color: '#555',
-                    marginTop: '0.2rem',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>
-                    {post.authorCallsign}
-                    {authorRating && authorRating.count > 0 && (
-                        <span style={{ marginLeft: '0.3rem', color: '#fbbf24' }}>
-                            {'★'.repeat(Math.round(authorRating.average))}{'☆'.repeat(5 - Math.round(authorRating.average))}
-                        </span>
-                    )}
+                    {/* Price Overlay */}
+                    <div className={`absolute right-2 bg-nature-900/90 backdrop-blur-md text-white font-bold tracking-tight shadow-md ${isGrid ? 'bottom-2 px-2.5 py-1 rounded-lg text-sm' : 'bottom-3 right-3 px-4 py-1.5 rounded-xl'}`}>
+                        {post.credits} <span className="text-[10px] font-normal opacity-80">B</span>
+                    </div>
                 </div>
+            ) : (
+                <div className={`relative w-full rounded-[20px] bg-oat-50 dark:bg-nature-900 flex items-center justify-center shadow-inner ${isGrid ? 'h-[80px] mb-3' : 'h-[100px] mb-4'}`}>
+                    <span className={`${isGrid ? 'text-3xl' : 'text-4xl'} opacity-20`}>{emoji}</span>
+                    <div className={`absolute right-2 bg-nature-900/90 backdrop-blur-md text-white font-bold tracking-tight shadow-md ${isGrid ? 'bottom-2 px-2.5 py-1 rounded-lg text-sm' : 'bottom-3 right-3 px-4 py-1.5 rounded-xl'}`}>
+                        {post.credits} <span className="text-[10px] font-normal opacity-80">B</span>
+                    </div>
+                </div>
+            )}
+
+            {/* Body Text */}
+            <p className={`text-nature-600 dark:text-nature-400 leading-relaxed px-1 flex-1 ${isGrid ? 'text-[11px] line-clamp-1 mb-3' : 'text-sm line-clamp-2 mb-4'}`}>
+                {post.description || "No description provided."}
+            </p>
+
+            {/* Action Button */}
+            <div
+                className={`w-full rounded-full font-bold tracking-widest text-center transition-colors shadow-sm ${isGrid ? 'py-2 text-[10px] mt-auto' : 'py-3.5 text-[13px]'} ${post.type === 'offer'
+                        ? 'bg-terra-500 text-white hover:bg-terra-600'
+                        : 'bg-nature-700 text-white dark:bg-nature-800 hover:bg-nature-800'
+                    }`}
+            >
+                {post.type === 'offer' ? (isGrid ? 'VIEW' : 'VIEW OFFER') : (isGrid ? 'VIEW' : 'VIEW REQUEST')}
             </div>
         </div>
     );

@@ -35,6 +35,22 @@ export default defineConfig({
             },
         }),
     ],
+    server: {
+        host: true,
+        proxy: {
+            '/api': {
+                target: 'https://localhost:8443',
+                secure: false,
+                changeOrigin: true
+            },
+            '/ws': {
+                target: 'wss://localhost:8443',
+                secure: false,
+                ws: true,
+                changeOrigin: true
+            }
+        }
+    },
     build: {
         outDir: path.resolve(__dirname, '../server/public'),
         emptyOutDir: true,

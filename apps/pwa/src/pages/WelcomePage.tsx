@@ -207,11 +207,10 @@ export function WelcomePage({ onComplete }: Props) {
     };
 
     return (
-        <div style={{
+        <div className="bg-oat-50 dark:bg-nature-950 min-h-screen text-nature-950 dark:text-oat-50" style={{
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            minHeight: '100vh',
             padding: '2rem',
         }}>
             <div style={{
@@ -219,7 +218,7 @@ export function WelcomePage({ onComplete }: Props) {
                 width: '100%',
                 textAlign: 'center',
             }}>
-                <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🫘</h1>
+                <img src="/assets/logo-192x192.png" alt="BeanPool Logo" style={{ width: '4rem', height: '4rem', objectFit: 'contain', margin: '0 auto 1rem' }} />
                 <h2 style={{ fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.5rem' }}>
                     Welcome to BeanPool
                 </h2>
@@ -228,9 +227,7 @@ export function WelcomePage({ onComplete }: Props) {
                     backed by cryptography — no passwords, no central accounts.
                 </p>
 
-                <div style={{
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border-primary)',
+                <div className="bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 shadow-sm" style={{
                     borderRadius: '16px',
                     padding: '2rem',
                 }}>
