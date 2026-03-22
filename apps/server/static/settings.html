@@ -1597,10 +1597,13 @@
                     completed: '🎉 Completed',
                 }[p.status] || p.status;
                 const votes = p.votes?.length || 0;
+                const exceeds = (p.status === 'active' || p.status === 'proposed') && p.requestedAmount > commonsData.balance;
+                const amountText = `<span style="color:${exceeds ? '#ef4444' : 'inherit'}; font-weight:${exceeds ? 'bold' : 'normal'};" title="${exceeds ? '⚠️ Exceeds available Commons balance' : ''}">${p.requestedAmount.toFixed(2)}Ʀ${exceeds ? ' ⚠️' : ''}</span>`;
+                
                 return `<div style="padding:0.6rem 0.75rem;border-bottom:1px solid #1e293b;display:flex;justify-content:space-between;align-items:center;">
                     <div>
                         <strong style="font-size:0.85rem;">${p.title}</strong>
-                        <div style="font-size:0.7rem;color:#64748b;margin-top:2px;">${p.proposerCallsign} · ${p.requestedAmount.toFixed(2)}Ʀ · ${votes} vote${votes !== 1 ? 's' : ''}</div>
+                        <div style="font-size:0.7rem;color:#64748b;margin-top:2px;">${p.proposerCallsign} · ${amountText} · ${votes} vote${votes !== 1 ? 's' : ''}</div>
                     </div>
                     <div style="display:flex;gap:0.4rem;align-items:center;">
                         <span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:${p.status === 'funded' ? '#10b98122' : p.status === 'rejected' ? '#ef444422' : '#2563eb22'};color:${p.status === 'funded' ? '#10b981' : p.status === 'rejected' ? '#ef4444' : '#60a5fa'};">${statusBadge}</span>

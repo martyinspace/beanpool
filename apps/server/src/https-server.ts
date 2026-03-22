@@ -18,6 +18,7 @@ import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import Koa from 'koa';
 import Router from '@koa/router';
 import serve from 'koa-static';
@@ -32,6 +33,7 @@ import {
     type TrustLevel,
 } from './connector-manager.js';
 import { federationCors, mountFederationRoutes } from './federation-api.js';
+import { federatedRelayMessage, federatedVerifyMember } from './federation-protocol.js';
 import { getP2PNode } from './p2p.js';
 import { WebSocketServer } from 'ws';
 import {
@@ -112,6 +114,84 @@ export async function startHttpsServer(port: number): Promise<void> {
         }
         await next();
     });
+
+    // Cryptographic Signature Verification Middleware
+    async function requireSignature(ctx: Koa.Context, next: Koa.Next) {
+        if (ctx.method !== 'POST') {
+            return await next();
+        }
+
+        const isProtected = 
+            ctx.path.startsWith('/api/profile/update') ||
+            ctx.path.startsWith('/api/ledger/transfer') ||
+            ctx.path.startsWith('/api/marketplace/posts') ||
+            ctx.path.startsWith('/api/marketplace/accept') ||
+            ctx.path.startsWith('/api/marketplace/complete') ||
+            ctx.path.startsWith('/api/marketplace/cancel') ||
+            ctx.path.startsWith('/api/messages/conversation') ||
+            ctx.path.startsWith('/api/messages/send') ||
+            ctx.path.startsWith('/api/messages/mark-read') ||
+            ctx.path.startsWith('/api/commons/projects') ||
+            ctx.path.startsWith('/api/invite/generate') ||
+            ctx.path.startsWith('/api/community/register');
+
+        if (!isProtected) {
+            return await next();
+        }
+
+        const pubKeyHex = ctx.get('X-Public-Key');
+        const signatureBase64 = ctx.get('X-Signature');
+
+        if (!pubKeyHex || !signatureBase64) {
+            ctx.status = 401;
+            ctx.body = { error: 'Missing cryptographic signature headers' };
+            return;
+        }
+
+        try {
+            const payloadString = JSON.stringify((ctx as any).requestBody || {});
+            
+            // Convert hex pubkey to SPKI format for Node.js verify
+            const spkiHeader = Buffer.from('302a300506032b6570032100', 'hex');
+            const spki = Buffer.concat([spkiHeader, Buffer.from(pubKeyHex, 'hex')]);
+            const publicKeyObject = crypto.createPublicKey({
+                key: spki,
+                format: 'der',
+                type: 'spki'
+            });
+
+            const isValid = crypto.verify(
+                undefined,
+                Buffer.from(payloadString),
+                publicKeyObject,
+                Buffer.from(signatureBase64, 'base64')
+            );
+
+            if (!isValid) {
+                ctx.status = 403;
+                ctx.body = { error: 'Invalid cryptographic signature' };
+                return;
+            }
+
+            // Reject spoofed body identifiers
+            const body = (ctx as any).requestBody;
+            if (body.publicKey && body.publicKey !== pubKeyHex) throw new Error('Spoofed publicKey');
+            if (body.authorPublicKey && body.authorPublicKey !== pubKeyHex) throw new Error('Spoofed authorPublicKey');
+            if (body.authorPubkey && body.authorPubkey !== pubKeyHex) throw new Error('Spoofed authorPubkey');
+            if (body.buyerPublicKey && body.buyerPublicKey !== pubKeyHex) throw new Error('Spoofed buyerPublicKey');
+            if (body.from && body.from !== pubKeyHex) throw new Error('Spoofed from');
+            if (body.proposerPubkey && body.proposerPubkey !== pubKeyHex) throw new Error('Spoofed proposerPubkey');
+            if (body.pubkey && body.pubkey !== pubKeyHex) throw new Error('Spoofed pubkey');
+
+        } catch (err: any) {
+            ctx.status = 403;
+            ctx.body = { error: `Signature validation failed: ${err.message}` };
+            return;
+        }
+
+        await next();
+    }
+    app.use(requireSignature);
 
     // Trust endpoint — only for self-signed mode
     if (!isUsingLetsEncrypt()) {
@@ -632,12 +712,43 @@ export async function startHttpsServer(port: number): Promise<void> {
 
     router.post('/api/ledger/transfer', async (ctx) => {
         const { from, to, amount, memo } = (ctx as any).requestBody || {};
+        const parsedAmount = Number(amount);
         if (!from || !to || !amount) {
             ctx.status = 400;
             ctx.body = { error: 'from, to, and amount are required' };
             return;
         }
-        const txn = transfer(from, to, Number(amount), memo || '');
+
+        // --- FEDERATION VERIFY ---
+        try {
+            const members = getMembers();
+            const fromMember = members.find(m => m.publicKey === from);
+            if (fromMember && fromMember.homeNodeUrl) {
+                const p2pNode = getP2PNode();
+                if (p2pNode) {
+                    const connected = getConnectors();
+                    const targetConnector = connected.find(c => c.publicUrl === fromMember.homeNodeUrl);
+                    if (targetConnector && targetConnector.peerId) {
+                        const verifyResult = await federatedVerifyMember(p2pNode, targetConnector.peerId, from);
+                        const homeBalance = verifyResult?.homeBalance ?? 0;
+                        const floor = -100; // hardcoded BeanPool credit floor
+                        if (!verifyResult || !verifyResult.isMember || (homeBalance - parsedAmount < floor)) {
+                            ctx.status = 400;
+                            ctx.body = { error: 'Federation check failed: Insufficient funds on home node or member not recognized.' };
+                            return;
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('[Federation] Error verifying remote member:', e);
+            ctx.status = 502;
+            ctx.body = { error: 'Federation check failed: Could not reach home node.' };
+            return;
+        }
+        // -------------------------
+
+        const txn = transfer(from, to, parsedAmount, memo || '');
         if (!txn) {
             ctx.status = 400;
             ctx.body = { error: 'Transfer failed — insufficient credit or unknown member' };
@@ -689,6 +800,47 @@ export async function startHttpsServer(port: number): Promise<void> {
             ctx.body = { error: 'Failed to send — conversation not found or not a participant' };
             return;
         }
+
+        // --- FEDERATION RELAY ---
+        try {
+            const conv = getConversation(conversationId);
+            if (conv && conv.type === 'dm') {
+                const otherPubkey = conv.participants.find(p => p !== authorPubkey);
+                if (otherPubkey) {
+                    const members = getMembers();
+                    const otherMember = members.find(m => m.publicKey === otherPubkey);
+                    
+                    // If the other member has a homeNodeUrl, they are a visitor from a remote node
+                    if (otherMember && otherMember.homeNodeUrl) {
+                        const p2pNode = getP2PNode();
+                        if (p2pNode) {
+                            const connected = getConnectors();
+                            const targetConnector = connected.find(c => c.publicUrl === otherMember.homeNodeUrl);
+                            if (targetConnector && targetConnector.peerId) {
+                                const localMember = members.find(m => m.publicKey === authorPubkey);
+                                const localConfig = getLocalConfig();
+                                const hostname = process.env.CF_RECORD_NAME || (localConfig.communityName ? localConfig.communityName.toLowerCase().replace(/\s+/g, '') + '.beanpool.org' : undefined);
+                                const localUrl = hostname ? `https://${hostname}` : undefined;
+
+                                // Fire-and-forget over secure Libp2p mesh
+                                federatedRelayMessage(p2pNode, targetConnector.peerId, {
+                                    senderPublicKey: authorPubkey,
+                                    senderCallsign: localMember?.callsign,
+                                    senderNodeUrl: localUrl,
+                                    recipientPublicKey: otherPubkey,
+                                    ciphertext,
+                                    nonce
+                                }).catch(e => console.warn('[Federation] Failed to relay message to remote peer:', e.message));
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('[Federation] Error during message relay:', e);
+        }
+        // -----------------------
+
         ctx.body = { success: true, message: msg };
     });
 

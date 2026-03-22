@@ -252,6 +252,12 @@ function registerMemberInternal(publicKey: string, callsign: string, invitedBy: 
         return getMember(publicKey)!;
     }
 
+    // SECURITY PATCH: Prevent open registration. If they don't exist and don't have an invite, block them.
+    if (!inviteCode && !invitedBy) {
+        console.warn(`[Security] Blocked unauthorized open registration attempt for ${callsign} (${publicKey})`);
+        return null;
+    }
+
     db.transaction(() => {
         db.prepare(`INSERT INTO members (public_key, callsign, joined_at, invited_by, invite_code) 
                     VALUES (?, ?, ?, ?, ?)`).run(publicKey, callsign, new Date().toISOString(), invitedBy, inviteCode);

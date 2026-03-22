@@ -132,31 +132,8 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
         setSending(true);
         try {
             const { ciphertext, nonce } = encodePlaintext(draft.trim());
-            // 1. Store locally (existing flow)
+            // 1. Store locally (Server will handle Libp2p federation relay automatically)
             await sendMessageApi(activeConv.id, identity.publicKey, ciphertext, nonce);
-
-            // 2. Relay to remote node if the other participant is a federation visitor
-            if (activeConv.type === 'dm') {
-                const otherPubkey = activeConv.participants.find(p => p !== identity.publicKey);
-                if (otherPubkey) {
-                    const otherMember = members.find(m => m.publicKey === otherPubkey);
-                    if (otherMember?.homeNodeUrl) {
-                        // Fire-and-forget relay — don't block the UI
-                        fetch(`${otherMember.homeNodeUrl}/api/federation/relay-message`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                senderPublicKey: identity.publicKey,
-                                senderCallsign: identity.callsign,
-                                senderNodeUrl: window.location.origin,
-                                recipientPublicKey: otherPubkey,
-                                ciphertext,
-                                nonce,
-                            }),
-                        }).catch(() => console.warn('Federation relay failed for reply'));
-                    }
-                }
-            }
 
             setDraft('');
             await loadMessages(activeConv.id);

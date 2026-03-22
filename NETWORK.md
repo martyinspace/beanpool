@@ -129,10 +129,11 @@ Each connector has a configurable trust level that determines how data flows bet
 
 When two nodes are connected as **peers**, their members can browse each other's marketplaces and trade across communities:
 
-1. **Browsing:** The PWA queries the remote node's API directly (`sydney.beanpool.org/api/marketplace/posts`) — no data is stored on the home node
-2. **Trading:** When accepting a remote offer, credits move on the **remote** node's ledger (mutual credit allows negative balances)
-3. **Identity:** Ed25519 keypairs work everywhere — no separate accounts needed. Visitors appear as guest entries on remote ledgers
-4. **No transitivity:** Each node must explicitly add peers. Being connected to Sydney doesn't automatically connect you to Sydney's peers
+1. **Browsing:** The PWA queries the remote node's HTTPS API directly (`sydney.beanpool.org/api/marketplace/posts`) — no data is stored on the home node.
+2. **Trading:** When accepting a remote offer, the remote node initiates a secure **Libp2p Node-to-Node stream** (`/beanpool/federation/1.0.0`) back to the buyer's home node to cryptographically verify their identity and mutual credit funds before allowing the transaction.
+3. **Messaging:** Cross-node private messages are automatically routed over the authenticated Libp2p mesh rather than exposed HTTP endpoints, preventing spoofing.
+4. **Identity:** Ed25519 keypairs work everywhere — no separate accounts needed. Visitors appear as guest entries on remote ledgers.
+5. **No transitivity:** Each node must explicitly add peers. Being connected to Sydney doesn't automatically connect you to Sydney's peers.
 
 ### Mirror — State Replication
 

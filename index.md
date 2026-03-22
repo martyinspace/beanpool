@@ -14,7 +14,8 @@
 | 3 | [README.md](README.md) | Project overview, features, API reference |
 | 4 | [SUMMARY.md](SUMMARY.md) | Protocol concepts: mutual credit, identity, governance |
 | 5 | [docs/NODE_ADMIN_SETUP.md](docs/NODE_ADMIN_SETUP.md) | Step-by-step guide for new node operators |
-| 6 | [ROADMAP.md](ROADMAP.md) | Planned features and future work |
+| 6 | [docs/MIRRORING_AND_FAILOVER.md](docs/MIRRORING_AND_FAILOVER.md) | High availability guide for CRDT mirrors and Cloudflare load balancing |
+| 7 | [ROADMAP.md](ROADMAP.md) | Planned features and future work |
 
 > [!IMPORTANT]
 > **Read `HANDOVER.md` before making any changes.** It contains critical information about Let's Encrypt rate limits that can break deployments if ignored.
@@ -54,7 +55,7 @@
 |-----|-----|-------------|
 | **BeanPool Node** | `apps/server/` | Gateway — genesis, admin, REST APIs, WebSocket, connectors, handshake, lazy sync, libp2p |
 | **PWA** | `apps/pwa/` | UI — map, marketplace, messaging, people/friends, ledger, profiles, seed phrase recovery, reputation, privacy |
-| **Pillar Toggle** | `apps/native/` | Background mesh state mirror (Expo + React Native) |
+| **Pillar Toggle** | `apps/native/` | Background mesh state mirror (Expo + React Native) — see [apps/native/README.md](apps/native/README.md) |
 
 ## Core Protocol
 
@@ -80,7 +81,8 @@
 | `apps/server/src/state-engine.ts` | In-memory state: members, posts, profiles, conversations, messages, invites, ledger, ratings, reports |
 | `apps/server/src/https-server.ts` | 30+ REST API endpoints: community, marketplace, friends, ratings, reports, admin |
 | `apps/server/src/connector-manager.ts` | Sovereign connectors with federation trust levels (peer/mirror/blocked) |
-| `apps/server/src/federation-api.ts` | Federation CORS middleware + `/api/node/info` + `/api/federation/verify-member` |
+| `apps/server/src/federation-api.ts` | Federation CORS middleware + `/api/node/info` |
+| `apps/server/src/federation-protocol.ts` | Secure Libp2p authenticated Noise streams for cross-node mesh routing |
 | `apps/server/src/handshake.ts` | Mutual trust verification + latency via yamux streams |
 | `apps/server/src/sync-protocol.ts` | Lazy state sync — Merkle hash + delta exchange |
 | `apps/server/src/local-config.ts` | Admin auth (scrypt) + node config |

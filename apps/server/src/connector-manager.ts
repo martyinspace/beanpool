@@ -446,3 +446,8 @@ export function getPeerOrigins(): string[] {
         .filter(c => c.trustLevel === 'peer' && c.publicUrl)
         .map(c => c.publicUrl!);
 }
+
+/** Get the active libp2p node instance for dialing federation streams */
+export function getP2pNode(): Libp2p | null {
+    return p2pNode;
+}

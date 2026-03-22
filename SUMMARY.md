@@ -18,7 +18,7 @@ A peer-to-peer economic layer designed to encourage circulation rather than accu
 
 ### 3. Mesh Network (libp2p)
 The current implementation uses a **libp2p mesh** over TCP and WebSocket transports:
-* **Sovereign Connectors**: Manual trust relationships between nodes (peer / mirror / blocked) with federation protocol for cross-community trading
+* **Sovereign Connectors**: Manual trust relationships between nodes (peer / mirror / blocked) with a federation protocol for cross-community trading and cross-node messaging over cryptographically authenticated Noise streams.
 * **Lazy State Sync**: Merkle hash comparison + delta exchange every 15 minutes
 * **Handshake Protocol**: Mutual trust verification + latency measurement via yamux streams
 * **Cloudflare DNS Auto-Registration**: Each node self-registers its DNS record on startup

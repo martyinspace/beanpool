@@ -1,0 +1,1 @@
+import { initStateEngine, getPosts, getMembers, getCommunityInfo, getNodeConfig } from './src/state-engine.ts'; try { initStateEngine(); getCommunityInfo(); getMembers(); getPosts({}); getNodeConfig(); console.log('✅ ALL API TESTS PASS'); } catch(e) { console.error('❌ CRASH', e); }

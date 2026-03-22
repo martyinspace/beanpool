@@ -1,0 +1,1 @@
+import { initStateEngine, createPost } from './src/state-engine.ts'; try { initStateEngine(); console.log(createPost('need', 'other', 'Testing', 'Desc', 50, 'testpub3', undefined, undefined, [], false)); console.log('✅ POST CREATED'); } catch(e) { console.error('❌ CRASH', e); }

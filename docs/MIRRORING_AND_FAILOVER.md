@@ -6,7 +6,7 @@ Because BeanPool's internal state engine (Ledger, Members, Web of Trust, and Pos
 
 ## 🪞 1. Setting Up a Mirror (Disaster Recovery Backup)
 
-A `mirror` connector silently maintains a mathematically identical, real-time copy of your primary node's `state.json`. If your primary node goes offline, the mirror can take over instantly with zero data loss.
+A `mirror` connector silently maintains a mathematically identical, real-time copy of your primary node's `state.db` (SQLite). If your primary node goes offline, the mirror can take over instantly with zero data loss.
 
 **Steps to set up a bi-directional mirror:**
 1. **Provision a Blank Node:** Deploy a brand new BeanPool node on a separate server or VPS (e.g., `backup.yourcommunity.org`).

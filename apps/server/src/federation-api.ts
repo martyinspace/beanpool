@@ -68,6 +68,10 @@ export function mountFederationRoutes(router: Router): void {
         };
     });
 
+    // [SECURITY PATCH]: The following routes are currently unauthenticated HTTP stubs. 
+    // They are disabled to prevent remote message spoofing until cross-node 
+    // cryptographic PeerID signatures are fully implemented for federation routing.
+    /*
     // Verify member — used by remote nodes before accepting visitor trades
     router.post('/api/federation/verify-member', async (ctx) => {
         const { publicKey } = (ctx as any).requestBody || {};
@@ -142,4 +146,5 @@ export function mountFederationRoutes(router: Router): void {
             messageId: message.id,
         };
     });
+    */
 }

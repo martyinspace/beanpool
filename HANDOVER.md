@@ -32,11 +32,14 @@
 - ✅ **WebSocket `/ws`** — real-time state feed
 - ✅ **Federation Protocol** — peer/mirror/blocked trust levels, dynamic CORS, `/api/node/info`, verify-member
 - ✅ **Cross-Community Marketplace** — Connected Communities UI, remote post browsing, `🌐` node badges
+- ✅ **Secure Libp2p Federation Routing** — Cross-node messaging and ledger trade validation now strictly operate over authenticated PeerID Noise streams to cryptographically prevent spoofing.
 - ✅ **Mirror State Sync** — Merkle hash comparison + delta exchange, 15-min intervals (for mirror-trusted nodes)
 - ✅ **Handshake Protocol** — mutual trust + latency over yamux streams
 - ✅ **Let's Encrypt Auto-TLS** — DNS-01 challenge via Cloudflare API (acme-client v5)
 - ✅ **3 Live Nodes** — Sydney, Brisbane, Debian (local dev server)
 - ✅ **Node Admin Setup Guide** — comprehensive docs for new node operators
+- ✅ **Database Migration (SQLite)** — replaced JSON engine with `better-sqlite3` for robust relational validation and paging limits
+- ✅ **Cryptographically signed APIs** — Ed25519 client-side signatures on all POST requests preventing spoofing
 
 ---
 
@@ -100,7 +103,7 @@ AFTER DEPLOYING:
 
 | App | Dir | Purpose |
 |-----|-----|---------|
-| BeanPool Node | `apps/server` | Gateway — genesis, admin, REST APIs, WebSocket, connectors, handshake, sync, libp2p |
+| BeanPool Node | `apps/server` | Gateway — genesis, admin, REST APIs (Ed25519-secured), WebSocket, connectors, handshake, sync, libp2p |
 | PWA | `apps/pwa` | UI — map, marketplace, messaging, ledger, profiles, identity, privacy, install prompt |
 | Core Protocol | `packages/beanpool-core` | Shared logic — Ledger, Merkle, Passport, Governance, Trade, Router |
 
@@ -170,7 +173,6 @@ gh run list --limit 3
 
 ## Coming Next
 
-- [ ] **Database Migration (SQLite)** — Highest priority. Replace the JSON state engine with `better-sqlite3` to ensure robust relational validation and paging limits (`LIMIT`/`OFFSET`) for scaling the node's ledger and profiles.
 - [ ] **Native App Release (Expo)** — Polish the React Native background app (`apps/native`) for distribution on the iOS App Store and Google Play Store.
 - [ ] **Offline PWA caching** via Service Worker
 - [ ] **Federated credit verification** (`/beanpool/verify/1.0.0`)

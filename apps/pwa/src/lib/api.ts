@@ -2,16 +2,61 @@
  * API Client — Typed fetch wrappers for BeanPool Node APIs
  *
  * Base URL is same-origin (the PWA is served by the node).
- */
+import { loadIdentity } from './identity';
 
 const BASE = '';  // Same-origin — PWA is served by the node
+
+// Helper to convert hex string to Uint8Array
+function hexToBytes(hex: string): Uint8Array {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+    }
+    return bytes;
+}
+
+// Helper to convert Uint8Array to base64
+function bytesToBase64(bytes: Uint8Array): string {
+    return btoa(String.fromCharCode(...bytes));
+}
+
+async function signWithWebCrypto(privateKeyHex: string, payload: any): Promise<string> {
+    const pkcs8 = hexToBytes(privateKeyHex);
+    const privateKey = await crypto.subtle.importKey(
+        'pkcs8',
+        pkcs8,
+        { name: 'Ed25519' },
+        false,
+        ['sign']
+    );
+    const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
+    const signatureBytes = await crypto.subtle.sign('Ed25519', privateKey, payloadBytes);
+    return bytesToBase64(new Uint8Array(signatureBytes));
+}
 
 async function request<T>(method: string, path: string, body?: any): Promise<T> {
     const opts: RequestInit = {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+        } as Record<string, string>,
     };
-    if (body) opts.body = JSON.stringify(body);
+
+    if (body) {
+        if (method === 'POST') {
+            const identity = await loadIdentity();
+            if (identity && identity.privateKey) {
+                try {
+                    const signature = await signWithWebCrypto(identity.privateKey, body);
+                    (opts.headers as Record<string, string>)['X-Public-Key'] = identity.publicKey;
+                    (opts.headers as Record<string, string>)['X-Signature'] = signature;
+                } catch (e) {
+                    console.warn('[API] Could not sign request:', e);
+                }
+            }
+        }
+        opts.body = JSON.stringify(body);
+    }
 
     const res = await fetch(`${BASE}${path}`, opts);
     if (!res.ok) {

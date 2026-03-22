@@ -11,7 +11,7 @@
 
 BeanPool is an open protocol for building a **post-extraction economy**. It connects communities through a decentralized mutual credit system where value is created through cooperation, not extraction. Nodes gossip state over a libp2p mesh, automatically applying demurrage (value decay) to prevent hoarding and fund a community Commons pool.
 
-**Live network:** [sydney.beanpool.org](https://sydney.beanpool.org) · [brisbane.beanpool.org](https://brisbane.beanpool.org) · [mullum.beanpool.org](https://mullum.beanpool.org:8443) — federated via peer connectors with cross-community marketplace browsing and trading.
+**Live network:** [sydney.beanpool.org](https://sydney.beanpool.org) · [brisbane.beanpool.org](https://brisbane.beanpool.org) · [mullum.beanpool.org](https://mullum.beanpool.org:8443) — federated via peer connectors with cross-community marketplace browsing and cryptographically secure Libp2p mesh trading.
 
 ---
 
@@ -33,7 +33,7 @@ Full-screen Leaflet/OSM map as the landing page:
 - **Post photos** — up to 3 photos per post, auto-resized to 400px, primary photo on tiles
 - **Post validation** — all fields required, red glow on empty fields, location must be set
 - **Post detail view** — full description, photo gallery, credits, author profile (avatar, bio, contact)
-- **💬 Message** — opens a DM with the author directly from the post
+- **💬 Message** — opens a DM with the author directly from the post (cross-node messages route securely over the Libp2p mesh)
 - **🫘 Rate** — rate the author 1-5 beans with optional comment
 - **🚩 Report** — report abuse with reason dropdown
 
@@ -52,7 +52,7 @@ Flag bad actors for admin review:
 
 ### 💬 E2E Messaging
 DMs and group chats with E2E-ready data model:
-- **Direct messages** — tap any member or use "Message" from a post detail
+- **Direct messages** — tap any member or use "Message" from a post detail (cross-node DMs are authenticated via PeerID Noise streams)
 - **Group chats** — create named groups with multiple members
 - **Plaintext v1** encoding (base64) — data model ready for X25519/AES-256-GCM upgrade
 
@@ -280,6 +280,7 @@ All endpoints are served on port 8443 (HTTPS):
 BeanPool is in active development. The PWA is **fully functional** with invite-only membership, community map, marketplace with photos and bean ratings, E2E messaging (DMs + groups), mutual credit ledger, editable member profiles, abuse reporting, and community health dashboard — all connected to live server APIs. Three nodes (Sydney, Brisbane, Debian) are deployed with federation protocol for cross-community trading.
 
 **What's working:**
+- ✅ Dynamic Node-Centered Mapping — Leaflet map bounds are dynamically tethered to the node's configured radius, and GPS pin-drop race conditions have been resolved
 - ✅ Invite-only membership with single-use codes + hierarchical invite tree
 - ✅ 12-word BIP-39 seed phrase — deterministic Ed25519 key derivation + recovery
 - ✅ People tab — Friends, Community browser, Invites, Guardians (up to 5)
@@ -302,15 +303,18 @@ BeanPool is in active development. The PWA is **fully functional** with invite-o
 - ✅ Let's Encrypt auto-TLS via DNS-01 challenge (Cloudflare API)
 - ✅ 3 live nodes — Sydney (Azure), Brisbane (Azure), Debian (bare metal)
 - ✅ Node admin setup guide with LE and no-domain instructions
+- ✅ Database Migration (SQLite) — replacing JSON engine with `better-sqlite3` for production scalability
+- ✅ Cryptographically signed APIs — Ed25519 client-side signatures on all POST requests to prevent spoofing
 
 **Coming next:**
+- Native App Release (Expo) — mobile wrapper mapping to Android/iOS App Stores
 - Social Recovery (Shamir 3-of-5 secret sharing via Guardians)
 - Offline PWA caching via Service Worker
-- Federated credit verification (`/beanpool/verify/1.0.0`)
-- Governance module integration (quadratic voting)
 
 ---
 
 ## License
 
 [MIT](LICENSE)
+
+_Last updated: 2026-03-22 23:30 AEDT_
