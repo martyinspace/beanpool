@@ -409,13 +409,12 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             const icon = L.divIcon({
                 className: 'custom-map-pin hover:scale-110 transition-transform origin-bottom',
                 html: `
-                <div style="position: relative; width: 44px; height: 56px; display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 4px 6px rgba(0 0 0 / 0.15));">
+                <div style="position: relative; width: 44px; height: 56px; display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.15));">
                     <div style="
                         width: 44px; height: 44px; border-radius: 50%;
                         background: rgba(255,255,255,0.95); border: 3px solid ${borderColor};
                         display: flex; flex-direction: column; align-items: center; justify-content: center;
                         box-sizing: border-box; z-index: 2; position: relative;
-                        backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
                     ">
                         <span style="font-size: 18px; line-height: 1.1;">${emoji}</span>
                         <span style="font-size: 8px; font-weight: 800; color: ${borderColor}; text-transform: uppercase; letter-spacing: -0.5px; opacity: 0.9; margin-top: -2px;">${typeLabel}</span>
@@ -485,8 +484,6 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     background: rgba(255, 255, 255, 0.9) !important;
                     color: #4b5563 !important; /* text-nature-600 */
                     border-color: #e5e7eb !important; /* border-nature-200 */
-                    backdrop-filter: blur(8px);
-                    -webkit-backdrop-filter: blur(8px);
                 }
                 .leaflet-control-zoom a:hover {
                     background: rgba(249, 250, 251, 0.95) !important; /* bg-nature-50 */
@@ -495,7 +492,6 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     background: rgba(255, 255, 255, 0.7) !important;
                     color: #6b7280 !important; /* text-nature-500 */
                     font-size: 10px !important;
-                    backdrop-filter: blur(4px);
                     border-top-left-radius: 8px;
                 }
                 .leaflet-control-attribution a {
@@ -507,7 +503,6 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     border-radius: 16px !important;
                     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important; /* shadow-soft */
                     border: 1px solid #e5e7eb !important; /* border-nature-200 */
-                    backdrop-filter: blur(12px);
                 }
                 .leaflet-popup-tip {
                     background: rgba(255, 255, 255, 0.95) !important;
