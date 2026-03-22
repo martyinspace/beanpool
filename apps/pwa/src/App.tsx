@@ -93,20 +93,22 @@ export function App() {
     const [activeTab, setActiveTab] = useState<Tab>('map');
     const [showSettings, setShowSettings] = useState(false);
     const [openConversationId, setOpenConversationId] = useState<string | null>(null);
+    const [openMarketPostId, setOpenMarketPostId] = useState<string | null>(null);
     const [openNewPost, setOpenNewPost] = useState(false);
     const [theme, toggleTheme] = useTheme();
     const [sysAnnouncement, setSysAnnouncement] = useState<{ title: string, body: string, severity: string } | null>(null);
     const [totalUnread, setTotalUnread] = useState(0);
     const [marketClickCount, setMarketClickCount] = useState(0);
 
-    function navigateToTab(tab: string, conversationId?: string) {
+    function navigateToTab(tab: string, contextId?: string) {
         if (tab === 'map-post') {
             setActiveTab('map');
             setOpenNewPost(true);
             return;
         }
         setActiveTab(tab as Tab);
-        if (conversationId) setOpenConversationId(conversationId);
+        if (tab === 'messages' && contextId) setOpenConversationId(contextId);
+        if (tab === 'marketplace' && contextId) setOpenMarketPostId(contextId);
     }
 
     // Load existing identity on mount
@@ -244,8 +246,8 @@ export function App() {
                     />
                 ) : (
                     <>
-                        {activeTab === 'map' && <MapPage identity={identity} openNewPost={openNewPost} onOpenNewPostHandled={() => setOpenNewPost(false)} onNavigate={(tab) => navigateToTab(tab)} />}
-                        {activeTab === 'marketplace' && <MarketplacePage identity={identity} marketClickCount={marketClickCount} onNavigate={(tab, convId) => navigateToTab(tab, convId)} />}
+                        {activeTab === 'map' && <MapPage identity={identity} openNewPost={openNewPost} onOpenNewPostHandled={() => setOpenNewPost(false)} onNavigate={(tab, ctxId) => navigateToTab(tab, ctxId)} />}
+                        {activeTab === 'marketplace' && <MarketplacePage identity={identity} marketClickCount={marketClickCount} openPostId={openMarketPostId} onPostOpened={() => setOpenMarketPostId(null)} onNavigate={(tab, ctxId) => navigateToTab(tab, ctxId)} />}
                         {activeTab === 'messages' && <MessagesPage identity={identity} openConversationId={openConversationId} onConversationOpened={() => setOpenConversationId(null)} />}
                         {activeTab === 'people' && <PeoplePage identity={identity} />}
                         {activeTab === 'ledger' && <LedgerPage identity={identity} />}

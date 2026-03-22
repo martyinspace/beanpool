@@ -10,6 +10,7 @@
 **BeanPool is a fully functional PWA** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🫘 bean reputation system, abuse reporting, community health dashboard, and federation protocol — deployed on **3 sovereign nodes** with Let's Encrypt TLS.
 
 ### What's Working
+- ✅ **Dynamic Map Root** — Leaflet map defaults coordinate center to the node's `serviceRadius` config (e.g. Mullumbimby) instead of hardcoding, and handles location cleanly without async ghost-pin drops.
 - ✅ **Invite-only membership** — single-use invite codes, hierarchical invite tree (node → seed codes → admin → organic invites)
 - ✅ **12-word seed phrase** — BIP-39 mnemonic, deterministic Ed25519 key derivation, recovery flow in PWA
 - ✅ **People tab** — Friends, Community browser, Invites (moved), Guardians (select up to 5)
@@ -124,23 +125,21 @@ pnpm build   # Builds all packages via Turborepo
 ### Deploy
 
 ```bash
-bash deploy.sh           # Deploy to all 3 nodes
-bash deploy.sh 1         # Sydney only
-bash deploy.sh 2         # Brisbane only
-bash deploy.sh 3         # Debian (local dev) only
-bash deploy.sh 1 2       # Sydney + Brisbane
+bash deploy.sh           # Deploy to all live nodes
+bash deploy.sh 1         # Brisbane only
+bash deploy.sh 2         # Mullum 1 only
+bash deploy.sh 3         # Mullum 2 only
 ```
 
 ### Live Nodes
 
-| # | Node | IP | DNS | SSH User | SSH Key |
-|---|------|----|-----|----------|---------|
-| 1 | Sydney | `20.211.27.68` | `sydney.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` |
-| 2 | Brisbane | `20.5.121.158` | `brisbane.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` |
-| 3 | Mullum | `192.168.1.219` | `mullum.beanpool.org` | `marty` | default key |
+| # | Node | IP | DNS | SSH User | SSH Key | Notes |
+|---|------|----|-----|----------|---------|-------|
+| 1 | Brisbane | `20.5.121.158` | `brisbane.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` | Standalone node |
+| 2 | Mullum 1 | `192.168.1.219` | `mullum1.beanpool.org` | `marty` | default key | Behind CF `mullum.beanpool.org` LB |
+| 3 | Mullum 2 | `192.168.1.220` | `mullum2.beanpool.org` | `marty` | default key | Behind CF `mullum.beanpool.org` LB |
 
 ```bash
-ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68   # Sydney
 ssh -i ~/.ssh/id_azure_lattice azureuser@20.5.121.158   # Brisbane
 ssh marty@192.168.1.219                                  # Debian (LAN)
 ```
@@ -165,16 +164,18 @@ gh run list --limit 3
 4. **`README.md`** — Project overview, features, API table
 5. **`SUMMARY.md`** — Protocol concepts: mutual credit, identity, governance
 6. **`docs/NODE_ADMIN_SETUP.md`** — Step-by-step guide for new node operators
+7. **`docs/MIRRORING_AND_FAILOVER.md`** — High availability guide (CRDT mirrors, Cloudflare failover)
 
 ---
 
 ## Coming Next
 
-- [ ] Offline PWA caching via Service Worker
-- [ ] Federated credit verification (`/beanpool/verify/1.0.0`)
-- [ ] Governance module integration (quadratic voting)
-- [ ] Social Recovery (Guardian Protocol)
+- [ ] **Database Migration (SQLite)** — Highest priority. Replace the JSON state engine with `better-sqlite3` to ensure robust relational validation and paging limits (`LIMIT`/`OFFSET`) for scaling the node's ledger and profiles.
+- [ ] **Native App Release (Expo)** — Polish the React Native background app (`apps/native`) for distribution on the iOS App Store and Google Play Store.
+- [ ] **Offline PWA caching** via Service Worker
+- [ ] **Federated credit verification** (`/beanpool/verify/1.0.0`)
+- [ ] **Social Recovery** (Guardian Protocol implementation)
 
 ---
 
-_Last updated: 2026-03-18 20:00 AEDT_
+_Last updated: 2026-03-22 23:30 AEDT_

@@ -222,7 +222,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
                     <button
                         onClick={() => { setShowNewDm(false); setShowNewGroup(false); }}
-                        style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '1rem', cursor: 'pointer', fontFamily: 'inherit' }}
+                        style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '1rem', cursor: 'pointer', fontFamily: 'inherit' }}
                     >
                         ← Back
                     </button>
@@ -253,19 +253,19 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.75rem',
-                            borderColor: selectedMembers.includes(m.publicKey) ? '#2563eb' : '#333',
+                            borderColor: selectedMembers.includes(m.publicKey) ? 'var(--accent)' : 'var(--border-primary)',
                         }}
                     >
                         <div style={{
                             width: '36px', height: '36px', borderRadius: '50%',
-                            background: '#333', display: 'flex', alignItems: 'center',
+                            background: 'var(--bg-hover)', display: 'flex', alignItems: 'center',
                             justifyContent: 'center', fontSize: '1.1rem',
                         }}>
                             {m.callsign.charAt(0).toUpperCase()}
                         </div>
                         <span style={{ fontWeight: 600 }}>{m.callsign}</span>
                         {showNewGroup && selectedMembers.includes(m.publicKey) && (
-                            <span style={{ marginLeft: 'auto', color: '#2563eb' }}>✓</span>
+                            <span style={{ marginLeft: 'auto', color: 'var(--accent)' }}>✓</span>
                         )}
                     </div>
                 ))}
@@ -276,8 +276,8 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                         disabled={!groupName.trim()}
                         style={{
                             width: '100%', padding: '0.85rem', borderRadius: '10px',
-                            border: 'none', background: groupName.trim() ? '#2563eb' : '#555',
-                            color: 'var(--text-primary)', fontSize: '1rem', fontWeight: 600,
+                            border: 'none', background: groupName.trim() ? 'var(--accent)' : 'var(--bg-hover)',
+                            color: groupName.trim() ? '#fff' : 'var(--text-muted)', fontSize: '1rem', fontWeight: 600,
                             cursor: groupName.trim() ? 'pointer' : 'not-allowed',
                             fontFamily: 'inherit', marginTop: '1rem',
                         }}
@@ -299,11 +299,11 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                 {/* Chat header */}
                 <div style={{
                     display: 'flex', alignItems: 'center', gap: '0.75rem',
-                    padding: '0.75rem 1rem', borderBottom: '1px solid #222',
+                    padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-primary)',
                 }}>
                     <button
                         onClick={() => { setActiveConv(null); loadConversations(); }}
-                        style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '1rem', cursor: 'pointer', fontFamily: 'inherit' }}
+                        style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '1rem', cursor: 'pointer', fontFamily: 'inherit' }}
                     >
                         ←
                     </button>
@@ -346,14 +346,15 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                     </div>
                                 )}
                                 <div style={{
-                                    background: isMe ? '#2563eb' : '#1a1a1a',
+                                    background: isMe ? 'var(--accent)' : 'var(--bg-card)',
+                                    color: isMe ? '#fff' : 'var(--text-primary)',
                                     borderRadius: isMe
                                         ? '16px 16px 4px 16px'
                                         : '16px 16px 16px 4px',
                                     padding: '0.6rem 0.9rem',
                                     fontSize: '0.95rem',
                                     lineHeight: 1.4,
-                                    border: isMe ? 'none' : '1px solid #333',
+                                    border: isMe ? 'none' : '1px solid var(--border-primary)',
                                     wordBreak: 'break-word',
                                 }}>
                                     {decryptMessage(msg)}
@@ -375,7 +376,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                 <div style={{
                     display: 'flex', gap: '0.5rem',
                     padding: '0.75rem 1rem',
-                    borderTop: '1px solid #222',
+                    borderTop: '1px solid var(--border-primary)',
                     background: 'var(--bg-secondary)',
                 }}>
                     <input
@@ -394,8 +395,8 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                             padding: '0.6rem 1rem',
                             borderRadius: '20px',
                             border: 'none',
-                            background: draft.trim() ? '#2563eb' : '#333',
-                            color: 'var(--text-primary)',
+                            background: draft.trim() ? 'var(--accent)' : 'var(--bg-hover)',
+                            color: draft.trim() ? '#fff' : 'var(--text-muted)',
                             fontSize: '1rem',
                             cursor: draft.trim() ? 'pointer' : 'default',
                             fontFamily: 'inherit',
@@ -465,7 +466,8 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             <div style={{
                                 width: '40px', height: '40px', borderRadius: '50%',
-                                background: conv.type === 'group' ? '#1e3a5f' : '#333',
+                                background: conv.type === 'group' ? 'var(--bg-card)' : 'var(--bg-hover)',
+                                border: '1px solid var(--border-primary)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 fontSize: '1.1rem', flexShrink: 0,
                                 position: 'relative',
@@ -476,7 +478,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                         position: 'absolute',
                                         top: '-4px',
                                         right: '-4px',
-                                        background: '#ef4444',
+                                        background: 'var(--danger)',
                                         color: '#fff',
                                         fontSize: '0.6rem',
                                         fontWeight: 700,
@@ -488,7 +490,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                         justifyContent: 'center',
                                         padding: '0 3px',
                                         lineHeight: 1,
-                                        boxShadow: '0 0 6px rgba(239,68,68,0.6)',
+                                        boxShadow: '0 0 6px var(--danger)',
                                     }}>
                                         {conv.unreadCount! > 99 ? '99+' : conv.unreadCount}
                                     </span>

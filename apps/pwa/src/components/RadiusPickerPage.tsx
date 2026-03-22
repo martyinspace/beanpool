@@ -226,6 +226,20 @@ export function RadiusPickerPage({ initial, defaultRadius = 20, onApply, onCance
                 >
                     Apply — {radiusKm}km radius
                 </button>
+                {initial && (
+                    <button
+                        onClick={onReset}
+                        style={{
+                            width: '100%', padding: '0.85rem', borderRadius: '12px',
+                            background: 'transparent',
+                            border: '1px solid #ef4444', color: '#ef4444', fontSize: '1rem',
+                            fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                            marginTop: '0.75rem',
+                        }}
+                    >
+                        Clear Filter
+                    </button>
+                )}
             </div>
         </div>
     );

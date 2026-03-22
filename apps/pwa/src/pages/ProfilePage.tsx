@@ -20,7 +20,7 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
     const [callsign, setCallsign] = useState(identity.callsign);
     const [bio, setBio] = useState('');
     const [contactValue, setContactValue] = useState('');
-    const [contactVisibility, setContactVisibility] = useState<'hidden' | 'trade_partners' | 'community'>('hidden');
+    const [contactVisibility, setContactVisibility] = useState<'hidden' | 'trade_partners' | 'community' | 'friends'>('hidden');
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -221,6 +221,7 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
                             {([
                                 { value: 'hidden', label: '🔒 Hidden', desc: 'Only you can see it' },
                                 { value: 'trade_partners', label: '🤝 Trade Partners', desc: 'Visible when you enter a trade' },
+                                { value: 'friends', label: '👥 Friends', desc: 'People you have added as friends' },
                                 { value: 'community', label: '🌍 Community', desc: 'Anyone on this node' },
                             ] as const).map(opt => (
                                 <button

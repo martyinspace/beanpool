@@ -6,6 +6,7 @@
 
 ## ✅ Recently Completed
 
+- ✅ **Map Centering & Location Fixes** — Map now centers dynamically on the node's configured radius (defaulting to Mullumbimby) instead of hardcoded Sydney, and Leaflet async "ghost pin" leak bugs were resolved.
 - ✅ **People Tab** — replaced Invite tab with Friends, Community browser, Invites, Guardians
 - ✅ **12-Word Seed Phrase** — BIP-39 mnemonic generation + deterministic Ed25519 key derivation
 - ✅ **Recovery Mode** — enter 12 words + callsign to restore identity on any device
@@ -25,7 +26,7 @@
 
 ## Marketplace
 
-- [ ] **Database Migration** — Move from JSON state file to SQLite for scalability. Includes Spatial Bounding-Box indexing, continuous scroll Pagination (`LIMIT/OFFSET`), and updated CORS APIs.
+- [ ] **Database Migration (SQLite)** — Replace JSON state engine with `better-sqlite3`. Includes Spatial Bounding-Box indexing, continuous scroll Pagination (`LIMIT/OFFSET`), and robust relational constraints for nodes.
 - [ ] **Photo Compression Pipeline** — Server-side image optimisation for marketplace post photos
 
 ## Data Lifecycle & Storage
@@ -51,6 +52,7 @@
 
 ## Native App
 
+- [ ] **App Store & Play Store Inclusion** — Develop and polish the React Native / Expo app for formal marketplace distribution.
 - [ ] **Pillar Toggle MVP** — Background sync service for Android/iOS (Expo)
 - [ ] **Push Notifications** — Message and trade alerts via Firebase Cloud Messaging
 

@@ -8,9 +8,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { type BeanPoolIdentity } from '../lib/identity';
 import {
     getBalance, getTransactions, sendTransfer, getMembers,
-    getCommonsProjects, proposeProject, voteForProject,
+    getCommonsProjects, proposeProject, voteForProject, getMemberProfile,
+    updateCommunityProject, deleteCommunityProject,
     type BalanceInfo, type Transaction, type Member,
-    type CommunityProject, type VotingRound,
+    type CommunityProject, type VotingRound, type MemberProfile,
 } from '../lib/api';
 
 interface Props {
@@ -23,6 +24,7 @@ export function LedgerPage({ identity }: Props) {
     const [members, setMembers] = useState<Member[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [profile, setProfile] = useState<MemberProfile | null>(null);
 
     // Send form
     const [showSend, setShowSend] = useState(false);
@@ -39,17 +41,24 @@ export function LedgerPage({ identity }: Props) {
     const [propDesc, setPropDesc] = useState('');
     const [propAmount, setPropAmount] = useState('');
     const [proposing, setProposing] = useState(false);
+    const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+    const [editPropTitle, setEditPropTitle] = useState('');
+    const [editPropDesc, setEditPropDesc] = useState('');
+    const [editPropAmount, setEditPropAmount] = useState('');
+    const [savingEdit, setSavingEdit] = useState(false);
 
     const refresh = useCallback(async () => {
         try {
-            const [bal, txn, mem] = await Promise.all([
-                getBalance(identity.publicKey),
-                getTransactions(identity.publicKey),
-                getMembers(),
+            const [bal, txn, mem, prof] = await Promise.all([
+                getBalance(identity.publicKey).catch(() => null),
+                getTransactions(identity.publicKey).catch(() => []),
+                getMembers().catch(() => []),
+                getMemberProfile(identity.publicKey).catch(() => null),
             ]);
-            setBalanceInfo(bal);
+            if (bal) setBalanceInfo(bal);
             setTxns(txn);
             setMembers(mem.filter(m => m.publicKey !== identity.publicKey));
+            setProfile(prof);
             // Load commons data
             try {
                 const commons = await getCommonsProjects();
@@ -94,7 +103,11 @@ export function LedgerPage({ identity }: Props) {
             {/* Identity header */}
             <div className="text-center mb-6 p-6 bg-white dark:bg-nature-900 rounded-2xl border border-nature-200 dark:border-nature-800 shadow-sm transition-transform hover:-translate-y-0.5">
                 <div className="w-20 h-20 rounded-full border-4 border-emerald-500 flex items-center justify-center text-3xl mx-auto mb-4 bg-emerald-50 dark:bg-nature-800 shadow-inner overflow-hidden">
-                    <img src="/assets/logo-192x192.png" className="w-[70%] h-[70%] object-contain" alt="Identity" />
+                    {profile?.avatar ? (
+                        <img src={profile.avatar} className="w-full h-full object-cover" alt="Identity" />
+                    ) : (
+                        <img src="/assets/logo-192x192.png" className="w-[70%] h-[70%] object-contain" alt="Identity" />
+                    )}
                 </div>
                 <h2 className="text-xl font-bold mb-1 text-nature-950 dark:text-white">
                     {identity.callsign}
@@ -234,11 +247,85 @@ export function LedgerPage({ identity }: Props) {
 
                             return (
                                 <div key={project.id} className={`bg-white rounded-xl p-4 transition-all shadow-sm ${hasVoted ? 'border-2 border-emerald-500 ring-2 ring-emerald-50' : 'border border-nature-200 hover:border-nature-300'}`}>
-                                    <div className="flex justify-between items-start mb-2">
+                                    {editingProjectId === project.id ? (
+                                        <div className="flex flex-col gap-2">
+                                            <input
+                                                type="text" placeholder="Project title"
+                                                value={editPropTitle} onChange={e => setEditPropTitle(e.target.value)}
+                                                maxLength={100}
+                                                className="w-full p-2.5 rounded-lg border border-nature-200 bg-white text-[13px] font-medium focus:ring-2 focus:ring-amber-400 outline-none"
+                                            />
+                                            <textarea
+                                                placeholder="Description (optional)"
+                                                value={editPropDesc} onChange={e => setEditPropDesc(e.target.value)}
+                                                maxLength={500} rows={2}
+                                                className="w-full p-2.5 rounded-lg border border-nature-200 bg-white text-[13px] font-medium focus:ring-2 focus:ring-amber-400 outline-none resize-y min-h-[50px]"
+                                            />
+                                            <input
+                                                type="number" placeholder="Requested amount (B)"
+                                                value={editPropAmount} onChange={e => setEditPropAmount(e.target.value)}
+                                                min="0.01" step="0.01"
+                                                className="w-full p-2.5 rounded-lg border border-nature-200 bg-white text-[13px] font-medium focus:ring-2 focus:ring-amber-400 outline-none"
+                                            />
+                                            <div className="flex gap-2 mt-1">
+                                                <button
+                                                    onClick={() => setEditingProjectId(null)}
+                                                    className="flex-1 p-2 rounded-lg bg-nature-100 text-nature-600 border text-[12px] font-bold border-nature-200 cursor-pointer"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    disabled={savingEdit || !editPropTitle.trim() || !editPropAmount}
+                                                    onClick={async () => {
+                                                        setSavingEdit(true);
+                                                        try {
+                                                            await updateCommunityProject(identity.publicKey, project.id, editPropTitle, editPropDesc, Number(editPropAmount));
+                                                            setEditingProjectId(null);
+                                                            await refresh();
+                                                        } catch { setError('Failed to update project'); }
+                                                        setSavingEdit(false);
+                                                    }}
+                                                    className="flex-[2] p-2 rounded-lg bg-amber-500 text-white border-none cursor-pointer text-[12px] font-bold disabled:opacity-50"
+                                                >
+                                                    {savingEdit ? 'Saving...' : 'Save Changes'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex justify-between items-start mb-2">
                                         <div>
-                                            <p className="font-bold text-[15px] text-nature-950">
-                                                {project.title}
-                                            </p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-bold text-[15px] text-nature-950">
+                                                    {project.title}
+                                                </p>
+                                                {project.proposerPubkey === identity.publicKey && project.status === 'proposed' && (
+                                                    <div className="flex gap-1">
+                                                        <button 
+                                                            onClick={() => {
+                                                                setEditPropTitle(project.title);
+                                                                setEditPropDesc(project.description);
+                                                                setEditPropAmount(project.requestedAmount.toString());
+                                                                setEditingProjectId(project.id);
+                                                            }}
+                                                            className="text-nature-400 hover:text-amber-500 p-1 bg-transparent border-none cursor-pointer text-[12px]" title="Edit">
+                                                            ✏️
+                                                        </button>
+                                                        <button 
+                                                            onClick={async () => {
+                                                                if (window.confirm('Are you sure you want to delete this proposal?')) {
+                                                                    try {
+                                                                        await deleteCommunityProject(identity.publicKey, project.id);
+                                                                        await refresh();
+                                                                    } catch { setError('Failed to delete project'); }
+                                                                }
+                                                            }}
+                                                            className="text-nature-400 hover:text-red-500 p-1 bg-transparent border-none cursor-pointer text-[12px]" title="Delete">
+                                                            🗑️
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
                                             {project.description && (
                                                 <p className="text-[13px] text-nature-500 dark:text-nature-400 mt-1 leading-relaxed">
                                                     {project.description}
@@ -279,6 +366,8 @@ export function LedgerPage({ identity }: Props) {
                                                 {totalVotes} vote{totalVotes !== 1 ? 's' : ''}
                                             </span>
                                         </div>
+                                    )}
+                                        </>
                                     )}
                                 </div>
                             );

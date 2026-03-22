@@ -90,14 +90,14 @@ export interface MemberProfile {
     bio: string;
     contact: {
         value: string;
-        visibility: 'hidden' | 'trade_partners' | 'community';
+        visibility: 'hidden' | 'trade_partners' | 'community' | 'friends';
     } | null;
 }
 
 export async function updateMemberProfile(publicKey: string, update: {
     avatar?: string | null;
     bio?: string;
-    contact?: { value: string; visibility: 'hidden' | 'trade_partners' | 'community' } | null;
+    contact?: { value: string; visibility: 'hidden' | 'trade_partners' | 'community' | 'friends' } | null;
 }): Promise<{ success: boolean; profile: MemberProfile }> {
     return request('POST', '/api/profile/update', { publicKey, ...update });
 }
@@ -203,6 +203,7 @@ export interface MarketplacePost {
     title: string;
     description: string;
     credits: number;
+    priceType: 'fixed' | 'hourly';
     authorPublicKey: string;
     authorCallsign: string;
     createdAt: string;
@@ -228,6 +229,7 @@ export interface MarketplaceTransaction {
     sellerPublicKey: string;
     sellerCallsign: string;
     credits: number;
+    hours?: number;
     status: 'pending' | 'completed' | 'cancelled';
     createdAt: string;
     completedAt?: string;
@@ -246,6 +248,7 @@ export async function createMarketplacePost(post: {
     title: string;
     description: string;
     credits: number;
+    priceType?: 'fixed' | 'hourly';
     authorPublicKey: string;
     lat?: number;
     lng?: number;
@@ -268,6 +271,7 @@ export async function updateMarketplacePost(
         title?: string;
         description?: string;
         credits?: number;
+        priceType?: 'fixed' | 'hourly';
         lat?: number;
         lng?: number;
         photos?: string[];
@@ -279,15 +283,15 @@ export async function updateMarketplacePost(
 // ===================== MARKETPLACE TRANSACTIONS =====================
 
 export async function acceptMarketplacePost(
-    postId: string, buyerPublicKey: string
+    postId: string, buyerPublicKey: string, hours?: number
 ): Promise<{ success: boolean; transaction: MarketplaceTransaction }> {
-    return request('POST', '/api/marketplace/posts/accept', { postId, buyerPublicKey });
+    return request('POST', '/api/marketplace/posts/accept', { postId, buyerPublicKey, hours });
 }
 
 export async function completeMarketplaceTransaction(
-    transactionId: string, confirmerPublicKey: string
+    transactionId: string, confirmerPublicKey: string, finalHours?: number
 ): Promise<{ success: boolean; transaction: MarketplaceTransaction }> {
-    return request('POST', '/api/marketplace/transactions/complete', { transactionId, confirmerPublicKey });
+    return request('POST', '/api/marketplace/transactions/complete', { transactionId, confirmerPublicKey, finalHours });
 }
 
 export async function cancelMarketplaceTransaction(
@@ -530,6 +534,14 @@ export async function getCommonsProjects(): Promise<{ projects: CommunityProject
 
 export async function proposeProject(proposerPubkey: string, title: string, description: string, requestedAmount: number): Promise<{ success: boolean; project: CommunityProject }> {
     return request('POST', '/api/commons/projects', { proposerPubkey, title, description, requestedAmount });
+}
+
+export async function updateCommunityProject(proposerPubkey: string, projectId: string, title: string, description: string, requestedAmount: number): Promise<{ success: boolean }> {
+    return request('POST', '/api/commons/projects/update', { proposerPubkey, projectId, title, description, requestedAmount });
+}
+
+export async function deleteCommunityProject(proposerPubkey: string, projectId: string): Promise<{ success: boolean }> {
+    return request('POST', '/api/commons/projects/delete', { proposerPubkey, projectId });
 }
 
 export async function voteForProject(voterPubkey: string, projectId: string): Promise<{ success: boolean }> {

@@ -35,7 +35,7 @@ interface Props {
     identity: BeanPoolIdentity;
     openNewPost?: boolean;
     onOpenNewPostHandled?: () => void;
-    onNavigate?: (tab: string) => void;
+    onNavigate?: (tab: string, contextId?: string) => void;
 }
 
 export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigate }: Props) {
@@ -54,6 +54,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
     const [newPostTitle, setNewPostTitle] = useState('');
     const [newPostDescription, setNewPostDescription] = useState('');
     const [newPostCredits, setNewPostCredits] = useState('');
+    const [newPostPriceType, setNewPostPriceType] = useState<'fixed' | 'hourly'>('fixed');
     const [newPostRepeatable, setNewPostRepeatable] = useState(false);
     const [newPostPhotos, setNewPostPhotos] = useState<string[]>([]);
     const [posting, setPosting] = useState(false);
@@ -114,7 +115,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
         const handlePopupClick = (e: MouseEvent) => {
             const btn = (e.target as HTMLElement).closest('[data-navigate]') as HTMLElement | null;
             if (btn && onNavigate) {
-                onNavigate(btn.dataset.navigate!);
+                onNavigate(btn.dataset.navigate!, btn.dataset.contextid);
             }
         };
         container.addEventListener('click', handlePopupClick);
@@ -266,6 +267,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                 title: newPostTitle.trim(),
                 description: newPostDescription.trim(),
                 credits: Number(newPostCredits) || 0,
+                priceType: newPostPriceType,
                 authorPublicKey: identity.publicKey || '',
                 repeatable: newPostRepeatable,
                 ...(postLat != null && postLng != null ? { lat: postLat, lng: postLng } : {}),
@@ -274,6 +276,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             setNewPostTitle('');
             setNewPostDescription('');
             setNewPostCredits('');
+            setNewPostPriceType('fixed');
             setNewPostRepeatable(false);
             setNewPostPhotos([]);
             setPostLat(null);
@@ -442,7 +445,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                         ${post.type === 'offer' ? '🔵 Offer' : '🟠 Need'} · ${post.credits}B
                     </p>
                     <p style="margin: 4px 0 0; color: #888; font-size: 0.8em;">by ${post.authorCallsign}</p>
-                    <button data-navigate="marketplace" style="
+                    <button data-navigate="marketplace" data-contextid="${post.id}" style="
                         margin-top: 8px; width: 100%; padding: 6px 10px;
                         border-radius: 6px; border: none;
                         background: #2563eb; color: #fff;
@@ -641,12 +644,22 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     <input
                         placeholder="B"
                         type="number"
+                        min="0"
+                        step="0.01"
                         value={newPostCredits}
                         onChange={e => { setNewPostCredits(e.target.value); setValidationErrors(prev => { const n = new Set(prev); n.delete('credits'); return n; }); }}
                         className={`w-20 py-3 px-2 rounded-xl border bg-white dark:bg-nature-800 text-nature-900 dark:text-white text-[15px] focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm text-center font-bold tracking-tight transition-all ${
                             validationErrors.has('credits') ? 'border-red-400 bg-red-50 ring-1 ring-red-400' : 'border-nature-200 dark:border-nature-700'
                         }`}
                     />
+                    <select
+                        value={newPostPriceType}
+                        onChange={e => setNewPostPriceType(e.target.value as 'fixed' | 'hourly')}
+                        className="w-24 py-3 px-2 rounded-xl border bg-white dark:bg-nature-800 text-nature-900 dark:text-white text-[14px] font-semibold focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm transition-all border-nature-200 dark:border-nature-700 cursor-pointer appearance-auto"
+                    >
+                        <option value="fixed">Total</option>
+                        <option value="hourly">/ Hr</option>
+                    </select>
                 </div>
 
                 {/* Repeatable toggle */}

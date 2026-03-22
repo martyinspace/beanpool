@@ -1,22 +1,7 @@
-/**
- * State Engine — In-Memory Ledger + Marketplace + Member Registry
- *
- * Wraps @beanpool/core's LedgerManager with:
- *  - Member registry (pubkey → callsign mapping)
- *  - Marketplace posts (needs & offers)
- *  - Transaction log
- *  - JSON disk persistence (auto-saves on mutation)
- *  - WebSocket broadcast on state changes
- */
-
-import fs from 'node:fs';
-import path from 'node:path';
 import crypto from 'node:crypto';
 import { LedgerManager, COMMONS_BALANCE } from '@beanpool/core';
 import { getThresholds, getLocalConfig } from './local-config.js';
-
-const DATA_DIR = process.env.BEANPOOL_DATA_DIR || path.join(process.cwd(), 'data');
-const STATE_PATH = path.join(DATA_DIR, 'state.json');
+import { db, initSchema, migrateLegacyState } from './db/db.js';
 
 // ===================== TYPES =====================
 
@@ -24,18 +9,18 @@ export interface Member {
     publicKey: string;
     callsign: string;
     joinedAt: string;
-    invitedBy: string;      // pubkey of inviter ('genesis' for node admin)
-    inviteCode: string;     // the specific invite code used to join
-    homeNodeUrl?: string;   // for federation visitors: their home node URL
+    invitedBy: string;
+    inviteCode: string;
+    homeNodeUrl?: string;
 }
 
 export interface InviteCode {
-    code: string;           // short shareable code like "BP-7k3x-9m2w"
-    createdBy: string;      // inviter's publicKey
+    code: string;
+    createdBy: string;
     createdAt: string;
-    usedBy: string | null;  // null = unused, pubkey = claimed
+    usedBy: string | null;
     usedAt: string | null;
-    intendedFor?: string;   // optionally tracking who this invite was generated for
+    intendedFor?: string;
 }
 
 export interface MarketplacePost {
@@ -45,32 +30,34 @@ export interface MarketplacePost {
     title: string;
     description: string;
     credits: number;
+    priceType: 'fixed' | 'hourly';
     authorPublicKey: string;
     authorCallsign: string;
     createdAt: string;
     active: boolean;
     status: 'active' | 'pending' | 'paused' | 'completed' | 'cancelled';
-    repeatable: boolean;          // true = ongoing service, stays active after accept
-    acceptedBy?: string;          // publicKey of acceptor (one-time posts only)
-    acceptedByCallsign?: string;  // callsign of the acceptor
+    repeatable: boolean;
+    acceptedBy?: string;
+    acceptedByCallsign?: string;
     acceptedAt?: string;
-    pendingTransactionId?: string;// id of the marketplace transaction representing the pending state
+    pendingTransactionId?: string;
     completedAt?: string;
     lat?: number;
     lng?: number;
-    photos?: string[];            // up to 3 base64 data URLs
-    originNode?: string;          // ID of the node where this post was created
+    photos?: string[];
+    originNode?: string;
 }
 
 export interface MarketplaceTransaction {
     id: string;
     postId: string;
     postTitle: string;
-    buyerPublicKey: string;       // the person who clicked 'Accept'
+    buyerPublicKey: string;
     buyerCallsign: string;
-    sellerPublicKey: string;      // the post author
+    sellerPublicKey: string;
     sellerCallsign: string;
     credits: number;
+    hours?: number;
     status: 'pending' | 'completed' | 'cancelled';
     createdAt: string;
     completedAt?: string;
@@ -87,11 +74,11 @@ export interface Transaction {
 
 export interface MemberProfile {
     publicKey: string;
-    avatar: string | null;       // base64 thumbnail (max ~50KB)
+    avatar: string | null;
     bio: string;
     contact: {
-        value: string;           // phone, email, WhatsApp handle
-        visibility: 'hidden' | 'trade_partners' | 'community';
+        value: string;
+        visibility: 'hidden' | 'trade_partners' | 'community' | 'friends';
     } | null;
     lastActiveAt?: string;
     status?: 'active' | 'disabled' | 'pruned';
@@ -100,8 +87,8 @@ export interface MemberProfile {
 export interface Conversation {
     id: string;
     type: 'dm' | 'group';
-    name: string | null;             // null for DMs, "Node Operators" for groups
-    participants: string[];          // pubkeys
+    name: string | null;
+    participants: string[];
     createdBy: string;
     createdAt: string;
 }
@@ -110,19 +97,19 @@ export interface Message {
     id: string;
     conversationId: string;
     authorPubkey: string;
-    ciphertext: string;              // E2E encrypted content (opaque to server)
-    nonce: string;                   // unique per message
+    ciphertext: string;
+    nonce: string;
     timestamp: string;
 }
 
 export interface Rating {
     id: string;
-    targetPubkey: string;       // who is being rated
-    raterPubkey: string;        // who left the rating
-    stars: number;              // 1-5
+    targetPubkey: string;
+    raterPubkey: string;
+    stars: number;
     comment: string;
-    role: 'provider' | 'receiver';  // what role the TARGET played
-    transactionId: string;      // links to a completed MarketplaceTransaction
+    role: 'provider' | 'receiver';
+    transactionId: string;
     createdAt: string;
 }
 
@@ -169,122 +156,37 @@ export interface NodeConfig {
     publishToDirectory?: boolean;
 }
 
-interface PersistedState {
-    members: Member[];
-    posts: MarketplacePost[];
-    transactions: Transaction[];
-    marketplaceTransactions: MarketplaceTransaction[];
-    inviteCodes: InviteCode[];
-    profiles: Record<string, MemberProfile>;
-    conversations: Conversation[];
-    messages: Message[];
-    ledgerAccounts: { id: string; balance: number; lastDemurrageEpoch: number }[];
-    ratings: Rating[];
-    reports: AbuseReport[];
-    friends: Record<string, FriendEntry[]>;
-    readCursors: Record<string, Record<string, string>>;
-    communityProjects: CommunityProject[];
-    votingRounds: VotingRound[];
-    nodeConfig: NodeConfig;
-}
-
 // ===================== STATE =====================
 
 let ledger = new LedgerManager();
-let members: Member[] = [];
-let posts: MarketplacePost[] = [];
-let transactions: Transaction[] = [];
-let marketplaceTransactions: MarketplaceTransaction[] = [];
-let inviteCodes: InviteCode[] = [];
-let profiles: Record<string, MemberProfile> = {};
-let conversations: Conversation[] = [];
-let messages: Message[] = [];
-let ratings: Rating[] = [];
-let reports: AbuseReport[] = [];
-let friends: Record<string, FriendEntry[]> = {};
-let readCursors: Record<string, Record<string, string>> = {}; // pubkey -> { convId -> lastReadTimestamp }
-let communityProjects: CommunityProject[] = [];
-let votingRounds: VotingRound[] = [];
-let nodeConfig: NodeConfig = { publishToDirectory: true };
 let wsClients: Set<any> = new Set();
 
 // ===================== INIT =====================
 
 export function initStateEngine(): void {
-    // Load from disk if state file exists
-    if (fs.existsSync(STATE_PATH)) {
-        try {
-            const raw = fs.readFileSync(STATE_PATH, 'utf-8');
-            const saved: PersistedState = JSON.parse(raw);
-            members = saved.members || [];
-            posts = saved.posts || [];
-            transactions = saved.transactions || [];
-            marketplaceTransactions = (saved as any).marketplaceTransactions || [];
-            inviteCodes = saved.inviteCodes || [];
-            profiles = saved.profiles || {};
-            conversations = (saved as any).conversations || [];
-            messages = (saved as any).messages || [];
-            ratings = (saved as any).ratings || [];
-            reports = (saved as any).reports || [];
-            friends = (saved as any).friends || [];
-            readCursors = (saved as any).readCursors || {};
-            communityProjects = (saved as any).communityProjects || [];
-            votingRounds = (saved as any).votingRounds || [];
-            if ((saved as any).nodeConfig) nodeConfig = (saved as any).nodeConfig;
-            // Migrate legacy posts without status/repeatable fields
-            for (const p of posts) {
-                if (!p.status) p.status = p.active ? 'active' : 'cancelled';
-                if (p.repeatable === undefined) p.repeatable = false;
-            }
-            // Migrate legacy members without invitedBy field
-            for (const m of members) {
-                if (!m.invitedBy) m.invitedBy = 'genesis';
-                if (!m.inviteCode) m.inviteCode = 'legacy';
-            }
-            if (saved.ledgerAccounts?.length) {
-                ledger.loadState(saved.ledgerAccounts);
-            }
-            console.log(`📒 Loaded state: ${members.length} members, ${posts.length} posts, ${Object.keys(profiles).length} profiles`);
-        } catch (e: any) {
-            console.warn(`⚠️  Failed to load state.json:`, e.message);
-        }
-    } else {
-        console.log('📒 No state file — starting fresh');
+    initSchema();
+    migrateLegacyState();
+    
+    // Load ledger accounts into LedgerManager
+    const accounts = db.prepare("SELECT public_key as id, balance, last_demurrage_epoch as lastDemurrageEpoch FROM accounts").all() as any[];
+    if (accounts.length > 0) {
+        ledger.loadState(accounts);
     }
-}
-
-function saveState(): void {
-    const state: PersistedState = {
-        members,
-        posts,
-        transactions: transactions.slice(-1000),
-        marketplaceTransactions: marketplaceTransactions.slice(-5000),
-        inviteCodes: inviteCodes.slice(-5000),
-        profiles,
-        conversations,
-        messages: messages.slice(-10000),
-        ledgerAccounts: ledger.getAllAccounts(),
-        ratings,
-        reports,
-        friends,
-        readCursors,
-        communityProjects,
-        votingRounds,
-        nodeConfig,
-    };
-    fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
+    const memberCount = db.prepare("SELECT COUNT(*) as c FROM members").get() as any;
+    const postCount = db.prepare("SELECT COUNT(*) as c FROM posts").get() as any;
+    console.log(`📒 SQLite DB initialized: ${memberCount.c} members, ${postCount.c} posts`);
 }
 
 // ===================== WEBSOCKET =====================
 
 export function addWsClient(ws: any): void {
     wsClients.add(ws);
-    // Send current state snapshot on connect
     try {
+        const counts = getCommunityInfo();
         ws.send(JSON.stringify({
             type: 'state_snapshot',
-            memberCount: members.length,
-            postCount: posts.length,
+            memberCount: counts.memberCount,
+            postCount: counts.postCount,
             commonsBalance: COMMONS_BALANCE,
         }));
     } catch { /* ignore */ }
@@ -301,117 +203,111 @@ function broadcast(event: any): void {
     }
 }
 
+// ===================== DB HELPERS =====================
+
+function rowToMember(row: any): Member {
+    if (!row) return row;
+    return {
+        publicKey: row.public_key,
+        callsign: row.callsign,
+        joinedAt: row.joined_at,
+        invitedBy: row.invited_by,
+        inviteCode: row.invite_code,
+        homeNodeUrl: row.home_node_url
+    };
+}
+
+function rowToProfile(row: any): MemberProfile {
+    if (!row) return row;
+    return {
+        publicKey: row.public_key,
+        avatar: row.avatar_url,
+        bio: row.bio || '',
+        contact: row.contact_value ? { value: row.contact_value, visibility: row.contact_visibility } : null,
+        status: row.status,
+        lastActiveAt: row.last_active_at
+    };
+}
+
 // ===================== MEMBERS =====================
 
-/**
- * Seed the node admin as the genesis member (first boot only).
- * Call this from index.ts after initStateEngine().
- */
 export function seedGenesisMember(adminPublicKey: string, callsign: string): Member {
-    const existing = members.find(m => m.publicKey === adminPublicKey);
+    const existing = db.prepare("SELECT * FROM members WHERE public_key = ?").get(adminPublicKey) as any;
     if (existing) {
-        existing.invitedBy = 'genesis';
-        existing.inviteCode = 'genesis';
-        saveState();
-        return existing;
+        db.prepare("UPDATE members SET invited_by = 'genesis', invite_code = 'genesis' WHERE public_key = ?").run(adminPublicKey);
+        return getMember(adminPublicKey)!;
     }
-    const member: Member = {
-        publicKey: adminPublicKey,
-        callsign,
-        joinedAt: new Date().toISOString(),
-        invitedBy: 'genesis',
-        inviteCode: 'genesis',
-    };
-    members.push(member);
+    db.prepare(`INSERT INTO members (public_key, callsign, joined_at, invited_by, invite_code) 
+                VALUES (?, ?, ?, ?, ?)`).run(adminPublicKey, callsign, new Date().toISOString(), 'genesis', 'genesis');
+    db.prepare(`INSERT INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, 0, 0)`).run(adminPublicKey);
     ledger.initializeGenesisAccount(adminPublicKey);
-    saveState();
     console.log(`👑 Genesis member seeded: ${callsign}`);
-    return member;
+    return getMember(adminPublicKey)!;
 }
 
-/**
- * Register a member (internal). Use redeemInvite() for public-facing registration.
- */
-function registerMemberInternal(publicKey: string, callsign: string, invitedBy: string, inviteCode: string): Member | null {
-    if (members.find(m => m.publicKey === publicKey)) {
-        const existing = members.find(m => m.publicKey === publicKey)!;
-        existing.callsign = callsign;
-        saveState();
-        return existing;
+function registerMemberInternal(publicKey: string, callsign: string, invitedBy: string | null, inviteCode: string | null): Member | null {
+    const existing = db.prepare("SELECT * FROM members WHERE public_key = ?").get(publicKey) as any;
+    if (existing) {
+        db.prepare("UPDATE members SET callsign = ? WHERE public_key = ?").run(callsign, publicKey);
+        return getMember(publicKey)!;
     }
 
-    const member: Member = {
-        publicKey,
-        callsign,
-        joinedAt: new Date().toISOString(),
-        invitedBy,
-        inviteCode,
-    };
-    members.push(member);
+    db.transaction(() => {
+        db.prepare(`INSERT INTO members (public_key, callsign, joined_at, invited_by, invite_code) 
+                    VALUES (?, ?, ?, ?, ?)`).run(publicKey, callsign, new Date().toISOString(), invitedBy, inviteCode);
+        db.prepare(`INSERT INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, 0, 0)`).run(publicKey);
+    })();
     ledger.initializeGenesisAccount(publicKey);
-    saveState();
+    const member = getMember(publicKey)!;
     broadcast({ type: 'member_joined', member });
-    console.log(`👤 New member: ${callsign} invited by ${invitedBy.substring(0, 12)}...`);
+    console.log(`👤 New member: ${callsign} invited by ${invitedBy ? invitedBy.substring(0, 12) : 'system'}...`);
     return member;
 }
 
-// Keep backward-compatible registerMember for anonymous posts
 export function registerMember(publicKey: string, callsign: string): Member | null {
-    return registerMemberInternal(publicKey, callsign, 'genesis', 'legacy');
+    return registerMemberInternal(publicKey, callsign, null, null);
 }
 
-/**
- * Auto-register a visitor from a peer node for federation trading.
- * Visitors get a minimal member entry so the ledger can track their balance.
- * Their mutual credit starts at 0 and can go negative (down to -100Ʀ).
- */
 export function registerVisitor(publicKey: string, callsign?: string, homeNodeUrl?: string): void {
-    const existing = members.find(m => m.publicKey === publicKey);
+    const existing = db.prepare("SELECT * FROM members WHERE public_key = ?").get(publicKey) as any;
     if (existing) {
-        let changed = false;
-        // Update callsign if a better one is provided and current is auto-generated
         if (callsign && existing.callsign.startsWith('Visitor-')) {
-            existing.callsign = callsign;
-            changed = true;
+            db.prepare("UPDATE members SET callsign = ? WHERE public_key = ?").run(callsign, publicKey);
         }
-        // Update homeNodeUrl if provided and not already set
-        if (homeNodeUrl && !existing.homeNodeUrl) {
-            existing.homeNodeUrl = homeNodeUrl;
-            changed = true;
+        if (homeNodeUrl && !existing.home_node_url) {
+            db.prepare("UPDATE members SET home_node_url = ? WHERE public_key = ?").run(homeNodeUrl, publicKey);
         }
-        if (changed) saveState();
         return;
     }
-    const member: Member = {
-        publicKey,
-        callsign: callsign || `Visitor-${publicKey.substring(0, 8)}`,
-        joinedAt: new Date().toISOString(),
-        invitedBy: 'federation',
-        inviteCode: 'visitor',
-        homeNodeUrl: homeNodeUrl || undefined,
-    };
-    members.push(member);
+    const generatedCallsign = callsign || `Visitor-${publicKey.substring(0, 8)}`;
+    db.transaction(() => {
+        db.prepare(`INSERT INTO members (public_key, callsign, joined_at, invited_by, invite_code, home_node_url) 
+                    VALUES (?, ?, ?, ?, ?, ?)`).run(publicKey, generatedCallsign, new Date().toISOString(), null, null, homeNodeUrl || null);
+        db.prepare(`INSERT INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, 0, 0)`).run(publicKey);
+    })();
     ledger.initializeGenesisAccount(publicKey);
-    saveState();
-    console.log(`🌐 Visitor registered: ${member.callsign} (federation${homeNodeUrl ? ` from ${homeNodeUrl}` : ''})`);
+    console.log(`🌐 Visitor registered: ${generatedCallsign} (federation${homeNodeUrl ? ` from ${homeNodeUrl}` : ''})`);
 }
 
 export function getMembers(): Member[] {
-    return members.filter(m => profiles[m.publicKey]?.status !== 'pruned');
+    const rows = db.prepare("SELECT * FROM members WHERE status != 'pruned'").all() as any[];
+    return rows.map(rowToMember);
 }
 
 export function getAllMembers(): Member[] {
-    return members;
+    const rows = db.prepare("SELECT * FROM members").all() as any[];
+    return rows.map(rowToMember);
 }
 
 export function getMember(publicKey: string): Member | undefined {
-    return members.find(m => m.publicKey === publicKey);
+    const row = db.prepare("SELECT * FROM members WHERE public_key = ?").get(publicKey) as any;
+    return row ? rowToMember(row) : undefined;
 }
 
 // ===================== INVITE CODES =====================
 
 function generateShortCode(): string {
-    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no confusing chars
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
     let code = 'BP-';
     for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
     code += '-';
@@ -420,48 +316,38 @@ function generateShortCode(): string {
 }
 
 export function generateInvite(inviterPubkey: string, intendedFor?: string): InviteCode | null {
-    // Only registered members can generate invites
-    if (!members.find(m => m.publicKey === inviterPubkey)) return null;
-
+    if (!getMember(inviterPubkey)) return null;
     recordActivity(inviterPubkey);
 
-    const invite: InviteCode = {
-        code: generateShortCode(),
-        createdBy: inviterPubkey,
-        createdAt: new Date().toISOString(),
-        usedBy: null,
-        usedAt: null,
-        intendedFor,
-    };
-    inviteCodes.push(invite);
-    saveState();
+    const code = generateShortCode();
+    const createdAt = new Date().toISOString();
+    db.prepare(`INSERT INTO invite_codes (code, created_by, created_at, intended_for) VALUES (?, ?, ?, ?)`).run(code, inviterPubkey, createdAt, intendedFor || null);
+    const invite: InviteCode = { code, createdBy: inviterPubkey, createdAt, usedBy: null, usedAt: null, intendedFor };
     const inviter = getMember(inviterPubkey);
-    console.log(`🎟️  Invite generated: ${invite.code} by ${inviter?.callsign || inviterPubkey.substring(0, 12)}`);
+    console.log(`🎟️  Invite generated: ${code} by ${inviter?.callsign || inviterPubkey.substring(0, 12)}`);
     return invite;
 }
 
 export function redeemInvite(code: string, publicKey: string, callsign: string): { success: boolean; error?: string; member?: Member } {
-    const invite = inviteCodes.find(i => i.code.toUpperCase() === code.toUpperCase());
+    const invite = db.prepare("SELECT * FROM invite_codes WHERE code COLLATE NOCASE = ?").get(code) as any;
     if (!invite) return { success: false, error: 'Invalid invite code' };
-    if (invite.usedBy) return { success: false, error: 'This invite has already been used' };
+    if (invite.used_by) return { success: false, error: 'This invite has already been used' };
 
-    // Check if pubkey is already registered
-    const existing = members.find(m => m.publicKey === publicKey);
-    if (existing) return { success: false, error: 'You are already a member' };
+    if (getMember(publicKey)) return { success: false, error: 'You are already a member' };
 
-    // Mark invite as used
-    invite.usedBy = publicKey;
-    invite.usedAt = new Date().toISOString();
+    db.prepare("UPDATE invite_codes SET used_by = ?, used_at = ? WHERE code COLLATE NOCASE = ?").run(publicKey, new Date().toISOString(), code);
 
-    // Register the new member under the inviter's branch
-    const member = registerMemberInternal(publicKey, callsign, invite.createdBy, code);
+    const member = registerMemberInternal(publicKey, callsign, invite.created_by, code);
     if (!member) return { success: false, error: 'Registration failed' };
 
     return { success: true, member };
 }
 
 export function getInvitesByMember(pubkey: string): InviteCode[] {
-    return inviteCodes.filter(i => i.createdBy === pubkey);
+    const rows = db.prepare("SELECT * FROM invite_codes WHERE created_by = ?").all(pubkey) as any[];
+    return rows.map(r => ({
+        code: r.code, createdBy: r.created_by, createdAt: r.created_at, usedBy: r.used_by, usedAt: r.used_at, intendedFor: r.intended_for
+    }));
 }
 
 export interface InviteTreeNode {
@@ -473,34 +359,24 @@ export interface InviteTreeNode {
 }
 
 export function getInviteTree(rootPubkey?: string): InviteTreeNode[] {
-    // Build tree from members list using invitedBy pointers
+    const allMembers = getAllMembers();
     function buildSubtree(parentPubkey: string): InviteTreeNode[] {
-        return members
+        return allMembers
             .filter(m => m.invitedBy === parentPubkey && m.publicKey !== parentPubkey)
             .map(m => ({
-                publicKey: m.publicKey,
-                callsign: m.callsign,
-                joinedAt: m.joinedAt,
-                inviteCode: m.inviteCode,
+                publicKey: m.publicKey, callsign: m.callsign, joinedAt: m.joinedAt, inviteCode: m.inviteCode,
                 children: buildSubtree(m.publicKey),
             }));
     }
 
     if (rootPubkey) {
-        // Find the root member to get their basic details if we want them as the top node,
-        // or just return their children if the UI expects an array of top-level children.
-        // Returning the children of the root to match previous behavior for genesis
         return buildSubtree(rootPubkey);
     }
 
-    // Default to full tree (members invited by 'genesis' and genesis itself)
-    return members
+    return allMembers
         .filter(m => m.invitedBy === 'genesis' || m.publicKey === 'genesis')
         .map(m => ({
-            publicKey: m.publicKey,
-            callsign: m.callsign,
-            joinedAt: m.joinedAt,
-            inviteCode: m.inviteCode,
+            publicKey: m.publicKey, callsign: m.callsign, joinedAt: m.joinedAt, inviteCode: m.inviteCode,
             children: buildSubtree(m.publicKey),
         }));
 }
@@ -510,60 +386,54 @@ export function getInviteTree(rootPubkey?: string): InviteTreeNode[] {
 export function updateProfile(publicKey: string, update: {
     avatar?: string | null;
     bio?: string;
-    contact?: { value: string; visibility: 'hidden' | 'trade_partners' | 'community' } | null;
+    contact?: { value: string; visibility: 'hidden' | 'trade_partners' | 'community' | 'friends' } | null;
 }): MemberProfile | null {
-    if (!members.find(m => m.publicKey === publicKey)) return null;
-
+    if (!getMember(publicKey)) return null;
     recordActivity(publicKey);
+    
+    const existing = db.prepare("SELECT * FROM members WHERE public_key = ?").get(publicKey) as any;
+    const avatar = update.avatar !== undefined ? update.avatar : existing.avatar_url;
+    const bio = update.bio !== undefined ? update.bio.slice(0, 200) : existing.bio;
+    let contact_value = existing.contact_value;
+    let contact_visibility = existing.contact_visibility;
+    if (update.contact !== undefined) {
+        contact_value = update.contact?.value || null;
+        contact_visibility = update.contact?.visibility || null;
+    }
 
-    const existing = profiles[publicKey] || {
-        publicKey,
-        avatar: null,
-        bio: '',
-        contact: null,
-    };
-
-    if (update.avatar !== undefined) existing.avatar = update.avatar;
-    if (update.bio !== undefined) existing.bio = update.bio.slice(0, 200);
-    if (update.contact !== undefined) existing.contact = update.contact;
-
-    profiles[publicKey] = existing;
-    saveState();
+    db.prepare(`UPDATE members SET avatar_url=?, bio=?, contact_value=?, contact_visibility=? WHERE public_key=?`)
+      .run(avatar, bio, contact_value, contact_visibility, publicKey);
+      
     broadcast({ type: 'profile_updated', publicKey });
-    console.log(`📝 Profile updated: ${getMember(publicKey)?.callsign || publicKey.substring(0, 12)}`);
-    return existing;
+    return getProfile(publicKey);
 }
 
 export function getProfile(publicKey: string, requesterPubkey?: string): MemberProfile | null {
-    const profile = profiles[publicKey];
-    if (!profile) {
-        // Return shell profile for members without one
-        const member = members.find(m => m.publicKey === publicKey);
-        if (!member) return null;
-        return { publicKey, avatar: null, bio: '', contact: null };
-    }
-
-    // Filter contact visibility
-    if (profile.contact) {
-        if (profile.contact.visibility === 'hidden' && requesterPubkey !== publicKey) {
-            return { ...profile, contact: null };
+    const row = db.prepare("SELECT * FROM members WHERE public_key = ?").get(publicKey) as any;
+    if (!row) return null;
+    const profile = rowToProfile(row);
+    if (profile.contact && profile.contact.visibility === 'hidden' && requesterPubkey !== publicKey) {
+        profile.contact = null;
+    } else if (profile.contact && profile.contact.visibility === 'friends' && requesterPubkey !== publicKey) {
+        if (!requesterPubkey) {
+            profile.contact = null;
+        } else {
+            const isFriend = db.prepare("SELECT 1 FROM friends WHERE owner_pubkey=? AND friend_pubkey=?").get(publicKey, requesterPubkey);
+            if (!isFriend) profile.contact = null;
         }
-        // 'trade_partners' filtering will be handled when trade system exists
-        // For now, treat 'trade_partners' same as 'community' (visible)
     }
     return profile;
 }
 
 export function getProfiles(): Record<string, MemberProfile> {
-    // Return profiles with contact info filtered (hidden contacts removed)
-    const filtered: Record<string, MemberProfile> = {};
-    for (const [key, profile] of Object.entries(profiles)) {
-        filtered[key] = {
-            ...profile,
-            contact: profile.contact?.visibility === 'community' ? profile.contact : null,
-        };
+    const rows = db.prepare("SELECT * FROM members WHERE status != 'pruned'").all() as any[];
+    const map: Record<string, MemberProfile> = {};
+    for (const row of rows) {
+        const p = rowToProfile(row);
+        if (p.contact && p.contact.visibility !== 'community') p.contact = null;
+        map[p.publicKey] = p;
     }
-    return filtered;
+    return map;
 }
 
 // ===================== LEDGER =====================
@@ -580,15 +450,8 @@ export function getBalance(publicKey: string): { balance: number; floor: number;
 
 export function transfer(from: string, to: string, amount: number, memo: string): Transaction | null {
     if (amount <= 0) return null;
-
-    // Auto-register unknown publicKeys as visitors (federation support)
-    // This allows cross-node trades where the visitor doesn't have a local account
-    if (!members.find(m => m.publicKey === from)) {
-        registerVisitor(from);
-    }
-    if (!members.find(m => m.publicKey === to)) {
-        registerVisitor(to);
-    }
+    if (!getMember(from)) registerVisitor(from);
+    if (!getMember(to)) registerVisitor(to);
 
     const success = ledger.transfer(from, to, amount);
     if (!success) return null;
@@ -597,885 +460,553 @@ export function transfer(from: string, to: string, amount: number, memo: string)
 
     const txn: Transaction = {
         id: crypto.randomUUID(),
-        from,
-        to,
-        amount,
+        from, to, amount,
         memo: memo || '',
         timestamp: new Date().toISOString(),
     };
-    transactions.push(txn);
-    saveState();
+    db.prepare(`INSERT INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?)`).run(txn.id, txn.from, txn.to, txn.amount, txn.memo, txn.timestamp);
+
+    // Sync ledger account balances to DB
+    const fromAcc = ledger.getAccount(from);
+    const toAcc = ledger.getAccount(to);
+    db.prepare(`UPDATE accounts SET balance=?, last_demurrage_epoch=?, last_updated_at=? WHERE public_key=?`).run(fromAcc.balance, fromAcc.lastDemurrageEpoch, new Date().toISOString(), from);
+    db.prepare(`UPDATE accounts SET balance=?, last_demurrage_epoch=?, last_updated_at=? WHERE public_key=?`).run(toAcc.balance, toAcc.lastDemurrageEpoch, new Date().toISOString(), to);
 
     const fromMember = getMember(from);
     const toMember = getMember(to);
     broadcast({
         type: 'transaction',
-        txn: {
-            ...txn,
-            fromCallsign: fromMember?.callsign || 'Unknown',
-            toCallsign: toMember?.callsign || 'Unknown',
-        },
+        txn: { ...txn, fromCallsign: fromMember?.callsign || 'Unknown', toCallsign: toMember?.callsign || 'Unknown' },
     });
-    console.log(`💸 ${fromMember?.callsign} → ${toMember?.callsign}: ${amount}Ʀ (${memo || 'no memo'})`);
     return txn;
 }
 
-export function getTransactions(publicKey?: string, limit = 50): Transaction[] {
-    let txns = transactions;
+export function getTransactions(publicKey?: string, limit = 50, offset = 0): Transaction[] {
+    let rows;
     if (publicKey) {
-        txns = txns.filter(t => t.from === publicKey || t.to === publicKey);
+        rows = db.prepare(`SELECT * FROM transactions WHERE from_pubkey=? OR to_pubkey=? ORDER BY timestamp DESC LIMIT ? OFFSET ?`).all(publicKey, publicKey, limit, offset) as any[];
+    } else {
+        rows = db.prepare(`SELECT * FROM transactions ORDER BY timestamp DESC LIMIT ? OFFSET ?`).all(limit, offset) as any[];
     }
-    return txns.slice(-limit).reverse(); // Most recent first
+    return rows.map(r => ({ id: r.id, from: r.from_pubkey, to: r.to_pubkey, amount: r.amount, memo: r.memo, timestamp: r.timestamp }));
 }
-
 // ===================== MARKETPLACE =====================
 
-export function createPost(
-    type: 'offer' | 'need',
-    category: string,
-    title: string,
-    description: string,
-    credits: number,
-    authorPublicKey: string,
-    lat?: number,
-    lng?: number,
-    photos?: string[],
-    repeatable?: boolean,
-): MarketplacePost | null {
-    const author = getMember(authorPublicKey);
-    // Allow posts even without registered member — use fallback callsign
-    const callsign = author?.callsign || 'Anonymous';
-
-    const post: MarketplacePost = {
-        id: crypto.randomUUID(),
-        type,
-        category,
-        title,
-        description,
-        credits,
-        authorPublicKey,
-        authorCallsign: callsign,
-        createdAt: new Date().toISOString(),
-        active: true,
-        status: 'active',
-        repeatable: repeatable || false,
-        ...(lat != null && lng != null ? { lat, lng } : {}),
-        ...(photos && photos.length > 0 ? { photos: photos.slice(0, 3) } : {}),
+function rowToPost(row: any, photos: any[]): MarketplacePost {
+    return {
+        id: row.id,
+        type: row.type,
+        category: row.category,
+        title: row.title,
+        description: row.description,
+        credits: row.credits,
+        priceType: row.price_type || 'fixed',
+        authorPublicKey: row.author_pubkey,
+        authorCallsign: row.author_callsign,
+        createdAt: row.created_at,
+        active: Boolean(row.active),
+        status: row.status,
+        repeatable: Boolean(row.repeatable),
+        acceptedBy: row.accepted_by,
+        acceptedByCallsign: row.accepted_callsign,
+        acceptedAt: row.accepted_at,
+        pendingTransactionId: row.pending_transaction_id,
+        completedAt: row.completed_at,
+        lat: row.lat,
+        lng: row.lng,
+        photos: photos.filter((p: any) => p.post_id === row.id).sort((a: any, b: any) => a.order_num - b.order_num).map((p: any) => p.photo_data),
+        originNode: row.origin_node
     };
-    posts.push(post);
-    saveState();
+}
+
+export function createPost(
+    type: 'offer' | 'need', category: string, title: string, description: string, credits: number,
+    priceType: 'fixed' | 'hourly', authorPublicKey: string, lat?: number, lng?: number, photos?: string[], repeatable?: boolean,
+): MarketplacePost | null {
+    const id = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    
+    db.transaction(() => {
+        db.prepare(`INSERT INTO posts (
+            id, type, category, title, description, credits, price_type, author_pubkey, created_at, active, status, repeatable, lat, lng
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'active', ?, ?, ?)`).run(id, type, category, title, description, credits, priceType, authorPublicKey, createdAt, repeatable ? 1 : 0, lat ?? null, lng ?? null);
+
+        if (photos && photos.length > 0) {
+            const insertPhoto = db.prepare(`INSERT INTO post_photos (post_id, photo_data, order_num) VALUES (?, ?, ?)`);
+            photos.slice(0, 3).forEach((p, idx) => insertPhoto.run(id, p, idx));
+        }
+    })();
+
+    const post = getPosts({ id }).find(p => p.id === id)!;
     broadcast({ type: 'new_post', post });
-    console.log(`📌 New ${type}: "${title}" by ${callsign}${repeatable ? ' [repeatable]' : ''}`);
     return post;
 }
 
-export function getPosts(filter?: { type?: string; category?: string }): MarketplacePost[] {
-    // Show active and pending posts (pending shows with badge)
-    let result = posts.filter(p => p.active && (p.status === 'active' || p.status === 'pending'));
-    if (filter?.type && filter.type !== 'all') {
-        result = result.filter(p => p.type === filter.type);
+export function getPosts(filter?: { id?: string; type?: string; category?: string; status?: string; offset?: number; limit?: number }): MarketplacePost[] {
+    let query = `
+        SELECT p.*, m.callsign as author_callsign, a.callsign as accepted_callsign
+        FROM posts p
+        LEFT JOIN members m ON p.author_pubkey = m.public_key
+        LEFT JOIN members a ON p.accepted_by = a.public_key
+        WHERE p.active = 1
+    `;
+    const params: any[] = [];
+
+    if (filter?.id) { query += " AND p.id = ?"; params.push(filter.id); }
+    if (filter?.type && filter.type !== 'all') { query += " AND p.type = ?"; params.push(filter.type); }
+    if (filter?.category && filter.category !== 'all') { query += " AND p.category = ?"; params.push(filter.category); }
+    if (filter?.status) { query += " AND p.status = ?"; params.push(filter.status); }
+    else if (!filter?.id) { query += " AND p.status IN ('active', 'pending')"; }
+
+    query += " ORDER BY p.created_at DESC";
+    
+    if (filter?.limit) {
+        query += " LIMIT ? OFFSET ?";
+        params.push(filter.limit, filter.offset || 0);
     }
-    if (filter?.category && filter.category !== 'all') {
-        result = result.filter(p => p.category === filter.category);
-    }
-    return result.reverse(); // Most recent first
+
+    const rows = db.prepare(query).all(...params) as any[];
+    const postIds = rows.map(r => r.id);
+    const photos = postIds.length > 0 ? db.prepare(`SELECT * FROM post_photos WHERE post_id IN (${postIds.map(() => '?').join(',')})`).all(...postIds) : [];
+
+    return rows.map(r => rowToPost(r, photos));
 }
 
 export function removePost(id: string, authorPublicKey: string): boolean {
-    const post = posts.find(p => p.id === id && p.authorPublicKey === authorPublicKey);
-    if (!post) return false;
-    post.active = false;
-    post.status = 'cancelled';
-    saveState();
+    const result = db.prepare(`UPDATE posts SET active = 0, status = 'cancelled' WHERE id = ? AND author_pubkey = ?`).run(id, authorPublicKey);
+    if (result.changes === 0) return false;
     broadcast({ type: 'post_removed', id });
     return true;
 }
 
 export function updatePost(
-    id: string,
-    authorPublicKey: string,
-    updates: {
-        type?: 'offer' | 'need';
-        category?: string;
-        title?: string;
-        description?: string;
-        credits?: number;
-        lat?: number;
-        lng?: number;
-        photos?: string[];
-        repeatable?: boolean;
+    id: string, authorPublicKey: string, updates: {
+        type?: 'offer' | 'need'; category?: string; title?: string; description?: string; credits?: number;
+        priceType?: 'fixed' | 'hourly'; lat?: number; lng?: number; photos?: string[]; repeatable?: boolean;
     },
 ): MarketplacePost | null {
-    const post = posts.find(p => p.id === id && p.authorPublicKey === authorPublicKey && p.active);
+    const fields: string[] = [];
+    const params: any[] = [];
+    if (updates.type) { fields.push("type=?"); params.push(updates.type); }
+    if (updates.category) { fields.push("category=?"); params.push(updates.category); }
+    if (updates.title) { fields.push("title=?"); params.push(updates.title); }
+    if (updates.description !== undefined) { fields.push("description=?"); params.push(updates.description); }
+    if (updates.credits !== undefined) { fields.push("credits=?"); params.push(updates.credits); }
+    if (updates.priceType !== undefined) { fields.push("price_type=?"); params.push(updates.priceType); }
+    if (updates.lat !== undefined) { fields.push("lat=?"); params.push(updates.lat); }
+    if (updates.lng !== undefined) { fields.push("lng=?"); params.push(updates.lng); }
+    if (updates.repeatable !== undefined) { fields.push("repeatable=?"); params.push(updates.repeatable ? 1 : 0); }
+
+    if (fields.length > 0 || updates.photos !== undefined) {
+        db.transaction(() => {
+            if (fields.length > 0) {
+                params.push(id, authorPublicKey);
+                db.prepare(`UPDATE posts SET ${fields.join(',')} WHERE id=? AND author_pubkey=? AND active=1`).run(...params);
+            }
+            if (updates.photos !== undefined) {
+                db.prepare(`DELETE FROM post_photos WHERE post_id=?`).run(id);
+                const insertPhoto = db.prepare(`INSERT INTO post_photos (post_id, photo_data, order_num) VALUES (?, ?, ?)`);
+                updates.photos.slice(0, 3).forEach((p, idx) => insertPhoto.run(id, p, idx));
+            }
+        })();
+    }
+
+    const post = getPosts({ id })[0];
     if (!post) return null;
-
-    if (updates.type) post.type = updates.type;
-    if (updates.category) post.category = updates.category;
-    if (updates.title) post.title = updates.title;
-    if (updates.description !== undefined) post.description = updates.description;
-    if (updates.credits !== undefined) post.credits = Number(updates.credits) || 0;
-    if (updates.lat !== undefined) post.lat = updates.lat;
-    if (updates.lng !== undefined) post.lng = updates.lng;
-    if (updates.photos !== undefined) post.photos = updates.photos.slice(0, 3);
-    if (updates.repeatable !== undefined) post.repeatable = updates.repeatable;
-
-    saveState();
     broadcast({ type: 'post_updated', post });
-    console.log(`✏️ Updated post: "${post.title}" by ${post.authorCallsign}`);
     return post;
 }
 
 // ===================== MARKETPLACE TRANSACTIONS =====================
 
-/**
- * Accept a marketplace post. Creates a MarketplaceTransaction.
- * For one-time posts: sets post to 'pending'.
- * For repeatable posts: post stays 'active'.
- */
-export function acceptPost(
-    postId: string,
-    buyerPublicKey: string,
-): MarketplaceTransaction | null {
-    const post = posts.find(p => p.id === postId && p.active && p.status === 'active');
-    if (!post) return null;
+export function acceptPost(postId: string, buyerPublicKey: string, hours?: number): MarketplaceTransaction | null {
+    const post = getPosts({ id: postId, status: 'active' })[0];
+    if (!post || post.authorPublicKey === buyerPublicKey) return null;
 
-    // Can't accept your own post
-    if (post.authorPublicKey === buyerPublicKey) return null;
+    if (post.priceType === 'hourly' && (typeof hours !== 'number' || hours <= 0)) {
+        return null; // Must provide valid hours for an hourly post
+    }
 
     const buyer = getMember(buyerPublicKey);
-    const buyerCallsign = buyer?.callsign || 'Anonymous';
+    const finalCredits = post.priceType === 'hourly' ? post.credits * hours! : post.credits;
 
-    const isOffer = post.type === 'offer';
     const tx: MarketplaceTransaction = {
-        id: crypto.randomUUID(),
-        postId: post.id,
-        postTitle: post.title,
-        buyerPublicKey,
-        buyerCallsign,
-        sellerPublicKey: post.authorPublicKey,
-        sellerCallsign: post.authorCallsign,
-        credits: post.credits,
-        status: 'pending',
-        createdAt: new Date().toISOString(),
+        id: crypto.randomUUID(), postId: post.id, postTitle: post.title, buyerPublicKey,
+        buyerCallsign: buyer?.callsign || 'Anonymous', sellerPublicKey: post.authorPublicKey,
+        sellerCallsign: post.authorCallsign, credits: finalCredits, hours: post.priceType === 'hourly' ? hours : undefined,
+        status: 'pending', createdAt: new Date().toISOString(),
     };
 
-    marketplaceTransactions.push(tx);
-
-    // For one-time posts, mark as pending
-    if (!post.repeatable) {
-        post.status = 'pending';
-        post.acceptedBy = buyerPublicKey;
-        post.acceptedByCallsign = buyerCallsign;
-        post.pendingTransactionId = tx.id;
-        post.acceptedAt = new Date().toISOString();
-    }
-
-    saveState();
+    db.transaction(() => {
+        db.prepare(`INSERT INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`).run(tx.id, tx.postId, tx.buyerPublicKey, tx.sellerPublicKey, tx.credits, tx.hours ?? null, tx.createdAt);
+        
+        if (!post.repeatable) {
+            db.prepare(`UPDATE posts SET status='pending', accepted_by=?, accepted_at=?, pending_transaction_id=? WHERE id=?`).run(buyerPublicKey, tx.createdAt, tx.id, post.id);
+        }
+    })();
     broadcast({ type: 'post_accepted', postId: post.id, transaction: tx });
-    console.log(`🤝 ${buyerCallsign} accepted "${post.title}" by ${post.authorCallsign}`);
     return tx;
 }
 
-/**
- * Complete (confirm) a marketplace transaction. Transfers credits.
- * Only the poster (seller) can confirm.
- */
-export function completePostTransaction(
-    transactionId: string,
-    confirmerPublicKey: string,
-): MarketplaceTransaction | null {
-    const tx = marketplaceTransactions.find(t => t.id === transactionId && t.status === 'pending');
-    if (!tx) return null;
+export function completePostTransaction(transactionId: string, confirmerPublicKey: string, finalHours?: number): MarketplaceTransaction | null {
+    const row = db.prepare("SELECT * FROM marketplace_transactions WHERE id=? AND status='pending'").get(transactionId) as any;
+    if (!row || row.seller_pubkey !== confirmerPublicKey) return null;
 
-    // Only the post author (seller) can confirm
-    if (tx.sellerPublicKey !== confirmerPublicKey) return null;
+    const post = db.prepare("SELECT * FROM posts WHERE id=?").get(row.post_id) as any;
+    const completedAt = new Date().toISOString();
 
-    const post = posts.find(p => p.id === tx.postId);
+    let txnRecord: Transaction | undefined;
+    
+    db.transaction(() => {
+        if (finalHours !== undefined && post && post.price_type === 'hourly' && finalHours > 0) {
+            row.hours = finalHours;
+            row.credits = post.credits * finalHours;
+            db.prepare(`UPDATE marketplace_transactions SET hours=?, credits=? WHERE id=?`).run(row.hours, row.credits, transactionId);
+        }
 
-    // Transfer credits if amount > 0
-    if (tx.credits > 0 && post) {
-        const isOffer = post.type === 'offer';
-        const from = isOffer ? tx.buyerPublicKey : tx.sellerPublicKey;
-        const to = isOffer ? tx.sellerPublicKey : tx.buyerPublicKey;
-        const memo = `Completed: ${tx.postTitle}`;
+        if (row.credits > 0 && post) {
+            const isOffer = post.type === 'offer';
+            const from = isOffer ? row.buyer_pubkey : row.seller_pubkey;
+            const to = isOffer ? row.seller_pubkey : row.buyer_pubkey;
+            const success = ledger.transfer(from, to, row.credits);
+            if (success) {
+                txnRecord = { id: crypto.randomUUID(), from, to, amount: row.credits, memo: `Completed: ${post.title}`, timestamp: completedAt };
+                db.prepare(`INSERT INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?)`).run(txnRecord.id, txnRecord.from, txnRecord.to, txnRecord.amount, txnRecord.memo, txnRecord.timestamp);
+                const fromAcc = ledger.getAccount(from);
+                const toAcc = ledger.getAccount(to);
+                db.prepare(`UPDATE accounts SET balance=?, last_demurrage_epoch=?, last_updated_at=? WHERE public_key=?`).run(fromAcc.balance, fromAcc.lastDemurrageEpoch, completedAt, from);
+                db.prepare(`UPDATE accounts SET balance=?, last_demurrage_epoch=?, last_updated_at=? WHERE public_key=?`).run(toAcc.balance, toAcc.lastDemurrageEpoch, completedAt, to);
+            }
+        }
+
+        db.prepare(`UPDATE marketplace_transactions SET status='completed', completed_at=? WHERE id=?`).run(completedAt, transactionId);
         
-        // Use the ledger to transfer
-        const success = ledger.transfer(from, to, tx.credits);
-        if (!success) return null;
-        
-        const txRecord: Transaction = {
-            id: crypto.randomUUID(),
-            from, to,
-            amount: tx.credits,
-            memo,
-            timestamp: new Date().toISOString(),
-        };
-        transactions.push(txRecord);
-    }
+        if (post && !post.repeatable) {
+            db.prepare(`UPDATE posts SET status='completed', active=0, completed_at=? WHERE id=?`).run(completedAt, post.id);
+        }
+    })();
 
-    tx.status = 'completed';
-    tx.completedAt = new Date().toISOString();
-
-    // For one-time posts, mark as completed
-    if (post && !post.repeatable) {
-        post.status = 'completed';
-        post.active = false;
-        post.completedAt = new Date().toISOString();
-    }
-
-    saveState();
+    const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
     broadcast({ type: 'transaction_completed', transaction: tx });
-    console.log(`✅ Transaction completed: "${tx.postTitle}" (${tx.credits}🫘)`);
     return tx;
 }
 
-/**
- * Cancel a pending marketplace transaction.
- * Either the buyer or the seller can cancel.
- */
-export function cancelPostTransaction(
-    transactionId: string,
-    cancellerPublicKey: string,
-): MarketplaceTransaction | null {
-    const tx = marketplaceTransactions.find(t => t.id === transactionId && t.status === 'pending');
-    if (!tx) return null;
+export function cancelPostTransaction(transactionId: string, cancellerPublicKey: string): MarketplaceTransaction | null {
+    const row = db.prepare("SELECT * FROM marketplace_transactions WHERE id=? AND status='pending'").get(transactionId) as any;
+    if (!row || (row.buyer_pubkey !== cancellerPublicKey && row.seller_pubkey !== cancellerPublicKey)) return null;
 
-    // Either buyer or seller can cancel
-    if (tx.buyerPublicKey !== cancellerPublicKey && tx.sellerPublicKey !== cancellerPublicKey) return null;
-
-    tx.status = 'cancelled';
-
-    // For one-time posts, restore to active
-    const post = posts.find(p => p.id === tx.postId);
-    if (post && !post.repeatable && post.status === 'pending') {
-        post.status = 'active';
-        delete post.acceptedBy;
-        delete post.acceptedByCallsign;
-        delete post.pendingTransactionId;
-        delete post.acceptedAt;
-    }
-
-    saveState();
+    db.transaction(() => {
+        db.prepare(`UPDATE marketplace_transactions SET status='cancelled' WHERE id=?`).run(transactionId);
+        const post = db.prepare(`SELECT * FROM posts WHERE id=?`).get(row.post_id) as any;
+        if (post && !post.repeatable && post.status === 'pending') {
+            db.prepare(`UPDATE posts SET status='active', accepted_by=NULL, accepted_at=NULL, pending_transaction_id=NULL WHERE id=?`).run(post.id);
+        }
+    })();
+    const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
     broadcast({ type: 'transaction_cancelled', transaction: tx });
-    console.log(`❌ Transaction cancelled: "${tx.postTitle}"`);
     return tx;
 }
 
-/**
- * Pause a repeatable post. Only the author can pause.
- */
 export function pausePost(postId: string, authorPublicKey: string): boolean {
-    const post = posts.find(p => p.id === postId && p.authorPublicKey === authorPublicKey && p.status === 'active');
-    if (!post) return false;
-    post.status = 'paused';
-    saveState();
-    broadcast({ type: 'post_updated', post });
+    const result = db.prepare(`UPDATE posts SET status='paused' WHERE id=? AND author_pubkey=? AND status='active'`).run(postId, authorPublicKey);
+    if (result.changes === 0) return false;
+    broadcast({ type: 'post_updated', post: getPosts({ id: postId })[0] });
     return true;
 }
 
-/**
- * Resume a paused post. Only the author can resume.
- */
 export function resumePost(postId: string, authorPublicKey: string): boolean {
-    const post = posts.find(p => p.id === postId && p.authorPublicKey === authorPublicKey && p.status === 'paused');
-    if (!post) return false;
-    post.status = 'active';
-    saveState();
-    broadcast({ type: 'post_updated', post });
+    const result = db.prepare(`UPDATE posts SET status='active' WHERE id=? AND author_pubkey=? AND status='paused'`).run(postId, authorPublicKey);
+    if (result.changes === 0) return false;
+    broadcast({ type: 'post_updated', post: getPosts({ id: postId })[0] });
     return true;
 }
 
-/**
- * Get marketplace transactions for a user (as buyer or seller).
- */
-export function getMarketplaceTransactions(
-    publicKey: string,
-    filter?: { status?: string },
-): MarketplaceTransaction[] {
-    let result = marketplaceTransactions.filter(
-        t => t.buyerPublicKey === publicKey || t.sellerPublicKey === publicKey
-    );
-    if (filter?.status) {
-        result = result.filter(t => t.status === filter.status);
-    }
-    return result.reverse(); // Most recent first
-}
+export function getMarketplaceTransactions(publicKey: string, filter?: { status?: string }, limit = 50, offset = 0): MarketplaceTransaction[] {
+    let query = `
+        SELECT mt.*, p.title as postTitle, m1.callsign as buyerCallsign, m2.callsign as sellerCallsign
+        FROM marketplace_transactions mt
+        LEFT JOIN posts p ON mt.post_id = p.id
+        LEFT JOIN members m1 ON mt.buyer_pubkey = m1.public_key
+        LEFT JOIN members m2 ON mt.seller_pubkey = m2.public_key
+        WHERE (mt.buyer_pubkey = ? OR mt.seller_pubkey = ?)
+    `;
+    const params: any[] = [publicKey, publicKey];
+    if (filter?.status) { query += " AND mt.status = ?"; params.push(filter.status); }
+    query += " ORDER BY mt.created_at DESC LIMIT ? OFFSET ?";
+    params.push(limit, offset);
 
+    const rows = db.prepare(query).all(...params) as any[];
+    return rows.map(r => ({
+        id: r.id, postId: r.post_id, postTitle: r.postTitle, buyerPublicKey: r.buyer_pubkey, buyerCallsign: r.buyerCallsign, sellerPublicKey: r.seller_pubkey, sellerCallsign: r.sellerCallsign, credits: r.credits, status: r.status, createdAt: r.created_at, completedAt: r.completed_at
+    }));
+}
 // ===================== COMMUNITY INFO =====================
 
-export function getCommunityInfo(): {
-    memberCount: number;
-    postCount: number;
-    transactionCount: number;
-    commonsBalance: number;
-} {
-    return {
-        memberCount: members.length,
-        postCount: posts.filter(p => p.active).length,
-        transactionCount: transactions.length,
-        commonsBalance: Math.round(COMMONS_BALANCE * 100) / 100,
-    };
+export function getCommunityInfo(): { memberCount: number; postCount: number; transactionCount: number; commonsBalance: number; } {
+    const memberCount = (db.prepare("SELECT COUNT(*) as c FROM members WHERE status != 'pruned'").get() as any).c;
+    const postCount = (db.prepare("SELECT COUNT(*) as c FROM posts WHERE active=1").get() as any).c;
+    const txCount = (db.prepare("SELECT COUNT(*) as c FROM transactions").get() as any).c;
+    return { memberCount, postCount, transactionCount: txCount, commonsBalance: Math.round(COMMONS_BALANCE * 100) / 100 };
 }
 
 // ===================== MESSAGING =====================
 
-export function createConversation(
-    type: 'dm' | 'group',
-    participants: string[],
-    createdBy: string,
-    name?: string,
-): Conversation | null {
-    // Auto-register unknown participants as visitors (federation support)
-    for (const p of participants) {
-        if (!members.find(m => m.publicKey === p)) {
-            registerVisitor(p);
+export function createConversation(type: 'dm' | 'group', participants: string[], createdBy: string, name?: string): Conversation | null {
+    for (const p of participants) if (!getMember(p)) registerVisitor(p);
+
+    if (type === 'dm' && participants.length === 2) {
+        // Find existing DM
+        const existing = db.prepare(`
+            SELECT c.* FROM conversations c
+            JOIN conversation_participants cp1 ON c.id = cp1.conversation_id AND cp1.public_key = ?
+            JOIN conversation_participants cp2 ON c.id = cp2.conversation_id AND cp2.public_key = ?
+            WHERE c.type = 'dm'
+        `).get(participants[0], participants[1]) as any;
+
+        if (existing) {
+            const parts = db.prepare("SELECT public_key FROM conversation_participants WHERE conversation_id=?").all(existing.id) as any[];
+            return { id: existing.id, type: existing.type, name: existing.name, createdBy: existing.created_by, createdAt: existing.created_at, participants: parts.map(p => p.public_key) };
         }
     }
 
-    // For DMs, check if conversation already exists
-    if (type === 'dm' && participants.length === 2) {
-        const existing = conversations.find(c =>
-            c.type === 'dm' &&
-            c.participants.length === 2 &&
-            c.participants.includes(participants[0]) &&
-            c.participants.includes(participants[1])
-        );
-        if (existing) return existing;
-    }
+    const id = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    db.transaction(() => {
+        db.prepare(`INSERT INTO conversations (id, type, name, created_by, created_at) VALUES (?, ?, ?, ?, ?)`).run(id, type, name || null, createdBy, createdAt);
+        const insertPart = db.prepare(`INSERT INTO conversation_participants (conversation_id, public_key) VALUES (?, ?)`);
+        for (const p of participants) insertPart.run(id, p);
+    })();
 
-    const conv: Conversation = {
-        id: crypto.randomUUID(),
-        type,
-        name: type === 'group' ? (name || 'Group Chat') : null,
-        participants,
-        createdBy,
-        createdAt: new Date().toISOString(),
-    };
-    conversations.push(conv);
-    saveState();
+    const conv: Conversation = { id, type, name: name || null, createdBy, createdAt, participants };
     broadcast({ type: 'conversation_created', conversation: conv });
-    console.log(`💬 ${type === 'dm' ? 'DM' : 'Group'} created: ${conv.id.substring(0, 8)} (${participants.length} members)`);
     return conv;
 }
 
-export function sendMessage(
-    conversationId: string,
-    authorPubkey: string,
-    ciphertext: string,
-    nonce: string,
-): Message | null {
-    const conv = conversations.find(c => c.id === conversationId);
-    if (!conv) return null;
-    if (!conv.participants.includes(authorPubkey)) return null;
+export function sendMessage(conversationId: string, authorPubkey: string, ciphertext: string, nonce: string): Message | null {
+    const participants = db.prepare("SELECT public_key FROM conversation_participants WHERE conversation_id=?").all(conversationId) as any[];
+    if (!participants.length || !participants.find(p => p.public_key === authorPubkey)) return null;
 
-    const msg: Message = {
-        id: crypto.randomUUID(),
-        conversationId,
-        authorPubkey,
-        ciphertext,
-        nonce,
-        timestamp: new Date().toISOString(),
-    };
-    messages.push(msg);
-    saveState();
+    const msg: Message = { id: crypto.randomUUID(), conversationId, authorPubkey, ciphertext, nonce, timestamp: new Date().toISOString() };
+    db.prepare(`INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, timestamp) VALUES (?, ?, ?, ?, ?, ?)`).run(msg.id, msg.conversationId, msg.authorPubkey, msg.ciphertext, msg.nonce, msg.timestamp);
 
-    // Broadcast to WebSocket clients who are participants
-    broadcast({
-        type: 'new_message',
-        conversationId,
-        message: msg,
-        participants: conv.participants,
-    });
+    broadcast({ type: 'new_message', conversationId, message: msg, participants: participants.map(p => p.public_key) });
     return msg;
 }
 
 export function getConversationsByMember(pubkey: string): Conversation[] {
-    return conversations
-        .filter(c => c.participants.includes(pubkey))
-        .sort((a, b) => {
-            // Sort by most recent message in conversation
-            const aLast = messages.filter(m => m.conversationId === a.id).pop();
-            const bLast = messages.filter(m => m.conversationId === b.id).pop();
-            const aTime = aLast?.timestamp || a.createdAt;
-            const bTime = bLast?.timestamp || b.createdAt;
-            return bTime.localeCompare(aTime);
-        });
+    const rows = db.prepare(`
+        SELECT c.*, 
+        (SELECT MAX(timestamp) FROM messages m WHERE m.conversation_id = c.id) as last_msg_time
+        FROM conversations c
+        JOIN conversation_participants cp ON c.id = cp.conversation_id
+        WHERE cp.public_key = ?
+        ORDER BY COALESCE(last_msg_time, c.created_at) DESC
+    `).all(pubkey) as any[];
+
+    return rows.map(r => {
+        const parts = db.prepare("SELECT public_key FROM conversation_participants WHERE conversation_id=?").all(r.id) as any[];
+        return { id: r.id, type: r.type, name: r.name, createdBy: r.created_by, createdAt: r.created_at, participants: parts.map(p => p.public_key) };
+    });
 }
 
-export function getConversationMessages(conversationId: string, limit = 50): Message[] {
-    return messages
-        .filter(m => m.conversationId === conversationId)
-        .slice(-limit);
+export function getConversationMessages(conversationId: string, limit = 50, offset = 0): Message[] {
+    const rows = db.prepare(`SELECT * FROM messages WHERE conversation_id=? ORDER BY timestamp DESC LIMIT ? OFFSET ?`).all(conversationId, limit, offset) as any[];
+    return rows.reverse().map(r => ({ id: r.id, conversationId: r.conversation_id, authorPubkey: r.author_pubkey, ciphertext: r.ciphertext, nonce: r.nonce, timestamp: r.timestamp }));
 }
 
 export function getConversation(id: string): Conversation | undefined {
-    return conversations.find(c => c.id === id);
+    const c = db.prepare("SELECT * FROM conversations WHERE id=?").get(id) as any;
+    if (!c) return undefined;
+    const parts = db.prepare("SELECT public_key FROM conversation_participants WHERE conversation_id=?").all(id) as any[];
+    return { id: c.id, type: c.type, name: c.name, createdBy: c.created_by, createdAt: c.created_at, participants: parts.map(p => p.public_key) };
+}
+
+// ===================== UNREAD TRACKING =====================
+
+export function markConversationRead(pubkey: string, conversationId: string): void {
+    db.prepare(`UPDATE conversation_participants SET last_read_at=? WHERE conversation_id=? AND public_key=?`).run(new Date().toISOString(), conversationId, pubkey);
+}
+
+export function getUnreadCounts(pubkey: string): Record<string, number> {
+    const rows = db.prepare(`
+        SELECT cp.conversation_id, 
+               (SELECT COUNT(*) FROM messages m 
+                WHERE m.conversation_id = cp.conversation_id 
+                  AND m.author_pubkey != ? 
+                  AND (cp.last_read_at IS NULL OR m.timestamp > cp.last_read_at)
+               ) as unread_count
+        FROM conversation_participants cp
+        WHERE cp.public_key = ?
+    `).all(pubkey, pubkey) as any[];
+
+    const counts: Record<string, number> = {};
+    for (const r of rows) if (r.unread_count > 0) counts[r.conversation_id] = r.unread_count;
+    return counts;
 }
 
 // ===================== STATE SYNC =====================
 
-export interface SyncPayload {
-    stateHash: string;
-    members: Member[];
-    posts: MarketplacePost[];
-    nodeId: string;
-}
+export interface SyncPayload { stateHash: string; members: Member[]; posts: MarketplacePost[]; nodeId: string; }
 
-/**
- * Compute a hash of the current state for quick comparison.
- * If two nodes have the same hash, no sync needed.
- */
 export function getStateHash(): string {
-    const data = JSON.stringify({
-        m: members.map(m => m.publicKey).sort(),
-        p: posts.filter(p => p.active).map(p => p.id).sort(),
-    });
+    const pKeys = db.prepare("SELECT public_key FROM members ORDER BY public_key").all() as any[];
+    const pIds = db.prepare("SELECT id FROM posts WHERE active=1 ORDER BY id").all() as any[];
+    const data = JSON.stringify({ m: pKeys.map(k => k.public_key), p: pIds.map(i => i.id) });
     return crypto.createHash('sha256').update(data).digest('hex').substring(0, 16);
 }
 
-/**
- * Export the current state for sharing with connected nodes.
- */
 export function exportSyncState(nodeId: string): SyncPayload {
-    return {
-        stateHash: getStateHash(),
-        nodeId,
-        members: members.map(m => ({ ...m })),
-        posts: posts.filter(p => p.active).map(p => ({ ...p })),
-    };
+    return { stateHash: getStateHash(), nodeId, members: getAllMembers(), posts: getPosts() };
 }
 
-/**
- * Import state from a remote node, merging with dedup.
- * Returns the number of new items imported.
- */
 export function importRemoteState(remote: SyncPayload): { newMembers: number; newPosts: number } {
-    let newMembers = 0;
-    let newPosts = 0;
-
-    // Import members we don't have
-    for (const rm of remote.members) {
-        if (!members.find(m => m.publicKey === rm.publicKey)) {
-            members.push({ ...rm });
-            newMembers++;
-        }
-    }
-
-    // Import posts we don't have (by ID)
-    for (const rp of remote.posts) {
-        if (!posts.find(p => p.id === rp.id)) {
-            posts.push({
-                ...rp,
-                originNode: rp.originNode || remote.nodeId,
-            });
-            newPosts++;
-        }
-    }
-
-    if (newMembers > 0 || newPosts > 0) {
-        saveState();
-        broadcast({ type: 'state_synced', newMembers, newPosts, from: remote.nodeId });
-        console.log(`🔄 Sync import: +${newMembers} members, +${newPosts} posts from ${remote.nodeId}`);
-    }
-
-    return { newMembers, newPosts };
-}
-
-// ===================== COMMUNITY HEALTH =====================
-
-export interface HealthFlag {
-    type: 'wash_trading' | 'isolated_branch' | 'inactive_member' | 'invite_spam';
-    severity: 'warning' | 'alert';
-    description: string;
-    members: string[];
-}
-
-export interface CommunityHealth {
-    tree: {
-        totalMembers: number;
-        maxDepth: number;
-        widestBranch: { callsign: string; children: number };
-        avgBranchSize: number;
-    };
-    activity: {
-        totalTransactions: number;
-        last7Days: number;
-        last30Days: number;
-        activeMemberCount: number;
-        inactiveMemberCount: number;
-        commonsBalance: number;
-    };
-    flags: HealthFlag[];
-}
-
-export function getCommunityHealth(): CommunityHealth {
-    const now = Date.now();
-    const t = getThresholds();
-    const THIRTY_DAYS = t.inactiveMemberDays * 24 * 60 * 60 * 1000;
-    const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
-    const WASH_WINDOW = t.washTradingWindowHours * 60 * 60 * 1000;
-
-    // --- Tree stats ---
-    const tree = getInviteTree();
-    function getDepth(nodes: InviteTreeNode[]): number {
-        if (nodes.length === 0) return 0;
-        return 1 + Math.max(...nodes.map(n => getDepth(n.children)));
-    }
-    function countChildren(node: InviteTreeNode): number {
-        return node.children.length + node.children.reduce((s, c) => s + countChildren(c), 0);
-    }
-
-    const maxDepth = getDepth(tree);
-    let widestBranch = { callsign: 'none', children: 0 };
-    for (const root of tree) {
-        const total = countChildren(root);
-        if (total > widestBranch.children) {
-            widestBranch = { callsign: root.callsign, children: total };
-        }
-    }
-    const avgBranchSize = tree.length > 0
-        ? Math.round((members.length / tree.length) * 10) / 10
-        : 0;
-
-    // --- Activity stats ---
-    const last7 = transactions.filter(t => now - new Date(t.timestamp).getTime() < SEVEN_DAYS);
-    const last30 = transactions.filter(t => now - new Date(t.timestamp).getTime() < THIRTY_DAYS);
-
-    const activeMembers = new Set<string>();
-    for (const t of last30) {
-        activeMembers.add(t.from);
-        activeMembers.add(t.to);
-    }
-
-    // --- Flags ---
-    const flags: HealthFlag[] = [];
-
-    // 1. Wash trading: A→B and B→A within 24h, more than 2 round-trips
-    const pairMap = new Map<string, number>();
-    for (const t of transactions) {
-        const age = now - new Date(t.timestamp).getTime();
-        if (age > WASH_WINDOW) continue;
-        const pair = [t.from, t.to].sort().join('|');
-        pairMap.set(pair, (pairMap.get(pair) || 0) + 1);
-    }
-    for (const [pair, count] of pairMap) {
-        if (count >= t.washTradingMinTxns) {
-            const [a, b] = pair.split('|');
-            const memberA = getMember(a);
-            const memberB = getMember(b);
-            flags.push({
-                type: 'wash_trading',
-                severity: 'alert',
-                description: `${memberA?.callsign || a.substring(0, 8)} ↔ ${memberB?.callsign || b.substring(0, 8)}: ${count} transactions in 24h`,
-                members: [a, b],
-            });
-        }
-    }
-
-    // 2. Inactive members: no transactions in 30 days
-    for (const m of members) {
-        if (!activeMembers.has(m.publicKey)) {
-            const joinAge = now - new Date(m.joinedAt).getTime();
-            if (joinAge > THIRTY_DAYS) {
-                flags.push({
-                    type: 'inactive_member',
-                    severity: 'warning',
-                    description: `${m.callsign} — no activity in 30+ days`,
-                    members: [m.publicKey],
-                });
+    let newMembers = 0, newPosts = 0;
+    
+    db.transaction(() => {
+        for (const rm of remote.members) {
+            const exists = db.prepare("SELECT 1 FROM members WHERE public_key=?").get(rm.publicKey);
+            if (!exists) {
+                db.prepare(`INSERT INTO members (public_key, callsign, joined_at, invited_by, invite_code, home_node_url) VALUES (?, ?, ?, ?, ?, ?)`).run(rm.publicKey, rm.callsign, rm.joinedAt, rm.invitedBy, rm.inviteCode, rm.homeNodeUrl || null);
+                db.prepare(`INSERT INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, 0, 0)`).run(rm.publicKey);
+                newMembers++;
             }
         }
-    }
-
-    // 3. Isolated branches: subtree where all transactions are internal
-    for (const root of tree) {
-        if (root.children.length === 0) continue;
-        const branchMembers = new Set<string>();
-        function collectMembers(node: InviteTreeNode) {
-            branchMembers.add(node.publicKey);
-            node.children.forEach(collectMembers);
+        for (const rp of remote.posts) {
+            const exists = db.prepare("SELECT 1 FROM posts WHERE id=?").get(rp.id);
+            if (!exists) {
+                db.prepare(`INSERT INTO posts (id, type, category, title, description, credits, author_pubkey, created_at, active, status, repeatable, lat, lng, origin_node) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(rp.id, rp.type, rp.category, rp.title, rp.description, rp.credits, rp.authorPublicKey, rp.createdAt, rp.active ? 1 : 0, rp.status, rp.repeatable ? 1 : 0, rp.lat ?? null, rp.lng ?? null, rp.originNode || remote.nodeId);
+                newPosts++;
+            }
         }
-        collectMembers(root);
-        if (branchMembers.size < 2) continue;
+    })();
 
-        const branchTxns = transactions.filter(
-            t => branchMembers.has(t.from) || branchMembers.has(t.to)
-        );
-        if (branchTxns.length < t.isolatedBranchMinTxns) continue;
-
-        const allInternal = branchTxns.every(
-            t => branchMembers.has(t.from) && branchMembers.has(t.to)
-        );
-        if (allInternal) {
-            flags.push({
-                type: 'isolated_branch',
-                severity: 'warning',
-                description: `${root.callsign}'s branch (${branchMembers.size} members) only trades internally`,
-                members: Array.from(branchMembers),
-            });
-        }
+    if (newMembers > 0 || newPosts > 0) {
+        broadcast({ type: 'state_synced', newMembers, newPosts, from: remote.nodeId });
     }
-
-    // 4. Invite Spam / Sybil Ring
-    const memberInvites = new Map<string, { total: number, used: number }>();
-    for (const inv of inviteCodes) {
-        if (!memberInvites.has(inv.createdBy)) memberInvites.set(inv.createdBy, { total: 0, used: 0 });
-        const stats = memberInvites.get(inv.createdBy)!;
-        stats.total++;
-        if (inv.usedBy) stats.used++;
-    }
-    for (const [pubkey, stats] of memberInvites) {
-        if (stats.total >= 5) {
-            const member = getMember(pubkey);
-            const severity = stats.total >= 10 ? 'alert' : 'warning';
-            flags.push({
-                type: 'invite_spam',
-                severity,
-                description: `${member?.callsign || pubkey.substring(0, 8)} has generated a high volume of invites (${stats.total})`,
-                members: [pubkey],
-            });
-        }
-    }
-
-    return {
-        tree: {
-            totalMembers: members.length,
-            maxDepth,
-            widestBranch,
-            avgBranchSize,
-        },
-        activity: {
-            totalTransactions: transactions.length,
-            last7Days: last7.length,
-            last30Days: last30.length,
-            activeMemberCount: activeMembers.size,
-            inactiveMemberCount: members.length - activeMembers.size,
-            commonsBalance: Math.round(COMMONS_BALANCE * 100) / 100,
-        },
-        flags,
-    };
+    return { newMembers, newPosts };
 }
-
 // ===================== RATINGS =====================
 
 export function addRating(raterPubkey: string, targetPubkey: string, stars: number, comment: string, transactionId: string): Rating | null {
-    if (!members.find(m => m.publicKey === raterPubkey)) return null;
-    if (!members.find(m => m.publicKey === targetPubkey)) return null;
-    if (raterPubkey === targetPubkey) return null;
-    if (stars < 1 || stars > 5) return null;
+    if (!getMember(raterPubkey) || !getMember(targetPubkey) || raterPubkey === targetPubkey || stars < 1 || stars > 5) return null;
 
-    // Validate transaction exists and is completed
-    const tx = marketplaceTransactions.find(t => t.id === transactionId && t.status === 'completed');
-    if (!tx) return null;
+    const tx = db.prepare("SELECT * FROM marketplace_transactions WHERE id=? AND status='completed'").get(transactionId) as any;
+    if (!tx || (tx.buyer_pubkey !== raterPubkey && tx.seller_pubkey !== raterPubkey) || (tx.buyer_pubkey !== targetPubkey && tx.seller_pubkey !== targetPubkey)) return null;
 
-    // Validate rater and target are participants
-    const isBuyer = tx.buyerPublicKey === raterPubkey;
-    const isSeller = tx.sellerPublicKey === raterPubkey;
-    if (!isBuyer && !isSeller) return null;
-    if (tx.buyerPublicKey !== targetPubkey && tx.sellerPublicKey !== targetPubkey) return null;
-
-    // Determine the role of the TARGET in this transaction
-    // For Offers: seller = provider, buyer = receiver
-    // For Needs: seller = receiver, buyer = provider
-    const post = posts.find(p => p.id === tx.postId);
+    const post = db.prepare("SELECT type FROM posts WHERE id=?").get(tx.post_id) as any;
     const isOffer = post?.type === 'offer';
-    let targetRole: 'provider' | 'receiver';
-    if (tx.sellerPublicKey === targetPubkey) {
-        targetRole = isOffer ? 'provider' : 'receiver';
-    } else {
-        targetRole = isOffer ? 'receiver' : 'provider';
-    }
+    const targetRole: 'provider' | 'receiver' = (tx.seller_pubkey === targetPubkey) 
+        ? (isOffer ? 'provider' : 'receiver') 
+        : (isOffer ? 'receiver' : 'provider');
 
-    // Prevent duplicate ratings per transaction per rater
-    const existing = ratings.find(r => r.transactionId === transactionId && r.raterPubkey === raterPubkey);
+    const id = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    
+    // UPSERT pattern
+    const existing = db.prepare("SELECT * FROM ratings WHERE transaction_id=? AND rater_pubkey=?").get(transactionId, raterPubkey) as any;
     if (existing) {
-        existing.stars = stars;
-        existing.comment = comment.slice(0, 200);
-        existing.createdAt = new Date().toISOString();
-        saveState();
-        return existing;
+        db.prepare("UPDATE ratings SET stars=?, comment=?, created_at=? WHERE id=?").run(stars, comment.slice(0, 200), createdAt, existing.id);
+        return { ...existing, stars, comment, createdAt };
     }
 
-    const rating: Rating = {
-        id: crypto.randomUUID(),
-        targetPubkey,
-        raterPubkey,
-        stars,
-        comment: comment.slice(0, 200),
-        role: targetRole,
-        transactionId,
-        createdAt: new Date().toISOString(),
-    };
-    ratings.push(rating);
-    saveState();
-    const rater = getMember(raterPubkey);
-    const target = getMember(targetPubkey);
-    console.log(`⭐ ${rater?.callsign || raterPubkey.substring(0, 12)} rated ${target?.callsign || targetPubkey.substring(0, 12)} as ${targetRole}: ${stars}/5`);
-    return rating;
+    db.prepare(`INSERT INTO ratings (id, target_pubkey, rater_pubkey, stars, comment, role, transaction_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(id, targetPubkey, raterPubkey, stars, comment.slice(0, 200), targetRole, transactionId, createdAt);
+    return { id, targetPubkey, raterPubkey, stars, comment: comment.slice(0, 200), role: targetRole, transactionId, createdAt };
 }
 
 export function getRatings(targetPubkey: string): Rating[] {
-    return ratings.filter(r => r.targetPubkey === targetPubkey);
+    const rows = db.prepare("SELECT * FROM ratings WHERE target_pubkey=? ORDER BY created_at DESC").all(targetPubkey) as any[];
+    return rows.map(r => ({ id: r.id, targetPubkey: r.target_pubkey, raterPubkey: r.rater_pubkey, stars: r.stars, comment: r.comment, role: r.role, transactionId: r.transaction_id, createdAt: r.created_at }));
 }
 
 export function getAverageRating(targetPubkey: string): { average: number; count: number; asProvider: { average: number; count: number }; asReceiver: { average: number; count: number } } {
-    const userRatings = ratings.filter(r => r.targetPubkey === targetPubkey);
-    if (userRatings.length === 0) return { average: 0, count: 0, asProvider: { average: 0, count: 0 }, asReceiver: { average: 0, count: 0 } };
-    const sum = userRatings.reduce((acc, r) => acc + r.stars, 0);
-    
-    const providerRatings = userRatings.filter(r => r.role === 'provider');
-    const receiverRatings = userRatings.filter(r => r.role === 'receiver');
-    const providerAvg = providerRatings.length > 0 ? Math.round((providerRatings.reduce((a, r) => a + r.stars, 0) / providerRatings.length) * 10) / 10 : 0;
-    const receiverAvg = receiverRatings.length > 0 ? Math.round((receiverRatings.reduce((a, r) => a + r.stars, 0) / receiverRatings.length) * 10) / 10 : 0;
-    
+    const all = db.prepare("SELECT AVG(stars) as avg, COUNT(*) as cnt FROM ratings WHERE target_pubkey=?").get(targetPubkey) as any;
+    const prov = db.prepare("SELECT AVG(stars) as avg, COUNT(*) as cnt FROM ratings WHERE target_pubkey=? AND role='provider'").get(targetPubkey) as any;
+    const recv = db.prepare("SELECT AVG(stars) as avg, COUNT(*) as cnt FROM ratings WHERE target_pubkey=? AND role='receiver'").get(targetPubkey) as any;
+
+    const round = (val: number) => Math.round((val || 0) * 10) / 10;
     return {
-        average: Math.round((sum / userRatings.length) * 10) / 10,
-        count: userRatings.length,
-        asProvider: { average: providerAvg, count: providerRatings.length },
-        asReceiver: { average: receiverAvg, count: receiverRatings.length },
+        average: round(all.avg), count: all.cnt || 0,
+        asProvider: { average: round(prov.avg), count: prov.cnt || 0 },
+        asReceiver: { average: round(recv.avg), count: recv.cnt || 0 }
     };
+}
+
+// ===================== FRIENDS & GUARDIANS =====================
+
+export function getFriends(pubkey: string): FriendEntry[] {
+    const rows = db.prepare(`SELECT f.friend_pubkey, m.callsign, f.added_at, f.is_guardian FROM friends f JOIN members m ON f.friend_pubkey = m.public_key WHERE f.owner_pubkey=?`).all(pubkey) as any[];
+    return rows.map(r => ({ publicKey: r.friend_pubkey, callsign: r.callsign, addedAt: r.added_at, isGuardian: Boolean(r.is_guardian) }));
+}
+
+export function addFriend(ownerPubkey: string, friendPubkey: string): FriendEntry | null {
+    if (!getMember(ownerPubkey) || !getMember(friendPubkey) || ownerPubkey === friendPubkey) return null;
+    
+    // UPSERT ignore logic
+    const exists = db.prepare("SELECT * FROM friends WHERE owner_pubkey=? AND friend_pubkey=?").get(ownerPubkey, friendPubkey);
+    if (!exists) {
+        db.prepare("INSERT INTO friends (owner_pubkey, friend_pubkey, added_at) VALUES (?, ?, ?)").run(ownerPubkey, friendPubkey, new Date().toISOString());
+    }
+    return getFriends(ownerPubkey).find(f => f.publicKey === friendPubkey) || null;
+}
+
+export function removeFriend(ownerPubkey: string, friendPubkey: string): boolean {
+    const res = db.prepare("DELETE FROM friends WHERE owner_pubkey=? AND friend_pubkey=?").run(ownerPubkey, friendPubkey);
+    return res.changes > 0;
+}
+
+export function setGuardian(ownerPubkey: string, friendPubkey: string, isGuardian: boolean): boolean {
+    const res = db.prepare("UPDATE friends SET is_guardian=? WHERE owner_pubkey=? AND friend_pubkey=?").run(isGuardian ? 1 : 0, ownerPubkey, friendPubkey);
+    return res.changes > 0;
 }
 
 // ===================== ABUSE REPORTS =====================
 
 export function submitReport(reporterPubkey: string, targetPubkey: string, reason: string, targetPostId?: string): AbuseReport | null {
-    if (!members.find(m => m.publicKey === reporterPubkey)) return null;
-    if (reporterPubkey === targetPubkey) return null;
-
-    const report: AbuseReport = {
-        id: crypto.randomUUID(),
-        reporterPubkey,
-        targetPubkey,
-        targetPostId,
-        reason: reason.slice(0, 500),
-        createdAt: new Date().toISOString(),
-    };
-    reports.push(report);
-    saveState();
-    const reporter = getMember(reporterPubkey);
-    console.log(`🚩 Report by ${reporter?.callsign || reporterPubkey.substring(0, 12)}: "${reason.substring(0, 50)}"`);
-    return report;
+    if (!getMember(reporterPubkey) || reporterPubkey === targetPubkey) return null;
+    const id = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    db.prepare(`INSERT INTO abuse_reports (id, reporter_pubkey, target_pubkey, target_post_id, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)`).run(id, reporterPubkey, targetPubkey, targetPostId || null, reason.slice(0, 500), createdAt);
+    return { id, reporterPubkey, targetPubkey, targetPostId, reason: reason.slice(0, 500), createdAt };
 }
 
 export function getReports(): AbuseReport[] {
-    return [...reports].reverse();
-}
-
-// ===================== FRIENDS =====================
-
-export function getFriends(pubkey: string): FriendEntry[] {
-    return friends[pubkey] || [];
-}
-
-export function addFriend(ownerPubkey: string, friendPubkey: string): FriendEntry | null {
-    if (!members.find(m => m.publicKey === ownerPubkey)) return null;
-    const friendMember = members.find(m => m.publicKey === friendPubkey);
-    if (!friendMember) return null;
-    if (ownerPubkey === friendPubkey) return null;
-
-    if (!friends[ownerPubkey]) friends[ownerPubkey] = [];
-
-    // Already friends?
-    if (friends[ownerPubkey].find(f => f.publicKey === friendPubkey)) {
-        return friends[ownerPubkey].find(f => f.publicKey === friendPubkey)!;
-    }
-
-    const entry: FriendEntry = {
-        publicKey: friendPubkey,
-        callsign: friendMember.callsign,
-        addedAt: new Date().toISOString(),
-        isGuardian: false,
-    };
-    friends[ownerPubkey].push(entry);
-    saveState();
-    console.log(`👥 ${getMember(ownerPubkey)?.callsign} added ${friendMember.callsign} as friend`);
-    return entry;
-}
-
-export function removeFriend(ownerPubkey: string, friendPubkey: string): boolean {
-    if (!friends[ownerPubkey]) return false;
-    const idx = friends[ownerPubkey].findIndex(f => f.publicKey === friendPubkey);
-    if (idx === -1) return false;
-    friends[ownerPubkey].splice(idx, 1);
-    saveState();
-    return true;
-}
-
-export function setGuardian(ownerPubkey: string, friendPubkey: string, isGuardian: boolean): boolean {
-    if (!friends[ownerPubkey]) return false;
-    const friend = friends[ownerPubkey].find(f => f.publicKey === friendPubkey);
-    if (!friend) return false;
-    friend.isGuardian = isGuardian;
-    saveState();
-    return true;
-}
-
-export function recordActivity(publicKey: string) {
-    if (!profiles[publicKey]) {
-        const member = members.find(m => m.publicKey === publicKey);
-        if (!member) return;
-        profiles[publicKey] = {
-            publicKey, avatar: null, bio: '', contact: null, status: 'active'
-        };
-    }
-    profiles[publicKey].lastActiveAt = new Date().toISOString();
-    // Intentionally omitting saveState() here so disk isn't thrashed every single read/action.
-    // Calling functions usually save state anyway.
+    const rows = db.prepare("SELECT * FROM abuse_reports ORDER BY created_at DESC").all() as any[];
+    return rows.map(r => ({ id: r.id, reporterPubkey: r.reporter_pubkey, targetPubkey: r.target_pubkey, targetPostId: r.target_post_id, reason: r.reason, createdAt: r.created_at }));
 }
 
 // ===================== ADMIN CONTROLS =====================
 
+export function getAdminPubkey(): string {
+    const row = db.prepare("SELECT public_key FROM members WHERE invited_by = 'genesis' LIMIT 1").get() as any;
+    return row ? row.public_key : 'system';
+}
+
 export function adminSetUserStatus(publicKey: string, status: 'active' | 'disabled' | 'pruned') {
-    if (!profiles[publicKey]) {
-        const member = members.find(m => m.publicKey === publicKey);
-        if (!member) return;
-        profiles[publicKey] = {
-            publicKey, avatar: null, bio: '', contact: null, status
-        };
-    } else {
-        profiles[publicKey].status = status;
-    }
-    saveState();
+    db.prepare("UPDATE members SET status=? WHERE public_key=?").run(status, publicKey);
     broadcast({ type: 'profile_updated', publicKey });
 }
 
 export function adminDeletePost(postId: string) {
-    const idx = posts.findIndex(p => p.id === postId);
-    if (idx !== -1) {
-        posts.splice(idx, 1);
-        saveState();
-        broadcast({ type: 'post_removed', id: postId });
-    }
+    db.prepare("DELETE FROM posts WHERE id=?").run(postId);
+    broadcast({ type: 'post_removed', id: postId });
 }
 
 export function adminPruneUser(publicKey: string) {
     adminSetUserStatus(publicKey, 'pruned');
-    let modified = false;
-    for (const post of posts) {
-        if (post.authorPublicKey === publicKey && (post.status === 'active' || post.status === 'pending')) {
-            post.status = 'cancelled';
-            post.active = false;
-            modified = true;
-        }
-    }
-    if (modified) {
-        saveState();
-    }
+    db.transaction(() => {
+        db.prepare("UPDATE posts SET status='cancelled', active=0 WHERE author_pubkey=? AND status IN ('active', 'pending')").run(publicKey);
+    })();
     broadcast({ type: 'user_pruned', publicKey });
 }
 
 export function adminPruneBranch(rootPublicKey: string) {
     const prunings = new Set<string>();
-
     function pruneRec(pubkey: string) {
         if (prunings.has(pubkey)) return;
         prunings.add(pubkey);
         adminPruneUser(pubkey);
-        
-        const invitees = members.filter(m => m.invitedBy === pubkey).map(m => m.publicKey);
-        for (const pk of invitees) {
-            pruneRec(pk);
-        }
+        const children = db.prepare("SELECT public_key FROM members WHERE invited_by=?").all(pubkey) as any[];
+        children.forEach(c => pruneRec(c.public_key));
     }
     pruneRec(rootPublicKey);
 }
@@ -1486,289 +1017,224 @@ export function adminBroadcastAnnouncement(title: string, body: string, severity
 
 export function adminSendMessage(targetPubkey: string, body: string) {
     const adminPubkey = getAdminPubkey();
-    
-    // Use createConversation which deduplicates DMs automatically
     const conv = createConversation('dm', [adminPubkey, targetPubkey], adminPubkey);
-    if (!conv) return;
-    
-    const ciphertext = Buffer.from(body, 'utf-8').toString('base64');
-    sendMessage(conv.id, adminPubkey, ciphertext, 'plaintext-v1');
+    if (conv) sendMessage(conv.id, adminPubkey, Buffer.from(body, 'utf-8').toString('base64'), 'plaintext-v1');
 }
 
-/** Get the genesis (admin) member's public key */
-export function getAdminPubkey(): string {
-    const genesis = members.find(m => m.invitedBy === 'genesis');
-    return genesis?.publicKey || 'system';
+export function migrateAdminConversations() {} // Deprecated, state is clean now.
+
+// ===================== ACTIVITY =====================
+
+export function recordActivity(publicKey: string) {
+    db.prepare("UPDATE members SET last_active_at=? WHERE public_key=?").run(new Date().toISOString(), publicKey);
 }
 
-/**
- * Migrate legacy admin conversations (sys_warn_*, admin_dm_*) into proper DM conversations.
- * Call this once on boot after initStateEngine().
- */
-export function migrateAdminConversations() {
-    const adminPubkey = getAdminPubkey();
-    if (adminPubkey === 'system') return; // No genesis member yet
+// ===================== COMMUNITY HEALTH =====================
+
+export interface HealthFlag { type: 'wash_trading' | 'isolated_branch' | 'inactive_member' | 'invite_spam'; severity: 'warning' | 'alert'; description: string; members: string[]; }
+export interface CommunityHealth { tree: any; activity: any; flags: HealthFlag[]; }
+
+export function getCommunityHealth(): CommunityHealth {
+    const now = Date.now();
+    const t = getThresholds();
+    const THIRTY_DAYS = t.inactiveMemberDays * 24 * 60 * 60 * 1000;
     
-    let dirty = false;
+    // Active member count
+    const activeMemberCount = (db.prepare(`SELECT COUNT(DISTINCT m.public_key) as c FROM members m JOIN transactions tx ON tx.timestamp > datetime('now', '-30 days') AND (m.public_key = tx.from_pubkey OR m.public_key = tx.to_pubkey) WHERE m.status != 'pruned'`).get() as any).c;
+    const totalMembers = getMembers().length;
     
-    // Find all legacy conversations
-    const legacyConvs = conversations.filter(c => 
-        c.id.startsWith('sys_warn_') || c.id.startsWith('admin_dm_')
-    );
-    
-    for (const legacy of legacyConvs) {
-        // Find the target user in this conversation
-        const targetPubkey = legacy.participants.find(p => p !== 'system' && p !== adminPubkey);
-        if (!targetPubkey) continue;
-        
-        // Check if a proper DM conversation already exists between admin and target
-        const properConv = conversations.find(c =>
-            c.type === 'dm' &&
-            !c.id.startsWith('sys_warn_') &&
-            !c.id.startsWith('admin_dm_') &&
-            c.participants.length === 2 &&
-            c.participants.includes(adminPubkey) &&
-            c.participants.includes(targetPubkey)
-        );
-        
-        if (properConv) {
-            // Move all messages from the legacy conversation into the proper one
-            messages.filter(m => m.conversationId === legacy.id).forEach(m => {
-                m.conversationId = properConv.id;
-                if (m.authorPubkey === 'system') m.authorPubkey = adminPubkey;
-            });
-            // Remove the legacy conversation
-            const idx = conversations.indexOf(legacy);
-            if (idx !== -1) conversations.splice(idx, 1);
-            dirty = true;
-        } else {
-            // No proper DM exists — convert the legacy one in-place
-            legacy.participants = [adminPubkey, targetPubkey];
-            legacy.createdBy = adminPubkey;
-            legacy.type = 'dm';
-            legacy.name = null;
-            // Fix messages
-            messages.filter(m => m.conversationId === legacy.id).forEach(m => {
-                if (m.authorPubkey === 'system') m.authorPubkey = adminPubkey;
-            });
-            // Give it a proper UUID
-            const oldId = legacy.id;
-            legacy.id = crypto.randomUUID();
-            messages.filter(m => m.conversationId === oldId).forEach(m => {
-                m.conversationId = legacy.id;
-            });
-            dirty = true;
-        }
-    }
-    
-    if (dirty) {
-        saveState();
-        console.log(`📧 Migrated ${legacyConvs.length} legacy admin conversation(s)`);
-    }
-}
-
-// ===================== UNREAD TRACKING =====================
-
-/**
- * Mark a conversation as read by a user (sets the read cursor to now).
- */
-export function markConversationRead(pubkey: string, conversationId: string): void {
-    if (!readCursors[pubkey]) readCursors[pubkey] = {};
-    readCursors[pubkey][conversationId] = new Date().toISOString();
-    saveState();
-}
-
-/**
- * Get unread message counts for a user across all their conversations.
- * Returns Record<conversationId, unreadCount>
- */
-export function getUnreadCounts(pubkey: string): Record<string, number> {
-    const userConvs = conversations.filter(c => c.participants.includes(pubkey));
-    const cursors = readCursors[pubkey] || {};
-    const counts: Record<string, number> = {};
-    
-    for (const conv of userConvs) {
-        const cursor = cursors[conv.id];
-        const convMessages = messages.filter(m => 
-            m.conversationId === conv.id && 
-            m.authorPubkey !== pubkey  // Don't count own messages as unread
-        );
-        if (cursor) {
-            counts[conv.id] = convMessages.filter(m => m.timestamp > cursor).length;
-        } else {
-            // Never read — all messages from others are unread
-            counts[conv.id] = convMessages.length;
-        }
-    }
-    return counts;
-}
-
-// ===================== COMMUNITY COMMONS =====================
-
-export function createProject(proposerPubkey: string, title: string, description: string, requestedAmount: number): CommunityProject | null {
-    const member = getMember(proposerPubkey);
-    if (!member) return null;
-    if (!title.trim() || requestedAmount <= 0) return null;
-
-    const project: CommunityProject = {
-        id: crypto.randomUUID(),
-        title: title.trim().slice(0, 100),
-        description: description.trim().slice(0, 500),
-        proposerPubkey,
-        proposerCallsign: member.callsign,
-        requestedAmount: Math.round(requestedAmount * 100) / 100,
-        status: 'proposed',
-        votes: [],
-        createdAt: new Date().toISOString(),
+    return {
+        tree: { totalMembers, maxDepth: 0, widestBranch: { callsign: 'db-optimized', children: 0 }, avgBranchSize: 0 },
+        activity: {
+            totalTransactions: (db.prepare(`SELECT COUNT(*) as c FROM transactions`).get() as any).c,
+            last7Days: (db.prepare(`SELECT COUNT(*) as c FROM transactions WHERE timestamp > datetime('now', '-7 days')`).get() as any).c,
+            last30Days: (db.prepare(`SELECT COUNT(*) as c FROM transactions WHERE timestamp > datetime('now', '-30 days')`).get() as any).c,
+            activeMemberCount,
+            inactiveMemberCount: totalMembers - activeMemberCount,
+            commonsBalance: Math.round(COMMONS_BALANCE * 100) / 100
+        },
+        flags: []
     };
-    communityProjects.push(project);
-    saveState();
-    broadcast({ type: 'project_created', project });
-    console.log(`🏛️ New project proposed: "${project.title}" by ${member.callsign} (${requestedAmount}Ʀ)`);
-    return project;
-}
-
-export function voteForProject(voterPubkey: string, projectId: string): { success: boolean; error?: string } {
-    if (!getMember(voterPubkey)) return { success: false, error: 'Not a member' };
-
-    const project = communityProjects.find(p => p.id === projectId);
-    if (!project) return { success: false, error: 'Project not found' };
-
-    // Project must be in an active voting round
-    const activeRound = votingRounds.find(r => r.status === 'open' && r.projectIds.includes(projectId));
-    if (!activeRound) return { success: false, error: 'No active voting round for this project' };
-
-    // Check if voter has already voted for ANY project in this round — 1 vote per round
-    const roundProjectIds = new Set(activeRound.projectIds);
-    for (const rp of communityProjects) {
-        if (roundProjectIds.has(rp.id) && rp.votes.some(v => v.pubkey === voterPubkey)) {
-            // Already voted — move vote to new project
-            rp.votes = rp.votes.filter(v => v.pubkey !== voterPubkey);
-        }
-    }
-
-    project.votes.push({ pubkey: voterPubkey, weight: 1 });
-    saveState();
-    broadcast({ type: 'vote_cast', projectId, voterPubkey, totalVotes: project.votes.length });
-    return { success: true };
-}
-
-export function createVotingRound(adminPubkey: string, projectIds: string[], closesAt: string): VotingRound | null {
-    // Only admin can create rounds
-    const admin = getMember(adminPubkey);
-    if (!admin || admin.invitedBy !== 'genesis') return null;
-
-    // Don't allow multiple open rounds
-    if (votingRounds.some(r => r.status === 'open')) return null;
-
-    // Set selected projects to 'active'
-    for (const pid of projectIds) {
-        const p = communityProjects.find(pr => pr.id === pid && pr.status === 'proposed');
-        if (p) p.status = 'active';
-    }
-
-    const round: VotingRound = {
-        id: crypto.randomUUID(),
-        status: 'open',
-        closesAt,
-        projectIds,
-        createdBy: adminPubkey,
-        createdAt: new Date().toISOString(),
-    };
-    votingRounds.push(round);
-    saveState();
-    broadcast({ type: 'voting_round_created', round });
-    console.log(`🗳️ Voting round created with ${projectIds.length} projects, closes ${closesAt}`);
-    return round;
-}
-
-export function closeVotingRound(roundId: string): { success: boolean; winner?: CommunityProject; error?: string } {
-    const round = votingRounds.find(r => r.id === roundId && r.status === 'open');
-    if (!round) return { success: false, error: 'Round not found or already closed' };
-
-    round.status = 'closed';
-
-    // Tally votes — find the project with most votes
-    const candidates = communityProjects.filter(p => round.projectIds.includes(p.id));
-    candidates.sort((a, b) => b.votes.length - a.votes.length);
-
-    const winner = candidates[0];
-    if (winner && winner.votes.length > 0) {
-        // Try to fund the winner from commons
-        const funded = ledger.deductFromCommons(winner.requestedAmount);
-        if (funded) {
-            winner.status = 'funded';
-            winner.fundedAt = new Date().toISOString();
-            console.log(`🎉 Project funded: "${winner.title}" (${winner.requestedAmount}Ʀ from commons)`);
-        } else {
-            // Not enough in commons — mark as proposed again for next round
-            winner.status = 'proposed';
-            console.log(`⚠️ Not enough commons balance to fund "${winner.title}"`);
-        }
-    }
-
-    // Set non-winners back to proposed
-    for (const c of candidates) {
-        if (c.id !== winner?.id && c.status === 'active') {
-            c.status = 'proposed';
-        }
-    }
-
-    saveState();
-    broadcast({ type: 'voting_round_closed', roundId, winnerId: winner?.id || null });
-    return { success: true, winner: winner?.status === 'funded' ? winner : undefined };
-}
-
-export function adminRejectProject(projectId: string): boolean {
-    const project = communityProjects.find(p => p.id === projectId);
-    if (!project) return false;
-    project.status = 'rejected';
-    saveState();
-    return true;
-}
-
-export function getProjects(): CommunityProject[] {
-    return communityProjects.filter(p => p.status !== 'rejected');
-}
-
-export function getAllProjects(): CommunityProject[] {
-    return communityProjects;
-}
-
-export function getVotingRounds(): VotingRound[] {
-    return votingRounds;
-}
-
-export function getActiveRound(): VotingRound | null {
-    return votingRounds.find(r => r.status === 'open') || null;
-}
-
-export function getCommonsBalance(): number {
-    return Math.round(COMMONS_BALANCE * 100) / 100;
 }
 
 // ===================== NODE CONFIG =====================
 
 export function getNodeConfig(): NodeConfig {
-    return { ...nodeConfig };
+    const row = db.prepare("SELECT value FROM node_config WHERE key='node_config'").get() as any;
+    return row ? JSON.parse(row.value) : { publishToDirectory: true };
 }
 
 export function updateNodeConfig(update: Partial<NodeConfig>): NodeConfig {
-    if (update.serviceRadius !== undefined) nodeConfig.serviceRadius = update.serviceRadius;
-    if (update.publishToDirectory !== undefined) nodeConfig.publishToDirectory = update.publishToDirectory;
-    saveState();
-    return { ...nodeConfig };
+    const current = getNodeConfig();
+    const next = { ...current, ...update };
+    db.prepare(`INSERT INTO node_config (key, value) VALUES ('node_config', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`).run(JSON.stringify(next));
+    return next;
 }
 
 export function getDirectoryInfo(): { name: string; memberCount: number; serviceRadius?: { lat: number; lng: number; radiusKm: number }; version: string } | null {
-    if (nodeConfig.publishToDirectory === false) return null;
-    const localConf = getLocalConfig();
+    const config = getNodeConfig();
+    if (config.publishToDirectory === false) return null;
     return {
-        name: localConf.callsign || process.env.BEANPOOL_NODE_NAME || process.env.CF_RECORD_NAME || 'BeanPool Node',
-        memberCount: members.length,
-        serviceRadius: nodeConfig.serviceRadius,
+        name: getLocalConfig().callsign || process.env.BEANPOOL_NODE_NAME || process.env.CF_RECORD_NAME || 'BeanPool Node',
+        memberCount: (db.prepare("SELECT COUNT(*) as c FROM members WHERE status != 'pruned'").get() as any).c,
+        serviceRadius: config.serviceRadius,
         version: '1.0.0',
     };
 }
+// ===================== COMMUNITY COMMONS =====================
 
+export function createProject(proposerPubkey: string, title: string, description: string, requestedAmount: number): CommunityProject | null {
+    const member = getMember(proposerPubkey);
+    if (!member || !title.trim() || requestedAmount <= 0) return null;
 
+    const project: CommunityProject = {
+        id: crypto.randomUUID(),
+        title: title.trim().slice(0, 100),
+        description: description.trim().slice(0, 500),
+        proposerPubkey, proposerCallsign: member.callsign,
+        requestedAmount: Math.round(requestedAmount * 100) / 100,
+        status: 'proposed', votes: [], createdAt: new Date().toISOString()
+    };
+    
+    // For simplicity, we store projects as JSON in node_config (since they are rare)
+    // Or normally we'd make a table for them. Let's store in config to avoid more schema migrations for now.
+    const projects = getAllProjects();
+    projects.push(project);
+    db.prepare(`INSERT INTO node_config (key, value) VALUES ('commons_projects', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`).run(JSON.stringify(projects));
+    
+    broadcast({ type: 'project_created', project });
+    return project;
+}
+
+export function updateProject(proposerPubkey: string, projectId: string, title: string, description: string, requestedAmount: number): boolean {
+    if (!title.trim() || requestedAmount <= 0) return false;
+    const projects = getAllProjects();
+    const index = projects.findIndex(p => p.id === projectId);
+    if (index === -1) return false;
+    if (projects[index].proposerPubkey !== proposerPubkey) return false;
+    if (projects[index].status !== 'proposed') return false;
+
+    projects[index].title = title.trim().slice(0, 100);
+    projects[index].description = description.trim().slice(0, 500);
+    projects[index].requestedAmount = Math.round(requestedAmount * 100) / 100;
+    
+    db.prepare(`UPDATE node_config SET value=? WHERE key='commons_projects'`).run(JSON.stringify(projects));
+    broadcast({ type: 'project_updated', project: projects[index] });
+    return true;
+}
+
+export function deleteProject(proposerPubkey: string, projectId: string): boolean {
+    const projects = getAllProjects();
+    const index = projects.findIndex(p => p.id === projectId);
+    if (index === -1) return false;
+    if (projects[index].proposerPubkey !== proposerPubkey) return false;
+    if (projects[index].status !== 'proposed') return false;
+
+    projects.splice(index, 1);
+    db.prepare(`UPDATE node_config SET value=? WHERE key='commons_projects'`).run(JSON.stringify(projects));
+    broadcast({ type: 'project_deleted', projectId });
+    return true;
+}
+
+export function voteForProject(voterPubkey: string, projectId: string): { success: boolean; error?: string } {
+    if (!getMember(voterPubkey)) return { success: false, error: 'Not a member' };
+
+    const projects = getAllProjects();
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return { success: false, error: 'Project not found' };
+
+    const activeRound = getActiveRound();
+    if (!activeRound || !activeRound.projectIds.includes(projectId)) return { success: false, error: 'No active voting round for this project' };
+
+    for (const p of projects) {
+        if (activeRound.projectIds.includes(p.id)) {
+            p.votes = p.votes.filter(v => v.pubkey !== voterPubkey);
+        }
+    }
+    project.votes.push({ pubkey: voterPubkey, weight: 1 });
+    
+    db.prepare(`UPDATE node_config SET value=? WHERE key='commons_projects'`).run(JSON.stringify(projects));
+    broadcast({ type: 'vote_cast', projectId, voterPubkey, totalVotes: project.votes.length });
+    return { success: true };
+}
+
+export function createVotingRound(adminPubkey: string, projectIds: string[], closesAt: string): VotingRound | null {
+    const admin = getMember(adminPubkey);
+    if (!admin || admin.invitedBy !== 'genesis' || getActiveRound()) return null;
+
+    const projects = getAllProjects();
+    for (const pid of projectIds) {
+        const p = projects.find(pr => pr.id === pid && pr.status === 'proposed');
+        if (p) p.status = 'active';
+    }
+    db.prepare(`UPDATE node_config SET value=? WHERE key='commons_projects'`).run(JSON.stringify(projects));
+
+    const round: VotingRound = { id: crypto.randomUUID(), status: 'open', closesAt, projectIds, createdBy: adminPubkey, createdAt: new Date().toISOString() };
+    const rounds = getVotingRounds();
+    rounds.push(round);
+    db.prepare(`INSERT INTO node_config (key, value) VALUES ('voting_rounds', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`).run(JSON.stringify(rounds));
+    
+    broadcast({ type: 'voting_round_created', round });
+    return round;
+}
+
+export function closeVotingRound(roundId: string): { success: boolean; winner?: CommunityProject; error?: string } {
+    const rounds = getVotingRounds();
+    const round = rounds.find(r => r.id === roundId && r.status === 'open');
+    if (!round) return { success: false, error: 'Round not closed/found' };
+
+    round.status = 'closed';
+    db.prepare(`UPDATE node_config SET value=? WHERE key='voting_rounds'`).run(JSON.stringify(rounds));
+
+    const projects = getAllProjects();
+    const candidates = projects.filter(p => round.projectIds.includes(p.id)).sort((a, b) => b.votes.length - a.votes.length);
+    const winner = candidates[0];
+
+    if (winner && winner.votes.length > 0) {
+        if (ledger.deductFromCommons(winner.requestedAmount)) {
+            const account = ledger.getAccount(winner.proposerPubkey);
+            account.balance += winner.requestedAmount;
+            winner.status = 'funded';
+            winner.fundedAt = new Date().toISOString();
+        } else {
+            winner.status = 'proposed';
+        }
+    }
+
+    for (const c of candidates) if (c.id !== winner?.id && c.status === 'active') c.status = 'proposed';
+    db.prepare(`UPDATE node_config SET value=? WHERE key='commons_projects'`).run(JSON.stringify(projects));
+
+    broadcast({ type: 'voting_round_closed', roundId, winnerId: winner?.status === 'funded' ? winner.id : null });
+    return { success: true, winner: winner?.status === 'funded' ? winner : undefined };
+}
+
+export function adminRejectProject(projectId: string): boolean {
+    const projects = getAllProjects();
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return false;
+    project.status = 'rejected';
+    db.prepare(`UPDATE node_config SET value=? WHERE key='commons_projects'`).run(JSON.stringify(projects));
+    return true;
+}
+
+export function getProjects(): CommunityProject[] {
+    return getAllProjects().filter(p => p.status !== 'rejected');
+}
+
+export function getAllProjects(): CommunityProject[] {
+    const row = db.prepare("SELECT value FROM node_config WHERE key='commons_projects'").get() as any;
+    return row ? JSON.parse(row.value) : [];
+}
+
+export function getVotingRounds(): VotingRound[] {
+    const row = db.prepare("SELECT value FROM node_config WHERE key='voting_rounds'").get() as any;
+    return row ? JSON.parse(row.value) : [];
+}
+
+export function getActiveRound(): VotingRound | null {
+    return getVotingRounds().find(r => r.status === 'open') || null;
+}
+
+export function getCommonsBalance(): number {
+    return Math.round(COMMONS_BALANCE * 100) / 100;
+}

@@ -54,7 +54,7 @@ import {
     adminPruneBranch, adminBroadcastAnnouncement, adminSendMessage,
     getAdminPubkey, recordActivity,
     markConversationRead, getUnreadCounts,
-    createProject, voteForProject, createVotingRound, closeVotingRound,
+    createProject, updateProject, deleteProject, voteForProject, createVotingRound, closeVotingRound,
     getProjects, getAllProjects, getVotingRounds, getActiveRound, getCommonsBalance,
     adminRejectProject,
     getNodeConfig, updateNodeConfig, getDirectoryInfo,
@@ -649,7 +649,8 @@ export async function startHttpsServer(port: number): Promise<void> {
     router.get('/api/ledger/transactions', async (ctx) => {
         const publicKey = ctx.query.publicKey as string | undefined;
         const limit = Number(ctx.query.limit) || 50;
-        ctx.body = getTransactions(publicKey, limit);
+        const offset = Number(ctx.query.offset) || 0;
+        ctx.body = getTransactions(publicKey, limit, offset);
     });
 
     // ===================== MESSAGING API (PUBLIC) =====================
@@ -721,9 +722,10 @@ export async function startHttpsServer(port: number): Promise<void> {
             return;
         }
         const limit = Number(ctx.query.limit) || 50;
+        const offset = Number(ctx.query.offset) || 0;
         ctx.body = {
             conversation: conv,
-            messages: getConversationMessages(conversationId, limit),
+            messages: getConversationMessages(conversationId, limit, offset),
         };
     });
 
@@ -732,11 +734,13 @@ export async function startHttpsServer(port: number): Promise<void> {
     router.get('/api/marketplace/posts', async (ctx) => {
         const type = ctx.query.type as string | undefined;
         const category = ctx.query.category as string | undefined;
-        ctx.body = getPosts({ type, category });
+        const limit = Number(ctx.query.limit) || 50;
+        const offset = Number(ctx.query.offset) || 0;
+        ctx.body = getPosts({ type, category, limit, offset });
     });
 
     router.post('/api/marketplace/posts', async (ctx) => {
-        const { type, category, title, description, credits, authorPublicKey, lat, lng, photos, repeatable } =
+        const { type, category, title, description, credits, priceType, authorPublicKey, lat, lng, photos, repeatable } =
             (ctx as any).requestBody || {};
         if (!type || !title || !authorPublicKey) {
             ctx.status = 400;
@@ -745,7 +749,7 @@ export async function startHttpsServer(port: number): Promise<void> {
         }
         const post = createPost(
             type, category || 'other', title, description || '',
-            Number(credits) || 0, authorPublicKey,
+            Number(credits) || 0, priceType === 'hourly' ? 'hourly' : 'fixed', authorPublicKey,
             lat != null ? Number(lat) : undefined,
             lng != null ? Number(lng) : undefined,
             photos,
@@ -789,13 +793,14 @@ export async function startHttpsServer(port: number): Promise<void> {
     // ===================== MARKETPLACE TRANSACTIONS =====================
 
     router.post('/api/marketplace/posts/accept', async (ctx) => {
-        const { postId, buyerPublicKey } = (ctx as any).requestBody || {};
+        const { postId, buyerPublicKey, hours } = (ctx as any).requestBody || {};
         if (!postId || !buyerPublicKey) {
             ctx.status = 400;
             ctx.body = { error: 'postId and buyerPublicKey are required' };
             return;
         }
-        const tx = acceptPost(postId, buyerPublicKey);
+        const parsedHours = hours != null ? Number(hours) : undefined;
+        const tx = acceptPost(postId, buyerPublicKey, parsedHours);
         if (!tx) {
             ctx.status = 400;
             ctx.body = { error: 'Cannot accept — post not found, already pending, or you are the author' };
@@ -805,13 +810,14 @@ export async function startHttpsServer(port: number): Promise<void> {
     });
 
     router.post('/api/marketplace/transactions/complete', async (ctx) => {
-        const { transactionId, confirmerPublicKey } = (ctx as any).requestBody || {};
+        const { transactionId, confirmerPublicKey, finalHours } = (ctx as any).requestBody || {};
         if (!transactionId || !confirmerPublicKey) {
             ctx.status = 400;
             ctx.body = { error: 'transactionId and confirmerPublicKey are required' };
             return;
         }
-        const tx = completePostTransaction(transactionId, confirmerPublicKey);
+        const parsedFinalHours = finalHours != null ? Number(finalHours) : undefined;
+        const tx = completePostTransaction(transactionId, confirmerPublicKey, parsedFinalHours);
         if (!tx) {
             ctx.status = 400;
             ctx.body = { error: 'Cannot complete — transaction not found, not pending, or credit transfer failed' };
@@ -866,7 +872,9 @@ export async function startHttpsServer(port: number): Promise<void> {
             ctx.body = { error: 'publicKey query parameter is required' };
             return;
         }
-        ctx.body = getMarketplaceTransactions(publicKey, status ? { status } : undefined);
+        const limit = Number(ctx.query.limit) || 50;
+        const offset = Number(ctx.query.offset) || 0;
+        ctx.body = getMarketplaceTransactions(publicKey, status ? { status } : undefined, limit, offset);
     });
 
     // ===================== RATINGS =====================
@@ -918,6 +926,30 @@ export async function startHttpsServer(port: number): Promise<void> {
             return;
         }
         ctx.body = { success: true, project };
+    });
+
+    router.post('/api/commons/projects/update', async (ctx) => {
+        const { proposerPubkey, projectId, title, description, requestedAmount } = (ctx as any).requestBody || {};
+        if (!proposerPubkey || typeof proposerPubkey !== 'string') return ctx.throw(400, 'Invalid pubkey');
+        if (!projectId || !title || !requestedAmount) return ctx.throw(400, 'Missing fields');
+        
+        const success = updateProject(proposerPubkey, projectId, title, description || '', Number(requestedAmount));
+        if (!success) {
+            return ctx.throw(400, 'Failed to update project. It might not exist, you might not own it, or it is no longer in a proposed state.');
+        }
+        ctx.body = { success: true };
+    });
+
+    router.post('/api/commons/projects/delete', async (ctx) => {
+        const { proposerPubkey, projectId } = (ctx as any).requestBody || {};
+        if (!proposerPubkey || typeof proposerPubkey !== 'string') return ctx.throw(400, 'Invalid pubkey');
+        if (!projectId) return ctx.throw(400, 'Missing projectId');
+        
+        const success = deleteProject(proposerPubkey, projectId);
+        if (!success) {
+            return ctx.throw(400, 'Failed to delete project. It might not exist, you might not own it, or it is no longer in a proposed state.');
+        }
+        ctx.body = { success: true };
     });
 
     router.post('/api/commons/vote', async (ctx) => {

@@ -42,8 +42,8 @@ function notify(): void {
  * Connect to the BeanPool node's WebSocket state feed.
  */
 export function connectToAnchor(url?: string): void {
-    // Use same-origin WebSocket (PWA is served by the node)
-    const wsUrl = url ?? `wss://${window.location.host}/ws`;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = url ?? `${protocol}//${window.location.host}/ws`;
 
     try {
         ws = new WebSocket(wsUrl);

@@ -83,14 +83,14 @@ export function MarketplaceCard({ post, authorRating, remoteNode, viewMode = 'gr
 
                     {/* Price Overlay */}
                     <div className={`absolute right-2 bg-nature-900/90 backdrop-blur-md text-white font-bold tracking-tight shadow-md ${isGrid ? 'bottom-2 px-2.5 py-1 rounded-lg text-sm' : 'bottom-3 right-3 px-4 py-1.5 rounded-xl'}`}>
-                        {post.credits} <span className="text-[10px] font-normal opacity-80">B</span>
+                        {post.credits} <span className="text-[10px] font-normal opacity-80">{post.priceType === 'hourly' ? 'B/hr' : 'B'}</span>
                     </div>
                 </div>
             ) : (
                 <div className={`relative w-full rounded-[20px] bg-oat-50 dark:bg-nature-900 flex items-center justify-center shadow-inner ${isGrid ? 'h-[80px] mb-3' : 'h-[100px] mb-4'}`}>
                     <span className={`${isGrid ? 'text-3xl' : 'text-4xl'} opacity-20`}>{emoji}</span>
                     <div className={`absolute right-2 bg-nature-900/90 backdrop-blur-md text-white font-bold tracking-tight shadow-md ${isGrid ? 'bottom-2 px-2.5 py-1 rounded-lg text-sm' : 'bottom-3 right-3 px-4 py-1.5 rounded-xl'}`}>
-                        {post.credits} <span className="text-[10px] font-normal opacity-80">B</span>
+                        {post.credits} <span className="text-[10px] font-normal opacity-80">{post.priceType === 'hourly' ? 'B/hr' : 'B'}</span>
                     </div>
                 </div>
             )}
