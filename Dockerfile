@@ -52,6 +52,7 @@ COPY --from=builder /app/node_modules/.pnpm ./node_modules/.pnpm
 
 # Copy compiled server (dist + baked-in PWA static files)
 COPY --from=builder /app/apps/server/dist ./apps/server/dist
+COPY --from=builder /app/apps/server/src/db/schema.sql ./apps/server/dist/db/schema.sql
 COPY --from=builder /app/apps/server/public ./apps/server/public
 COPY --from=builder /app/apps/server/package.json ./apps/server/package.json
 COPY --from=builder /app/apps/server/node_modules ./apps/server/node_modules
