@@ -20,6 +20,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { MapPage } from './pages/MapPage';
 import { PeoplePage } from './pages/PeoplePage';
 import { MessagesPage } from './pages/MessagesPage';
+import { ProjectsPage } from './pages/ProjectsPage';
 import { InstallPrompt } from './components/InstallPrompt';
 
 function HeaderControls({ showSettings, setShowSettings }: { showSettings: boolean, setShowSettings: (v: boolean) => void }) {
@@ -85,12 +86,13 @@ function HeaderControls({ showSettings, setShowSettings }: { showSettings: boole
     );
 }
 
-type Tab = 'map' | 'marketplace' | 'messages' | 'people' | 'ledger';
+type Tab = 'map' | 'marketplace' | 'messages' | 'people' | 'ledger' | 'projects';
 
 export function App() {
     const [identity, setIdentity] = useState<BeanPoolIdentity | null>(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<Tab>('map');
+    const [peopleSubView, setPeopleSubView] = useState<'friends' | 'community' | 'invites' | 'guardians'>('friends');
     const [showSettings, setShowSettings] = useState(false);
     const [openConversationId, setOpenConversationId] = useState<string | null>(null);
     const [openMarketPostId, setOpenMarketPostId] = useState<string | null>(null);
@@ -170,6 +172,7 @@ export function App() {
 
     const TABS: { id: Tab; label: string; emoji: string }[] = [
         { id: 'map', label: 'Map', emoji: '🗺️' },
+        { id: 'projects', label: 'Projects', emoji: '🌱' },
         { id: 'marketplace', label: 'Market', emoji: '🤝' },
         { id: 'messages', label: 'Chat', emoji: '💬' },
         { id: 'people', label: 'People', emoji: '👥' },
@@ -197,8 +200,8 @@ export function App() {
                 left: 0,
                 right: 0,
                 zIndex: 100,
-                backgroundImage: "url('/assets/header-bg.png')",
-                backgroundSize: 'cover',
+                backgroundImage: "url('/assets/neon-vines-banner.png')",
+                backgroundSize: '150% auto',
                 backgroundPosition: 'center',
             }}>
                 {/* Subtle dark overlay to ensure text/buttons pop against the complex glowing mesh */}
@@ -211,19 +214,26 @@ export function App() {
                 {/* Dynamic Page Title or Map Banner (Absolutely Centered) */}
                 <div className="absolute left-1/2 -translate-x-1/2 flex justify-center items-center pointer-events-none z-10">
                     {activeTab !== 'map' || showSettings ? (
-                        <span className="font-extrabold text-[1.2rem] tracking-tight text-nature-900 dark:text-white drop-shadow-md dark:drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] pointer-events-auto">
+                        <span className="font-extrabold text-[1.4rem] tracking-tight text-rainbow drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] pointer-events-auto">
                             {TABS.find(t => t.id === activeTab)?.label === 'Market' ? 'Marketplace' : TABS.find(t => t.id === activeTab)?.label}
                         </span>
                     ) : (
-                        <div className="bg-white/60 dark:bg-nature-900/80 backdrop-blur-md px-5 py-1.5 rounded-full border border-white/50 dark:border-nature-700 shadow-sm pointer-events-auto flex items-center">
-                            <span className="font-bold text-sm tracking-widest text-nature-900 dark:text-white lowercase drop-shadow-sm">
-                                beanpool<span className="text-terra-600 dark:text-terra-400">.org</span>
+                        <div className="bg-black/60 backdrop-blur-md px-5 py-1.5 rounded-full border border-white/20 shadow-lg pointer-events-auto flex items-center shadow-black/50">
+                            <span className="font-bold text-sm tracking-widest text-white lowercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                                beanpool<span className="text-terra-400">.org</span>
                             </span>
                         </div>
                     )}
                 </div>
 
                 <div className="relative z-10" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <button
+                        onClick={() => { setActiveTab('people'); setPeopleSubView('invites'); setShowSettings(false); }}
+                        className="flex items-center justify-center px-3 bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-700 rounded-full shadow-sm cursor-pointer transition-transform hover:scale-105"
+                        style={{ height: '26px' }}
+                    >
+                        <span className="text-nature-900 dark:text-white font-semibold text-[11px] tracking-wide uppercase">Invite</span>
+                    </button>
                     <HeaderControls showSettings={showSettings} setShowSettings={setShowSettings} />
                 </div>
             </header>
@@ -249,23 +259,29 @@ export function App() {
                         {activeTab === 'map' && <MapPage identity={identity} openNewPost={openNewPost} onOpenNewPostHandled={() => setOpenNewPost(false)} onNavigate={(tab, ctxId) => navigateToTab(tab, ctxId)} />}
                         {activeTab === 'marketplace' && <MarketplacePage identity={identity} marketClickCount={marketClickCount} openPostId={openMarketPostId} onPostOpened={() => setOpenMarketPostId(null)} onNavigate={(tab, ctxId) => navigateToTab(tab, ctxId)} />}
                         {activeTab === 'messages' && <MessagesPage identity={identity} openConversationId={openConversationId} onConversationOpened={() => setOpenConversationId(null)} />}
-                        {activeTab === 'people' && <PeoplePage identity={identity} />}
+                        {activeTab === 'people' && <PeoplePage identity={identity} initialView={peopleSubView} />}
                         {activeTab === 'ledger' && <LedgerPage identity={identity} />}
+                        {activeTab === 'projects' && <ProjectsPage identity={identity} />}
                     </>
                 )}
             </main>
 
             {/* Bottom nav */}
-            <nav style={{
+            <nav className="relative" style={{
                 display: 'flex',
                 position: 'fixed',
                 bottom: 0,
                 left: 0,
                 right: 0,
-                background: 'var(--nav-bg)',
-                borderTop: '1px solid var(--border-secondary)',
+                backgroundImage: "url('/assets/neon-vines-banner.png')",
+                backgroundSize: '150% auto',
+                backgroundPosition: 'center',
+                borderTop: '1px solid #111',
                 zIndex: 100,
+                padding: '0.2rem 4px',
             }}>
+                <div className="absolute inset-0 bg-black/30 pointer-events-none" />
+                <div className="relative z-10 w-full flex gap-1">
                 {TABS.map((tab) => {
                     const isActive = activeTab === tab.id && !showSettings;
                     return (
@@ -275,56 +291,69 @@ export function App() {
                             if (tab.id === 'marketplace') {
                                 setMarketClickCount(c => c + 1);
                             }
+                            if (tab.id === 'people' && activeTab !== 'people') {
+                                setPeopleSubView('friends');
+                            }
                             setActiveTab(tab.id);
                             setShowSettings(false);
                         }}
                         style={{
                             flex: 1,
-                            padding: '0.4rem',
+                            padding: 0,
                             background: 'transparent',
                             border: 'none',
-                            color: isActive ? 'var(--accent)' : 'var(--text-muted)',
-                            fontSize: '0.7rem',
-                            fontWeight: isActive ? 700 : 400,
                             cursor: 'pointer',
-                            fontFamily: 'inherit',
+                        }}
+                    >
+                        <div style={{
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
-                            gap: '0.2rem',
-                            transition: 'color 0.2s',
-                            borderTop: isActive ? '2px solid var(--accent)' : '2px solid transparent',
-                        }}
-                    >
-                        <span style={{ fontSize: '1.2rem', position: 'relative' }}>
-                            {tab.emoji}
-                            {tab.id === 'messages' && totalUnread > 0 && (
-                                <span style={{
-                                    position: 'absolute',
-                                    top: '-6px',
-                                    right: '-10px',
-                                    background: 'var(--danger)',
-                                    color: '#fff',
-                                    fontSize: '0.6rem',
-                                    fontWeight: 700,
-                                    minWidth: '16px',
-                                    height: '16px',
-                                    borderRadius: '8px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    padding: '0 3px',
-                                    lineHeight: 1,
-                                    boxShadow: '0 0 6px var(--danger)',
-                                }}>
-                                    {totalUnread > 99 ? '99+' : totalUnread}
-                                </span>
-                            )}
-                        </span>
-                        <span>{tab.label}</span>
+                            justifyContent: 'center',
+                            margin: '0 auto',
+                            gap: '0.1rem',
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '10px',
+                            background: 'rgba(0,0,0,0.45)',
+                            border: '1px solid rgba(255,255,255,0.05)',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                            color: isActive ? undefined : '#fefefe',
+                            transition: 'all 0.2s',
+                        }}>
+                            <span className="text-dark-aura" style={{ fontSize: '1.2rem', position: 'relative' }}>
+                                {tab.emoji}
+                                {tab.id === 'messages' && totalUnread > 0 && (
+                                    <span style={{
+                                        position: 'absolute',
+                                        top: '-6px',
+                                        right: '-10px',
+                                        background: 'var(--danger)',
+                                        color: '#fff',
+                                        fontSize: '0.6rem',
+                                        fontWeight: 700,
+                                        minWidth: '16px',
+                                        height: '16px',
+                                        borderRadius: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: '0 3px',
+                                        lineHeight: 1,
+                                        boxShadow: '0 0 6px var(--danger)',
+                                        textShadow: 'none', // Reset shadow for badge readability
+                                    }}>
+                                        {totalUnread > 99 ? '99+' : totalUnread}
+                                    </span>
+                                )}
+                            </span>
+                            <span className={isActive ? 'text-rainbow text-dark-aura' : 'text-dark-aura'} style={{ fontSize: '0.65rem', fontWeight: isActive ? 800 : 500 }}>
+                                {tab.label}
+                            </span>
+                        </div>
                     </button>
                     );
                 })}
+                </div>
             </nav>
 
             {/* System Announcement Modal */}
