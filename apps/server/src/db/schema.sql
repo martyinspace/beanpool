@@ -154,3 +154,17 @@ CREATE TABLE IF NOT EXISTS node_config (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+-- 9. Community Crowdfunding Projects
+CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    creator_pubkey TEXT NOT NULL REFERENCES members(public_key),
+    title TEXT NOT NULL,
+    description TEXT,
+    photos TEXT, -- JSON array of URLs
+    goal_amount INTEGER NOT NULL,
+    current_amount INTEGER DEFAULT 0,
+    deadline_at DATETIME,
+    status TEXT DEFAULT 'ACTIVE', -- 'ACTIVE', 'FUNDED', 'FAILED', 'COMPLETED'
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

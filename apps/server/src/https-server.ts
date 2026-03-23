@@ -61,6 +61,7 @@ import {
     adminRejectProject,
     getNodeConfig, updateNodeConfig, getDirectoryInfo,
 } from './state-engine.js';
+import { getCrowdfundProjects, getCrowdfundProject, createCrowdfundProject, pledgeToProject } from './db/db.js';
 
 const PUBLIC_DIR = path.resolve('public');
 const SETTINGS_PATH = path.resolve('public/settings.html');
@@ -1122,6 +1123,85 @@ export async function startHttpsServer(port: number): Promise<void> {
 
     router.get('/api/commons/rounds', async (ctx) => {
         ctx.body = { rounds: getVotingRounds(), activeRound: getActiveRound() };
+    });
+
+    // ==========================================
+    // CROWDFUNDING API
+    // ==========================================
+
+    router.get('/api/crowdfund/projects', async (ctx) => {
+        ctx.body = { projects: getCrowdfundProjects() };
+    });
+
+    router.get('/api/crowdfund/projects/:id', async (ctx) => {
+        const project = getCrowdfundProject(ctx.params.id);
+        if (!project) return ctx.throw(404, 'Project not found');
+        ctx.body = { project };
+    });
+
+    router.post('/api/crowdfund/projects', async (ctx) => {
+        const { creatorPubkey, title, description, photos, goalAmount, deadlineAt } = (ctx as any).requestBody || {};
+        if (!creatorPubkey || !title || !goalAmount) {
+            ctx.status = 400;
+            ctx.body = { error: 'creatorPubkey, title, and goalAmount are required' };
+            return;
+        }
+
+        const id = crypto.randomUUID();
+        createCrowdfundProject(id, creatorPubkey, title, description || '', photos || [], Number(goalAmount), deadlineAt || null);
+        const project = getCrowdfundProject(id);
+        
+        ctx.body = { success: true, project };
+    });
+
+    router.post('/api/crowdfund/projects/:id/pledge', async (ctx) => {
+        const projectId = ctx.params.id;
+        const { fromPubkey, amount, memo } = (ctx as any).requestBody || {};
+        const parsedAmount = Number(amount);
+        
+        if (!fromPubkey || !parsedAmount) {
+            ctx.status = 400;
+            ctx.body = { error: 'fromPubkey and amount are required' };
+            return;
+        }
+
+        // --- FEDERATION VERIFY ---
+        try {
+            const members = getMembers();
+            const fromMember = members.find(m => m.publicKey === fromPubkey);
+            if (fromMember && fromMember.homeNodeUrl) {
+                const p2pNode = getP2PNode();
+                if (p2pNode) {
+                    const connected = getConnectors();
+                    const targetConnector = connected.find(c => c.publicUrl === fromMember.homeNodeUrl);
+                    if (targetConnector && targetConnector.peerId) {
+                        const verifyResult = await federatedVerifyMember(p2pNode, targetConnector.peerId, fromPubkey);
+                        const homeBalance = verifyResult?.homeBalance ?? 0;
+                        const floor = -100; // hardcoded BeanPool credit floor
+                        if (!verifyResult || !verifyResult.isMember || (homeBalance - parsedAmount < floor)) {
+                            ctx.status = 400;
+                            ctx.body = { error: 'Federation check failed: Insufficient funds on home node or member not recognized.' };
+                            return;
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('[Federation] Error verifying remote member:', e);
+            ctx.status = 502;
+            ctx.body = { error: 'Federation check failed: Could not reach home node.' };
+            return;
+        }
+        // -------------------------
+
+        try {
+            const txId = crypto.randomUUID();
+            pledgeToProject(txId, projectId, fromPubkey, parsedAmount, memo || 'Project Pledge');
+            ctx.body = { success: true, txId };
+        } catch (err: any) {
+            ctx.status = 400;
+            ctx.body = { error: err.message };
+        }
     });
 
     // Admin: create/close voting rounds

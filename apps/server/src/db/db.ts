@@ -30,6 +30,7 @@ export function initSchema() {
 
     try { db.prepare(`ALTER TABLE posts ADD COLUMN price_type TEXT DEFAULT 'fixed'`).run(); } catch {}
     try { db.prepare(`ALTER TABLE marketplace_transactions ADD COLUMN hours REAL`).run(); } catch {}
+    try { db.prepare(`ALTER TABLE transactions ADD COLUMN project_id TEXT REFERENCES projects(id)`).run(); } catch {}
 }
 
 // Function to migrate from legacy JSON state
@@ -275,3 +276,79 @@ export function migrateLegacyState() {
         throw err;
     }
 }
+
+// ==========================================
+// CROWDFUNDING PROJECTS
+// ==========================================
+
+export interface ProjectRow {
+    id: string;
+    creator_pubkey: string;
+    title: string;
+    description: string;
+    photos: string; // JSON string array
+    goal_amount: number;
+    current_amount: number;
+    deadline_at: string | null;
+    status: string;
+    created_at: string;
+}
+
+export function getCrowdfundProjects(): ProjectRow[] {
+    return db.prepare(`SELECT * FROM projects ORDER BY created_at DESC`).all() as ProjectRow[];
+}
+
+export function getCrowdfundProject(id: string): ProjectRow | undefined {
+    return db.prepare(`SELECT * FROM projects WHERE id = ?`).get(id) as ProjectRow | undefined;
+}
+
+export function createCrowdfundProject(
+    id: string, 
+    creator_pubkey: string, 
+    title: string, 
+    description: string, 
+    photos: string[], 
+    goal_amount: number, 
+    deadline_at: string | null
+) {
+    db.prepare(`
+        INSERT INTO projects (id, creator_pubkey, title, description, photos, goal_amount, deadline_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, creator_pubkey, title, description, JSON.stringify(photos), goal_amount, deadline_at);
+}
+
+export function pledgeToProject(txId: string, projectId: string, fromPubkey: string, amount: number, memo: string) {
+    const project = db.prepare(`SELECT * FROM projects WHERE id = ?`).get(projectId) as ProjectRow | undefined;
+    if (!project) throw new Error("Project not found");
+    if (project.status === 'COMPLETED' || project.status === 'FAILED') throw new Error("Project is not accepting pledges");
+
+    const sender = db.prepare(`SELECT balance FROM accounts WHERE public_key = ?`).get(fromPubkey) as { balance: number } | undefined;
+    if (!sender) throw new Error("Sender account not found");
+    if (sender.balance < amount) throw new Error("Insufficient balance for pledge");
+
+    const toPubkey = project.creator_pubkey;
+
+    const executePledge = db.transaction(() => {
+        // Debit
+        db.prepare(`UPDATE accounts SET balance = balance - ?, last_updated_at = CURRENT_TIMESTAMP WHERE public_key = ?`).run(amount, fromPubkey);
+        // Credit creator natively (Continuous Funding)
+        db.prepare(`UPDATE accounts SET balance = balance + ?, last_updated_at = CURRENT_TIMESTAMP WHERE public_key = ?`).run(amount, toPubkey);
+        
+        // Record tx
+        db.prepare(`
+            INSERT INTO transactions (id, from_pubkey, to_pubkey, amount, memo, project_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).run(txId, fromPubkey, toPubkey, amount, memo, projectId);
+
+        // Update Project
+        db.prepare(`UPDATE projects SET current_amount = current_amount + ? WHERE id = ?`).run(amount, projectId);
+
+        const updatedProject = db.prepare(`SELECT current_amount, goal_amount FROM projects WHERE id = ?`).get(projectId) as ProjectRow;
+        if (updatedProject.current_amount >= updatedProject.goal_amount && project.status === 'ACTIVE') {
+            db.prepare(`UPDATE projects SET status = 'FUNDED' WHERE id = ?`).run(projectId);
+        }
+    });
+
+    executePledge();
+}
+

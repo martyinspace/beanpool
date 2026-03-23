@@ -16,18 +16,20 @@ import { InvitePage } from './InvitePage';
 
 interface Props {
     identity: BeanPoolIdentity;
+    initialView?: SubView;
 }
 
 type SubView = 'friends' | 'community' | 'invites' | 'guardians';
 
-export function PeoplePage({ identity }: Props) {
-    const [view, setView] = useState<SubView>('friends');
+export function PeoplePage({ identity, initialView = 'friends' }: Props) {
+    const [view, setView] = useState<SubView>(initialView);
     const [friends, setFriends] = useState<FriendEntry[]>([]);
     const [members, setMembers] = useState<MemberSummary[]>([]);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => { loadFriends(); }, []);
     useEffect(() => { if (view === 'community') loadMembers(); }, [view]);
+    useEffect(() => { if (initialView) setView(initialView); }, [initialView]);
 
     async function loadFriends() {
         try {
@@ -81,7 +83,7 @@ export function PeoplePage({ identity }: Props) {
                         onClick={() => setView(v)}
                         className={`flex-1 py-2 px-1 border-none rounded-lg text-xs font-bold cursor-pointer transition-all ${
                             view === v 
-                                ? 'bg-white dark:bg-nature-800 text-nature-900 dark:text-white shadow-sm border border-nature-200/50 dark:border-nature-700/50 scale-95' 
+                                ? 'bg-white dark:bg-nature-800 text-rainbow shadow-sm border border-nature-200/50 dark:border-nature-700/50 scale-95 drop-shadow-sm' 
                                 : 'bg-transparent text-nature-500 dark:text-nature-400 hover:text-nature-700 dark:hover:text-oat-50 hover:bg-oat-200 dark:hover:bg-nature-800'
                         }`}
                     >

@@ -597,6 +597,37 @@ export async function getVotingRounds(): Promise<{ rounds: VotingRound[]; active
     return request('GET', '/api/commons/rounds');
 }
 
+// ===================== CROWDFUNDING =====================
+
+export interface CrowdfundProject {
+    id: string;
+    creator_pubkey: string;
+    title: string;
+    description: string;
+    photos: string; // JSON string array
+    goal_amount: number;
+    current_amount: number;
+    deadline_at: string | null;
+    status: string;
+    created_at: string;
+}
+
+export async function getCrowdfundProjects(): Promise<{ projects: CrowdfundProject[] }> {
+    return request('GET', '/api/crowdfund/projects');
+}
+
+export async function getCrowdfundProject(id: string): Promise<{ project: CrowdfundProject }> {
+    return request('GET', `/api/crowdfund/projects/${id}`);
+}
+
+export async function createCrowdfundProject(creatorPubkey: string, title: string, description: string, photos: string[], goalAmount: number, deadlineAt: string | null): Promise<{ success: boolean; project: CrowdfundProject }> {
+    return request('POST', '/api/crowdfund/projects', { creatorPubkey, title, description, photos, goalAmount, deadlineAt });
+}
+
+export async function pledgeToCrowdfundProject(projectId: string, fromPubkey: string, amount: number, memo: string): Promise<{ success: boolean; txId: string }> {
+    return request('POST', `/api/crowdfund/projects/${projectId}/pledge`, { fromPubkey, amount, memo });
+}
+
 // ===================== NODE CONFIG =====================
 
 export interface NodeConfig {
