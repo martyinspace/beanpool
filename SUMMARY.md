@@ -24,7 +24,7 @@ The current implementation uses a **libp2p mesh** over TCP and WebSocket transpo
 * **Cloudflare DNS Auto-Registration**: Each node self-registers its DNS record on startup
 
 ### 4. Marketplace (Geo-Located Needs & Offers)
-A hyper-local resource coordination system with 13 categories:
+A hyper-local resource coordination system with 13 categories (PWA) / 14 categories (Native, adds Care ❤️):
 * **Blue** (#3b82f6) = Offers — what community members can provide
 * **Orange** (#f97316) = Needs — what community members are looking for
 * Posts appear as pins on the community map and sync across trusted nodes
@@ -68,9 +68,9 @@ Location privacy is user-controlled with four tiers:
 | Component | Directory | Role |
 |-----------|-----------|------|
 | BeanPool Node | `apps/server` | Gateway — genesis, admin, REST APIs, WebSocket, connectors, handshake, sync, libp2p |
-| PWA | `apps/pwa` | UI — map, marketplace, messaging, ledger, profiles, identity, privacy |
+| PWA | `apps/pwa` | UI — map, marketplace (13 categories), messaging, ledger, profiles, identity, privacy |
 | Core Protocol | `packages/beanpool-core` | Shared library — Ledger, Merkle, Passport, Governance, Trade, Router, Crypto |
-| Pillar Toggle | `apps/native` | Background mesh sync engine (Expo + React Native) |
+| Native App | `apps/native` | Expo + React Native — 7-tab mobile client (Map, Projects, Market, Chat, People, Ledger, Settings), SQLite + SecureStore |
 
 ---
 _Building sovereign infrastructure for communities. Moving from extraction to contribution._

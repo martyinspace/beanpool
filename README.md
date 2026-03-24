@@ -11,7 +11,7 @@
 
 BeanPool is an open protocol for building a **post-extraction economy**. It connects communities through a decentralized mutual credit system where value is created through cooperation, not extraction. Nodes gossip state over a libp2p mesh, automatically applying demurrage (value decay) to prevent hoarding and fund a community Commons pool.
 
-**Live network:** [sydney.beanpool.org](https://sydney.beanpool.org) · [brisbane.beanpool.org](https://brisbane.beanpool.org) · [mullum.beanpool.org](https://mullum.beanpool.org:8443) — federated via peer connectors with cross-community marketplace browsing and cryptographically secure Libp2p mesh trading.
+**Live network:** [brisbane.beanpool.org](https://brisbane.beanpool.org) · [mullum.beanpool.org](https://mullum.beanpool.org:8443) — federated via peer connectors with cross-community marketplace browsing and cryptographically secure Libp2p mesh trading.
 
 ---
 
@@ -150,8 +150,8 @@ Install banner with device-specific instructions:
 beanpool/
 ├── apps/
 │   ├── server/        # BeanPool Node — gateway, PWA host, REST API, libp2p mesh
-│   ├── pwa/           # PWA — map, marketplace, messaging, ledger (Vite + React + Leaflet)
-│   └── native/        # Pillar Toggle — background mesh sync (Expo + React Native)
+│   ├── pwa/           # PWA — map, marketplace (13 categories), messaging, ledger (Vite + React + Leaflet)
+│   └── native/        # Native App — 7-tab mobile client (Expo + React Native), SQLite, background sync
 ├── packages/
 │   └── beanpool-core/ # Shared protocol: Ledger, Merkle, Passport, Governance
 ├── branding/          # Bean icon assets (16x16 → 512x512)
@@ -272,12 +272,13 @@ All endpoints are served on port 8443 (HTTPS):
 | [SUMMARY.md](SUMMARY.md) | Protocol concepts: mutual credit, identity, governance, mesh design |
 | [SCALING.md](SCALING.md) | Scaling design: sharding, CRDTs, DHT, edge computing |
 | [docs/NODE_ADMIN_SETUP.md](docs/NODE_ADMIN_SETUP.md) | Step-by-step guide for new node operators |
+| [apps/native/README.md](apps/native/README.md) | Native app (Expo) — architecture, tabs, parity status |
 
 ---
 
 ## Status
 
-BeanPool is in active development. The PWA is **fully functional** with invite-only membership, community map, marketplace with photos and bean ratings, E2E messaging (DMs + groups), mutual credit ledger, editable member profiles, abuse reporting, and community health dashboard — all connected to live server APIs. Three nodes (Sydney, Brisbane, Debian) are deployed with federation protocol for cross-community trading.
+BeanPool is in active development. The PWA is **fully functional** and a **React Native / Expo companion app** has near-complete parity with 7 tabs (Map, Projects, Market, Chat, People, Ledger, Settings), SQLite persistence, and background Merkle sync. Three nodes (Brisbane, Mullum 1, Mullum 2) are deployed with federation protocol for cross-community trading.
 
 **What's working:**
 - ✅ Dynamic Node-Centered Mapping — Leaflet map bounds are dynamically tethered to the node's configured radius, and GPS pin-drop race conditions have been resolved
@@ -301,13 +302,16 @@ BeanPool is in active development. The PWA is **fully functional** with invite-o
 - ✅ Mirror state sync (Merkle hash + delta exchange, 15-min intervals)
 - ✅ Handshake protocol (~570ms latency between continents)
 - ✅ Let's Encrypt auto-TLS via DNS-01 challenge (Cloudflare API)
-- ✅ 3 live nodes — Sydney (Azure), Brisbane (Azure), Debian (bare metal)
+- ✅ 4 live nodes — Mullum 2 (Azure AU), Brisbane (Azure AU), Mullum 1 (bare metal), Review (Azure US)
 - ✅ Node admin setup guide with LE and no-domain instructions
 - ✅ Database Migration (SQLite) — replacing JSON engine with `better-sqlite3` for production scalability
 - ✅ Cryptographically signed APIs — Ed25519 client-side signatures on all POST requests to prevent spoofing
+- ✅ Native App (Expo) — 7-tab React Native companion app: Map, Projects, Market (14 cats), Chat, People, Ledger, Settings
+- ✅ Native SQLite + SecureStore — local persistence and sovereign identity on device
+- ✅ Community Projects — native-only crowdfunding tab with progress tracking
 
 **Coming next:**
-- Native App Release (Expo) — mobile wrapper mapping to Android/iOS App Stores
+- Native App Polish & App Store Submission (bean ratings, abuse reporting, federation parity)
 - Social Recovery (Shamir 3-of-5 secret sharing via Guardians)
 - Offline PWA caching via Service Worker
 
@@ -317,4 +321,4 @@ BeanPool is in active development. The PWA is **fully functional** with invite-o
 
 [MIT](LICENSE)
 
-_Last updated: 2026-03-22 23:30 AEDT_
+_Last updated: 2026-03-24 21:15 AEDT_

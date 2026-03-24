@@ -16,14 +16,15 @@ BeanPool is a **federation of sovereign nodes** — each node is independently o
 
 Every node runs the same software in a Docker container. Each one has:
 - A **public IP** — the raw network address
-- A **DNS name** — a human-friendly alias (like `sydney.beanpool.org`)
+- A **DNS name** — a human-friendly alias (like `brisbane.beanpool.org`)
 - A **callsign** — the name shown on the dashboard
 
 | # | Flag | Callsign | IP Address | DNS Name | Type | PWA |
 |---|------|----------|-----------|----------|------|-----|
-| 1 | 🇦🇺 | Sydney | `20.211.27.68` | `sydney.beanpool.org` | Azure VM | [Open](https://sydney.beanpool.org) |
+| 1 | 🇦🇺 | Mullum 2 | `20.211.27.68` | `mullum2.beanpool.org` | Azure VM | [Open](https://mullum2.beanpool.org) |
 | 2 | 🇦🇺 | Brisbane | `20.5.121.158` | `brisbane.beanpool.org` | Azure VM | [Open](https://brisbane.beanpool.org) |
-| 3 | 🏠 | Mullum | `192.168.1.219` | `mullum.beanpool.org` | Bare Metal (LAN) | [Open](https://mullum.beanpool.org:8443) |
+| 3 | 🏠 | Mullum 1 | `192.168.1.219` | `mullum1.beanpool.org` | Bare Metal (LAN) | [Open](https://mullum.beanpool.org:8443) |
+| 4 | 🇺🇸 | Review | `20.96.126.56` | `review.beanpool.org` | Azure VM (US) | [Open](https://review.beanpool.org) |
 
 All nodes run Docker containers. Public nodes use Let's Encrypt TLS (auto-provisioned via DNS-01 challenge). LAN nodes fall back to self-signed certificates.
 
@@ -54,7 +55,7 @@ Yes! Every port is configurable via environment variables:
 
 ## 🧅 DNS — The "Friendly Names"
 
-Instead of remembering `20.211.27.68`, you can use `sydney.beanpool.org`. DNS records are hosted on **Cloudflare** (free tier) under the domain `beanpool.org`.
+Instead of remembering `20.5.121.158`, you can use `brisbane.beanpool.org`. DNS records are hosted on **Cloudflare** (free tier) under the domain `beanpool.org`.
 
 ### How DNS records are managed
 
@@ -66,7 +67,7 @@ This is controlled by 3 environment variables:
 |---------|-----------| 
 | `CF_API_TOKEN` | Cloudflare API token with DNS edit permission |
 | `CF_ZONE_ID` | The zone ID for `beanpool.org` |
-| `CF_RECORD_NAME` | The subdomain this node claims (e.g. `sydney.beanpool.org`) |
+| `CF_RECORD_NAME` | The subdomain this node claims (e.g. `brisbane.beanpool.org`) |
 
 ### No domain? No problem.
 
@@ -129,11 +130,11 @@ Each connector has a configurable trust level that determines how data flows bet
 
 When two nodes are connected as **peers**, their members can browse each other's marketplaces and trade across communities:
 
-1. **Browsing:** The PWA queries the remote node's HTTPS API directly (`sydney.beanpool.org/api/marketplace/posts`) — no data is stored on the home node.
+1. **Browsing:** The PWA queries the remote node's HTTPS API directly (`brisbane.beanpool.org/api/marketplace/posts`) — no data is stored on the home node.
 2. **Trading:** When accepting a remote offer, the remote node initiates a secure **Libp2p Node-to-Node stream** (`/beanpool/federation/1.0.0`) back to the buyer's home node to cryptographically verify their identity and mutual credit funds before allowing the transaction.
 3. **Messaging:** Cross-node private messages are automatically routed over the authenticated Libp2p mesh rather than exposed HTTP endpoints, preventing spoofing.
 4. **Identity:** Ed25519 keypairs work everywhere — no separate accounts needed. Visitors appear as guest entries on remote ledgers.
-5. **No transitivity:** Each node must explicitly add peers. Being connected to Sydney doesn't automatically connect you to Sydney's peers.
+5. **No transitivity:** Each node must explicitly add peers. Being connected to Brisbane doesn’t automatically connect you to Brisbane’s peers.
 
 ### Mirror — State Replication
 
@@ -152,19 +153,21 @@ When two nodes have `mirror` trust + mutual trust confirmed via handshake:
 ### Deploy with deploy.sh
 
 ```bash
-bash deploy.sh           # Deploy to all 3 nodes
-bash deploy.sh 1         # Sydney only
+bash deploy.sh           # Deploy to all 4 nodes
+bash deploy.sh 1         # Mullum 2 only
 bash deploy.sh 2         # Brisbane only
-bash deploy.sh 3         # Debian (local dev) only
-bash deploy.sh 1 2       # Sydney + Brisbane
+bash deploy.sh 3         # Mullum 1 only
+bash deploy.sh 4         # Review (US) only
+bash deploy.sh 1 2       # Mullum 2 + Brisbane
 ```
 
 ### SSH Access
 
 ```bash
-ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68   # Sydney
-ssh -i ~/.ssh/id_azure_lattice azureuser@20.5.121.158   # Brisbane
-ssh marty@192.168.1.219                                  # Debian (LAN)
+ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68   # Mullum 2 (Azure)
+ssh -i ~/.ssh/id_azure_lattice azureuser@20.5.121.158   # Brisbane (Azure)
+ssh marty@192.168.1.219                                  # Mullum 1 (LAN)
+ssh -i ~/.ssh/id_azure_lattice azureuser@20.96.126.56   # Review (Azure US)
 ```
 
 ### Check Logs
@@ -185,7 +188,7 @@ ssh ... "docker logs beanpool-beanpool-node-1 2>&1"
 | `docs/NODE_ADMIN_SETUP.md` | Step-by-step guide for new node operators |
 | `apps/server/src/index.ts` | Main BeanPool Node — 5-stage boot orchestrator |
 | `apps/server/src/tls.ts` | TLS certificate management — LE + self-signed fallback |
-| `apps/server/src/state-engine.ts` | In-memory state engine with JSON persistence (members, posts, profiles, ratings, reports) |
+| `apps/server/src/state-engine.ts` | SQLite state engine with `better-sqlite3` (members, posts, profiles, ratings, reports) |
 | `apps/server/src/https-server.ts` | 30+ REST API endpoints |
 | `apps/server/src/sync-protocol.ts` | Lazy state sync via libp2p streams |
 | `apps/pwa/src/App.tsx` | PWA shell — identity gate, 5-tab bottom nav, header |
@@ -194,4 +197,4 @@ ssh ... "docker logs beanpool-beanpool-node-1 2>&1"
 
 ---
 
-_Last updated: 2026-03-19 01:10 AEDT_
+_Last updated: 2026-03-24 21:15 AEDT_

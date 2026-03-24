@@ -5,9 +5,9 @@
 
 ---
 
-## Current State (2026-03-19)
+## Current State (2026-03-24)
 
-**BeanPool is a fully functional PWA** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🫘 bean reputation system, abuse reporting, community health dashboard, and federation protocol — deployed on **3 sovereign nodes** with Let's Encrypt TLS.
+**BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🫘 bean reputation system, abuse reporting, community health dashboard, and federation protocol — deployed on **3 sovereign nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity.
 
 ### What's Working
 - ✅ **Dynamic Map Root** — Leaflet map defaults coordinate center to the node's `serviceRadius` config (e.g. Mullumbimby) instead of hardcoding, and handles location cleanly without async ghost-pin drops.
@@ -36,10 +36,15 @@
 - ✅ **Mirror State Sync** — Merkle hash comparison + delta exchange, 15-min intervals (for mirror-trusted nodes)
 - ✅ **Handshake Protocol** — mutual trust + latency over yamux streams
 - ✅ **Let's Encrypt Auto-TLS** — DNS-01 challenge via Cloudflare API (acme-client v5)
-- ✅ **3 Live Nodes** — Sydney, Brisbane, Debian (local dev server)
+- ✅ **4 Live Nodes** — Mullum 2 (Azure AU), Brisbane (Azure AU), Mullum 1 (bare metal LAN), Review (Azure US)
 - ✅ **Node Admin Setup Guide** — comprehensive docs for new node operators
 - ✅ **Database Migration (SQLite)** — replaced JSON engine with `better-sqlite3` for robust relational validation and paging limits
 - ✅ **Cryptographically signed APIs** — Ed25519 client-side signatures on all POST requests preventing spoofing
+- ✅ **Native App (Expo)** — 7-tab React Native companion app with PWA parity: Map, Projects, Market (14 categories), Chat, People, Ledger, Settings
+- ✅ **Native SQLite Persistence** — `expo-sqlite` for local data storage (posts, projects, messages, ledger)
+- ✅ **Native Identity Flow** — sovereign identity creation and 12-word recovery via Expo SecureStore
+- ✅ **Community Projects Tab** — native-only crowdfunding feature with progress bars and proposal creation
+- ✅ **Neon-Vine Tab Bar** — branded tab navigation with artwork background and dark overlay
 
 ---
 
@@ -104,7 +109,8 @@ AFTER DEPLOYING:
 | App | Dir | Purpose |
 |-----|-----|---------|
 | BeanPool Node | `apps/server` | Gateway — genesis, admin, REST APIs (Ed25519-secured), WebSocket, connectors, handshake, sync, libp2p |
-| PWA | `apps/pwa` | UI — map, marketplace, messaging, ledger, profiles, identity, privacy, install prompt |
+| PWA | `apps/pwa` | UI — map, marketplace (13 categories), messaging, ledger, profiles, identity, privacy, install prompt |
+| Native App | `apps/native` | Expo + React Native — 7-tab mobile client (Map, Projects, Market, Chat, People, Ledger, Settings), SQLite persistence, background Merkle sync |
 | Core Protocol | `packages/beanpool-core` | Shared logic — Ledger, Merkle, Passport, Governance, Trade, Router |
 
 ### Key Design Constraints
@@ -129,22 +135,26 @@ pnpm build   # Builds all packages via Turborepo
 
 ```bash
 bash deploy.sh           # Deploy to all live nodes
-bash deploy.sh 1         # Brisbane only
-bash deploy.sh 2         # Mullum 1 only
-bash deploy.sh 3         # Mullum 2 only
+bash deploy.sh 1         # Mullum 2 only
+bash deploy.sh 2         # Brisbane only
+bash deploy.sh 3         # Mullum 1 only
+bash deploy.sh 4         # Review (US) only
 ```
 
 ### Live Nodes
 
 | # | Node | IP | DNS | SSH User | SSH Key | Notes |
 |---|------|----|-----|----------|---------|-------|
-| 1 | Brisbane | `20.5.121.158` | `brisbane.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` | Standalone node |
-| 2 | Mullum 1 | `192.168.1.219` | `mullum1.beanpool.org` | `marty` | default key | Behind CF `mullum.beanpool.org` LB |
-| 3 | Mullum 2 | `192.168.1.220` | `mullum2.beanpool.org` | `marty` | default key | Behind CF `mullum.beanpool.org` LB |
+| 1 | Mullum 2 | `20.211.27.68` | `mullum2.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` | Azure VM (AU) |
+| 2 | Brisbane | `20.5.121.158` | `brisbane.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` | Azure VM (AU) |
+| 3 | Mullum 1 | `192.168.1.219` | `mullum1.beanpool.org` | `marty` | default key | Bare metal (LAN), behind CF `mullum.beanpool.org` LB |
+| 4 | Review | `20.96.126.56` | `review.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` | Azure VM (US) — staging/review server |
 
 ```bash
+ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68   # Mullum 2
 ssh -i ~/.ssh/id_azure_lattice azureuser@20.5.121.158   # Brisbane
-ssh marty@192.168.1.219                                  # Debian (LAN)
+ssh marty@192.168.1.219                                  # Mullum 1 (LAN)
+ssh -i ~/.ssh/id_azure_lattice azureuser@20.96.126.56   # Review (US)
 ```
 
 ### Useful Debug Commands
@@ -173,11 +183,11 @@ gh run list --limit 3
 
 ## Coming Next
 
-- [ ] **Native App Release (Expo)** — Polish the React Native background app (`apps/native`) for distribution on the iOS App Store and Google Play Store.
+- [ ] **Native App Polish & App Store Submission** — Remaining parity items: bean ratings, abuse reporting, federation (remote markets). Then submit to iOS App Store and Google Play Store.
 - [ ] **Offline PWA caching** via Service Worker
 - [ ] **Federated credit verification** (`/beanpool/verify/1.0.0`)
 - [ ] **Social Recovery** (Guardian Protocol implementation)
 
 ---
 
-_Last updated: 2026-03-22 23:30 AEDT_
+_Last updated: 2026-03-24 21:15 AEDT_

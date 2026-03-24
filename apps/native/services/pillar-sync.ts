@@ -12,7 +12,9 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { BeanPoolMerkleTree } from '@beanpool/core';
+import { applyDelta } from '../utils/db';
 
 const SYNC_TIMEOUT_MS = 20_000;
 const MAX_STORED_TRANSACTIONS = 1000;
@@ -30,6 +32,7 @@ export interface SyncResult {
     deltaCount: number;
     durationMs: number;
     aborted: boolean;
+    errorMessage?: string;
 }
 
 /**
@@ -40,24 +43,47 @@ async function discoverAnchor(): Promise<string | null> {
     const candidates = [
         'https://beanpool.local:8443',
         'http://beanpool.local:8080',
+        'http://localhost:5173',   // Vite Proxy (Bypasses Self-Signed Cert Block)
+        'http://127.0.0.1:5173',   // iOS Simulator IPv4
+        'http://10.0.2.2:5173',    // Android Emulators (Vite)
+        'http://localhost:8080',
+        'http://127.0.0.1:8080',
+        'http://10.0.2.2:8080',
     ];
 
-    // Check saved node address
-    const saved = await AsyncStorage.getItem('pillar:anchor-url');
-    if (saved) candidates.unshift(saved);
+    // Attempt to derive Expo LAN IP for physical dev devices
+    const hostUri = Constants.experienceUrl || Constants.expoConfig?.hostUri;
+    if (hostUri) {
+        // hostUri is usually something like "192.168.1.100:8081"
+        const match = hostUri.match(/([0-9.]+):/);
+        if (match && match[1]) {
+            candidates.push(`http://${match[1]}:5173`);
+            candidates.push(`http://${match[1]}:8080`);
+        }
+    }
+
+    // Clear saved node address temporarily to force Azure discovery
+    await AsyncStorage.removeItem('pillar:anchor-url');
 
     for (const url of candidates) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
         try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 3000);
-            const res = await fetch(`${url}/api/health`, { signal: controller.signal });
-            clearTimeout(timeout);
+            const res = await fetch(`${url}/api/community/health`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
             if (res.ok) {
-                await AsyncStorage.setItem('pillar:anchor-url', url);
+                // Any 200 OK response from /api/community/health means the node is BeanPool aware.
+                // Cache the successful URL
+                await AsyncStorage.setItem('beanpool_anchor_url', url);
                 return url;
             }
-        } catch {
-            // Try next candidate
+        } catch (e) {
+            clearTimeout(timeoutId);
+            // Ignore fetch errors
         }
     }
 
@@ -85,87 +111,82 @@ export async function performSync(): Promise<SyncResult> {
         const anchorUrl = await discoverAnchor();
         if (!anchorUrl) {
             result.durationMs = Date.now() - startTime;
+            result.errorMessage = 'All node URLs failed the health check connection.';
             return result;
         }
 
-        // Step 2: Fetch node's Merkle root
-        const rootRes = await fetch(`${anchorUrl}/api/merkle-root`);
-        if (!rootRes.ok) {
+        // Step 2: Fetch Posts and Balance directly via standard REST APIs
+        const identityRaw = await AsyncStorage.getItem('beanpool:identity');
+        let pubKey = '';
+        if (identityRaw) {
+            try {
+                const id = JSON.parse(identityRaw);
+                pubKey = id.publicKey;
+            } catch (e) {}
+        }
+
+        // Fetch both sets concurrently
+        
+        const postsController = new AbortController();
+        const balanceController = new AbortController();
+        const postsTimeout = setTimeout(() => postsController.abort(), 10000);
+        const balanceTimeout = setTimeout(() => balanceController.abort(), 10000);
+
+        const [postsRes, balanceRes] = await Promise.all([
+            fetch(`${anchorUrl}/api/marketplace/posts?limit=1000`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                signal: postsController.signal
+            }),
+            pubKey ? fetch(`${anchorUrl}/api/ledger/balance/${pubKey}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                signal: balanceController.signal
+            }) : Promise.resolve(null)
+        ]);
+
+        clearTimeout(postsTimeout);
+        clearTimeout(balanceTimeout);
+
+        if (!postsRes.ok) {
             result.durationMs = Date.now() - startTime;
+            result.errorMessage = `Posts fetch failed with status: ${postsRes.status}`;
             return result;
         }
 
-        const { merkleRoot: anchorRoot } = await rootRes.json();
-        result.merkleRoot = anchorRoot;
+        const postsData = await postsRes.json();
+        
+        const delta: any = {
+            posts: postsData || [],
+            accounts: [],
+            transactions: []
+        };
 
-        // Step 3: Compare with our local root
-        const localRoot = await AsyncStorage.getItem(STORAGE_KEYS.MERKLE_ROOT);
-
-        if (localRoot === anchorRoot) {
-            // Hashes match — sync complete in ~0 bytes
-            result.success = true;
-            result.durationMs = Date.now() - startTime;
-            await AsyncStorage.setItem(STORAGE_KEYS.LAST_SYNC, String(Date.now()));
-            return result;
+        if (balanceRes && balanceRes.ok) {
+            const balData = await balanceRes.json();
+            delta.accounts.push({
+                public_key: pubKey,
+                balance: balData.balance || 0,
+                last_demurrage_epoch: balData.last_demurrage_epoch || 0
+            });
         }
 
-        // Step 4: Hashes differ — pull the delta
-        if (Date.now() > deadline) {
-            result.aborted = true;
-            result.durationMs = Date.now() - startTime;
-            return result;
-        }
+        // Apply physical updates to local Native device SQLite Matrix
+        await applyDelta(delta);
 
-        // Load checkpoint if we have one from a previous aborted sync
-        const checkpoint = await AsyncStorage.getItem(STORAGE_KEYS.SYNC_CHECKPOINT);
-        const since = checkpoint ?? '0';
-
-        const deltaRes = await fetch(`${anchorUrl}/api/delta?since=${since}`);
-        if (!deltaRes.ok) {
-            result.durationMs = Date.now() - startTime;
-            return result;
-        }
-
-        const delta = await deltaRes.json();
-        result.deltaCount = delta.accounts?.length ?? 0;
-
-        // Step 5: Apply delta to local state
-        if (delta.accounts) {
-            await AsyncStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(delta.accounts));
-        }
-
-        // Step 6: Append transactions (with pruning)
-        if (delta.transactions) {
-            const existingRaw = await AsyncStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-            const existing = existingRaw ? JSON.parse(existingRaw) : [];
-            const merged = [...existing, ...delta.transactions];
-
-            // Prune to last 1,000 transactions
-            const pruned = merged.slice(-MAX_STORED_TRANSACTIONS);
-            await AsyncStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(pruned));
-        }
-
-        // Step 7: Check deadline before finalizing
-        if (Date.now() > deadline) {
-            // Checkpoint our progress so next wakeup can continue
-            await AsyncStorage.setItem(STORAGE_KEYS.SYNC_CHECKPOINT, delta.checkpoint ?? String(Date.now()));
-            result.aborted = true;
-            result.durationMs = Date.now() - startTime;
-            return result;
-        }
-
-        // Step 8: Success — save new root and clear checkpoint
-        await AsyncStorage.setItem(STORAGE_KEYS.MERKLE_ROOT, anchorRoot);
+        // Step 3: Success — save timestamp
         await AsyncStorage.setItem(STORAGE_KEYS.LAST_SYNC, String(Date.now()));
         await AsyncStorage.removeItem(STORAGE_KEYS.SYNC_CHECKPOINT);
 
         result.success = true;
+        result.deltaCount = delta.posts.length + delta.accounts.length;
         result.durationMs = Date.now() - startTime;
         return result;
 
-    } catch (err) {
+    } catch (err: any) {
         console.error('[Pillar Sync] Error:', err);
         result.durationMs = Date.now() - startTime;
+        result.errorMessage = String(err?.message || err);
         return result;
     }
 }

@@ -240,7 +240,7 @@ In Settings → **Community** tab, set:
 
 To enable cross-community trading (federation):
 1. Settings → **Sovereign Connectors**
-2. Enter the other node's address (e.g. `sydney.beanpool.org:4001`)
+2. Enter the other node's address (e.g. `brisbane.beanpool.org:4001`)
 3. Choose trust level: **Peer** (federation, default) or **Mirror** (backup)
 4. The nodes will perform a mutual trust handshake
 

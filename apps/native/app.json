@@ -1,42 +1,48 @@
 {
-    "expo": {
-        "name": "BeanPool Pillar",
-        "slug": "beanpool-pillar",
-        "version": "1.0.0",
-        "orientation": "portrait",
-        "icon": "./assets/icon.png",
-        "scheme": "beanpool",
-        "userInterfaceStyle": "dark",
-        "newArchEnabled": true,
-        "splash": {
-            "backgroundColor": "#0a0a0a"
-        },
-        "ios": {
-            "supportsTablet": false,
-            "bundleIdentifier": "org.beanpool.pillar",
-            "infoPlist": {
-                "UIBackgroundModes": [
-                    "fetch",
-                    "processing"
-                ]
-            }
-        },
-        "android": {
-            "package": "org.beanpool.pillar",
-            "adaptiveIcon": {
-                "backgroundColor": "#0a0a0a"
-            }
-        },
-        "plugins": [
-            "expo-router",
-            [
-                "expo-build-properties",
-                {
-                    "android": {
-                        "usesCleartextTraffic": true
-                    }
-                }
-            ]
-        ]
-    }
+  "expo": {
+    "name": "BeanPool Pillar",
+    "slug": "beanpool-pillar",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "beanpool",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#0a0a0a"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "org.beanpool.pillar",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "fetch",
+          "processing"
+        ],
+        "NSLocationWhenInUseUsageDescription": "BeanPool relies exclusively on your device's GPS to plot your Sovereign Identity on the community map, enabling you to physically discover neighboring Marketplace needs and offers."
+      }
+    },
+    "android": {
+      "package": "org.beanpool.pillar",
+      "adaptiveIcon": {
+        "backgroundColor": "#0a0a0a"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "expo-sqlite"
+    ]
+  }
 }

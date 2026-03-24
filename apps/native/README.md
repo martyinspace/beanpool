@@ -1,17 +1,82 @@
-# BeanPool Pillar Toggle
+# BeanPool Native App
 
-Background mesh state mirror for the BeanPool sovereign network.
+> Full-featured React Native / Expo companion app — achieving visual and functional parity with the BeanPool PWA.
+
+---
 
 ## Purpose
 
-The Pillar Toggle is **not** a full user interface — the primary UI is the PWA served by the BeanPool node. This app's job is to run a **background sync engine** that periodically mirrors the community ledger onto the phone.
+The BeanPool Native App is a **full native client** for Android and iOS, built with Expo Router and React Native. It mirrors the PWA's tab-based interface with native UI controls, SQLite-backed data persistence, and Expo SecureStore for identity management. A background sync service (Pillar Toggle) periodically mirrors the community ledger via Merkle delta exchange.
 
-## How It Works
+## Architecture
+
+```
+apps/native/
+├── app/
+│   ├── _layout.tsx              # Root layout — IdentityContext gate
+│   ├── IdentityContext.tsx       # Global identity provider (SecureStore)
+│   ├── welcome.tsx              # Onboarding: Create / Recover identity
+│   ├── new-post.tsx             # Create marketplace post form
+│   ├── propose-project.tsx      # Propose community crowdfund project
+│   ├── chat/[id].tsx            # Individual chat conversation
+│   ├── post/[id].tsx            # Post detail view
+│   └── (tabs)/
+│       ├── _layout.tsx          # Tab navigator — neon-vine branded bar
+│       ├── index.tsx            # 🗺️ Map — Leaflet/OSM via WebView
+│       ├── projects.tsx         # 🌱 Projects — community crowdfunding
+│       ├── market.tsx           # 🤝 Market — 14-category marketplace
+│       ├── chats.tsx            # 💬 Chat — conversations list
+│       ├── people.tsx           # 👥 People — community browser
+│       ├── ledger.tsx           # 📊 Ledger — balance & transactions
+│       └── settings.tsx         # ⚙️ Settings — profile, node, identity
+├── components/
+│   ├── GlobalHeader.tsx         # Shared header with branding
+│   ├── Map.tsx                  # Native map stub (placeholder)
+│   ├── Map.web.tsx              # Web-only Leaflet map
+│   ├── MapPinTail.tsx           # Custom map marker with tail
+│   └── SyncStatus.tsx           # Background sync status indicator
+├── services/
+│   ├── pillar-sync.ts           # Delta-only Merkle sync engine
+│   └── background-task.ts       # Expo BackgroundFetch registration
+├── utils/
+│   ├── db.ts                    # SQLite database (expo-sqlite)
+│   ├── identity.ts              # Ed25519 keypair + BIP-39 mnemonic
+│   ├── crypto.ts                # Crypto utilities (SHA-256, signing)
+│   └── identity-transfer.ts     # Cross-device identity transfer
+└── assets/
+    └── images/
+        └── neon-vines-banner.png  # Tab bar background artwork
+```
+
+## Tabs
+
+| Tab | Emoji | Screen | Purpose |
+|-----|-------|--------|---------|
+| Map | 🗺️ | `index.tsx` | Community map with marketplace pins (Leaflet via WebView) |
+| Projects | 🌱 | `projects.tsx` | Community crowdfunding — propose and fund shared goals with Beans |
+| Market | 🤝 | `market.tsx` | 14-category marketplace — grid/list view, search, category filter, block users |
+| Chat | 💬 | `chats.tsx` | DM and group conversations |
+| People | 👥 | `people.tsx` | Community member browser |
+| Ledger | 📊 | `ledger.tsx` | Mutual credit balance, transaction history, send credits |
+| Settings | ⚙️ | `settings.tsx` | Profile editing, node config, identity management (hidden from tab bar) |
+
+## Key Features
+
+- **Sovereign Identity** — Ed25519 keypair from BIP-39 12-word mnemonic, stored in Expo SecureStore
+- **SQLite Persistence** — all posts, projects, messages, and ledger data stored locally via `expo-sqlite`
+- **14-Category Marketplace** — Food, Services, Labour, Tools, Goods, Housing, Transport, Education, Arts, Health, Care, Animals, Energy, General (PWA has 13; native adds Care ❤️)
+- **Community Projects** — crowdfund tab with progress bars, funding badges, and proposal creation
+- **Branded Tab Bar** — neon-vine artwork background with semi-transparent overlay
+- **Post Detail View** — full-screen view with photos, credits, author info
+- **Chat System** — direct messages and group chats
+- **User Blocking** — client-side block list stored in SecureStore
+
+## Background Sync (Pillar Toggle)
 
 ```
 Every 15 min (iOS) / configurable (Android):
   1. Wake up in background
-  2. Connect to BeanPool node (beanpool.local)
+  2. Connect to BeanPool node
   3. Request node's Merkle root hash
   4. Compare with local hash
      → Match? Done. (0 bytes, ~1 second)
@@ -20,27 +85,39 @@ Every 15 min (iOS) / configurable (Android):
   6. If > 20 seconds: checkpoint & abort
 ```
 
-## Constraints
-
 | Rule | Value | Why |
 |------|-------|-----|
 | **Timeout** | 20 seconds | iOS kills tasks > 30s |
 | **Pruning** | 1,000 transactions | Protect phone storage |
 | **Checkpoint** | Auto | Resume aborted syncs |
-| **Hash algo** | `crypto-js/sha256` | Cross-platform determinism |
 
 ## Quick Start
 
 ```bash
+cd apps/native
 pnpm install
-pnpm start
+npx expo start --web --port 8082   # Web preview
+npx expo start                      # Native dev client
 ```
 
-## Files
+## Parity Status (vs PWA)
 
-| File | Purpose |
-|------|---------|
-| `services/pillar-sync.ts` | Delta-only sync engine |
-| `services/background-task.ts` | Expo BackgroundFetch registration |
-| `app/_layout.tsx` | Root layout (registers task on mount) |
-| `app/index.tsx` | Sync status dashboard |
+| Feature | PWA | Native | Notes |
+|---------|-----|--------|-------|
+| Map with pins | ✅ | ✅ | WebView+Leaflet on native |
+| Marketplace (grid/list) | ✅ | ✅ | Native has 14 categories (adds Care) |
+| Post creation | ✅ | ✅ | Photo upload, location pin |
+| Post detail view | ✅ | ✅ | |
+| Chat (DM + groups) | ✅ | ✅ | |
+| People browser | ✅ | ✅ | |
+| Ledger & send credits | ✅ | ✅ | |
+| Identity (create/recover) | ✅ | ✅ | SecureStore on native |
+| Community Projects | — | ✅ | Native-only feature |
+| Settings / Profile | ✅ | ✅ | |
+| Bean ratings | ✅ | 🔜 | In progress |
+| Abuse reporting | ✅ | 🔜 | In progress |
+| Federation (remote markets) | ✅ | 🔜 | Planned |
+
+---
+
+_Last updated: 2026-03-24 21:15 AEDT_

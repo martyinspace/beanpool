@@ -1,7 +1,7 @@
 # 📚 BeanPool Documentation Index
 
 > **Start here.** This is the master guide to all documentation in the BeanPool project.
-> Updated: 2026-03-19
+> Updated: 2026-03-24
 
 ---
 
@@ -54,8 +54,8 @@
 | App | Dir | What It Does |
 |-----|-----|-------------|
 | **BeanPool Node** | `apps/server/` | Gateway — genesis, admin, REST APIs, WebSocket, connectors, handshake, lazy sync, libp2p |
-| **PWA** | `apps/pwa/` | UI — map, marketplace, messaging, people/friends, ledger, profiles, seed phrase recovery, reputation, privacy |
-| **Pillar Toggle** | `apps/native/` | Background mesh state mirror (Expo + React Native) — see [apps/native/README.md](apps/native/README.md) |
+| **PWA** | `apps/pwa/` | UI — map, marketplace (13 categories), messaging, people/friends, ledger, profiles, seed phrase recovery, reputation, privacy |
+| **Native App** | `apps/native/` | 7-tab Expo + React Native mobile client — see [apps/native/README.md](apps/native/README.md) |
 
 ## Core Protocol
 
@@ -123,4 +123,4 @@
 
 ---
 
-_Last updated: 2026-03-19 12:35 AEDT_
+_Last updated: 2026-03-24 21:15 AEDT_

@@ -28,6 +28,7 @@ NODES=(
   "1:mullum2:20.211.27.68:mullum2.beanpool.org:azureuser"
   "2:bp-brisbane:20.5.121.158:brisbane.beanpool.org:azureuser"
   "3:mullum1:192.168.1.219:mullum1.beanpool.org:marty"
+  "4:review:20.96.126.56:review.beanpool.org:azureuser"
 )
 
 # Package docker-compose.yml + data-preserving deploy config

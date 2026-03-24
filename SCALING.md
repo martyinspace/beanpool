@@ -10,7 +10,7 @@ Currently, all transactions, pins, and map updates are broadcast over a single g
 To handle a million users, the GossipSub protocol employs **Topic Sharding**.
 The chatter is mathematically divided into smaller, highly relevant channels:
 *   **Geographic Tiles:** The global map is divided into regions (e.g., `topic:map:nsw-north`, `topic:map:arizona-phx`). A user in Byron Bay only subscribes to data relevant to their physical proximity.
-*   **Categorical Filtering:** A backbone node in France doesn't need to process immediate updates for a "Lawn Mower Rental" in Sydney, so that traffic naturally bypasses it.
+*   **Categorical Filtering:** A backbone node in France doesn't need to process immediate updates for a "Lawn Mower Rental" in Mullumbimby, so that traffic naturally bypasses it.
 
 By sharding the mesh, each server only processes the fraction of traffic that is actively requested by the clients connected to it.
 
@@ -18,7 +18,7 @@ By sharding the mesh, each server only processes the fraction of traffic that is
 Traditional bank databases use "Strict Consistency"—every server must lock up and agree on an exact account balance before moving to the next split-second transaction. This creates massive bottlenecks at scale.
 
 BeanPool relies on **Conflict-Free Replicated Data Types (CRDTs)** and cryptographic Merkle Syncs (`packages/beanpool-core/src/merkle.ts`).
-If the Sydney backbone gets hit with 10,000 transactions at once, it doesn't ask permission from the rest of the world. It processes them instantly against its local ledger, and then asynchronously synchronizes the cryptographic "proofs" (hashes) with other nodes in the background. If the mesh splits in half (e.g., an undersea cable breaks), CRDTs mathematically guarantee that when the network merges back together, every node will eventually compute the exact same state without destroying conflicting data.
+If the Brisbane backbone gets hit with 10,000 transactions at once, it doesn't ask permission from the rest of the world. It processes them instantly against its local ledger, and then asynchronously synchronizes the cryptographic "proofs" (hashes) with other nodes in the background. If the mesh splits in half (e.g., an undersea cable breaks), CRDTs mathematically guarantee that when the network merges back together, every node will eventually compute the exact same state without destroying conflicting data.
 
 ## 3. Direct P2P Stream State Synchronization
 When a node was offline and missed live GossipSub broadcasts, it will detect a Merkle Root mismatch. Instead of forcing the entire node network to re-broadcast a massive global state dump over the public Gossip channel, BeanPool uses direct stream protocols.
@@ -32,12 +32,12 @@ Instead, tech-savvy citizens spin up their own **Local Nodes**. To ensure these 
 Kad-DHT allows nodes to organically discover peers, route traffic around dead zones, and store offline messages in a distributed manner.
 
 ## 5. Edge Computing (Smartphones as Mini-Nodes)
-In the future, smartphones won't just be "Light Clients." As mobile processors get more powerful and internet speeds increase, the React Native wallet application itself can act as a transient node.
+The BeanPool Native App (`apps/native/`) is an early realisation of this concept. The React Native / Expo companion app runs a **background Merkle sync service** (Pillar Toggle) that periodically mirrors the community ledger onto the phone via delta exchange. This means smartphones already carry a local copy of the community state in SQLite, enabling offline read access and resilience.
 
-When citizens are at a physical farmers market or community gathering, their phones can use Bluetooth/Local Wi-Fi to gossip transactions directly to each other first. They can then batch these offline transactions and send them to a Backbone Node once every few minutes, drastically reducing the real-time load on the internet-facing infrastructure.
+In the future, at physical gatherings (farmers markets, community events), phones can use Bluetooth/Local Wi-Fi to gossip transactions directly, batching and relaying to a Backbone Node once connectivity is restored.
 
 ## 7. Persistent Embedded Databases (✅ Completed)
-Backend state is maintained and synchronized using **better-sqlite3**, an embedded local disk database utilizing Write-Ahead Logging (WAL).
+Backend state is maintained and synchronized using **better-sqlite3**, an embedded local disk database utilizing Write-Ahead Logging (WAL). The Native App mirrors this pattern with **expo-sqlite** on mobile devices.
 
 ## 8. Cryptographic Payload Signatures (✅ Completed)
 Every action (creating a pin, sending mutual credit) is mathematically signed by the mobile app's Ed25519 private key. The mesh nodes actively verify this signature via an ingress middleware before processing the transaction.
