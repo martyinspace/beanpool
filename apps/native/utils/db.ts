@@ -15,7 +15,7 @@ let dbInitPromise: Promise<void> | null = null;
 export async function getDb(): Promise<SQLite.SQLiteDatabase> {
     if (db) return db;
     // Open or create the local store
-    db = await SQLite.openDatabaseAsync('beanpool.db');
+    db = await SQLite.openDatabaseAsync('beanpool.db', { useNewConnection: true });
     return db;
 }
 

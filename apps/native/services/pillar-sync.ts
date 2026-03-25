@@ -93,11 +93,15 @@ async function discoverAnchor(): Promise<string | null> {
     return null;
 }
 
+let isSyncing = false;
+
 /**
  * Perform the delta-only sync.
  * Returns immediately if hashes match (0 bytes transferred).
  */
 export async function performSync(): Promise<SyncResult> {
+    if (isSyncing) return { success: false, merkleRoot: null, deltaCount: 0, durationMs: 0, aborted: true, errorMessage: 'Already syncing' };
+    isSyncing = true;
     const startTime = Date.now();
     const deadline = startTime + SYNC_TIMEOUT_MS;
 
@@ -195,6 +199,8 @@ export async function performSync(): Promise<SyncResult> {
         result.durationMs = Date.now() - startTime;
         result.errorMessage = String(err?.message || err);
         return result;
+    } finally {
+        isSyncing = false;
     }
 }
 
