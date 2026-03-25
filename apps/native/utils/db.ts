@@ -374,7 +374,16 @@ export async function createPost(post: any) {
         });
         clearTimeout(timeoutId);
         if (!res.ok) {
-            console.warn('[DB] Remote post push failed:', res.status, await res.text());
+            const txt = await res.text();
+            console.warn('[DB] Failed to push post to remote node:', txt);
+            let errMsg = 'Failed to push post to remote node';
+            try {
+                const json = JSON.parse(txt);
+                if (json.error) errMsg = json.error;
+            } catch (e) {
+                if (txt) errMsg = txt;
+            }
+            throw new Error(errMsg);
         } else {
             console.log('[DB] ✅ Post pushed to remote node successfully');
         }

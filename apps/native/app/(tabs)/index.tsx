@@ -222,9 +222,9 @@ export default function MapScreen() {
             resetNewPost();
             setShowNewPost(false);
             loadPosts();
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            Alert.alert("Error", "Could not publish post.");
+            Alert.alert("Error", e.message || "Could not publish post.");
         }
         setPosting(false);
     };
