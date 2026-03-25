@@ -494,8 +494,6 @@ export async function redeemInvite(code: string, callsign: string): Promise<bool
         const body = { code, publicKey: identity.publicKey, callsign };
         const bodyString = JSON.stringify(body);
 
-        const { sign } = await import('@noble/ed25519');
-        const { hexToBytes } = await import('./crypto');
         const privateKeyBytes = hexToBytes(identity.privateKey);
         const messageBytes = encodeUtf8(bodyString);
         const signatureBytes = await sign(messageBytes, privateKeyBytes);
