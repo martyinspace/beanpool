@@ -1,10 +1,14 @@
 import * as SQLite from 'expo-sqlite';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { loadIdentity } from './identity';
 
 /**
  * Singleton database instance.
  * Using the synchronous API available in expo-sqlite version 14.x+ 
  */
 let db: SQLite.SQLiteDatabase | null = null;
+let dbInitialized = false;
+let dbInitPromise: Promise<void> | null = null;
 
 export async function getDb(): Promise<SQLite.SQLiteDatabase> {
     if (db) return db;
@@ -13,11 +17,31 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase> {
     return db;
 }
 
+/** Ensures initDB has completed before any query runs */
+async function waitForInit(): Promise<SQLite.SQLiteDatabase> {
+    if (dbInitialized) return getDb();
+    if (dbInitPromise) {
+        await dbInitPromise;
+        return getDb();
+    }
+    // If neither, trigger initDB ourselves
+    dbInitPromise = initDB();
+    await dbInitPromise;
+    return getDb();
+}
+
 /**
  * Physically translates the Node Server schema identical array into
  * the local Native device's memory for Background Libp2p gossiping.
  */
 export async function initDB() {
+    if (dbInitialized) return;
+    if (dbInitPromise) { await dbInitPromise; return; }
+    dbInitPromise = _doInitDB();
+    await dbInitPromise;
+}
+
+async function _doInitDB() {
     const database = await getDb();
     
     // We execute the same exact schema.sql payload to guarantee 1:1 API compatibility locally
@@ -138,9 +162,18 @@ export async function initDB() {
         } catch (e) {
             // Column likely already exists, ignore
         }
+        // Add price_type column if not exists
+        try {
+            await database.execAsync(`ALTER TABLE posts ADD COLUMN price_type TEXT DEFAULT 'fixed';`);
+        } catch (e) {}
+        // Add repeatable column if not exists
+        try {
+            await database.execAsync(`ALTER TABLE posts ADD COLUMN repeatable INTEGER DEFAULT 0;`);
+        } catch (e) {}
     } catch (e) {
         console.error('[SQLite] Database init error:', e);
     }
+    dbInitialized = true;
 }
 
 /**
@@ -156,19 +189,24 @@ export async function clearDB() {
  * PWA Fetch Equivalents executed cleanly across the Local Disk
  */
 export async function getPosts(filter?: { type?: string; category?: string }) {
-    const database = await getDb();
-    let query = "SELECT * FROM posts WHERE status = 'active'";
+    const database = await waitForInit();
+    let query = `
+        SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar
+        FROM posts p
+        LEFT JOIN members m ON p.author_pubkey = m.public_key
+        WHERE p.status = 'active'
+    `;
     let params: any[] = [];
     
     if (filter?.type) {
-        query += ' AND type = ?';
+        query += ' AND p.type = ?';
         params.push(filter.type);
     }
     if (filter?.category) {
-        query += ' AND category = ?';
+        query += ' AND p.category = ?';
         params.push(filter.category);
     }
-    query += ' ORDER BY created_at DESC';
+    query += ' ORDER BY p.created_at DESC';
     
     if (params.length > 0) {
         return await database.getAllAsync(query, params);
@@ -178,8 +216,13 @@ export async function getPosts(filter?: { type?: string; category?: string }) {
 }
 
 export async function getPost(id: string) {
-    const database = await getDb();
-    return await database.getFirstAsync('SELECT * FROM posts WHERE id = ?', [id]);
+    const database = await waitForInit();
+    return await database.getFirstAsync(`
+        SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar
+        FROM posts p
+        LEFT JOIN members m ON p.author_pubkey = m.public_key
+        WHERE p.id = ?
+    `, [id]);
 }
 
 export async function getConversations(myPubkey: string) {
@@ -272,15 +315,95 @@ export async function getProjects() {
 export async function createPost(post: any) {
     const database = await getDb();
     await database.runAsync(
-        'INSERT INTO posts (id, type, category, title, description, credits, author_pubkey, author_callsign, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [post.id, post.type, post.category, post.title, post.description, post.credits, post.author_pubkey, post.author_callsign, post.created_at]
+        `INSERT INTO posts (id, type, category, title, description, credits, author_pubkey, created_at, lat, lng, price_type, repeatable, photos)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [post.id, post.type, post.category, post.title, post.description, post.credits,
+         post.author_pubkey, post.created_at, post.lat || null, post.lng || null,
+         post.price_type || 'fixed', post.repeatable || 0, post.photos || null]
     );
+
+    // Push to remote BeanPool node so other devices can see it
+    try {
+        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+        if (!anchorUrl) {
+            console.warn('[DB] No anchor URL cached — post saved locally only');
+            return;
+        }
+
+        // Build the POST body
+        const body = {
+            type: post.type,
+            category: post.category,
+            title: post.title,
+            description: post.description,
+            credits: post.credits,
+            priceType: post.price_type || 'fixed',
+            authorPublicKey: post.author_pubkey,
+            lat: post.lat,
+            lng: post.lng,
+            photos: post.photos ? JSON.parse(post.photos) : undefined,
+            repeatable: post.repeatable === 1,
+        };
+        const bodyString = JSON.stringify(body);
+
+        // Sign the request with Ed25519 (required by server middleware)
+        const { sign } = await import('@noble/ed25519');
+        const { hexToBytes } = await import('./crypto');
+        const identity = await loadIdentity();
+        if (!identity) {
+            console.warn('[DB] No identity — cannot sign POST request');
+            return;
+        }
+        const privateKeyBytes = hexToBytes(identity.privateKey);
+        const messageBytes = new TextEncoder().encode(bodyString);
+        const signatureBytes = await sign(messageBytes, privateKeyBytes);
+        // Convert signature to base64
+        let binary = '';
+        for (let i = 0; i < signatureBytes.length; i++) {
+            binary += String.fromCharCode(signatureBytes[i]);
+        }
+        const signatureBase64 = btoa(binary);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const res = await fetch(`${anchorUrl}/api/marketplace/posts`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Public-Key': identity.publicKey,
+                'X-Signature': signatureBase64,
+            },
+            body: bodyString,
+            signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        if (!res.ok) {
+            console.warn('[DB] Remote post push failed:', res.status, await res.text());
+        } else {
+            console.log('[DB] ✅ Post pushed to remote node successfully');
+        }
+    } catch (e: any) {
+        console.warn('[DB] Failed to push post to remote node:', e.message);
+    }
+}
+
+export async function updatePost(id: string, updates: any) {
+    const database = await getDb();
+    await database.runAsync(
+        `UPDATE posts SET type = ?, category = ?, title = ?, description = ?, credits = ?, price_type = ?, photos = ? WHERE id = ?`,
+        [updates.type, updates.category, updates.title, updates.description, updates.credits, updates.price_type || 'fixed', updates.photos || null, id]
+    );
+}
+
+export async function deletePost(id: string) {
+    const database = await getDb();
+    await database.runAsync('DELETE FROM posts WHERE id = ?', [id]);
 }
 
 export async function applyDelta(delta: any) {
     const database = await getDb();
     
-    // Process transactions atomically
+    // Full-replace sync: server response is the source of truth
     await database.withTransactionAsync(async () => {
         if (delta.accounts) {
             for (const acc of delta.accounts) {
@@ -295,18 +418,21 @@ export async function applyDelta(delta: any) {
             for (const t of delta.transactions) {
                 await database.runAsync(
                     'INSERT OR REPLACE INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
-                    [t.id, t.from_pubkey, t.to_pubkey, t.amount, t.memo, t.timestamp]
+                    [t.id, t.from_pubkey, t.to_pubkey, t.amount, t.memo || null, t.timestamp || null]
                 );
             }
         }
 
-        if (delta.posts) {
+        if (delta.posts !== undefined) {
+            // Wipe stale posts — the server dataset is the full truth
+            await database.runAsync('DELETE FROM posts');
             for (const p of delta.posts) {
                 await database.runAsync(
                     'INSERT OR REPLACE INTO posts (id, type, category, title, description, credits, author_pubkey, lat, lng, photos) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [p.id, p.type, p.category, p.title, p.description, p.credits, p.authorPubkey || p.authorPublicKey, p.lat, p.lng, p.photos ? JSON.stringify(p.photos) : null]
+                    [p.id, p.type, p.category, p.title, p.description || '', p.credits || 0, p.author_pubkey || p.authorPubkey || p.authorPublicKey, p.lat || null, p.lng || null, p.photos ? JSON.stringify(p.photos) : null]
                 );
             }
+            console.log(`[DB] applyDelta: replaced posts table with ${delta.posts.length} posts from server`);
         }
     });
 }

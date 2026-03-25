@@ -237,9 +237,18 @@ export function seedGenesisMember(adminPublicKey: string, callsign: string): Mem
         db.prepare("UPDATE members SET invited_by = 'genesis', invite_code = 'genesis' WHERE public_key = ?").run(adminPublicKey);
         return getMember(adminPublicKey)!;
     }
-    db.prepare(`INSERT INTO members (public_key, callsign, joined_at, invited_by, invite_code) 
-                VALUES (?, ?, ?, ?, ?)`).run(adminPublicKey, callsign, new Date().toISOString(), 'genesis', 'genesis');
-    db.prepare(`INSERT INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, 0, 0)`).run(adminPublicKey);
+    // Genesis bootstrap: temporarily disable FK checks because invited_by='genesis'
+    // violates the self-referencing FK (no member with public_key='genesis' exists).
+    db.pragma('foreign_keys = OFF');
+    try {
+        db.transaction(() => {
+            db.prepare(`INSERT INTO members (public_key, callsign, joined_at, invited_by, invite_code) 
+                        VALUES (?, ?, ?, ?, ?)`).run(adminPublicKey, callsign, new Date().toISOString(), 'genesis', 'genesis');
+            db.prepare(`INSERT INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, 0, 0)`).run(adminPublicKey);
+        })();
+    } finally {
+        db.pragma('foreign_keys = ON');
+    }
     ledger.initializeGenesisAccount(adminPublicKey);
     console.log(`👑 Genesis member seeded: ${callsign}`);
     return getMember(adminPublicKey)!;

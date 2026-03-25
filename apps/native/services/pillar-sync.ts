@@ -41,6 +41,9 @@ export interface SyncResult {
  */
 async function discoverAnchor(): Promise<string | null> {
     const candidates = [
+        // Remote staging node (accessible from both emulator and physical devices)
+        'https://review.beanpool.org:8443',
+        // Local development
         'https://beanpool.local:8443',
         'http://beanpool.local:8080',
         'http://localhost:5173',   // Vite Proxy (Bypasses Self-Signed Cert Block)
@@ -108,12 +111,15 @@ export async function performSync(): Promise<SyncResult> {
 
     try {
         // Step 1: Discover BeanPool Node
+        console.log('[Pillar Sync] Discovering anchor node...');
         const anchorUrl = await discoverAnchor();
         if (!anchorUrl) {
+            console.warn('[Pillar Sync] ❌ No anchor found — all candidates failed');
             result.durationMs = Date.now() - startTime;
             result.errorMessage = 'All node URLs failed the health check connection.';
             return result;
         }
+        console.log(`[Pillar Sync] ✅ Anchor discovered: ${anchorUrl}`);
 
         // Step 2: Fetch Posts and Balance directly via standard REST APIs
         const identityRaw = await AsyncStorage.getItem('beanpool:identity');
@@ -155,9 +161,10 @@ export async function performSync(): Promise<SyncResult> {
         }
 
         const postsData = await postsRes.json();
+        console.log(`[Pillar Sync] Received ${Array.isArray(postsData) ? postsData.length : 'non-array'} posts from server`);
         
         const delta: any = {
-            posts: postsData || [],
+            posts: Array.isArray(postsData) ? postsData : [],
             accounts: [],
             transactions: []
         };
