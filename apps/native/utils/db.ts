@@ -1,6 +1,8 @@
 import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadIdentity } from './identity';
+import { sign } from '@noble/ed25519';
+import { hexToBytes } from './crypto';
 
 /**
  * Singleton database instance.
@@ -347,8 +349,6 @@ export async function createPost(post: any) {
         const bodyString = JSON.stringify(body);
 
         // Sign the request with Ed25519 (required by server middleware)
-        const { sign } = await import('@noble/ed25519');
-        const { hexToBytes } = await import('./crypto');
         const identity = await loadIdentity();
         if (!identity) {
             console.warn('[DB] No identity — cannot sign POST request');
@@ -409,7 +409,7 @@ export async function applyDelta(delta: any) {
             for (const acc of delta.accounts) {
                 await database.runAsync(
                     'INSERT OR REPLACE INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, ?, ?)',
-                    [acc.public_key, acc.balance, acc.last_demurrage_epoch || 0]
+                    [acc.public_key ?? null, acc.balance ?? 0, acc.last_demurrage_epoch ?? 0]
                 );
             }
         }
@@ -418,7 +418,7 @@ export async function applyDelta(delta: any) {
             for (const t of delta.transactions) {
                 await database.runAsync(
                     'INSERT OR REPLACE INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
-                    [t.id, t.from_pubkey, t.to_pubkey, t.amount, t.memo || null, t.timestamp || null]
+                    [t.id ?? null, t.from_pubkey ?? null, t.to_pubkey ?? null, t.amount ?? 0, t.memo ?? null, t.timestamp ?? null]
                 );
             }
         }
@@ -428,8 +428,21 @@ export async function applyDelta(delta: any) {
             await database.runAsync('DELETE FROM posts');
             for (const p of delta.posts) {
                 await database.runAsync(
-                    'INSERT OR REPLACE INTO posts (id, type, category, title, description, credits, author_pubkey, lat, lng, photos) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [p.id, p.type, p.category, p.title, p.description || '', p.credits || 0, p.author_pubkey || p.authorPubkey || p.authorPublicKey, p.lat || null, p.lng || null, p.photos ? JSON.stringify(p.photos) : null]
+                    'INSERT OR REPLACE INTO posts (id, type, category, title, description, credits, author_pubkey, lat, lng, photos, price_type, repeatable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [
+                        p.id ?? null,
+                        p.type ?? null,
+                        p.category ?? null,
+                        p.title ?? null,
+                        p.description ?? '',
+                        p.credits ?? 0,
+                        p.author_pubkey || p.authorPubkey || p.authorPublicKey || null,
+                        p.lat ?? null,
+                        p.lng ?? null,
+                        p.photos ? JSON.stringify(p.photos) : null,
+                        p.price_type || p.priceType || 'fixed',
+                        p.repeatable ? 1 : 0
+                    ]
                 );
             }
             console.log(`[DB] applyDelta: replaced posts table with ${delta.posts.length} posts from server`);

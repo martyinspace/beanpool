@@ -7,8 +7,7 @@
 
 import { useState } from 'react';
 import { type BeanPoolIdentity } from '../lib/identity';
-import { exportIdentity, decryptIdentity } from '../lib/identity-transfer';
-import { importIdentity } from '../lib/identity';
+import { exportIdentity } from '../lib/identity-transfer';
 import { ProfilePage } from './ProfilePage';
 import { type Theme } from '../lib/useTheme';
 
@@ -21,10 +20,9 @@ interface Props {
 }
 
 export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onToggleTheme }: Props) {
-    const [mode, setMode] = useState<'menu' | 'export' | 'import' | 'profile'>('menu');
+    const [mode, setMode] = useState<'menu' | 'export' | 'profile'>('menu');
     const [pin, setPin] = useState('');
     const [exportUri, setExportUri] = useState('');
-    const [importData, setImportData] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState<string | null>(null);
@@ -49,28 +47,7 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
         }
     }
 
-    async function handleImport() {
-        if (pin.length < 4) {
-            setError('PIN must be at least 4 digits.');
-            return;
-        }
-        if (!importData.trim()) {
-            setError('Paste the identity transfer code.');
-            return;
-        }
-        setLoading(true);
-        setError(null);
-        try {
-            const imported = await decryptIdentity(importData.trim(), pin);
-            await importIdentity(imported);
-            setSuccess(`Imported identity: ${imported.callsign}`);
-            onIdentityUpdated(imported);
-        } catch {
-            setError('Decryption failed — wrong PIN or invalid code.');
-        } finally {
-            setLoading(false);
-        }
-    }
+
 
     return (
         <div className="flex justify-center p-4 min-h-screen bg-oat-50 dark:bg-nature-950 transition-colors">
@@ -124,13 +101,6 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                             className="w-full py-4 px-5 rounded-2xl bg-white dark:bg-nature-900 text-nature-900 dark:text-white font-bold border border-nature-200 dark:border-nature-800 shadow-sm hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors text-left flex items-center justify-between group"
                         >
                             <span>📤 Export Identity</span>
-                            <span className="text-nature-400 dark:text-nature-500 group-hover:text-nature-600 dark:group-hover:text-nature-300 transition-colors">→</span>
-                        </button>
-                        <button
-                            onClick={() => { setMode('import'); setPin(''); setImportData(''); setError(null); }}
-                            className="w-full py-4 px-5 rounded-2xl bg-white dark:bg-nature-900 text-nature-900 dark:text-white font-bold border border-nature-200 dark:border-nature-800 shadow-sm hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors text-left flex items-center justify-between group"
-                        >
-                            <span>📥 Import Identity</span>
                             <span className="text-nature-400 dark:text-nature-500 group-hover:text-nature-600 dark:group-hover:text-nature-300 transition-colors">→</span>
                         </button>
                     </div>
@@ -233,47 +203,7 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                     </div>
                 )}
 
-                {mode === 'import' && (
-                    <div className="bg-white dark:bg-nature-900 rounded-2xl p-6 shadow-soft border border-nature-200 dark:border-nature-800 animate-in fade-in slide-in-from-bottom-2 duration-300 transition-colors">
-                        <h3 className="text-lg font-bold text-nature-950 dark:text-white mb-3 m-0 transition-colors">📥 Import Identity</h3>
-                        <p className="text-nature-600 dark:text-nature-400 text-[15px] mb-5 leading-relaxed transition-colors">
-                            Paste the transfer code from your other device and enter the same PIN.
-                        </p>
-                        <textarea
-                            value={importData}
-                            onChange={(e) => setImportData(e.target.value)}
-                            placeholder="Paste the identity transfer link here"
-                            className="w-full p-4 mb-3 rounded-xl border border-nature-200 dark:border-nature-800 bg-oat-50/50 dark:bg-nature-950/50 text-nature-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-terra-300 dark:focus:ring-terra-600 transition-all font-mono text-xs min-h-[100px] resize-none"
-                        />
-                        <input
-                            type="password"
-                            inputMode="numeric"
-                            value={pin}
-                            onChange={(e) => setPin(e.target.value)}
-                            placeholder="Enter PIN"
-                            className="w-full py-3 px-4 mb-4 rounded-xl border border-nature-200 dark:border-nature-800 bg-oat-50/50 dark:bg-nature-950/50 text-nature-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-terra-300 dark:focus:ring-terra-600 transition-all font-mono text-center tracking-[0.2em] text-lg placeholder:tracking-normal placeholder:font-sans placeholder:text-sm"
-                        />
-                        {error && <p className="text-red-500 dark:text-red-400 text-sm mb-4 font-medium px-1 animate-pulse">{error}</p>}
-                        {success && <p className="text-emerald-600 dark:text-emerald-400 text-sm mb-4 font-medium px-1">{success}</p>}
-                        <button 
-                            onClick={handleImport} 
-                            disabled={loading || pin.length < 4} 
-                            className={`w-full py-3.5 rounded-xl font-bold transition-all shadow-sm mb-3 ${
-                                !loading && pin.length >= 4 
-                                    ? 'bg-blue-600 dark:bg-blue-700 text-white hover:bg-blue-700 dark:hover:bg-blue-600 hover:shadow-md' 
-                                    : 'bg-oat-200 dark:bg-nature-800 text-oat-500 dark:text-nature-500 cursor-not-allowed'
-                            }`}
-                        >
-                            {loading ? 'Decrypting...' : 'Import Identity'}
-                        </button>
-                        <button
-                            onClick={() => setMode('menu')}
-                            className="w-full py-3 rounded-xl font-semibold bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors"
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                )}
+
 
                 {mode === 'profile' && (
                     <div className="bg-white dark:bg-nature-900 rounded-2xl shadow-soft border border-nature-200 dark:border-nature-800 overflow-hidden transition-colors">

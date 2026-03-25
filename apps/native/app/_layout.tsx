@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import 'fast-text-encoding';
+import { useEffect, useState, useRef } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Alert, LogBox } from 'react-native';
+import { Alert, LogBox, AppState, AppStateStatus } from 'react-native';
 import { registerPillarSync } from '../services/background-task';
 import { performSync } from '../services/pillar-sync';
 import { initDB } from '../utils/db';
@@ -33,7 +34,6 @@ function RootLayoutNav() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="welcome" />
             <Stack.Screen name="post/[id]" options={{ presentation: 'modal' }} />
-            <Stack.Screen name="new-post" options={{ presentation: 'modal' }} />
             <Stack.Screen name="propose-project" options={{ presentation: 'modal' }} />
             <Stack.Screen name="chat/[id]" />
         </Stack>
@@ -41,6 +41,8 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+    const appState = useRef(AppState.currentState);
+
     useEffect(() => {
         initDB()
             .then(() => registerPillarSync())
@@ -55,6 +57,26 @@ export default function RootLayout() {
                 console.error(err);
                 Alert.alert('DB Error', String(err));
             });
+
+        // Set up foreground polling every 15 seconds
+        const intervalId = setInterval(() => {
+            if (appState.current === 'active') {
+                performSync();
+            }
+        }, 15000);
+
+        // App state listener to trigger sync when returning to foreground
+        const subscription = AppState.addEventListener('change', nextAppState => {
+            if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+                performSync();
+            }
+            appState.current = nextAppState;
+        });
+
+        return () => {
+            clearInterval(intervalId);
+            subscription.remove();
+        };
     }, []);
 
     return (

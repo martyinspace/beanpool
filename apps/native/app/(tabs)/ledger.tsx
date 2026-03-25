@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, ScrollView, Image } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIdentity } from '../IdentityContext';
-import { getBalance, getTransactions, getProjects } from '../../utils/db';
+import { getBalance, getTransactions, getProjects, getMemberProfile } from '../../utils/db';
 
 export default function LedgerScreen() {
     const { identity } = useIdentity();
@@ -11,6 +11,7 @@ export default function LedgerScreen() {
     const [projects, setProjects] = useState<any[]>([]);
     const [balanceState, setBalanceState] = useState({ balance: 0, floor: 0, commons: 0 });
     const [showSend, setShowSend] = useState(false);
+    const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
     useFocusEffect(
         React.useCallback(() => {
@@ -18,6 +19,9 @@ export default function LedgerScreen() {
                 getBalance(identity.publicKey).then(setBalanceState).catch(console.error);
                 getTransactions(identity.publicKey).then(setTxns).catch(console.error);
                 getProjects().then(setProjects).catch(console.error);
+                getMemberProfile(identity.publicKey).then(profile => {
+                    setAvatarUrl(profile?.avatar_url || null);
+                }).catch(console.error);
             }
         }, [identity])
     );
@@ -27,7 +31,11 @@ export default function LedgerScreen() {
             {/* Identity Card */}
             <View style={styles.identityCard}>
                 <View style={styles.avatar}>
-                    <Text style={styles.avatarEmoji}>🛡️</Text>
+                    {avatarUrl ? (
+                        <Image source={{ uri: avatarUrl }} style={{ width: 72, height: 72, borderRadius: 36 }} />
+                    ) : (
+                        <Text style={styles.avatarEmoji}>🛡️</Text>
+                    )}
                 </View>
                 <Text style={styles.callsign}>{identity?.callsign || 'GUEST'}</Text>
                 <Text style={styles.pubkey}>{identity?.publicKey?.substring(0, 16) || '...'}...</Text>

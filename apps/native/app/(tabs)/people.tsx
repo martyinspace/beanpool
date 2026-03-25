@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image } from 'react-native';
 import { getDb } from '../../utils/db'; // Will query local mock array mapped to PWA layout
 
 type SubView = 'friends' | 'community' | 'invites' | 'guardians';
@@ -75,7 +75,11 @@ export default function PeopleScreen() {
                         <View style={styles.card}>
                             <View style={styles.cardHeader}>
                                 <View style={styles.avatar}>
-                                    <Text style={styles.avatarEmoji}>👤</Text>
+                                    {item.avatar_url ? (
+                                        <Image source={{ uri: item.avatar_url }} style={{ width: 44, height: 44, borderRadius: 22 }} />
+                                    ) : (
+                                        <Text style={styles.avatarEmoji}>👤</Text>
+                                    )}
                                 </View>
                                 <View style={styles.textStack}>
                                     <Text style={styles.callsign}>{item.callsign}</Text>

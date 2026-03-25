@@ -20,7 +20,7 @@ export async function loadIdentity(): Promise<BeanPoolIdentity | null> {
         if (isWeb) {
             data = localStorage.getItem(KEY_ID);
         } else {
-            data = await SecureStore.getItemAsync(KEY_ID, { requireAuthentication: true });
+            data = await SecureStore.getItemAsync(KEY_ID);
         }
         if (!data) return null;
         return JSON.parse(data);
@@ -90,7 +90,7 @@ async function saveIdentity(identity: BeanPoolIdentity): Promise<void> {
     if (isWeb) {
         localStorage.setItem(KEY_ID, payload);
     } else {
-        await SecureStore.setItemAsync(KEY_ID, payload, { requireAuthentication: true });
+        await SecureStore.setItemAsync(KEY_ID, payload);
     }
 }
 

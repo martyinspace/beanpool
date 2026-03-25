@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Alert, Image, Share } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useIdentity } from '../IdentityContext';
 import * as SecureStore from 'expo-secure-store';
 import * as ImagePicker from 'expo-image-picker';
-import { updateCallsign, wipeIdentity, importIdentity, createIdentityFromMnemonic } from '../../utils/identity';
-import { exportIdentity, decryptIdentity } from '../../utils/identity-transfer';
+import { updateCallsign, wipeIdentity } from '../../utils/identity';
+import { nativeExportIdentity } from '../../utils/native-crypto';
 import { updateMemberProfile, getMemberProfile } from '../../utils/db';
 
 export default function SettingsScreen() {
@@ -17,12 +18,14 @@ export default function SettingsScreen() {
     const [loading, setLoading] = useState(false);
     
     React.useEffect(() => {
-        if (identity && mode === 'profile') {
+        if (identity) {
             getMemberProfile(identity.publicKey).then(profile => {
                 if (profile) {
                     setAvatar(profile.avatar_url || null);
-                    setBio(profile.bio || '');
-                    setContact(profile.contact_value || '');
+                    if (mode === 'profile') {
+                        setBio(profile.bio || '');
+                        setContact(profile.contact_value || '');
+                    }
                 }
             }).catch(console.error);
         }
@@ -31,27 +34,37 @@ export default function SettingsScreen() {
     // Transfer logic
     const [pin, setPin] = useState('');
     const [exportUri, setExportUri] = useState('');
-    const [importData, setImportData] = useState('');
 
     if (!identity) return null;
 
     const fingerprint = identity.publicKey.slice(0, 16) + '...';
 
     async function handlePickImage() {
-        try {
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ['images'],
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.7,
-                base64: true
-            });
-            if (!result.canceled && result.assets[0].base64) {
-                setAvatar(`data:image/jpeg;base64,${result.assets[0].base64}`);
-            }
-        } catch (e) {
-            Alert.alert('Error', 'Could not pick image.');
-        }
+        Alert.alert('Profile Photo', 'Choose a source', [
+            { text: 'Camera', onPress: async () => {
+                try {
+                    const perm = await ImagePicker.requestCameraPermissionsAsync();
+                    if (!perm.granted) { Alert.alert('Permission required', 'Camera access is needed.'); return; }
+                    const result = await ImagePicker.launchCameraAsync({
+                        mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true
+                    });
+                    if (!result.canceled && result.assets[0].base64) {
+                        setAvatar(`data:image/jpeg;base64,${result.assets[0].base64}`);
+                    }
+                } catch (e) { Alert.alert('Error', 'Could not take photo.'); }
+            }},
+            { text: 'Gallery', onPress: async () => {
+                try {
+                    const result = await ImagePicker.launchImageLibraryAsync({
+                        mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true
+                    });
+                    if (!result.canceled && result.assets[0].base64) {
+                        setAvatar(`data:image/jpeg;base64,${result.assets[0].base64}`);
+                    }
+                } catch (e) { Alert.alert('Error', 'Could not pick image.'); }
+            }},
+            { text: 'Cancel', style: 'cancel' },
+        ]);
     }
 
     async function handleUpdateCallsign() {
@@ -106,65 +119,33 @@ export default function SettingsScreen() {
         }
         setLoading(true);
         try {
-            const uri = await exportIdentity(identity, pin);
+            const uri = await nativeExportIdentity(identity, pin);
             setExportUri(uri);
         } catch (e: any) {
-            if (e.message?.includes('WebCrypto')) {
-                if (identity.mnemonic) {
-                    Alert.alert('Legacy Export', 'Your device does not support AES-GCM encryption natively. Please write down your 12-word recovery phrase instead:\n\n' + identity.mnemonic.join(' '));
-                } else {
-                    Alert.alert('Export Failed', 'Your identity cannot be exported because the recovery phrase is missing and native AES encryption is unsupported.');
-                }
-            } else {
-                Alert.alert('Error', 'Export failed.');
-            }
+            Alert.alert('Export Failed', 'Could not export identity: ' + (e.message || 'Unknown error'));
         } finally {
             setLoading(false);
         }
     }
 
-    async function handleImport() {
-        setLoading(true);
-        const words = importData.trim().split(/\\s+/);
-        
-        // Dynamic Mnemonic Fallback
-        if (words.length === 12) {
+    async function handleCopy() {
+        if (exportUri) {
+            await Clipboard.setStringAsync(exportUri);
+            Alert.alert('Copied!', 'Transfer code copied to clipboard.');
+        }
+    }
+
+    async function handleShare() {
+        if (exportUri) {
             try {
-                let tempCallsign = 'Recovered Node';
-                if (words[0] === identity.mnemonic?.[0]) tempCallsign = identity.callsign;
-                const imported = await createIdentityFromMnemonic(words, tempCallsign);
-                setIdentity(imported);
-                Alert.alert('Success', 'Imported network identity via 12-word Recovery Phrase.');
-                setMode('menu');
-            } catch (err) {
-                Alert.alert('Error', 'Failed to reconstruct Ed25519 keypair.');
+                await Share.share({ message: exportUri });
+            } catch (e) {
+                // User cancelled share
             }
-            setLoading(false);
-            return;
-        }
-
-        if (pin.length < 4) {
-            Alert.alert('Error', 'PIN must be at least 4 digits to decrypt a transfer URI.');
-            setLoading(false);
-            return;
-        }
-
-        try {
-            const imported = await decryptIdentity(importData.trim(), pin);
-            await importIdentity(imported);
-            setIdentity(imported);
-            Alert.alert('Success', `Imported identity: ${imported.callsign}`);
-            setMode('menu');
-        } catch (e: any) {
-             if (e.message?.includes('WebCrypto')) {
-                Alert.alert('Unsupported Device', 'Your device does not support AES-GCM decryption natively. Please paste your raw 12-word recovery phrase directly into the import box instead.');
-             } else {
-                Alert.alert('Decryption failed', 'Wrong PIN or corrupted transfer data.');
-             }
-        } finally {
-            setLoading(false);
         }
     }
+
+
 
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -172,6 +153,15 @@ export default function SettingsScreen() {
 
             {/* Identity Card */}
             <View style={styles.card}>
+                <View style={{ alignItems: 'center', marginBottom: 12 }}>
+                    {avatar ? (
+                        <Image source={{ uri: avatar }} style={{ width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: '#10b981' }} />
+                    ) : (
+                        <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#262626', borderWidth: 3, borderColor: '#404040', justifyContent: 'center', alignItems: 'center' }}>
+                            <Text style={{ fontSize: 32 }}>👤</Text>
+                        </View>
+                    )}
+                </View>
                 <Text style={styles.label}>CALLSIGN</Text>
                 <Text style={styles.value}>{identity.callsign}</Text>
                 
@@ -189,10 +179,6 @@ export default function SettingsScreen() {
                     </Pressable>
                     <Pressable style={styles.menuBtn} onPress={() => { setMode('export'); setPin(''); setExportUri(''); }}>
                         <Text style={styles.menuText}>📤 Export Identity</Text>
-                        <Text style={styles.menuArrow}>→</Text>
-                    </Pressable>
-                    <Pressable style={styles.menuBtn} onPress={() => { setMode('import'); setPin(''); setImportData(''); }}>
-                        <Text style={styles.menuText}>📥 Import Identity</Text>
                         <Text style={styles.menuArrow}>→</Text>
                     </Pressable>
                     <Pressable style={[styles.menuBtn, { borderBottomWidth: 0 }]} onPress={() => setMode('advanced')}>
@@ -280,13 +266,21 @@ export default function SettingsScreen() {
                         </>
                     ) : (
                         <>
-                            <Text style={styles.infoText}>Your encrypted identity link is ready.</Text>
+                            <Text style={styles.infoText}>Your encrypted identity link is ready. Send it to your other device.</Text>
                             <View style={styles.uriBox}>
-                                <Text style={styles.uriText}>{exportUri}</Text>
+                                <Text style={styles.uriText} selectable>{exportUri}</Text>
                             </View>
-                            <Text style={[styles.infoText, { color: '#059669', fontWeight: 'bold', textAlign: 'center', marginTop: -8 }]}>
-                                PIN: {pin}
-                            </Text>
+                            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                                <Pressable style={[styles.primaryBtn, { flex: 1, backgroundColor: '#059669' }]} onPress={handleCopy}>
+                                    <Text style={styles.primaryBtnText}>📋 Copy</Text>
+                                </Pressable>
+                                <Pressable style={[styles.primaryBtn, { flex: 1, backgroundColor: '#d97757' }]} onPress={handleShare}>
+                                    <Text style={styles.primaryBtnText}>📤 Share</Text>
+                                </Pressable>
+                            </View>
+                            <View style={{ backgroundColor: '#ecfdf5', borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: '#a7f3d0' }}>
+                                <Text style={{ color: '#059669', fontSize: 14, fontWeight: '800' }}>🔑 PIN: {pin}</Text>
+                            </View>
                         </>
                     )}
                     
@@ -296,41 +290,7 @@ export default function SettingsScreen() {
                 </View>
             )}
 
-            {mode === 'import' && (
-                <View style={styles.card}>
-                    <Text style={styles.sectionTitle}>📥 Import Identity</Text>
-                    
-                    <Text style={styles.infoText}>
-                        Paste the encrypted transfer link (or your raw 12-word recovery phrase) below.
-                    </Text>
-                    
-                    <TextInput 
-                        style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
-                        value={importData}
-                        onChangeText={setImportData}
-                        placeholder="Paste URI or 12 words..."
-                        multiline
-                    />
 
-                    <TextInput 
-                        style={[styles.input, { textAlign: 'center', fontSize: 20, letterSpacing: 8 }]}
-                        value={pin}
-                        onChangeText={setPin}
-                        placeholder="Decrypt PIN (if URI)"
-                        keyboardType="number-pad"
-                        maxLength={8}
-                        secureTextEntry
-                    />
-
-                    <Pressable style={styles.primaryBtn} onPress={handleImport} disabled={loading}>
-                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Reconstruct Identity</Text>}
-                    </Pressable>
-                    
-                    <Pressable style={styles.backBtn} onPress={() => setMode('menu')}>
-                        <Text style={styles.backBtnText}>Cancel</Text>
-                    </Pressable>
-                </View>
-            )}
 
             {mode === 'advanced' && (
                 <View style={styles.card}>
