@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Platform, Modal, TextInput } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIdentity } from '../IdentityContext';
@@ -8,6 +8,8 @@ import { getConversations } from '../../utils/db';
 export default function ChatsScreen() {
     const { identity } = useIdentity();
     const [conversations, setConversations] = useState<any[]>([]);
+    const [showPrompt, setShowPrompt] = useState(false);
+    const [promptVal, setPromptVal] = useState('');
 
     useFocusEffect(
         React.useCallback(() => {
@@ -16,6 +18,14 @@ export default function ChatsScreen() {
             }
         }, [identity])
     );
+
+    const handleCreateChat = () => {
+        if (promptVal.trim()) {
+            setShowPrompt(false);
+            router.push(`/chat/${promptVal.trim()}`);
+            setPromptVal('');
+        }
+    };
 
     const renderItem = ({ item }: { item: any }) => (
         <Pressable 
@@ -53,18 +63,7 @@ export default function ChatsScreen() {
                         const val = window.prompt("Enter PubKey or Callsign:");
                         if (val) router.push(`/chat/${val}`);
                     } else {
-                        import('react-native').then(({ Alert }) => {
-                            Alert.prompt(
-                                "New Message",
-                                "Enter the PubKey or Callsign of the user:",
-                                [
-                                    { text: "Cancel", style: "cancel" },
-                                    { text: "Chat", onPress: (val) => {
-                                        if (val) router.push(`/chat/${val}`)
-                                    }}
-                                ]
-                            );
-                        });
+                        setShowPrompt(true);
                     }
                 }}>
                     <MaterialCommunityIcons name="pencil-outline" size={24} color="#8b5cf6" />
@@ -84,6 +83,33 @@ export default function ChatsScreen() {
                     </View>
                 }
             />
+
+            <Modal visible={showPrompt} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>New Message</Text>
+                        <Text style={styles.modalSubtitle}>Enter the PubKey or Callsign string of the target peer to begin an encrypted handshake.</Text>
+                        
+                        <TextInput
+                            style={styles.modalInput}
+                            placeholder="e.g. 02a1b3..."
+                            placeholderTextColor="#9ca3af"
+                            value={promptVal}
+                            onChangeText={setPromptVal}
+                            autoFocus
+                        />
+                        
+                        <View style={styles.modalActions}>
+                            <Pressable style={[styles.modalBtn, styles.modalBtnCancel]} onPress={() => { setShowPrompt(false); setPromptVal(''); }}>
+                                <Text style={styles.modalBtnCancelText}>Cancel</Text>
+                            </Pressable>
+                            <Pressable style={[styles.modalBtn, styles.modalBtnSubmit]} onPress={handleCreateChat}>
+                                <Text style={styles.modalBtnSubmitText}>Chat</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -109,5 +135,17 @@ const styles = StyleSheet.create({
     unreadBadge: { backgroundColor: '#8b5cf6', width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
     unreadCount: { color: '#ffffff', fontSize: 11, fontWeight: '800' },
     emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 100 },
-    emptyText: { marginTop: 16, fontSize: 15, color: '#9ca3af', fontWeight: '500' }
+    emptyText: { marginTop: 16, fontSize: 15, color: '#9ca3af', fontWeight: '500' },
+
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+    modalContent: { width: '100%', backgroundColor: '#fff', borderRadius: 24, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
+    modalTitle: { fontSize: 20, fontWeight: '800', color: '#1f2937', marginBottom: 8 },
+    modalSubtitle: { fontSize: 14, color: '#6b7280', marginBottom: 20, lineHeight: 20 },
+    modalInput: { backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 16, fontSize: 16, color: '#1f2937', marginBottom: 24 },
+    modalActions: { flexDirection: 'row', gap: 12 },
+    modalBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+    modalBtnCancel: { backgroundColor: '#f3f4f6' },
+    modalBtnCancelText: { color: '#4b5563', fontSize: 16, fontWeight: '600' },
+    modalBtnSubmit: { backgroundColor: '#8b5cf6' },
+    modalBtnSubmitText: { color: '#fff', fontSize: 16, fontWeight: '700' }
 });
