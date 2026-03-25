@@ -350,10 +350,11 @@ export function redeemInvite(code: string, publicKey: string, callsign: string):
 
     if (getMember(publicKey)) return { success: false, error: 'You are already a member' };
 
-    db.prepare("UPDATE invite_codes SET used_by = ?, used_at = ? WHERE code COLLATE NOCASE = ?").run(publicKey, new Date().toISOString(), code);
-
+    // Register member FIRST — invite_codes.used_by has FK to members(public_key)
     const member = registerMemberInternal(publicKey, callsign, invite.created_by, code);
     if (!member) return { success: false, error: 'Registration failed' };
+
+    db.prepare("UPDATE invite_codes SET used_by = ?, used_at = ? WHERE code COLLATE NOCASE = ?").run(publicKey, new Date().toISOString(), code);
 
     return { success: true, member };
 }
