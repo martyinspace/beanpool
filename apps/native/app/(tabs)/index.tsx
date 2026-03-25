@@ -102,6 +102,13 @@ export default function MapScreen() {
     const [pinDropMode, setPinDropMode] = useState(false);
     const [posting, setPosting] = useState(false);
     const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+    useEffect(() => {
+        const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
+        const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
+        return () => { showSub.remove(); hideSub.remove(); };
+    }, []);
 
     useFocusEffect(
         React.useCallback(() => { loadPosts(); }, [])
@@ -312,14 +319,11 @@ export default function MapScreen() {
 
             {/* New Post Bottom Sheet */}
             {showNewPost && (
-                <View style={[StyleSheet.absoluteFill, { zIndex: 500 }]} pointerEvents="box-none">
-                    <KeyboardAvoidingView
-                        behavior="padding"
-                        style={{ flex: 1, justifyContent: 'flex-end' }}
-                        pointerEvents="box-none"
-                        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20}
-                    >
-                        <View style={styles.sheet}>
+                <View 
+                    style={[StyleSheet.absoluteFill, { zIndex: 500, justifyContent: 'flex-end', paddingBottom: keyboardHeight }]} 
+                    pointerEvents="box-none"
+                >
+                    <View style={styles.sheet}>
                         {/* Header */}
                         <View style={styles.sheetHeader}>
                             <Text style={styles.sheetTitle}>New Post</Text>
@@ -447,7 +451,6 @@ export default function MapScreen() {
                             </Pressable>
                         </ScrollView>
                     </View>
-                </KeyboardAvoidingView>
                 </View>
             )}
         </View>
