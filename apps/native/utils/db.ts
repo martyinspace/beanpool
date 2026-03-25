@@ -316,50 +316,39 @@ export async function getProjects() {
 
 export async function createPost(post: any) {
     const database = await getDb();
-    await database.runAsync(
-        `INSERT INTO posts (id, type, category, title, description, credits, author_pubkey, created_at, lat, lng, price_type, repeatable, photos)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [post.id, post.type, post.category, post.title, post.description, post.credits,
-         post.author_pubkey, post.created_at, post.lat || null, post.lng || null,
-         post.price_type || 'fixed', post.repeatable || 0, post.photos || null]
-    );
 
-    // Push to remote BeanPool node so other devices can see it
+    // 1. Enforce Online Connection & Broadcast First
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) {
+        throw new Error('You are currently offline. Please connect to a BeanPool Node to broadcast your post.');
+    }
+
+    const identity = await loadIdentity();
+    if (!identity) {
+        throw new Error('No identity found.');
+    }
+
+    const body = {
+        type: post.type,
+        category: post.category,
+        title: post.title,
+        description: post.description,
+        credits: post.credits,
+        priceType: post.price_type || 'fixed',
+        authorPublicKey: post.author_pubkey,
+        lat: post.lat,
+        lng: post.lng,
+        photos: post.photos ? JSON.parse(post.photos) : undefined,
+        repeatable: post.repeatable === 1,
+    };
+    const bodyString = JSON.stringify(body);
+
+    const privateKeyBytes = hexToBytes(identity.privateKey);
+    const messageBytes = encodeUtf8(bodyString);
+    const signatureBytes = await sign(messageBytes, privateKeyBytes);
+    const signatureBase64 = encodeBase64(signatureBytes);
+
     try {
-        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
-        if (!anchorUrl) {
-            console.warn('[DB] No anchor URL cached — post saved locally only');
-            return;
-        }
-
-        // Build the POST body
-        const body = {
-            type: post.type,
-            category: post.category,
-            title: post.title,
-            description: post.description,
-            credits: post.credits,
-            priceType: post.price_type || 'fixed',
-            authorPublicKey: post.author_pubkey,
-            lat: post.lat,
-            lng: post.lng,
-            photos: post.photos ? JSON.parse(post.photos) : undefined,
-            repeatable: post.repeatable === 1,
-        };
-        const bodyString = JSON.stringify(body);
-
-        // Sign the request with Ed25519 (required by server middleware)
-        const identity = await loadIdentity();
-        if (!identity) {
-            console.warn('[DB] No identity — cannot sign POST request');
-            return;
-        }
-        const privateKeyBytes = hexToBytes(identity.privateKey);
-        const messageBytes = encodeUtf8(bodyString);
-        const signatureBytes = await sign(messageBytes, privateKeyBytes);
-        // Convert signature to base64
-        const signatureBase64 = encodeBase64(signatureBytes);
-
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
         const res = await fetch(`${anchorUrl}/api/marketplace/posts`, {
@@ -373,10 +362,10 @@ export async function createPost(post: any) {
             signal: controller.signal,
         });
         clearTimeout(timeoutId);
+
         if (!res.ok) {
             const txt = await res.text();
-            console.warn('[DB] Failed to push post to remote node:', txt);
-            let errMsg = 'Failed to push post to remote node';
+            let errMsg = 'Network request failed or server rejected the post.';
             try {
                 const json = JSON.parse(txt);
                 if (json.error) errMsg = json.error;
@@ -384,12 +373,21 @@ export async function createPost(post: any) {
                 if (txt) errMsg = txt;
             }
             throw new Error(errMsg);
-        } else {
-            console.log('[DB] ✅ Post pushed to remote node successfully');
         }
     } catch (e: any) {
-        console.warn('[DB] Failed to push post to remote node:', e.message);
+        // If it fails (e.g., no internet or server error), bubble it up to the UI so we DON'T lose the drafted post!
+        throw new Error(e.message || 'Network request failed. You must be connected to a node to post.');
     }
+
+    // 2. Local Database Confirmation
+    // Only save to SQLite AFTER the server has safely accepted it, preventing the background sync from wiping our un-synced draft
+    await database.runAsync(
+        `INSERT INTO posts (id, type, category, title, description, credits, author_pubkey, created_at, lat, lng, price_type, repeatable, photos)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [post.id, post.type, post.category, post.title, post.description, post.credits,
+         post.author_pubkey, post.created_at, post.lat || null, post.lng || null,
+         post.price_type || 'fixed', post.repeatable || 0, post.photos || null]
+    );
 }
 
 export async function updatePost(id: string, updates: any) {
@@ -478,9 +476,63 @@ export async function insertMessage(conversationId: string, authorPubkey: string
     const database = await getDb();
     const id = Date.now().toString();
     const timestamp = new Date().toISOString();
+    const nonce = '00000'; // Placeholder for future DHP encryption nonce
+
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) {
+        throw new Error('You are off-grid. Please connect to a BeanPool Node to send secure messages.');
+    }
+
+    const identity = await loadIdentity();
+    if (!identity) throw new Error('No identity found.');
+
+    const body = {
+        conversationId,
+        authorPubkey,
+        ciphertext: text,
+        nonce
+    };
+    const bodyString = JSON.stringify(body);
+
+    const privateKeyBytes = hexToBytes(identity.privateKey);
+    const messageBytes = encodeUtf8(bodyString);
+    const signatureBytes = await sign(messageBytes, privateKeyBytes);
+    const signatureBase64 = encodeBase64(signatureBytes);
+
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const res = await fetch(`${anchorUrl}/api/messages/send`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Public-Key': identity.publicKey,
+                'X-Signature': signatureBase64,
+            },
+            body: bodyString,
+            signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+            const txt = await res.text();
+            let errMsg = 'Failed to deliver message.';
+            try {
+                const json = JSON.parse(txt);
+                if (json.error) errMsg = json.error;
+            } catch (e) {
+                if (txt) errMsg = txt;
+            }
+            throw new Error(errMsg);
+        }
+    } catch (e: any) {
+        throw new Error(e.message || 'Network request failed. Message unable to be sent.');
+    }
+
+    // Safely write to physical storage since the node accepted it
     await database.runAsync(
         'INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
-        [id, conversationId, authorPubkey, text, '00000', timestamp]
+        [id, conversationId, authorPubkey, text, nonce, timestamp]
     );
 }
 

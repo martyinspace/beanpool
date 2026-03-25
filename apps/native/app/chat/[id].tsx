@@ -32,9 +32,15 @@ export default function ChatScreen() {
     const handleSend = async () => {
         if (!draft.trim() || !identity?.publicKey) return;
         
-        await insertMessage(id as string, identity.publicKey, draft.trim());
-        setDraft('');
-        loadMessages();
+        try {
+            await insertMessage(id as string, identity.publicKey, draft.trim());
+            setDraft('');
+            loadMessages();
+        } catch (err: any) {
+            import('react-native').then(({ Alert }) => {
+                Alert.alert("Message Failed", err.message || "Could not execute send.");
+            });
+        }
     };
 
     const renderMessage = ({ item }: { item: any }) => {
