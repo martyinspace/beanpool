@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { StyleSheet, View, Text, Platform, Alert, TouchableOpacity, ScrollView, TextInput, Pressable, Switch, KeyboardAvoidingView, Dimensions, Image as RNImage } from 'react-native';
+import { StyleSheet, View, Text, Platform, Alert, TouchableOpacity, ScrollView, TextInput, Pressable, Switch, KeyboardAvoidingView, Dimensions, Image as RNImage, Keyboard } from 'react-native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as Crypto from 'expo-crypto';
@@ -157,6 +157,7 @@ export default function MapScreen() {
     };
 
     const enterPinDrop = () => {
+        Keyboard.dismiss();
         setPinDropMode(true); setPostLat(null); setPostLng(null);
         setValidationErrors(prev => { const n = new Set(prev); n.delete('location'); return n; });
     };
@@ -261,13 +262,8 @@ export default function MapScreen() {
 
                 {/* Pin drop preview marker */}
                 {pinDropMode && postLat != null && postLng != null && (
-                    <Marker coordinate={{ latitude: postLat, longitude: postLng }} anchor={{ x: 0.5, y: 1 }}>
-                        <View style={styles.pinContainer}>
-                            <View style={[styles.pinCircle, { borderColor: '#d97757', borderStyle: 'dashed' }]}>
-                                <Text style={styles.pinEmoji}>📌</Text>
-                            </View>
-                            <View style={[styles.pinArrow, { borderTopColor: '#d97757' }]} />
-                        </View>
+                    <Marker coordinate={{ latitude: postLat, longitude: postLng }} anchor={{ x: 0.5, y: 0.8 }}>
+                        <Text style={{ fontSize: 42 }}>📍</Text>
                     </Marker>
                 )}
             </MapView>
