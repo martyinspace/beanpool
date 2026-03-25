@@ -465,3 +465,52 @@ export async function insertMessage(conversationId: string, authorPubkey: string
         [id, conversationId, authorPubkey, text, '00000', timestamp]
     );
 }
+
+export async function redeemInvite(code: string, callsign: string): Promise<boolean> {
+    try {
+        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || 'https://review.beanpool.org:8443';
+
+        const identity = await loadIdentity();
+        if (!identity) throw new Error('No identity to register');
+
+        const body = { code, publicKey: identity.publicKey, callsign };
+        const bodyString = JSON.stringify(body);
+
+        const { sign } = await import('@noble/ed25519');
+        const { hexToBytes } = await import('./crypto');
+        const privateKeyBytes = hexToBytes(identity.privateKey);
+        const messageBytes = new TextEncoder().encode(bodyString);
+        const signatureBytes = await sign(messageBytes, privateKeyBytes);
+        
+        let binary = '';
+        for (let i = 0; i < signatureBytes.length; i++) {
+            binary += String.fromCharCode(signatureBytes[i]);
+        }
+        const signatureBase64 = btoa(binary);
+
+        const res = await fetch(`${anchorUrl}/api/invite/redeem`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Public-Key': identity.publicKey,
+                'X-Signature': signatureBase64,
+            },
+            body: bodyString,
+        });
+
+        if (!res.ok) {
+            let errorMsg = 'Failed to redeem invite';
+            try {
+                const errJson = await res.json();
+                if (errJson.error) errorMsg = errJson.error;
+            } catch {}
+            throw new Error(errorMsg);
+        }
+
+        console.log('[DB] ✅ Invite redeemed successfully!');
+        return true;
+    } catch (e: any) {
+        console.warn('[DB] Failed to redeem invite:', e.message);
+        throw e;
+    }
+}

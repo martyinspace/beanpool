@@ -539,6 +539,10 @@ export function createPost(
     type: 'offer' | 'need', category: string, title: string, description: string, credits: number,
     priceType: 'fixed' | 'hourly', authorPublicKey: string, lat?: number, lng?: number, photos?: string[], repeatable?: boolean,
 ): MarketplacePost | null {
+    if (!getMember(authorPublicKey)) {
+        return null;
+    }
+
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
     

@@ -1,19 +1,25 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { createIdentity, createIdentityFromMnemonic, BeanPoolIdentity } from '../utils/identity';
+import { nativeDecryptIdentity } from '../utils/native-crypto';
+import { importIdentity } from '../utils/identity';
 import { useIdentity } from './IdentityContext';
 import { StatusBar } from 'expo-status-bar';
 
 export default function WelcomeScreen() {
     const { setIdentity } = useIdentity();
-    const [mode, setMode] = useState<'home' | 'create' | 'recover'>('home');
+    const [mode, setMode] = useState<'home' | 'member' | 'create' | 'recover' | 'import'>('home');
     const [callsign, setCallsign] = useState('');
     const [recoveryWords, setRecoveryWords] = useState<string[]>(Array(12).fill(''));
     const [recoveryCallsign, setRecoveryCallsign] = useState('');
+    const [importData, setImportData] = useState('');
+    const [importPin, setImportPin] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [pendingIdentity, setPendingIdentity] = useState<BeanPoolIdentity | null>(null);
     const [seedConfirmed, setSeedConfirmed] = useState(false);
+    const [inviteCode, setInviteCode] = useState('');
+    const [pendingInviteCode, setPendingInviteCode] = useState('');
 
     async function handleCreate() {
         if (callsign.trim().length < 2) {
@@ -25,9 +31,28 @@ export default function WelcomeScreen() {
         try {
             const identity = await createIdentity(callsign.trim());
             setPendingIdentity(identity);
+            setPendingInviteCode(inviteCode.trim());
         } catch (err) {
             setError('Failed to generate identity.');
             console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function handleConfirmSeed() {
+        if (!pendingIdentity) return;
+        setLoading(true);
+        setError(null);
+        try {
+            if (pendingInviteCode) {
+                const { redeemInvite } = await import('../utils/db');
+                await redeemInvite(pendingInviteCode, pendingIdentity.callsign);
+            }
+            // Once redeemed (or if no code), enter the app
+            setIdentity(pendingIdentity);
+        } catch (err: any) {
+            setError(err.message || 'Failed to redeem invite code.');
         } finally {
             setLoading(false);
         }
@@ -56,8 +81,34 @@ export default function WelcomeScreen() {
         }
     }
 
-    // --- RENDER LOGIC ---
+    async function handleImport() {
+        if (!importData.trim()) {
+            setError('Paste the transfer code from your other device.');
+            return;
+        }
+        if (importPin.length < 4) {
+            setError('Enter the PIN (at least 4 digits).');
+            return;
+        }
+        setLoading(true);
+        setError(null);
+        try {
+            const imported = await nativeDecryptIdentity(importData.trim(), importPin);
+            await importIdentity(imported);
+            setIdentity(imported);
+        } catch (e: any) {
+            setError('Import failed — wrong PIN or invalid transfer code.');
+        } finally {
+            setLoading(false);
+        }
+    }
 
+    function goBack() {
+        setMode('home');
+        setError(null);
+    }
+
+    // --- SEED PHRASE CONFIRMATION (after create) ---
     if (pendingIdentity) {
         return (
             <SafeAreaView style={styles.container}>
@@ -88,10 +139,10 @@ export default function WelcomeScreen() {
 
                         <Pressable 
                             style={[styles.primaryBtn, !seedConfirmed && styles.disabledBtn]} 
-                            disabled={!seedConfirmed}
-                            onPress={() => setIdentity(pendingIdentity)}
+                            disabled={!seedConfirmed || loading}
+                            onPress={handleConfirmSeed}
                         >
-                            <Text style={styles.primaryBtnText}>Continue →</Text>
+                            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Continue →</Text>}
                         </Pressable>
                     </View>
                 </ScrollView>
@@ -99,14 +150,26 @@ export default function WelcomeScreen() {
         );
     }
 
+    // --- CREATE NEW IDENTITY ---
     if (mode === 'create') {
         return (
             <SafeAreaView style={styles.container}>
                 <StatusBar style="light" />
                 <View style={styles.card}>
                     <Text style={styles.title}>🎟️ Join BeanPool</Text>
-                    <Text style={styles.subtitle}>Choose your Call Sign to establish your Sovereign Identity.</Text>
+                    <Text style={styles.subtitle}>Enter an Invite Code and choose your Call Sign.</Text>
                     
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Invite Code (e.g. BP-ABCD-1234)"
+                        placeholderTextColor="#64748b"
+                        value={inviteCode}
+                        onChangeText={setInviteCode}
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                        maxLength={16}
+                    />
+
                     <TextInput
                         style={styles.input}
                         placeholder="e.g. Billinudgel-Marty"
@@ -122,7 +185,7 @@ export default function WelcomeScreen() {
                         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Create Sovereign Identity</Text>}
                     </Pressable>
 
-                    <Pressable style={styles.backBtn} onPress={() => { setMode('home'); setError(null); }}>
+                    <Pressable style={styles.backBtn} onPress={goBack}>
                         <Text style={styles.backBtnText}>← Back</Text>
                     </Pressable>
                 </View>
@@ -130,6 +193,79 @@ export default function WelcomeScreen() {
         );
     }
 
+    // --- MEMBER SUB-MENU (Transfer Link or 12 Words) ---
+    if (mode === 'member') {
+        return (
+            <SafeAreaView style={styles.container}>
+                <StatusBar style="light" />
+                <View style={{ flex: 1, justifyContent: 'center', padding: 24, alignItems: 'center' }}>
+                    <View style={styles.card}>
+                        <Text style={styles.title}>Sign in to your account</Text>
+                        <Text style={styles.subtitle}>Choose how to restore your identity on this device:</Text>
+
+                        <Pressable style={styles.transferBtn} onPress={() => { setMode('import'); setError(null); }}>
+                            <Text style={styles.transferBtnText}>📲 I have a Transfer Code</Text>
+                        </Pressable>
+
+                        <Pressable style={styles.recoverBtn} onPress={() => { setMode('recover'); setError(null); }}>
+                            <Text style={styles.recoverBtnText}>🔑 Recover with 12 Words</Text>
+                        </Pressable>
+
+                        <Pressable style={styles.backBtn} onPress={goBack}>
+                            <Text style={styles.backBtnText}>← Back</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    // --- IMPORT VIA TRANSFER CODE ---
+    if (mode === 'import') {
+        return (
+            <SafeAreaView style={styles.container}>
+                <StatusBar style="light" />
+                <ScrollView contentContainerStyle={styles.scroll}>
+                    <View style={styles.card}>
+                        <Text style={styles.title}>📥 Import Identity</Text>
+                        <Text style={styles.subtitle}>Paste the transfer code from your other device and enter the PIN.</Text>
+                        
+                        <TextInput
+                            style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+                            value={importData}
+                            onChangeText={setImportData}
+                            placeholder="Paste transfer code here..."
+                            placeholderTextColor="#64748b"
+                            multiline
+                        />
+
+                        <TextInput
+                            style={[styles.input, { textAlign: 'center', fontSize: 20, letterSpacing: 8 }]}
+                            value={importPin}
+                            onChangeText={setImportPin}
+                            placeholder="PIN"
+                            placeholderTextColor="#64748b"
+                            keyboardType="number-pad"
+                            maxLength={8}
+                            secureTextEntry
+                        />
+
+                        {error && <Text style={styles.error}>{error}</Text>}
+
+                        <Pressable style={[styles.primaryBtn, (loading || importPin.length < 4) && styles.disabledBtn]} onPress={handleImport} disabled={loading || importPin.length < 4}>
+                            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Import Identity</Text>}
+                        </Pressable>
+
+                        <Pressable style={styles.backBtn} onPress={() => { setMode('member'); setError(null); }}>
+                            <Text style={styles.backBtnText}>← Back</Text>
+                        </Pressable>
+                    </View>
+                </ScrollView>
+            </SafeAreaView>
+        );
+    }
+
+    // --- RECOVER FROM 12 WORDS ---
     if (mode === 'recover') {
         return (
             <SafeAreaView style={styles.container}>
@@ -171,7 +307,7 @@ export default function WelcomeScreen() {
                             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Recover Identity</Text>}
                         </Pressable>
 
-                        <Pressable style={styles.backBtn} onPress={() => { setMode('home'); setError(null); }}>
+                        <Pressable style={styles.backBtn} onPress={() => { setMode('member'); setError(null); }}>
                             <Text style={styles.backBtnText}>← Back</Text>
                         </Pressable>
                     </View>
@@ -180,6 +316,7 @@ export default function WelcomeScreen() {
         );
     }
 
+    // --- MAIN WELCOME SCREEN (two choices like the PWA) ---
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar style="light" />
@@ -189,12 +326,12 @@ export default function WelcomeScreen() {
                     Your identity is yours. It lives on this device, backed by hardware cryptography — no passwords, no central accounts.
                 </Text>
 
-                <Pressable style={styles.primaryBtn} onPress={() => setMode('create')}>
-                    <Text style={styles.primaryBtnText}>I'm New Here</Text>
+                <Pressable style={styles.memberBtn} onPress={() => setMode('member')}>
+                    <Text style={styles.memberBtnText}>I'm Already a Member →</Text>
                 </Pressable>
 
-                <Pressable style={styles.secondaryBtn} onPress={() => setMode('recover')}>
-                    <Text style={styles.secondaryBtnText}>🔑 Recover with 12 Words</Text>
+                <Pressable style={styles.secondaryBtn} onPress={() => setMode('create')}>
+                    <Text style={styles.secondaryBtnText}>I'm New Here</Text>
                 </Pressable>
             </View>
         </SafeAreaView>
@@ -210,11 +347,22 @@ const styles = StyleSheet.create({
     title: { fontSize: 20, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
     subtitle: { fontSize: 14, color: '#94a3b8', marginBottom: 24, lineHeight: 20 },
     input: { backgroundColor: '#262626', borderWidth: 1, borderColor: '#404040', borderRadius: 10, padding: 14, color: '#fff', fontSize: 16, marginBottom: 16 },
+    
+    // Main welcome buttons
+    memberBtn: { backgroundColor: '#2563eb', padding: 18, borderRadius: 14, alignItems: 'center', width: '100%', marginBottom: 12, shadowColor: '#2563eb', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 14, elevation: 6 },
+    memberBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+    secondaryBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#404040', padding: 16, borderRadius: 14, alignItems: 'center', width: '100%' },
+    secondaryBtnText: { color: '#94a3b8', fontSize: 16, fontWeight: '600' },
+    
+    // Member sub-options
+    transferBtn: { width: '100%', padding: 16, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.15)', alignItems: 'center', marginBottom: 10 },
+    transferBtnText: { color: '#93bbfc', fontSize: 16, fontWeight: '700' },
+    recoverBtn: { width: '100%', padding: 16, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)', backgroundColor: 'rgba(245,158,11,0.15)', alignItems: 'center', marginBottom: 10 },
+    recoverBtnText: { color: '#fcd171', fontSize: 16, fontWeight: '700' },
+
     primaryBtn: { backgroundColor: '#2563eb', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
     primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
     disabledBtn: { backgroundColor: '#334155' },
-    secondaryBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#404040', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 16, width: '100%' },
-    secondaryBtnText: { color: '#94a3b8', fontSize: 16, fontWeight: 'bold' },
     backBtn: { marginTop: 16, alignItems: 'center', padding: 10 },
     backBtnText: { color: '#94a3b8', fontSize: 14 },
     error: { color: '#ef4444', fontSize: 14, marginBottom: 16, textAlign: 'center' },
