@@ -64,6 +64,55 @@ export function decodeBase64(b64: string): Uint8Array {
     return bytes;
 }
 
+export function encodeUtf8(str: string): Uint8Array {
+    let utf8 = [];
+    for (let i = 0; i < str.length; i++) {
+        let charcode = str.charCodeAt(i);
+        if (charcode < 0x80) utf8.push(charcode);
+        else if (charcode < 0x800) {
+            utf8.push(0xc0 | (charcode >> 6), 
+                      0x80 | (charcode & 0x3f));
+        }
+        else if (charcode < 0xd800 || charcode >= 0xe000) {
+            utf8.push(0xe0 | (charcode >> 12), 
+                      0x80 | ((charcode>>6) & 0x3f), 
+                      0x80 | (charcode & 0x3f));
+        }
+        else {
+            i++;
+            charcode = 0x10000 + (((charcode & 0x3ff)<<10)
+                      | (str.charCodeAt(i) & 0x3ff));
+            utf8.push(0xf0 | (charcode >>18), 
+                      0x80 | ((charcode>>12) & 0x3f), 
+                      0x80 | ((charcode>>6) & 0x3f), 
+                      0x80 | (charcode & 0x3f));
+        }
+    }
+    return new Uint8Array(utf8);
+}
+
+export function decodeUtf8(bytes: Uint8Array): string {
+    let str = '';
+    for (let i = 0; i < bytes.length; i++) {
+        let b = bytes[i];
+        if (b < 128) {
+            str += String.fromCharCode(b);
+        } else if (b > 191 && b < 224) {
+            str += String.fromCharCode(((b & 31) << 6) | (bytes[i+1] & 63));
+            i++;
+        } else if (b > 223 && b < 240) {
+            str += String.fromCharCode(((b & 15) << 12) | ((bytes[i+1] & 63) << 6) | (bytes[i+2] & 63));
+            i += 2;
+        } else {
+            let cp = ((b & 7) << 18) | ((bytes[i+1] & 63) << 12) | ((bytes[i+2] & 63) << 6) | (bytes[i+3] & 63);
+            cp -= 0x10000;
+            str += String.fromCharCode(0xD800 | (cp >> 10), 0xDC00 | (cp & 0x3FF));
+            i += 3;
+        }
+    }
+    return str;
+}
+
 export function generateMnemonic(): string[] {
     const entropy = Crypto.getRandomBytes(16);
     const hash = sha256(entropy);
@@ -97,7 +146,7 @@ export async function mnemonicToKeypair(words: string[]): Promise<{
     privateKeyHex: string;
 }> {
     const phrase = words.map(w => w.toLowerCase().trim()).join(' ');
-    const phraseBytes = new TextEncoder().encode(phrase);
+    const phraseBytes = encodeUtf8(phrase);
     
     // Double SHA256 -> 32 byte seed
     const hash1 = sha256(phraseBytes);

@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadIdentity } from './identity';
 import { sign } from '@noble/ed25519';
-import { hexToBytes, encodeBase64 } from './crypto';
+import { hexToBytes, encodeBase64, encodeUtf8 } from './crypto';
 
 /**
  * Singleton database instance.
@@ -355,7 +355,7 @@ export async function createPost(post: any) {
             return;
         }
         const privateKeyBytes = hexToBytes(identity.privateKey);
-        const messageBytes = new TextEncoder().encode(bodyString);
+        const messageBytes = encodeUtf8(bodyString);
         const signatureBytes = await sign(messageBytes, privateKeyBytes);
         // Convert signature to base64
         const signatureBase64 = encodeBase64(signatureBytes);
@@ -488,7 +488,7 @@ export async function redeemInvite(code: string, callsign: string): Promise<bool
         const { sign } = await import('@noble/ed25519');
         const { hexToBytes } = await import('./crypto');
         const privateKeyBytes = hexToBytes(identity.privateKey);
-        const messageBytes = new TextEncoder().encode(bodyString);
+        const messageBytes = encodeUtf8(bodyString);
         const signatureBytes = await sign(messageBytes, privateKeyBytes);
         
         const signatureBase64 = encodeBase64(signatureBytes);

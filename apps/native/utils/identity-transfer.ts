@@ -1,12 +1,12 @@
 import { BeanPoolIdentity } from './identity';
-import { encodeBase64, decodeBase64 } from './crypto';
+import { encodeBase64, decodeBase64, encodeUtf8, decodeUtf8 } from './crypto';
 
-const SALT = new TextEncoder().encode('beanpool-identity-transfer-v1');
+const SALT = encodeUtf8('beanpool-identity-transfer-v1');
 
 async function deriveKey(pin: string): Promise<CryptoKey> {
     const keyMaterial = await crypto.subtle.importKey(
         'raw',
-        new TextEncoder().encode(pin),
+        encodeUtf8(pin),
         'PBKDF2',
         false,
         ['deriveKey']
@@ -28,7 +28,7 @@ export async function exportIdentity(identity: BeanPoolIdentity, pin: string): P
 
     const key = await deriveKey(pin);
     const iv = crypto.getRandomValues(new Uint8Array(12));
-    const plaintext = new TextEncoder().encode(JSON.stringify({
+    const plaintext = encodeUtf8(JSON.stringify({
         publicKey: identity.publicKey,
         privateKey: identity.privateKey,
         callsign: identity.callsign,
@@ -79,7 +79,7 @@ export async function decryptIdentity(uri: string, pin: string): Promise<BeanPoo
         ciphertext
     );
 
-    const identity = JSON.parse(new TextDecoder().decode(plaintext)) as BeanPoolIdentity;
+    const identity = JSON.parse(decodeUtf8(new Uint8Array(plaintext))) as BeanPoolIdentity;
 
     if (!identity.publicKey || !identity.privateKey || !identity.callsign) {
         throw new Error('Invalid identity data');

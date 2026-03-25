@@ -5,6 +5,7 @@
  */
 import * as Crypto from 'expo-crypto';
 import { BeanPoolIdentity } from './identity';
+import { encodeBase64, decodeBase64, encodeUtf8, decodeUtf8 } from './crypto';
 
 /**
  * Derive a repeating key from PIN using SHA-256.
@@ -39,8 +40,6 @@ function xorCipher(data: Uint8Array, key: Uint8Array): Uint8Array {
     return result;
 }
 
-import { encodeBase64, decodeBase64 } from './crypto';
-
 /** Uint8Array to base64 (works in RN without btoa) */
 function toBase64(bytes: Uint8Array): string {
     return encodeBase64(bytes);
@@ -60,7 +59,7 @@ export async function nativeExportIdentity(identity: BeanPoolIdentity, pin: stri
     });
 
     const key = await deriveKeyBytes(pin);
-    const plaintext = new TextEncoder().encode(payload);
+    const plaintext = encodeUtf8(payload);
     const ciphertext = xorCipher(plaintext, key);
 
     const b64 = toBase64(ciphertext);
@@ -88,7 +87,7 @@ export async function nativeDecryptIdentity(uri: string, pin: string): Promise<B
     const ciphertext = fromBase64(b64);
     const plaintext = xorCipher(ciphertext, key);
 
-    const json = new TextDecoder().decode(plaintext);
+    const json = decodeUtf8(plaintext);
     const identity = JSON.parse(json) as BeanPoolIdentity;
 
     if (!identity.publicKey || !identity.privateKey || !identity.callsign) {
