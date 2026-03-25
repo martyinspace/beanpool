@@ -314,10 +314,10 @@ export default function MapScreen() {
             {showNewPost && (
                 <View style={[StyleSheet.absoluteFill, { zIndex: 500 }]} pointerEvents="box-none">
                     <KeyboardAvoidingView
-                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                        behavior="padding"
                         style={{ flex: 1, justifyContent: 'flex-end' }}
                         pointerEvents="box-none"
-                        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+                        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20}
                     >
                         <View style={styles.sheet}>
                         {/* Header */}
