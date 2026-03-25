@@ -143,12 +143,12 @@ export async function performSync(): Promise<SyncResult> {
         const balanceTimeout = setTimeout(() => balanceController.abort(), 10000);
 
         const [postsRes, balanceRes] = await Promise.all([
-            fetch(`${anchorUrl}/api/marketplace/posts?limit=1000`, {
+            fetch(`${anchorUrl}/api/marketplace/posts?limit=1000&_t=${Date.now()}`, {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' },
                 signal: postsController.signal
             }),
-            pubKey ? fetch(`${anchorUrl}/api/ledger/balance/${pubKey}`, {
+            pubKey ? fetch(`${anchorUrl}/api/ledger/balance/${pubKey}?_t=${Date.now()}`, {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' },
                 signal: balanceController.signal
