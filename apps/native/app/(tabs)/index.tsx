@@ -317,8 +317,9 @@ export default function MapScreen() {
             {/* New Post Bottom Sheet */}
             {showNewPost && (
                 <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    behavior="padding"
                     style={styles.sheetWrapper}
+                    pointerEvents="box-none"
                     keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
                 >
                     <View style={styles.sheet}>
