@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Platform, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Platform, Modal, TextInput, ScrollView, ActivityIndicator } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIdentity } from '../IdentityContext';
 import { getConversations } from '../../utils/db';
 
@@ -10,6 +11,8 @@ export default function ChatsScreen() {
     const [conversations, setConversations] = useState<any[]>([]);
     const [showPrompt, setShowPrompt] = useState(false);
     const [promptVal, setPromptVal] = useState('');
+    const [members, setMembers] = useState<any[]>([]);
+    const [loadingMembers, setLoadingMembers] = useState(false);
 
     useFocusEffect(
         React.useCallback(() => {
@@ -19,10 +22,30 @@ export default function ChatsScreen() {
         }, [identity])
     );
 
-    const handleCreateChat = () => {
-        if (promptVal.trim()) {
+    const loadDirectory = async () => {
+        setLoadingMembers(true);
+        setShowPrompt(true);
+        try {
+            const anchor = await AsyncStorage.getItem('beanpool_anchor_url');
+            if (anchor) {
+                const res = await fetch(`${anchor}/api/members`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setMembers(data.filter((m: any) => m.publicKey !== identity?.publicKey));
+                }
+            }
+        } catch (e) {
+            console.warn("Could not load directory", e);
+        } finally {
+            setLoadingMembers(false);
+        }
+    };
+
+    const handleCreateChat = (pubKeyInput?: string) => {
+        const target = (pubKeyInput || promptVal).trim();
+        if (target) {
             setShowPrompt(false);
-            router.push(`/chat/${promptVal.trim()}`);
+            router.push(`/chat/${target}`);
             setPromptVal('');
         }
     };
@@ -63,7 +86,7 @@ export default function ChatsScreen() {
                         const val = window.prompt("Enter PubKey or Callsign:");
                         if (val) router.push(`/chat/${val}`);
                     } else {
-                        setShowPrompt(true);
+                        loadDirectory();
                     }
                 }}>
                     <MaterialCommunityIcons name="pencil-outline" size={24} color="#8b5cf6" />
@@ -88,22 +111,41 @@ export default function ChatsScreen() {
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>New Message</Text>
-                        <Text style={styles.modalSubtitle}>Enter the PubKey or Callsign string of the target peer to begin an encrypted handshake.</Text>
+                        
+                        {loadingMembers ? (
+                            <ActivityIndicator size="small" color="#8b5cf6" style={{ marginVertical: 20 }} />
+                        ) : members.length > 0 ? (
+                            <ScrollView style={styles.directoryList} nestedScrollEnabled>
+                                {members.map(m => (
+                                    <Pressable 
+                                        key={m.publicKey} 
+                                        style={styles.directoryRow}
+                                        onPress={() => handleCreateChat(m.publicKey)}
+                                    >
+                                        <View style={styles.directoryAvatar}>
+                                            <Text style={styles.directoryAvatarText}>{m.callsign.charAt(0).toUpperCase()}</Text>
+                                        </View>
+                                        <Text style={styles.directoryName}>{m.callsign}</Text>
+                                    </Pressable>
+                                ))}
+                            </ScrollView>
+                        ) : (
+                            <Text style={styles.modalSubtitle}>No members found on grid. Enter a PubKey string directly below to bypass.</Text>
+                        )}
                         
                         <TextInput
                             style={styles.modalInput}
-                            placeholder="e.g. 02a1b3..."
+                            placeholder="Or enter specific PubKey..."
                             placeholderTextColor="#9ca3af"
                             value={promptVal}
                             onChangeText={setPromptVal}
-                            autoFocus
                         />
                         
                         <View style={styles.modalActions}>
                             <Pressable style={[styles.modalBtn, styles.modalBtnCancel]} onPress={() => { setShowPrompt(false); setPromptVal(''); }}>
                                 <Text style={styles.modalBtnCancelText}>Cancel</Text>
                             </Pressable>
-                            <Pressable style={[styles.modalBtn, styles.modalBtnSubmit]} onPress={handleCreateChat}>
+                            <Pressable style={[styles.modalBtn, styles.modalBtnSubmit]} onPress={() => handleCreateChat()}>
                                 <Text style={styles.modalBtnSubmitText}>Chat</Text>
                             </Pressable>
                         </View>
@@ -138,9 +180,14 @@ const styles = StyleSheet.create({
     emptyText: { marginTop: 16, fontSize: 15, color: '#9ca3af', fontWeight: '500' },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-    modalContent: { width: '100%', backgroundColor: '#fff', borderRadius: 24, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
-    modalTitle: { fontSize: 20, fontWeight: '800', color: '#1f2937', marginBottom: 8 },
-    modalSubtitle: { fontSize: 14, color: '#6b7280', marginBottom: 20, lineHeight: 20 },
+    modalContent: { width: '100%', maxHeight: '80%', backgroundColor: '#fff', borderRadius: 24, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
+    modalTitle: { fontSize: 20, fontWeight: '800', color: '#1f2937', marginBottom: 12 },
+    modalSubtitle: { fontSize: 13, color: '#6b7280', marginBottom: 16, lineHeight: 18 },
+    directoryList: { maxHeight: 250, marginBottom: 16 },
+    directoryRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
+    directoryAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+    directoryAvatarText: { fontSize: 16, fontWeight: 'bold', color: '#6b7280' },
+    directoryName: { fontSize: 16, fontWeight: '600', color: '#374151' },
     modalInput: { backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 16, fontSize: 16, color: '#1f2937', marginBottom: 24 },
     modalActions: { flexDirection: 'row', gap: 12 },
     modalBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
