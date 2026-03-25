@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, SafeAreaView, FlatList, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, FlatList, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
@@ -13,6 +14,7 @@ export default function ChatScreen() {
     const [draft, setDraft] = useState('');
     const [peerName, setPeerName] = useState('Loading...');
     const flatListRef = useRef<FlatList>(null);
+    const insets = useSafeAreaInsets();
 
     useFocusEffect(
         useCallback(() => {
@@ -56,7 +58,7 @@ export default function ChatScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top']}>
             <StatusBar style="dark" />
             
             {/* Header */}
@@ -75,7 +77,7 @@ export default function ChatScreen() {
 
             <KeyboardAvoidingView 
                 style={styles.keyboardView} 
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
             >
                 {/* Messages List */}
@@ -90,7 +92,7 @@ export default function ChatScreen() {
                 />
 
                 {/* Input Area */}
-                <View style={styles.inputContainer}>
+                <View style={[styles.inputContainer, { paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 12) : 12 }]}>
                     <Pressable style={styles.attachBtn}>
                         <MaterialCommunityIcons name="plus-circle-outline" size={26} color="#9ca3af" />
                     </Pressable>
