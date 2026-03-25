@@ -177,14 +177,14 @@ export default function MapScreen() {
                 const perm = await ImagePicker.requestCameraPermissionsAsync();
                 if (!perm.granted) { Alert.alert('Permission needed'); return; }
                 const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, base64: true });
-                if (!result.canceled && result.assets[0]) {
-                    setPostPhotos(prev => [...prev, result.assets[0].uri]);
+                if (!result.canceled && result.assets[0]?.base64) {
+                    setPostPhotos(prev => [...prev, `data:image/jpeg;base64,${result.assets[0].base64}`]);
                 }
             }},
             { text: 'Gallery', onPress: async () => {
                 const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, base64: true });
-                if (!result.canceled && result.assets[0]) {
-                    setPostPhotos(prev => [...prev, result.assets[0].uri]);
+                if (!result.canceled && result.assets[0]?.base64) {
+                    setPostPhotos(prev => [...prev, `data:image/jpeg;base64,${result.assets[0].base64}`]);
                 }
             }},
             { text: 'Cancel', style: 'cancel' },
