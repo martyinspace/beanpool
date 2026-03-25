@@ -536,6 +536,46 @@ export async function insertMessage(conversationId: string, authorPubkey: string
     );
 }
 
+export async function createConversationApi(type: 'dm' | 'group', participants: string[], createdBy: string, name?: string): Promise<any> {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) throw new Error('You are off-grid. Please connect to a node first.');
+
+    const identity = await loadIdentity();
+    if (!identity) throw new Error('No identity found.');
+
+    const body: any = { type, participants, createdBy };
+    if (name) body.name = name;
+
+    const bodyString = JSON.stringify(body);
+    const privateKeyBytes = hexToBytes(identity.privateKey);
+    const messageBytes = encodeUtf8(bodyString);
+    const signatureBytes = await sign(messageBytes, privateKeyBytes);
+    const signatureBase64 = encodeBase64(signatureBytes);
+
+    try {
+        const res = await fetch(`${anchorUrl}/api/messages/conversation`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Public-Key': identity.publicKey,
+                'X-Signature': signatureBase64,
+            },
+            body: bodyString,
+        });
+
+        if (!res.ok) {
+            const txt = await res.text();
+            let errMsg = 'Failed to create conversation thread.';
+            try { const json = JSON.parse(txt); if (json.error) errMsg = json.error; } catch (e) { if (txt) errMsg = txt; }
+            throw new Error(errMsg);
+        }
+        const data = await res.json();
+        return data.conversation;
+    } catch (e: any) {
+        throw new Error(e.message || 'Network request failed when creating thread.');
+    }
+}
+
 export async function redeemInvite(code: string, callsign: string): Promise<boolean> {
     try {
         const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || 'https://review.beanpool.org:8443';

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Platform, Modal, TextInput, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Platform, Modal, TextInput, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIdentity } from '../IdentityContext';
-import { getConversations } from '../../utils/db';
+import { getConversations, createConversationApi } from '../../utils/db';
 
 export default function ChatsScreen() {
     const { identity } = useIdentity();
@@ -13,6 +13,7 @@ export default function ChatsScreen() {
     const [promptVal, setPromptVal] = useState('');
     const [members, setMembers] = useState<any[]>([]);
     const [loadingMembers, setLoadingMembers] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
 
     useFocusEffect(
         React.useCallback(() => {
@@ -41,12 +42,24 @@ export default function ChatsScreen() {
         }
     };
 
-    const handleCreateChat = (pubKeyInput?: string) => {
+    const handleCreateChat = async (pubKeyInput?: string) => {
         const target = (pubKeyInput || promptVal).trim();
-        if (target) {
+        if (!target || !identity?.publicKey) return;
+        
+        setSubmitting(true);
+        try {
+            const apiConv = await createConversationApi('dm', [identity.publicKey, target], identity.publicKey);
+            
             setShowPrompt(false);
-            router.push(`/chat/${target}`);
             setPromptVal('');
+            router.push(`/chat/${apiConv.id}`);
+            
+            // Refresh conversation list underneath
+            getConversations(identity.publicKey).then(setConversations).catch(console.error);
+        } catch (e: any) {
+            Alert.alert("Failed", e.message || "Could not initialize thread on node.");
+        } finally {
+            setSubmitting(false);
         }
     };
 

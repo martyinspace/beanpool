@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, SafeAreaView, FlatList, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, SafeAreaView, FlatList, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
@@ -37,9 +37,7 @@ export default function ChatScreen() {
             setDraft('');
             loadMessages();
         } catch (err: any) {
-            import('react-native').then(({ Alert }) => {
-                Alert.alert("Message Failed", err.message || "Could not execute send.");
-            });
+            Alert.alert("Message Failed", err.message || "Could not execute send.");
         }
     };
 
