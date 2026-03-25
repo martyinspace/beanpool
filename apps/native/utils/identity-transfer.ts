@@ -1,4 +1,5 @@
 import { BeanPoolIdentity } from './identity';
+import { encodeBase64, decodeBase64 } from './crypto';
 
 const SALT = new TextEncoder().encode('beanpool-identity-transfer-v1');
 
@@ -44,14 +45,7 @@ export async function exportIdentity(identity: BeanPoolIdentity, pin: string): P
     combined.set(iv);
     combined.set(new Uint8Array(ciphertext), iv.length);
 
-    // base64 encode safely for React Native/Web
-    let binary = '';
-    const bytes = new Uint8Array(combined);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    const b64 = btoa(binary);
+    const b64 = encodeBase64(combined);
     
     return `beanpool://import?d=${encodeURIComponent(b64)}`;
 }
@@ -72,11 +66,7 @@ export async function decryptIdentity(uri: string, pin: string): Promise<BeanPoo
         throw new Error('Invalid import URI');
     }
     
-    const binaryString = atob(b64);
-    const combined = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-        combined[i] = binaryString.charCodeAt(i);
-    }
+    const combined = decodeBase64(b64);
 
     const iv = combined.slice(0, 12);
     const ciphertext = combined.slice(12);

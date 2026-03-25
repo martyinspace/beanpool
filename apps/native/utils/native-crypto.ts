@@ -39,24 +39,16 @@ function xorCipher(data: Uint8Array, key: Uint8Array): Uint8Array {
     return result;
 }
 
+import { encodeBase64, decodeBase64 } from './crypto';
+
 /** Uint8Array to base64 (works in RN without btoa) */
 function toBase64(bytes: Uint8Array): string {
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    // btoa should be available in Hermes
-    return btoa(binary);
+    return encodeBase64(bytes);
 }
 
 /** base64 to Uint8Array */
 function fromBase64(b64: string): Uint8Array {
-    const binary = atob(b64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
+    return decodeBase64(b64);
 }
 
 export async function nativeExportIdentity(identity: BeanPoolIdentity, pin: string): Promise<string> {
