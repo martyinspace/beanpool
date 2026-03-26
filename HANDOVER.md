@@ -42,6 +42,8 @@
 - ✅ **Cryptographically signed APIs** — Ed25519 client-side signatures on all POST requests preventing spoofing
 - ✅ **Native App (Expo)** — 7-tab React Native companion app with PWA parity: Map, Projects, Market (14 categories), Chat, People, Ledger, Settings
 - ✅ **Native SQLite Persistence** — `expo-sqlite` for local data storage (posts, projects, messages, ledger)
+- ✅ **Native Background Sync** — SQLite `dbSyncLock` Mutex Queue safely handling parallel `applyDelta` and foreground Map/Inbox requests without `database is locked` panics.
+- ✅ **Live Inbox Parity** — Base64 E2E plaintext message decryption, real-time polling, and global unread notification tab badges.
 - ✅ **Native Identity Flow** — sovereign identity creation and 12-word recovery via Expo SecureStore
 - ✅ **Community Projects Tab** — native-only crowdfunding feature with progress bars and proposal creation
 - ✅ **Neon-Vine Tab Bar** — branded tab navigation with artwork background and dark overlay
