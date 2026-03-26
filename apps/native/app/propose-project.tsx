@@ -1,25 +1,38 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { createProject } from '../utils/db';
 
 export default function ProposeProjectModal() {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [goalAmount, setGoalAmount] = useState('');
+    const [submitting, setSubmitting] = useState(false);
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!title.trim() || !goalAmount.trim()) {
             Alert.alert("Missing Fields", "Please provide a project title and requested goal amount.");
             return;
         }
-        
-        // In Phase 3.4/4, this will generate a Libp2p Payload via IdentityContext and push to SQLite
-        Alert.alert("Proposal Submitted", "Your community project proposal has been drafted locally. (Mesh Sync coming Phase 4)", [
-            { text: "OK", onPress: () => router.back() }
-        ]);
+
+        setSubmitting(true);
+        try {
+            await createProject({
+                title: title.trim(),
+                description: description.trim(),
+                goal_amount: parseInt(goalAmount, 10) || 0,
+            });
+            Alert.alert("Proposal Submitted", "Your community project proposal has been broadcast to the network.", [
+                { text: "OK", onPress: () => router.back() }
+            ]);
+        } catch (e: any) {
+            Alert.alert("Submission Failed", e.message || "Could not propose project.");
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     return (
@@ -82,8 +95,12 @@ export default function ProposeProjectModal() {
             </ScrollView>
 
             <View style={styles.footer}>
-                <Pressable style={styles.submitBtn} onPress={handleSubmit}>
-                    <Text style={styles.submitBtnText}>SUBMIT TO NETWORK</Text>
+                <Pressable style={styles.submitBtn} onPress={handleSubmit} disabled={submitting}>
+                    {submitting ? (
+                        <ActivityIndicator color="#ffffff" />
+                    ) : (
+                        <Text style={styles.submitBtnText}>SUBMIT TO NETWORK</Text>
+                    )}
                 </Pressable>
             </View>
         </SafeAreaView>

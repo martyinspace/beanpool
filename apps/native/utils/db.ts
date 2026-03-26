@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadIdentity } from './identity';
+import * as Crypto from 'expo-crypto';
 import { sign } from '@noble/ed25519';
 import { hexToBytes, encodeBase64, encodeUtf8, decodeBase64, decodeUtf8 } from './crypto';
 
@@ -450,6 +451,83 @@ export async function createPost(post: any) {
          post.price_type || 'fixed', post.repeatable || 0, post.photos || null]
     );
 }
+
+export async function createProject(project: { title: string, description: string, goal_amount: number }) {
+    await waitForInit();
+    await acquireSyncLock();
+    try {
+        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+        if (!anchorUrl) {
+            throw new Error('You are currently offline. Please connect to a BeanPool Node to propose your project.');
+        }
+
+        const identity = await loadIdentity();
+        if (!identity) {
+            throw new Error('No identity found.');
+        }
+
+        const projectId = Crypto.randomUUID();
+
+        const body = {
+            id: projectId,
+            creatorPubkey: identity.publicKey,
+            title: project.title,
+            description: project.description,
+            photos: [], // Phase 4 MVP: no photos yet
+            goalAmount: project.goal_amount,
+            deadlineAt: null,
+        };
+        const bodyString = JSON.stringify(body);
+
+        const privateKeyBytes = hexToBytes(identity.privateKey);
+        const messageBytes = encodeUtf8(bodyString);
+        const signatureBytes = await sign(messageBytes, privateKeyBytes);
+        const signatureBase64 = encodeBase64(signatureBytes);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        let res;
+        try {
+            res = await fetch(`${anchorUrl}/api/crowdfund/projects`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Public-Key': identity.publicKey,
+                    'X-Signature': signatureBase64,
+                },
+                body: bodyString,
+                signal: controller.signal,
+            });
+        } catch (e: any) {
+            throw new Error(e.message || 'Network request failed. You must be connected to a node to propose projects.');
+        } finally {
+            clearTimeout(timeoutId);
+        }
+
+        if (!res.ok) {
+            const txt = await res.text();
+            let errMsg = 'Network request failed or server rejected the project.';
+            try {
+                const json = JSON.parse(txt);
+                if (json.error) errMsg = json.error;
+            } catch (e) {
+                if (txt) errMsg = txt;
+            }
+            throw new Error(errMsg);
+        }
+
+        // Save to SQLite
+        const database = await getDb();
+        await database.runAsync(
+            `INSERT INTO projects (id, creator_pubkey, title, description, photos, goal_amount, current_amount, status, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, 0, 'ACTIVE', ?)`,
+            [projectId, identity.publicKey, project.title, project.description, JSON.stringify([]), project.goal_amount, new Date().toISOString()]
+        );
+    } finally {
+        releaseSyncLock();
+    }
+}
+
 
 export async function updatePost(id: string, updates: any) {
     const database = await getDb();
