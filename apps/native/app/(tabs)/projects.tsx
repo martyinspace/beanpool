@@ -33,9 +33,16 @@ export default function ProjectsScreen() {
             if (item.photos) {
                 parsedPhotos = typeof item.photos === 'string' ? JSON.parse(item.photos) : item.photos;
             }
-        } catch(e) {}
+        } catch(e) {
+            console.error('[Projects] Error parsing photos:', e);
+        }
         
         const heroUri = parsedPhotos.length > 0 ? parsedPhotos[0] : null;
+        if (heroUri) {
+            console.log(`[Projects] Render item ${item.title} found hero URI! Length: ${heroUri.length} chars (prefix: ${heroUri.slice(0, 30)}...)`);
+        } else {
+            console.log(`[Projects] Render item ${item.title} has NO hero URI. item.photos=${item.photos}`);
+        }
 
         return (
             <Pressable style={styles.card}>

@@ -177,6 +177,13 @@ async function _doInitDB() {
         } catch (e) {
             // Column likely already exists, ignore
         }
+        
+        try {
+            await database.execAsync(`ALTER TABLE projects ADD COLUMN photos TEXT;`);
+        } catch (e) {
+            // Column likely already exists, ignore
+        }
+
         // Add price_type column if not exists
         try {
             await database.execAsync(`ALTER TABLE posts ADD COLUMN price_type TEXT DEFAULT 'fixed';`);
