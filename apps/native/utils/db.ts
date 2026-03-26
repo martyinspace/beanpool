@@ -375,8 +375,7 @@ export async function getProjects() {
     const database = await getDb();
     const rows = await database.getAllAsync<any>('SELECT * FROM projects ORDER BY created_at DESC');
     return rows.map(row => ({
-        id: row.id,
-        title: row.title,
+        ...row,
         goal: row.goal_amount,
         current: row.current_amount,
         type: 'community' // fallback mapping
