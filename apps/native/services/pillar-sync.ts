@@ -152,7 +152,7 @@ export async function performSync(): Promise<SyncResult> {
         const postsTimeout = setTimeout(() => postsController.abort(), 30000); // Extended for heavy initial payloads
         const balanceTimeout = setTimeout(() => balanceController.abort(), 30000);
 
-        const [postsRes, balanceRes, directoryRes] = await Promise.all([
+        const [postsRes, balanceRes, directoryRes, projectsRes] = await Promise.all([
             fetch(`${anchorUrl}/api/marketplace/posts?limit=1000${lastSyncParam}&_t=${Date.now()}`, {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' },
@@ -164,6 +164,11 @@ export async function performSync(): Promise<SyncResult> {
                 signal: balanceController.signal
             }) : Promise.resolve(null),
             fetch(`${anchorUrl}/api/members`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                signal: postsController.signal
+            }),
+            fetch(`${anchorUrl}/api/crowdfund/projects?limit=1000${lastSyncParam}&_t=${Date.now()}`, {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' },
                 signal: postsController.signal
@@ -186,7 +191,8 @@ export async function performSync(): Promise<SyncResult> {
             posts: Array.isArray(postsData) ? postsData : [],
             accounts: [],
             transactions: [],
-            members: []
+            members: [],
+            projects: []
         };
         
         if (directoryRes && directoryRes.ok) {
@@ -194,6 +200,15 @@ export async function performSync(): Promise<SyncResult> {
                 const dirData = await directoryRes.json();
                 if (Array.isArray(dirData)) {
                     delta.members = dirData;
+                }
+            } catch (e) {}
+        }
+
+        if (projectsRes && projectsRes.ok) {
+            try {
+                const projData = await projectsRes.json();
+                if (Array.isArray(projData)) {
+                    delta.projects = projData;
                 }
             } catch (e) {}
         }

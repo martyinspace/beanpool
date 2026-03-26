@@ -604,8 +604,29 @@ export async function applyDelta(delta: any) {
                     ]
                 );
             }
-            console.log(`[DB] applyDelta: replaced posts table with ${delta.posts.length} posts from server`);
         }
+
+        if (delta.projects !== undefined) {
+            for (const proj of delta.projects) {
+                await database.runAsync(
+                    'INSERT OR REPLACE INTO projects (id, creator_pubkey, title, description, photos, goal_amount, current_amount, deadline_at, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [
+                        proj.id ?? null,
+                        proj.creatorPubkey ?? proj.creator_pubkey ?? null,
+                        proj.title ?? null,
+                        proj.description ?? '',
+                        proj.photos ? JSON.stringify(proj.photos.filter((url: string) => !url.startsWith('file://'))) : null,
+                        proj.goalAmount ?? proj.goal_amount ?? 0,
+                        proj.currentAmount ?? proj.current_amount ?? 0,
+                        proj.deadlineAt ?? proj.deadline_at ?? null,
+                        proj.status ?? 'ACTIVE',
+                        proj.createdAt ?? proj.created_at ?? new Date().toISOString()
+                    ]
+                );
+            }
+        }
+
+        console.log(`[DB] applyDelta: replaced posts table with ${delta.posts?.length || 0} posts from server`);
     } finally {
         releaseSyncLock();
     }

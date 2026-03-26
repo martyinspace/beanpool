@@ -313,7 +313,7 @@ export function ProjectsPage({ identity }: Props) {
 
             {/* FULL SCREEN MODAL: Project Detail */}
             {selectedProject && (
-                <div className="fixed inset-0 z-50 bg-bg-primary flex flex-col" style={{ overflowY: 'auto' }}>
+                <div className="fixed inset-0 z-50 flex flex-col" style={{ backgroundColor: 'var(--bg-primary)', overflowY: 'auto' }}>
                     <header className="sticky top-0 bg-nature-900 border-b border-nature-800 p-3 shadow-md flex items-center gap-3 z-10 transition-colors">
                         <button onClick={() => setSelectedProject(null)} className="p-2 text-nature-400 hover:text-white bg-nature-800 hover:bg-nature-700 rounded-full transition-colors">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
