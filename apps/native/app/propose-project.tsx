@@ -61,7 +61,7 @@ export default function ProposeProjectModal() {
                         onChangeText={setGoalAmount}
                         maxLength={6}
                     />
-                    <Text style={styles.hint}>Amount requested from the community pool.</Text> // PWA states "Commons allocation limit bounds this locally".
+                    <Text style={styles.hint}>Amount requested from the community pool.</Text> {/* PWA states "Commons allocation limit bounds this locally". */}
                 </View>
 
                 {/* Description */}
