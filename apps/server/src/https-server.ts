@@ -61,7 +61,7 @@ import {
     adminRejectProject,
     getNodeConfig, updateNodeConfig, getDirectoryInfo,
 } from './state-engine.js';
-import { getCrowdfundProjects, getCrowdfundProject, createCrowdfundProject, pledgeToProject } from './db/db.js';
+import { getCrowdfundProjects, getCrowdfundProject, createCrowdfundProject, updateCrowdfundProject, pledgeToProject } from './db/db.js';
 
 const PUBLIC_DIR = path.resolve('public');
 const SETTINGS_PATH = path.resolve('public/settings.html');
@@ -133,6 +133,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             ctx.path.startsWith('/api/messages/send') ||
             ctx.path.startsWith('/api/messages/mark-read') ||
             ctx.path.startsWith('/api/commons/projects') ||
+            ctx.path.startsWith('/api/crowdfund/projects') ||
             ctx.path.startsWith('/api/invite/generate') ||
             ctx.path.startsWith('/api/community/register');
 
@@ -1153,6 +1154,24 @@ export async function startHttpsServer(port: number): Promise<void> {
         const project = getCrowdfundProject(projectId);
         
         ctx.body = { success: true, project };
+    });
+
+    router.post('/api/crowdfund/projects/update', async (ctx) => {
+        const { id, creatorPubkey, title, description, photos, goalAmount } = (ctx as any).requestBody || {};
+        if (!id || !creatorPubkey || !title || !goalAmount) {
+            ctx.status = 400;
+            ctx.body = { error: 'id, creatorPubkey, title, and goalAmount are required' };
+            return;
+        }
+
+        try {
+            updateCrowdfundProject(id, creatorPubkey, title, description || '', photos || [], Number(goalAmount));
+            const project = getCrowdfundProject(id);
+            ctx.body = { success: true, project };
+        } catch (e: any) {
+            ctx.status = 400;
+            ctx.body = { error: e.message || 'Failed to update project' };
+        }
     });
 
     router.post('/api/crowdfund/projects/:id/pledge', async (ctx) => {

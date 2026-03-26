@@ -321,6 +321,29 @@ export function createCrowdfundProject(
     `).run(id, creator_pubkey, title, description, JSON.stringify(photos), goal_amount, deadline_at);
 }
 
+export function updateCrowdfundProject(
+    id: string,
+    creator_pubkey: string,
+    title: string,
+    description: string,
+    photos: string[],
+    goal_amount: number
+) {
+    const project = getCrowdfundProject(id);
+    if (!project) throw new Error("Project not found");
+    if (project.creator_pubkey !== creator_pubkey) throw new Error("Unauthorized: You do not own this project");
+
+    if (project.current_amount > 0 && Number(goal_amount) !== project.goal_amount) {
+        throw new Error("Cannot change funding goal after receiving pledges");
+    }
+
+    db.prepare(`
+        UPDATE projects
+        SET title = ?, description = ?, photos = ?, goal_amount = ?
+        WHERE id = ? AND creator_pubkey = ?
+    `).run(title, description, JSON.stringify(photos), goal_amount, id, creator_pubkey);
+}
+
 export function pledgeToProject(txId: string, projectId: string, fromPubkey: string, amount: number, memo: string) {
     const project = db.prepare(`SELECT * FROM projects WHERE id = ?`).get(projectId) as ProjectRow | undefined;
     if (!project) throw new Error("Project not found");

@@ -458,7 +458,7 @@ export async function createPost(post: any) {
     );
 }
 
-export async function createProject(project: { title: string, description: string, goal_amount: number }) {
+export async function createProject(project: { title: string, description: string, goal_amount: number, photos?: string[] }) {
     await waitForInit();
     await acquireSyncLock();
     try {
@@ -479,7 +479,7 @@ export async function createProject(project: { title: string, description: strin
             creatorPubkey: identity.publicKey,
             title: project.title,
             description: project.description,
-            photos: [], // Phase 4 MVP: no photos yet
+            photos: project.photos || [],
             goalAmount: project.goal_amount,
             deadlineAt: null,
         };
@@ -527,13 +527,110 @@ export async function createProject(project: { title: string, description: strin
         await database.runAsync(
             `INSERT INTO projects (id, creator_pubkey, title, description, photos, goal_amount, current_amount, status, created_at)
              VALUES (?, ?, ?, ?, ?, ?, 0, 'ACTIVE', ?)`,
-            [projectId, identity.publicKey, project.title, project.description, JSON.stringify([]), project.goal_amount, new Date().toISOString()]
+            [projectId, identity.publicKey, project.title, project.description, JSON.stringify(project.photos || []), project.goal_amount, new Date().toISOString()]
         );
     } finally {
         releaseSyncLock();
     }
 }
 
+
+export async function updateCrowdfundProjectApi(
+    projectId: string,
+    title: string,
+    description: string,
+    photos: string[],
+    goalAmount: number
+) {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) {
+        throw new Error('You are currently offline. Please connect to a BeanPool Node to update your project.');
+    }
+
+    const identity = await loadIdentity();
+    if (!identity) {
+        throw new Error('No identity found.');
+    }
+
+    const body = {
+        id: projectId,
+        creatorPubkey: identity.publicKey,
+        title,
+        description,
+        photos,
+        goalAmount,
+    };
+    const bodyString = JSON.stringify(body);
+
+    const privateKeyBytes = hexToBytes(identity.privateKey);
+    const messageBytes = encodeUtf8(bodyString);
+    const signatureBytes = await sign(messageBytes, privateKeyBytes);
+    const signatureBase64 = encodeBase64(signatureBytes);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    let res;
+    try {
+        res = await fetch(`${anchorUrl}/api/crowdfund/projects/update`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Public-Key': identity.publicKey,
+                'X-Signature': signatureBase64,
+            },
+            body: bodyString,
+            signal: controller.signal,
+        });
+    } catch (e: any) {
+        throw new Error(e.message || 'Network request failed. You must be connected to a node to update projects.');
+    } finally {
+        clearTimeout(timeoutId);
+    }
+
+    if (!res.ok) {
+        const txt = await res.text();
+        let errMsg = 'Network request failed or server rejected the update.';
+        try {
+            const json = JSON.parse(txt);
+            if (json.error) errMsg = json.error;
+        } catch (e) {
+            if (txt) errMsg = txt;
+        }
+        throw new Error(errMsg);
+    }
+
+    // Save to SQLite
+    const database = await getDb();
+    await database.runAsync(
+        `UPDATE projects SET title = ?, description = ?, photos = ?, goal_amount = ? WHERE id = ?`,
+        [title, description, JSON.stringify(photos), goalAmount, projectId]
+    );
+}
+
+export async function pledgeToCrowdfundProjectApi(projectId: string, amount: number, memo: string) {
+    const identity = await loadIdentity();
+    if (!identity) throw new Error("No identity block found");
+
+    const res = await _signedRequest(`/api/crowdfund/projects/${projectId}/pledge`, { 
+        fromPubkey: identity.publicKey, 
+        amount: amount, 
+        memo: memo 
+    });
+
+    const database = await getDb();
+    await database.runAsync(
+        'UPDATE projects SET current_amount = current_amount + ? WHERE id = ?',
+        [amount, projectId]
+    );
+
+    const txId = Crypto.randomUUID();
+    const dt = new Date().toISOString();
+    await database.runAsync('INSERT INTO ledger_entries (id, timestamp, pubkey, amount, balance_after, memo, reference_id, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [
+        txId, dt, identity.publicKey, -Math.abs(amount), 0, memo, projectId, 'pledge'
+    ]);
+
+    return res;
+}
 
 export async function updatePost(id: string, updates: any) {
     const database = await getDb();
@@ -997,10 +1094,6 @@ export async function completeMarketplaceTransaction(transactionId: string, conf
 
 export async function cancelMarketplaceTransaction(transactionId: string, cancellerPublicKey: string) {
     return _signedRequest('/api/marketplace/transactions/cancel', { transactionId, cancellerPublicKey });
-}
-
-export async function submitRating(raterPublicKey: string, targetPublicKey: string, score: number, comment: string, transactionId: string) {
-    return _signedRequest('/api/members/rate', { raterPublicKey, targetPublicKey, score, comment, transactionId });
 }
 
 export async function reportAbuse(reporterPublicKey: string, targetPublicKey: string, reason: string, postId?: string) {

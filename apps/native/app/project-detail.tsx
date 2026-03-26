@@ -1,0 +1,172 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Image, KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+import { pledgeToCrowdfundProjectApi } from '../utils/db';
+import { loadIdentity } from '../utils/identity';
+
+export default function ProjectDetailScreen() {
+    const params = useLocalSearchParams<{ id: string, title?: string, description?: string, goal?: string, current?: string, creator_pubkey?: string, photos?: string }>();
+    
+    const [pledgeAmount, setPledgeAmount] = useState('');
+    const [pledgeMemo, setPledgeMemo] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [identity, setIdentity] = useState<any>(null);
+
+    const title = params.title || 'Untitled Project';
+    const description = params.description || 'No description provided.';
+    const goal = Number(params.goal || 0);
+    const current = Number(params.current || 0);
+    const isFunded = current >= goal;
+    const progress = Math.min(100, (current / (goal || 1)) * 100);
+    const isCreator = identity?.publicKey === params.creator_pubkey;
+
+    let photosArr: string[] = [];
+    try { photosArr = JSON.parse(params.photos || '[]'); } catch {}
+    const heroUri = photosArr.length > 0 ? photosArr[0] : null;
+
+    useEffect(() => {
+        loadIdentity().then((id: any) => setIdentity(id));
+    }, []);
+
+    const handlePledge = async () => {
+        if (!pledgeAmount.trim() || isNaN(Number(pledgeAmount)) || Number(pledgeAmount) <= 0) {
+            Alert.alert("Invalid Amount", "Please enter a valid amount to pledge.");
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            await pledgeToCrowdfundProjectApi(params.id, Number(pledgeAmount), pledgeMemo.trim());
+            Alert.alert("Pledge Successful! 🌱", `Thank you for supporting ${title}.`, [
+                { text: "OK", onPress: () => router.back() }
+            ]);
+        } catch (e: any) {
+            Alert.alert("Pledge Failed", e.message || "Could not complete pledge. Are you online?");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+            <StatusBar style="light" />
+            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                
+                {/* Fixed Header overlay for back button */}
+                <View style={styles.header}>
+                    <Pressable onPress={() => router.back()} style={styles.backButton}>
+                        <MaterialCommunityIcons name="chevron-left" size={32} color="#ffffff" />
+                    </Pressable>
+                </View>
+
+                <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 100 }} bounces={false}>
+                    {/* Hero Header */}
+                    <View style={styles.heroContainer}>
+                        {heroUri ? (
+                            <Image source={{ uri: heroUri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+                        ) : (
+                            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' }]}>
+                                <Text style={{ fontSize: 60, opacity: 0.3 }}>🌱</Text>
+                            </View>
+                        )}
+                        <View style={styles.heroOverlay} />
+                    </View>
+
+                    <View style={styles.content}>
+                        {isFunded && (
+                            <View style={styles.fundedBadge}>
+                                <Text style={styles.fundedBadgeText}>🎉 SUCCESSFULLY FUNDED</Text>
+                            </View>
+                        )}
+                        
+                        <Text style={styles.title}>{title}</Text>
+                        
+                        {/* Progress Section */}
+                        <View style={styles.progressCard}>
+                            <View style={styles.progressHeader}>
+                                <Text style={[styles.currentAmt, isFunded && { color: '#10b981' }]}>
+                                    {current} <Text style={styles.progressLabel}>Beans raised</Text>
+                                </Text>
+                                <Text style={styles.goalAmt}>Goal: {goal} B</Text>
+                            </View>
+                            <View style={styles.progressBarBg}>
+                                <View style={[styles.progressBarFill, { width: `${progress}%`, backgroundColor: isFunded ? '#10b981' : '#f59e0b' }]} />
+                            </View>
+                        </View>
+
+                        {/* About */}
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>About the Project</Text>
+                            <Text style={styles.description}>{description}</Text>
+                        </View>
+                    </View>
+                </ScrollView>
+
+                {/* Footer Pledge Bar */}
+                {!isCreator && (
+                    <View style={styles.footer}>
+                        <View style={styles.inputRow}>
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.beanSymbol}>Ʀ</Text>
+                                <TextInput 
+                                    style={styles.amountInput}
+                                    placeholder="0"
+                                    keyboardType="numeric"
+                                    value={pledgeAmount}
+                                    onChangeText={setPledgeAmount}
+                                />
+                            </View>
+                            <TextInput 
+                                style={styles.memoInput}
+                                placeholder="Optional memo..."
+                                value={pledgeMemo}
+                                onChangeText={setPledgeMemo}
+                            />
+                        </View>
+                        <Pressable style={styles.pledgeBtn} onPress={handlePledge} disabled={submitting}>
+                            {submitting ? (
+                                <ActivityIndicator color="#ffffff" />
+                            ) : (
+                                <Text style={styles.pledgeBtnText}>PLEDGE BEANS 🌱</Text>
+                            )}
+                        </Pressable>
+                    </View>
+                )}
+            </KeyboardAvoidingView>
+        </SafeAreaView>
+    );
+}
+
+const styles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: '#ffffff' },
+    header: { position: 'absolute', top: 44, left: 16, zIndex: 10 },
+    backButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+    scroll: { flex: 1 },
+    heroContainer: { width: '100%', height: 280, position: 'relative' },
+    heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)' },
+    content: { padding: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: '#ffffff', marginTop: -24 },
+    fundedBadge: { alignSelf: 'flex-start', backgroundColor: '#e0fae5', borderWidth: 1, borderColor: '#a7f3d0', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginBottom: 12 },
+    fundedBadgeText: { color: '#047857', fontSize: 11, fontWeight: 'bold', letterSpacing: 0.5 },
+    title: { fontSize: 26, fontWeight: '900', color: '#111827', marginBottom: 20, letterSpacing: -0.5 },
+    progressCard: { backgroundColor: '#f9fafb', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#f3f4f6', marginBottom: 24 },
+    progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 },
+    currentAmt: { fontSize: 28, fontWeight: '900', color: '#1f2937' },
+    progressLabel: { fontSize: 14, fontWeight: '500', color: '#6b7280' },
+    goalAmt: { fontSize: 14, fontWeight: '600', color: '#9ca3af', marginBottom: 4 },
+    progressBarBg: { height: 10, backgroundColor: '#e5e7eb', borderRadius: 5, overflow: 'hidden' },
+    progressBarFill: { height: '100%', borderRadius: 5 },
+    section: { marginBottom: 24 },
+    sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 12 },
+    description: { fontSize: 15, color: '#4b5563', lineHeight: 24 },
+    footer: { backgroundColor: '#ffffff', paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#f3f4f6', shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 15 },
+    inputRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+    inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, paddingHorizontal: 12, width: 100 },
+    beanSymbol: { fontSize: 18, fontWeight: 'bold', color: '#f59e0b', marginRight: 4 },
+    amountInput: { flex: 1, fontSize: 18, fontWeight: 'bold', color: '#1f2937', paddingVertical: 12 },
+    memoInput: { flex: 1, backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, paddingHorizontal: 16, fontSize: 15, color: '#1f2937' },
+    pledgeBtn: { backgroundColor: '#10b981', paddingVertical: 16, borderRadius: 14, alignItems: 'center', shadowColor: '#10b981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+    pledgeBtnText: { color: '#ffffff', fontSize: 16, fontWeight: 'bold', letterSpacing: 1 }
+});

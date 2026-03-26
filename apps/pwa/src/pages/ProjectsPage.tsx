@@ -30,6 +30,13 @@ export function ProjectsPage({ identity }: Props) {
     const [pledgeMemo, setPledgeMemo] = useState('');
     const [pledging, setPledging] = useState(false);
 
+    const [isEditingProject, setIsEditingProject] = useState(false);
+    const [editTitle, setEditTitle] = useState('');
+    const [editDescription, setEditDescription] = useState('');
+    const [editGoal, setEditGoal] = useState<number | ''>('');
+    const [editPhotos, setEditPhotos] = useState<string[]>([]);
+    const [updating, setUpdating] = useState(false);
+
     // Profile Cache
     const [profiles, setProfiles] = useState<Record<string, { callsign: string, homeNodeUrl?: string }>>({});
 
@@ -77,6 +84,24 @@ export function ProjectsPage({ identity }: Props) {
         e.target.value = ''; // Reset
     };
 
+    const handleEditPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files) return;
+        
+        Array.from(files).forEach((file) => {
+            if (!file.type.startsWith('image/')) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const base64 = event.target?.result as string;
+                if (base64) {
+                    setEditPhotos(prev => [...prev, base64].slice(0, 3)); // Max 3 photos
+                }
+            };
+            reader.readAsDataURL(file); 
+        });
+        e.target.value = ''; 
+    };
+
     const submitNewProject = async () => {
         if (!identity) return;
         if (!newTitle.trim() || !newGoal || Number(newGoal) <= 0) return;
@@ -117,6 +142,39 @@ export function ProjectsPage({ identity }: Props) {
             alert(err.message || 'Pledge failed');
         } finally {
             setPledging(false);
+        }
+    };
+
+    const startEditing = () => {
+        if (!selectedProject) return;
+        setEditTitle(selectedProject.title);
+        setEditDescription(selectedProject.description || '');
+        setEditGoal(selectedProject.goal_amount);
+        try { setEditPhotos(JSON.parse(selectedProject.photos) || []); } catch { setEditPhotos([]); }
+        setIsEditingProject(true);
+    };
+
+    const submitUpdateProject = async () => {
+        if (!identity || !selectedProject) return;
+        if (!editTitle.trim() || !editGoal || Number(editGoal) <= 0) return;
+
+        setUpdating(true);
+        try {
+            const { project } = await import('../lib/api').then(m => m.updateCrowdfundProject(
+                selectedProject.id,
+                identity.publicKey,
+                editTitle.trim(),
+                editDescription.trim(),
+                editPhotos,
+                Number(editGoal)
+            ));
+            setSelectedProject(project);
+            setProjects(prev => prev.map(p => p.id === project.id ? project : p));
+            setIsEditingProject(false);
+        } catch (err: any) {
+            alert(err.message || 'Update failed');
+        } finally {
+            setUpdating(false);
         }
     };
 
@@ -315,19 +373,122 @@ export function ProjectsPage({ identity }: Props) {
             {selectedProject && (
                 <div className="fixed inset-0 z-50 flex flex-col" style={{ backgroundColor: 'var(--bg-primary)', overflowY: 'auto' }}>
                     <header className="sticky top-0 bg-nature-900 border-b border-nature-800 p-3 shadow-md flex items-center gap-3 z-10 transition-colors">
-                        <button onClick={() => setSelectedProject(null)} className="p-2 text-nature-400 hover:text-white bg-nature-800 hover:bg-nature-700 rounded-full transition-colors">
+                        <button onClick={() => { setSelectedProject(null); setIsEditingProject(false); }} className="p-2 text-nature-400 hover:text-white bg-nature-800 hover:bg-nature-700 rounded-full transition-colors">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                             </svg>
                         </button>
                         <h2 className="text-white font-bold text-lg leading-tight flex-1 tracking-tight truncate">
-                            Project Details
+                            {isEditingProject ? 'Edit Project' : 'Project Details'}
                         </h2>
+                        {identity && identity.publicKey === selectedProject.creator_pubkey && !isEditingProject && (
+                            <button onClick={startEditing} className="px-3 py-1.5 bg-nature-800 hover:bg-nature-700 text-nature-300 hover:text-white rounded-lg text-sm font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer ml-auto active:scale-95 z-50 relative pointer-events-auto">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
+                                Edit
+                            </button>
+                        )}
                     </header>
                     
                     <div className="flex-1 pb-24">
-                        {/* Hero Images */}
-                        {(() => {
+                        {isEditingProject ? (
+                            <div className="p-5 flex flex-col gap-4">
+                                {selectedProject.current_amount > 0 ? (
+                                    <div className="p-4 bg-red-900/20 border border-red-500/30 rounded-xl flex items-start gap-3 shadow-sm">
+                                        <span className="text-red-400 mt-0.5 text-lg">🔒</span>
+                                        <p className="text-sm text-red-200 leading-relaxed font-medium">
+                                            This project has already received community pledges. The funding goal is permanently locked to protect backers.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="p-4 bg-accent/10 border border-accent/20 rounded-xl flex items-start gap-3 shadow-sm">
+                                        <span className="text-accent mt-0.5 text-lg">ℹ️</span>
+                                        <p className="text-sm text-emerald-100 leading-relaxed font-medium">
+                                            You may edit the funding goal because no pledges have been made yet.
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="block text-xs font-bold text-nature-500 uppercase mb-1">Project Title</label>
+                                    <input 
+                                        value={editTitle} onChange={e => setEditTitle(e.target.value)}
+                                        className="w-full bg-bg-input border border-border-secondary p-3 rounded-xl text-text-primary focus:border-accent outline-none font-medium shadow-inner"
+                                        maxLength={100}
+                                    />
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-xs font-bold text-nature-500 uppercase mb-1">Funding Goal (Beans)</label>
+                                    <input 
+                                        type="number" value={editGoal} onChange={e => setEditGoal(e.target.value ? Number(e.target.value) : '')}
+                                        className={`w-full bg-bg-input border border-border-secondary p-3 rounded-xl text-text-primary focus:border-accent outline-none font-mono text-lg shadow-inner ${selectedProject.current_amount > 0 ? 'opacity-50 cursor-not-allowed bg-nature-800' : ''}`}
+                                        disabled={selectedProject.current_amount > 0}
+                                        min="1"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-nature-500 uppercase mb-1">Description</label>
+                                    <textarea 
+                                        value={editDescription} onChange={e => setEditDescription(e.target.value)}
+                                        className="w-full bg-bg-input border border-border-secondary p-3 rounded-xl text-text-primary focus:border-accent outline-none resize-none h-32 leading-relaxed shadow-inner"
+                                        maxLength={2000}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-nature-500 uppercase mb-1">Photos (Up to 3)</label>
+                                    <div className="flex gap-2 overflow-x-auto pb-2">
+                                        {editPhotos.map((photo, i) => (
+                                            <div key={i} className="relative w-24 h-24 shrink-0 rounded-xl overflow-hidden border border-border-secondary shadow-sm">
+                                                <img src={photo} className="w-full h-full object-cover" alt={`Edit ${i}`} />
+                                                <button 
+                                                    onClick={() => setEditPhotos(prev => prev.filter((_, idx) => idx !== i))}
+                                                    className="absolute top-1.5 right-1.5 bg-black/60 backdrop-blur-sm p-1.5 rounded-full text-white hover:bg-red-500/80 transition-colors"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {editPhotos.length < 3 && (
+                                            <label className="w-24 h-24 shrink-0 rounded-xl border-2 border-dashed border-border-secondary flex items-center justify-center cursor-pointer hover:bg-bg-input transition-colors group">
+                                                <svg className="w-8 h-8 text-nature-500 group-hover:text-accent transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                                </svg>
+                                                <input type="file" multiple accept="image/*" className="hidden" onChange={handleEditPhotoUpload} />
+                                            </label>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="mt-6 flex gap-3">
+                                    <button 
+                                        onClick={() => setIsEditingProject(false)}
+                                        className="flex-1 py-3.5 rounded-xl font-bold bg-nature-800 text-white hover:bg-nature-700 transition-colors shadow-sm"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={submitUpdateProject}
+                                        disabled={updating || !editTitle.trim() || !editGoal || Number(editGoal) <= 0}
+                                        className={`flex-1 py-3.5 rounded-xl font-bold text-white shadow-md transition-all ${
+                                            (updating || !editTitle.trim() || !editGoal || Number(editGoal) <= 0)
+                                                ? 'bg-nature-300 dark:bg-nature-700 cursor-not-allowed opacity-70'
+                                                : 'bg-accent hover:bg-emerald-500 hover:shadow-lg active:scale-95'
+                                        }`}
+                                    >
+                                        {updating ? 'Saving...' : 'Save Changes'}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Hero Images */}
+                                {(() => {
                             let photosArr: string[] = [];
                             try { photosArr = JSON.parse(selectedProject.photos); } catch {}
                             
@@ -394,11 +555,13 @@ export function ProjectsPage({ identity }: Props) {
                                     {selectedProject.description || 'No description provided.'}
                                 </p>
                             </div>
-                        </div>
+                            </div>
+                            </>
+                        )}
                     </div>
 
                     {/* Pledge Sticky Footer */}
-                    {identity?.publicKey !== selectedProject.creator_pubkey && (
+                    {identity?.publicKey !== selectedProject.creator_pubkey && !isEditingProject && (
                         <div className="fixed bottom-0 left-0 right-0 bg-bg-card border-t border-border-secondary p-4 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] dark:shadow-[0_-5px_20px_rgba(0,0,0,0.5)] z-20">
                             <div className="max-w-md mx-auto">
                                 <div className="flex gap-2">

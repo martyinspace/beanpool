@@ -30,10 +30,12 @@ export function GlobalHeader() {
                 </View>
 
                 {/* CENTER: beanpool.org Text Logo */}
-                <View style={styles.headerCenter}>
-                    <View style={styles.logoBadge}>
-                        <Text style={styles.logoText}>beanpool<Text style={styles.logoHighlight}>.org</Text></Text>
-                    </View>
+                <View style={[styles.headerCenter, { zIndex: 10 }]}>
+                    <Image 
+                        source={require('../assets/images/logo.png')} 
+                        style={{ width: 281, height: 69 }} 
+                        resizeMode="contain" 
+                    />
                 </View>
 
                 {/* RIGHT: Controls */}
@@ -109,6 +111,6 @@ const styles = StyleSheet.create({
         color: '#cb5326', // terra-400 equivalent
     },
     pillBase: {alignItems: 'center', justifyContent: 'flex-end', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', height: 32, overflow: 'hidden' },
-    headerRightControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', height: 32, overflow: 'hidden' },
+    headerRightControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', height: 32, width: 86, overflow: 'hidden' },
     controlPillBtn: { paddingHorizontal: 12, height: '100%', justifyContent: 'center', alignItems: 'center' },
 });

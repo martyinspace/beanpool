@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { createProject } from '../utils/db';
-import * as ImagePicker from 'expo-image-picker';
+import { updateCrowdfundProjectApi } from '../utils/db';
 
-export default function ProposeProjectModal() {
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
-    const [goalAmount, setGoalAmount] = useState('');
+export default function EditProjectModal() {
+    const params = useLocalSearchParams<{ id: string, title?: string, description?: string, goal?: string, current?: string, photos?: string }>();
+    
+    const [title, setTitle] = useState(params.title || '');
+    const [description, setDescription] = useState(params.description || '');
+    const [goalAmount, setGoalAmount] = useState(params.goal || '');
     const [submitting, setSubmitting] = useState(false);
-    const [photos, setPhotos] = useState<string[]>([]);
+
+    const isLocked = Number(params.current || 0) > 0;
 
     const handleSubmit = async () => {
         if (!title.trim() || !goalAmount.trim()) {
@@ -22,17 +24,19 @@ export default function ProposeProjectModal() {
 
         setSubmitting(true);
         try {
-            await createProject({
-                title: title.trim(),
-                description: description.trim(),
-                goal_amount: parseInt(goalAmount, 10) || 0,
-                photos
-            });
-            Alert.alert("Proposal Submitted", "Your community project proposal has been broadcast to the network.", [
+            const parsedPhotos = params.photos ? JSON.parse(params.photos) : [];
+            await updateCrowdfundProjectApi(
+                params.id,
+                title.trim(),
+                description.trim(),
+                parsedPhotos,
+                parseInt(goalAmount, 10) || 0
+            );
+            Alert.alert("Proposal Updated", "Your community project proposal has been successfully updated on the network.", [
                 { text: "OK", onPress: () => router.back() }
             ]);
         } catch (e: any) {
-            Alert.alert("Submission Failed", e.message || "Could not propose project.");
+            Alert.alert("Update Failed", e.message || "Could not update project.");
         } finally {
             setSubmitting(false);
         }
@@ -45,15 +49,22 @@ export default function ProposeProjectModal() {
                 <Pressable onPress={() => router.back()} style={styles.backButton}>
                     <MaterialCommunityIcons name="close" size={28} color="#111827" />
                 </Pressable>
-                <Text style={styles.headerTitle}>Propose Project</Text>
+                <Text style={styles.headerTitle}>Edit Project</Text>
                 <View style={{ width: 40 }} />
             </View>
 
             <ScrollView contentContainerStyle={styles.scroll}>
-                <View style={styles.infoBox}>
-                    <MaterialCommunityIcons name="information" size={20} color="#f59e0b" style={{ marginRight: 8 }} />
-                    <Text style={styles.infoText}>Project proposals must be voted on and approved by the community before any funds are released.</Text>
-                </View>
+                {isLocked ? (
+                    <View style={[styles.infoBox, { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }]}>
+                        <MaterialCommunityIcons name="lock" size={20} color="#b91c1c" style={{ marginRight: 8 }} />
+                        <Text style={[styles.infoText, { color: '#7f1d1d' }]}>This project has already received community pledges. The funding goal is permanently locked to protect backers.</Text>
+                    </View>
+                ) : (
+                    <View style={styles.infoBox}>
+                        <MaterialCommunityIcons name="information" size={20} color="#f59e0b" style={{ marginRight: 8 }} />
+                        <Text style={styles.infoText}>You may edit the funding goal because no pledges have been made yet.</Text>
+                    </View>
+                )}
 
                 {/* Title */}
                 <View style={styles.field}>
@@ -71,52 +82,15 @@ export default function ProposeProjectModal() {
                 <View style={styles.field}>
                     <Text style={styles.label}>FUNDING GOAL (Ʀ)</Text>
                     <TextInput 
-                        style={[styles.input, styles.priceInput]}
+                        style={[styles.input, styles.priceInput, isLocked && { backgroundColor: '#f3f4f6', color: '#9ca3af' }]}
                         placeholder="0"
                         keyboardType="numeric"
                         value={goalAmount}
                         onChangeText={setGoalAmount}
                         maxLength={6}
+                        editable={!isLocked}
                     />
-                    {/* PWA states "Commons allocation limit bounds this locally". */}
                     <Text style={styles.hint}>Amount requested from the community pool.</Text>
-                </View>
-
-                {/* Photos */}
-                <View style={styles.field}>
-                    <Text style={styles.label}>PROJECT PHOTOS (MAX 3)</Text>
-                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
-                        {photos.map((uri, idx) => (
-                            <View key={idx} style={{ position: 'relative' }}>
-                                <Image source={{ uri }} style={{ width: 80, height: 80, borderRadius: 12, backgroundColor: '#f3f4f6' }} />
-                                <Pressable 
-                                    onPress={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
-                                    style={{ position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3 }}
-                                >
-                                    <MaterialCommunityIcons name="close" size={16} color="#ffffff" />
-                                </Pressable>
-                            </View>
-                        ))}
-                        {photos.length < 3 && (
-                            <Pressable 
-                                onPress={async () => {
-                                    const res = await ImagePicker.launchImageLibraryAsync({
-                                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                                        allowsEditing: true,
-                                        aspect: [16, 9],
-                                        quality: 0.8,
-                                        base64: true,
-                                    });
-                                    if (!res.canceled && res.assets[0].base64) {
-                                        setPhotos(prev => [...prev, `data:image/jpeg;base64,${res.assets[0].base64}`]);
-                                    }
-                                }}
-                                style={{ width: 80, height: 80, borderRadius: 12, borderWidth: 2, borderColor: '#e5e7eb', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}
-                            >
-                                <MaterialCommunityIcons name="image-plus" size={28} color="#9ca3af" />
-                            </Pressable>
-                        )}
-                    </View>
                 </View>
 
                 {/* Description */}
@@ -139,7 +113,7 @@ export default function ProposeProjectModal() {
                     {submitting ? (
                         <ActivityIndicator color="#ffffff" />
                     ) : (
-                        <Text style={styles.submitBtnText}>SUBMIT TO NETWORK</Text>
+                        <Text style={styles.submitBtnText}>SAVE CHANGES</Text>
                     )}
                 </Pressable>
             </View>

@@ -624,6 +624,10 @@ export async function createCrowdfundProject(creatorPubkey: string, title: strin
     return request('POST', '/api/crowdfund/projects', { creatorPubkey, title, description, photos, goalAmount, deadlineAt });
 }
 
+export async function updateCrowdfundProject(id: string, creatorPubkey: string, title: string, description: string, photos: string[], goalAmount: number): Promise<{ success: boolean; project: CrowdfundProject }> {
+    return request('POST', '/api/crowdfund/projects/update', { id, creatorPubkey, title, description, photos, goalAmount });
+}
+
 export async function pledgeToCrowdfundProject(projectId: string, fromPubkey: string, amount: number, memo: string): Promise<{ success: boolean; txId: string }> {
     return request('POST', `/api/crowdfund/projects/${projectId}/pledge`, { fromPubkey, amount, memo });
 }

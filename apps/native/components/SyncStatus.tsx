@@ -31,14 +31,16 @@ export function SyncStatus() {
     return (
         <View style={[styles.container, isOnline ? styles.onlineBorder : styles.offlineBorder]}>
             <View style={[styles.dot, isOnline ? styles.onlineDot : styles.offlineDot]} />
-            <Text style={[styles.text, isOnline ? styles.onlineText : styles.offlineText]}>
-                {isOnline ? 'Online' : 'Offline'}
-            </Text>
-            {lastSync && (
-                <Text style={styles.timeText}>
-                    {formatTimeAgo(lastSync)}
+            <View style={styles.textStack}>
+                <Text style={[styles.text, isOnline ? styles.onlineText : styles.offlineText]}>
+                    {isOnline ? 'Online' : 'Offline'}
                 </Text>
-            )}
+                {lastSync && (
+                    <Text style={styles.timeText}>
+                        {formatTimeAgo(lastSync)}
+                    </Text>
+                )}
+            </View>
         </View>
     );
 }
@@ -47,20 +49,23 @@ const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 4,
-        paddingHorizontal: 12,
-        borderRadius: 9999,
+        justifyContent: 'center',
+        height: 32,
+        width: 86,
+        paddingHorizontal: 8,
+        borderRadius: 20,
         backgroundColor: '#ffffff',
         borderWidth: 1,
         borderStyle: 'solid'
     },
     onlineBorder: { borderColor: 'rgba(16, 185, 129, 0.3)' },
     offlineBorder: { borderColor: 'rgba(239, 68, 68, 0.3)' },
-    dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+    dot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
     onlineDot: { backgroundColor: '#10b981' },
     offlineDot: { backgroundColor: '#ef4444' },
-    text: { fontSize: 12, fontWeight: '600', marginRight: 6 },
+    textStack: { flexDirection: 'column', justifyContent: 'center' },
+    text: { fontSize: 11, fontWeight: '700', lineHeight: 12 },
     onlineText: { color: '#10b981' },
     offlineText: { color: '#ef4444' },
-    timeText: { color: '#9ca3af', fontSize: 11, fontWeight: '500' }
+    timeText: { color: '#9ca3af', fontSize: 9, fontWeight: '500', marginTop: 1 }
 });

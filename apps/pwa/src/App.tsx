@@ -47,6 +47,8 @@ function HeaderControls({ showSettings, setShowSettings }: { showSettings: boole
             background: 'var(--bg-card)',
             border: '1px solid var(--border-secondary)',
             height: '26px', // Geometric balance with SyncStatus
+            width: '72px',
+            justifyContent: 'center',
         }}>
             <button
                 onClick={toggleLocation}
@@ -218,10 +220,8 @@ export function App() {
                             {TABS.find(t => t.id === activeTab)?.label === 'Market' ? 'Marketplace' : TABS.find(t => t.id === activeTab)?.label}
                         </span>
                     ) : (
-                        <div className="bg-black/60 backdrop-blur-md px-5 py-1.5 rounded-full border border-white/20 shadow-lg pointer-events-auto flex items-center shadow-black/50">
-                            <span className="font-bold text-sm tracking-widest text-white lowercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-                                beanpool<span className="text-terra-400">.org</span>
-                            </span>
+                        <div className="bg-black/60 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 shadow-lg pointer-events-auto flex items-center shadow-black/50">
+                            <img src="/logo.png" alt="BeanPool" className="h-[52px] object-contain drop-shadow-sm" />
                         </div>
                     )}
                 </div>

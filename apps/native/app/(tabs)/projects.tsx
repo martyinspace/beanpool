@@ -3,14 +3,19 @@ import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image } from
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { getProjects } from '../../utils/db'; // Currently mapped { id, title, goal, current }
+import { loadIdentity } from '../../utils/identity';
 
 export default function ProjectsScreen() {
     const [projects, setProjects] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [identity, setIdentity] = useState<any>(null);
 
     useFocusEffect(
         useCallback(() => {
             let isActive = true;
+            loadIdentity().then((id: any) => {
+                if (isActive) setIdentity(id);
+            });
             getProjects().then((data) => {
                 if (isActive) {
                     setProjects(data);
@@ -45,7 +50,21 @@ export default function ProjectsScreen() {
         }
 
         return (
-            <Pressable style={styles.card}>
+            <Pressable 
+                style={styles.card}
+                onPress={() => router.push({
+                    pathname: '/project-detail',
+                    params: {
+                        id: item.id,
+                        title: item.title,
+                        description: item.description,
+                        goal: item.goal_amount,
+                        current: item.current_amount,
+                        creator_pubkey: item.creator_pubkey,
+                        photos: typeof item.photos === 'string' ? item.photos : JSON.stringify(item.photos || [])
+                    }
+                })}
+            >
                 <View style={[styles.heroImage, { backgroundColor: '#1f2937' }]}>
                     {heroUri && (
                         <Image source={{ uri: heroUri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
@@ -54,6 +73,24 @@ export default function ProjectsScreen() {
                         <View style={styles.fundedBadge}>
                             <Text style={styles.fundedBadgeText}>🎉 FUNDED</Text>
                         </View>
+                    )}
+                    {identity && item.creator_pubkey === identity.publicKey && (
+                        <Pressable 
+                            style={styles.editBadge}
+                            onPress={() => router.push({ 
+                                pathname: '/edit-project', 
+                                params: { 
+                                    id: item.id, 
+                                    title: item.title, 
+                                    description: item.description, 
+                                    goal: item.goal_amount, 
+                                    current: item.current_amount, 
+                                    photos: typeof item.photos === 'string' ? item.photos : JSON.stringify(item.photos || []) 
+                                } 
+                            })}
+                        >
+                            <MaterialCommunityIcons name="pencil" size={16} color="#ffffff" />
+                        </Pressable>
                     )}
                     <View style={styles.heroOverlay}>
                         <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
@@ -123,6 +160,7 @@ const styles = StyleSheet.create({
     cardTitle: { color: '#ffffff', fontSize: 18, fontWeight: '800', letterSpacing: -0.5 },
     fundedBadge: { position: 'absolute', top: 8, right: 8, backgroundColor: '#10b981', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
     fundedBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: 'bold' },
+    editBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.6)', padding: 8, borderRadius: 20 },
     cardBody: { padding: 16 },
     description: { fontSize: 14, color: '#6b7280', lineHeight: 20, marginBottom: 16 },
     progressSection: { marginTop: 4 },
