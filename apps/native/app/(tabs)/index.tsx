@@ -94,7 +94,7 @@ export default function MapScreen() {
     const [postTitle, setPostTitle] = useState('');
     const [postDescription, setPostDescription] = useState('');
     const [postCredits, setPostCredits] = useState('');
-    const [postPriceType, setPostPriceType] = useState<'fixed' | 'hourly'>('fixed');
+    const [postPriceType, setPostPriceType] = useState<string>('fixed');
     const [postRepeatable, setPostRepeatable] = useState(false);
     const [postPhotos, setPostPhotos] = useState<string[]>([]);
     const [postLat, setPostLat] = useState<number | null>(null);
@@ -398,8 +398,13 @@ export default function MapScreen() {
                                     maxLength={5}
                                 />
                                 <View style={styles.priceTypeWrap}>
-                                    <Pressable onPress={() => setPostPriceType(postPriceType === 'fixed' ? 'hourly' : 'fixed')} style={styles.priceTypeBtn}>
-                                        <Text style={styles.priceTypeBtnText}>{postPriceType === 'fixed' ? 'Total' : '/ Hr'}</Text>
+                                    <Pressable onPress={() => {
+                                        const types = ['fixed', 'hourly', 'daily', 'weekly', 'monthly'];
+                                        setPostPriceType(types[(types.indexOf(postPriceType) + 1) % types.length]);
+                                    }} style={styles.priceTypeBtn}>
+                                        <Text style={styles.priceTypeBtnText}>{
+                                            { fixed: 'Total', hourly: '/ Hr', daily: '/ d', weekly: '/ w', monthly: '/ m' }[postPriceType] || 'Total'
+                                        }</Text>
                                     </Pressable>
                                 </View>
                             </View>

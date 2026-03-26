@@ -3,7 +3,11 @@ import { View, Text, StyleSheet, Image, Pressable, ScrollView, SafeAreaView, Tex
 import { useLocalSearchParams, router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Picker } from '@react-native-picker/picker';
-import { getPost, updatePost, deletePost } from '../../utils/db';
+import { 
+    getPost, updatePost, deletePost, 
+    acceptMarketplacePost, completeMarketplaceTransaction, cancelMarketplaceTransaction, 
+    submitRating, reportAbuse 
+} from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
 
 const CATEGORIES = [
@@ -37,8 +41,22 @@ export default function PostDetailModal() {
     const [editTitle, setEditTitle] = useState('');
     const [editDescription, setEditDescription] = useState('');
     const [editCredits, setEditCredits] = useState('');
-    const [editPriceType, setEditPriceType] = useState<'fixed' | 'hourly'>('fixed');
+    const [editPriceType, setEditPriceType] = useState<string>('fixed');
     const [editPhotos, setEditPhotos] = useState<string[]>([]);
+
+    // Transactions / Reporting state
+    const [accepting, setAccepting] = useState(false);
+    const [showAcceptConfirm, setShowAcceptConfirm] = useState(false);
+    const [acceptHours, setAcceptHours] = useState('1');
+    const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
+    const [completeHours, setCompleteHours] = useState('');
+    const [showRatingForm, setShowRatingForm] = useState(false);
+    const [myRating, setMyRating] = useState(0);
+    const [ratingComment, setRatingComment] = useState('');
+    const [submittingRating, setSubmittingRating] = useState(false);
+    const [showReportForm, setShowReportForm] = useState(false);
+    const [reportReason, setReportReason] = useState('');
+    const [submittingReport, setSubmittingReport] = useState(false);
 
     useEffect(() => {
         if (id) { getPost(id as string).then(setPost); }
@@ -178,7 +196,9 @@ export default function PostDetailModal() {
                 {/* Price Card */}
                 <View style={styles.priceCard}>
                     <Text style={styles.priceLabel}>{priceLabel}</Text>
-                    <Text style={styles.priceValue}>{post.credits} <Text style={styles.priceCurrency}>B{post.price_type === 'hourly' ? ' /Hr' : ''}</Text></Text>
+                    <Text style={styles.priceValue}>{post.credits} <Text style={styles.priceCurrency}>B{
+                        { fixed: '', hourly: ' / Hr', daily: ' / d', weekly: ' / w', monthly: ' / m' }[post.price_type as string] || ''
+                    }</Text></Text>
                 </View>
 
                 {/* Author Card */}
@@ -228,8 +248,13 @@ export default function PostDetailModal() {
                             {/* Credits + Price Type */}
                             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
                                 <TextInput style={[styles.editInput, { flex: 1, marginBottom: 0 }]} value={editCredits} onChangeText={setEditCredits} placeholder="Credits (B)" placeholderTextColor="#9ca3af" keyboardType="numeric" />
-                                <Pressable onPress={() => setEditPriceType(editPriceType === 'fixed' ? 'hourly' : 'fixed')} style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, justifyContent: 'center' }}>
-                                    <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '700' }}>{editPriceType === 'fixed' ? 'Total' : '/ Hr'}</Text>
+                                <Pressable onPress={() => {
+                                    const types = ['fixed', 'hourly', 'daily', 'weekly', 'monthly'];
+                                    setEditPriceType(types[(types.indexOf(editPriceType) + 1) % types.length]);
+                                }} style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, justifyContent: 'center' }}>
+                                    <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '700' }}>{
+                                        { fixed: 'Total', hourly: '/ Hr', daily: '/ d', weekly: '/ w', monthly: '/ m' }[editPriceType] || 'Total'
+                                    }</Text>
                                 </Pressable>
                             </View>
 
@@ -261,6 +286,60 @@ export default function PostDetailModal() {
                                 </Pressable>
                             </View>
                         </View>
+                    ) : post.status === 'pending' ? (
+                        <View style={styles.ownPostActions}>
+                            <Text style={{ color: '#f59e0b', fontSize: 13, fontWeight: '700', textAlign: 'center', marginBottom: 8 }}>
+                                ⏳ Pending Completion by {post.accepted_by_callsign || 'Buyer'}
+                            </Text>
+                            {showCompleteConfirm ? (
+                                <View style={styles.confirmBox}>
+                                    <Text style={styles.confirmBoxTitle}>Finalize Transaction</Text>
+                                    {post.price_type !== 'fixed' && (
+                                        <View style={{ marginBottom: 12 }}>
+                                            <Text style={styles.confirmBoxLabel}>ACTUAL {
+                                                { hourly: 'HOURS', daily: 'DAYS', weekly: 'WEEKS', monthly: 'MONTHS' }[post.price_type as string] || 'UNITS'
+                                            } WORKED</Text>
+                                            <TextInput style={styles.confirmBoxInput} value={completeHours} onChangeText={setCompleteHours} keyboardType="numeric" placeholder="e.g. 2.5" placeholderTextColor="#9ca3af" />
+                                        </View>
+                                    )}
+                                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                                        <Pressable style={styles.cancelActionBtn} onPress={() => setShowCompleteConfirm(false)} disabled={accepting}>
+                                            <Text style={styles.cancelActionBtnText}>Cancel</Text>
+                                        </Pressable>
+                                        <Pressable style={[styles.confirmActionBtn, styles.confirmActionBtnGreen]} disabled={accepting || (post.price_type !== 'fixed' && !completeHours)} onPress={async () => {
+                                            if (!identity || !post.pending_transaction_id) return;
+                                            setAccepting(true);
+                                            try {
+                                                await completeMarketplaceTransaction(post.pending_transaction_id, identity.publicKey, post.price_type !== 'fixed' ? Number(completeHours) : undefined);
+                                                setShowCompleteConfirm(false);
+                                                if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
+                                            } catch(e: any) { Alert.alert('Error', e.message); } finally { setAccepting(false); }
+                                        }}>
+                                            <Text style={styles.confirmActionBtnText}>{accepting ? 'Processing...' : 'Release Credits'}</Text>
+                                        </Pressable>
+                                    </View>
+                                </View>
+                            ) : (
+                                <Pressable style={[styles.acceptBtn, styles.acceptBtnOffer]} onPress={() => { setShowCompleteConfirm(true); if(post.price_type !== 'fixed' && !completeHours) setCompleteHours('1'); }}>
+                                    <Text style={styles.acceptBtnText}>✅ Release Credits</Text>
+                                </Pressable>
+                            )}
+                            <Pressable style={styles.cancelTxBtn} disabled={accepting} onPress={() => {
+                                Alert.alert('Cancel Transaction', 'Return post to the market?', [
+                                    { text: 'No', style: 'cancel' },
+                                    { text: 'Yes, Cancel', style: 'destructive', onPress: async () => {
+                                        if(!identity || !post.pending_transaction_id) return;
+                                        setAccepting(true);
+                                        try {
+                                            await cancelMarketplaceTransaction(post.pending_transaction_id, identity.publicKey);
+                                            if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
+                                        } catch(e:any) { Alert.alert('Error', e.message); } finally { setAccepting(false); }
+                                    }}
+                                ]);
+                            }}>
+                                <Text style={styles.cancelTxBtnText}>❌ Cancel Transaction</Text>
+                            </Pressable>
+                        </View>
                     ) : (
                         <View style={styles.ownPostActions}>
                             <Pressable style={styles.editPostBtn} onPress={startEdit}>
@@ -279,11 +358,102 @@ export default function PostDetailModal() {
                         }}>
                             <Text style={styles.messageBtnText}>💬 Message</Text>
                         </Pressable>
-                        <Pressable style={[styles.acceptBtn, isOffer ? styles.acceptBtnOffer : styles.acceptBtnNeed]}>
-                            <Text style={styles.acceptBtnText}>
-                                {isOffer ? '🤝 Accept Offer' : '🤝 Fulfill Need'}
-                            </Text>
+                        
+                        {showAcceptConfirm ? (
+                            <View style={styles.confirmBox}>
+                                <Text style={styles.confirmBoxTitle}>{isOffer ? 'Accept this Offer?' : 'Fulfill this Need?'}</Text>
+                                {post.price_type !== 'fixed' && (
+                                    <View style={{ marginBottom: 12 }}>
+                                        <Text style={styles.confirmBoxLabel}>ESTIMATED {
+                                            { hourly: 'HOURS', daily: 'DAYS', weekly: 'WEEKS', monthly: 'MONTHS' }[post.price_type as string] || 'UNITS'
+                                        }</Text>
+                                        <TextInput style={styles.confirmBoxInput} value={acceptHours} onChangeText={setAcceptHours} keyboardType="numeric" placeholder="1" placeholderTextColor="#9ca3af" />
+                                        <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textAlign: 'center', marginTop: 4 }}>Credits will be reserved based on estimate.</Text>
+                                    </View>
+                                )}
+                                <View style={{ flexDirection: 'row', gap: 10 }}>
+                                    <Pressable style={styles.cancelActionBtn} onPress={() => setShowAcceptConfirm(false)} disabled={accepting}>
+                                        <Text style={styles.cancelActionBtnText}>Cancel</Text>
+                                    </Pressable>
+                                    <Pressable style={[styles.confirmActionBtn, styles.confirmActionBtnGreen]} disabled={accepting || (post.price_type !== 'fixed' && !acceptHours)} onPress={async () => {
+                                        if (!identity || !post.id) return;
+                                        setAccepting(true);
+                                        try {
+                                            await acceptMarketplacePost(post.id, identity.publicKey, post.price_type !== 'fixed' ? Number(acceptHours) : undefined);
+                                            setShowAcceptConfirm(false);
+                                            router.push({ pathname: '/(tabs)/chats', params: { callsign: cardAuthor } });
+                                        } catch (e: any) { Alert.alert('Error', e.message); } finally { setAccepting(false); }
+                                    }}>
+                                        <Text style={styles.confirmActionBtnText}>{accepting ? 'Processing...' : 'Confirm'}</Text>
+                                    </Pressable>
+                                </View>
+                            </View>
+                        ) : (
+                            <Pressable style={[styles.acceptBtn, isOffer ? styles.acceptBtnOffer : styles.acceptBtnNeed, (accepting || post.status === 'pending') && { opacity: 0.6 }]} disabled={accepting || post.status === 'pending'} onPress={() => setShowAcceptConfirm(true)}>
+                                <Text style={styles.acceptBtnText}>
+                                    {accepting ? 'Processing...' : (post.status === 'pending' ? '⏳ Pending Confirmation' : (isOffer ? '🤝 Accept Offer' : '🤝 Fulfill Need'))}
+                                </Text>
+                            </Pressable>
+                        )}
+                        
+                        {identity && post.status === 'completed' && post.pending_transaction_id && (
+                            <View style={{ marginTop: 16 }}>
+                                <Pressable style={[styles.messageBtn, { borderColor: 'rgba(245,158,11,0.3)', backgroundColor: 'rgba(245,158,11,0.05)' }]} onPress={() => setShowRatingForm(!showRatingForm)}>
+                                    <Text style={[styles.messageBtnText, { color: '#f59e0b' }]}>⭐ Rate {post.author_callsign || 'Author'}</Text>
+                                </Pressable>
+                                {showRatingForm && (
+                                    <View style={[styles.confirmBox, { marginTop: 8 }]}>
+                                        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
+                                            {[1,2,3,4,5].map(star => (
+                                                <Pressable key={star} onPress={() => setMyRating(star)}>
+                                                    <Text style={{ fontSize: 32, color: star <= myRating ? '#fbbf24' : 'rgba(255,255,255,0.2)' }}>{star <= myRating ? '★' : '☆'}</Text>
+                                                </Pressable>
+                                            ))}
+                                        </View>
+                                        <TextInput style={[styles.confirmBoxInput, { height: 60, textAlign: 'left', textAlignVertical: 'top' }]} value={ratingComment} onChangeText={setRatingComment} placeholder="Leave a comment (optional)..." placeholderTextColor="#9ca3af" multiline />
+                                        <Pressable style={[styles.confirmActionBtn, { backgroundColor: myRating >= 1 ? '#f59e0b' : 'rgba(255,255,255,0.2)' }]} disabled={myRating < 1 || submittingRating} onPress={async () => {
+                                            try {
+                                                setSubmittingRating(true);
+                                                await submitRating(identity.publicKey, post.author_pubkey, myRating, ratingComment, post.pending_transaction_id);
+                                                setShowRatingForm(false);
+                                                Alert.alert('Success', 'Rating submitted!');
+                                            } catch(e:any) { Alert.alert('Error', e.message); } finally { setSubmittingRating(false); }
+                                        }}>
+                                            <Text style={styles.confirmActionBtnText}>{submittingRating ? 'Submitting...' : 'Submit Rating'}</Text>
+                                        </Pressable>
+                                    </View>
+                                )}
+                            </View>
+                        )}
+
+                        <Pressable style={[styles.messageBtn, { marginTop: 12, borderColor: 'transparent', backgroundColor: 'transparent' }]} onPress={() => setShowReportForm(!showReportForm)}>
+                            <Text style={[styles.messageBtnText, { color: '#ef4444', fontSize: 13 }]}>🚩 Report Post</Text>
                         </Pressable>
+                        {showReportForm && (
+                            <View style={[styles.confirmBox, { backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)' }]}>
+                                <Text style={styles.confirmBoxLabel}>REPORT REASON</Text>
+                                <View style={styles.editPickerWrap}>
+                                    <Picker selectedValue={reportReason} onValueChange={v => setReportReason(v)} style={styles.editPicker} dropdownIconColor="#ef4444">
+                                        <Picker.Item label="Select a reason..." value="" />
+                                        <Picker.Item label="Spam or scam" value="Spam or scam" />
+                                        <Picker.Item label="Offensive content" value="Offensive content" />
+                                        <Picker.Item label="Misleading post" value="Misleading post" />
+                                        <Picker.Item label="Other" value="Other" />
+                                    </Picker>
+                                </View>
+                                <Pressable style={[styles.confirmActionBtn, { backgroundColor: reportReason ? '#ef4444' : 'rgba(255,255,255,0.2)' }]} disabled={!reportReason || submittingReport} onPress={async () => {
+                                    if(!identity || !post.id) return;
+                                    try {
+                                        setSubmittingReport(true);
+                                        await reportAbuse(identity.publicKey, post.author_pubkey, reportReason, post.id);
+                                        setShowReportForm(false);
+                                        Alert.alert('Reported', 'Post was flagged for review.');
+                                    } catch(e:any) { Alert.alert('Error', e.message); } finally { setSubmittingReport(false); }
+                                }}>
+                                    <Text style={styles.confirmActionBtnText}>{submittingReport ? 'Sending...' : 'Submit Report'}</Text>
+                                </Pressable>
+                            </View>
+                        )}
                     </View>
                 )}
             </ScrollView>
@@ -392,4 +562,17 @@ const styles = StyleSheet.create({
     editSaveBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: '#d97757', alignItems: 'center' },
     editSaveBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.1)' },
     editSaveBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+
+    // Transaction Logic Components
+    confirmBox: { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginTop: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+    confirmBoxTitle: { color: '#fff', fontSize: 15, fontWeight: '800', textAlign: 'center', marginBottom: 12 },
+    confirmBoxLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginBottom: 6 },
+    confirmBoxInput: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 16, paddingVertical: 14, color: '#fff', fontSize: 16, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
+    cancelActionBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+    cancelActionBtnText: { color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: '700' },
+    confirmActionBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    confirmActionBtnGreen: { backgroundColor: '#10b981' },
+    confirmActionBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+    cancelTxBtn: { marginTop: 12, borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+    cancelTxBtnText: { color: '#ef4444', fontSize: 14, fontWeight: '700' },
 });

@@ -4,7 +4,7 @@ import { useFocusEffect, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIdentity } from '../IdentityContext';
-import { getConversations, createConversationApi } from '../../utils/db';
+import { getConversations, createConversationApi, syncMessages } from '../../utils/db';
 
 export default function ChatsScreen() {
     const { identity } = useIdentity();
@@ -19,6 +19,11 @@ export default function ChatsScreen() {
         React.useCallback(() => {
             if (identity?.publicKey) {
                 getConversations(identity.publicKey).then(setConversations).catch(console.error);
+                
+                // Background sync messages
+                syncMessages(identity.publicKey).then(() => {
+                    getConversations(identity.publicKey).then(setConversations).catch(console.error);
+                });
             }
         }, [identity])
     );

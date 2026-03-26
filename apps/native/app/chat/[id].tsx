@@ -1,11 +1,11 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, FlatList, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
+import { useLocalSearchParams, router, useFocusEffect, Stack } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useIdentity } from '../IdentityContext';
-import { getMessages, getConversation, insertMessage } from '../../utils/db';
+import { getMessages, getConversation, insertMessage, syncMessages, syncSingleConversation, markConversationRead } from '../../utils/db';
 
 export default function ChatScreen() {
     const { id } = useLocalSearchParams();
@@ -18,17 +18,37 @@ export default function ChatScreen() {
 
     useFocusEffect(
         useCallback(() => {
-            if (id) {
-                getConversation(id as string).then(res => setPeerName(res?.name || String(id).slice(0, 8)));
-                loadMessages();
+            let interval: ReturnType<typeof setInterval>;
+            if (id && identity?.publicKey) {
+                getConversation(id as string, identity.publicKey).then(res => setPeerName(res?.name || res?.otherCallsign || String(id).slice(0, 8)));
+                loadMessages().then(() => {
+                    syncMessages(identity!.publicKey).then(() => loadMessages(true));
+                });
+                
+                interval = setInterval(() => {
+                    syncSingleConversation(id as string).then(() => loadMessages(true));
+                }, 3000);
             }
-        }, [id])
+            return () => {
+                if (interval) clearInterval(interval);
+            };
+        }, [id, identity])
     );
 
-    const loadMessages = async () => {
+    const loadMessages = async (isBackgroundPoll = false) => {
         const data = await getMessages(id as string);
-        setMessages(data);
-        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+        if (identity?.publicKey) {
+            await markConversationRead(id as string, identity.publicKey).catch(() => {});
+        }
+        
+        setMessages(prev => {
+            if (data.length > prev.length) {
+                setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+            } else if (!isBackgroundPoll && prev.length === 0) {
+                setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+            }
+            return data;
+        });
     };
 
     const handleSend = async () => {

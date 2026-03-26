@@ -1,8 +1,30 @@
 import { Tabs } from 'expo-router';
 import { GlobalHeader } from '../../components/GlobalHeader';
 import { View, Image, StyleSheet, Text } from 'react-native';
+import { useState, useEffect } from 'react';
+import { useIdentity } from '../IdentityContext';
+import { getGlobalUnreadCount, syncMessages } from '../../utils/db';
 
 export default function TabLayout() {
+    const { identity } = useIdentity();
+    const [unread, setUnread] = useState(0);
+
+    useEffect(() => {
+        if (!identity?.publicKey) return;
+        const checkUnread = async () => {
+            try {
+                // Discover new messages across active threads globally
+                await syncMessages(identity.publicKey);
+                // Calculate unread sum across the updated SQLite pool
+                const count = await getGlobalUnreadCount(identity.publicKey);
+                setUnread(count);
+            } catch (e) {}
+        };
+        checkUnread();
+        const iv = setInterval(checkUnread, 5000);
+        return () => clearInterval(iv);
+    }, [identity]);
+
     return (
         <Tabs screenOptions={{
             header: () => <GlobalHeader />,
@@ -57,6 +79,7 @@ export default function TabLayout() {
                 name="chats" 
                 options={{ 
                     title: 'Chat',
+                    tabBarBadge: unread > 0 ? unread : undefined,
                     tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>💬</Text> 
                 }} 
             />

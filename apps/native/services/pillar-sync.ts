@@ -137,13 +137,23 @@ export async function performSync(): Promise<SyncResult> {
 
         // Fetch both sets concurrently
         
+        let lastSyncParam = '';
+        try {
+            const lastSync = await AsyncStorage.getItem(STORAGE_KEYS.LAST_SYNC);
+            if (lastSync) {
+                // Convert numeric timestamp to ISO-8601 string for SQLite comparison
+                const isoSync = new Date(parseInt(lastSync, 10)).toISOString();
+                lastSyncParam = `&updatedAfter=${encodeURIComponent(isoSync)}`;
+            }
+        } catch (e) {}
+
         const postsController = new AbortController();
         const balanceController = new AbortController();
-        const postsTimeout = setTimeout(() => postsController.abort(), 10000);
-        const balanceTimeout = setTimeout(() => balanceController.abort(), 10000);
+        const postsTimeout = setTimeout(() => postsController.abort(), 30000); // Extended for heavy initial payloads
+        const balanceTimeout = setTimeout(() => balanceController.abort(), 30000);
 
-        const [postsRes, balanceRes] = await Promise.all([
-            fetch(`${anchorUrl}/api/marketplace/posts?limit=1000&_t=${Date.now()}`, {
+        const [postsRes, balanceRes, directoryRes] = await Promise.all([
+            fetch(`${anchorUrl}/api/marketplace/posts?limit=1000${lastSyncParam}&_t=${Date.now()}`, {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' },
                 signal: postsController.signal
@@ -152,7 +162,12 @@ export async function performSync(): Promise<SyncResult> {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' },
                 signal: balanceController.signal
-            }) : Promise.resolve(null)
+            }) : Promise.resolve(null),
+            fetch(`${anchorUrl}/api/members`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                signal: postsController.signal
+            })
         ]);
 
         clearTimeout(postsTimeout);
@@ -170,8 +185,18 @@ export async function performSync(): Promise<SyncResult> {
         const delta: any = {
             posts: Array.isArray(postsData) ? postsData : [],
             accounts: [],
-            transactions: []
+            transactions: [],
+            members: []
         };
+        
+        if (directoryRes && directoryRes.ok) {
+            try {
+                const dirData = await directoryRes.json();
+                if (Array.isArray(dirData)) {
+                    delta.members = dirData;
+                }
+            } catch (e) {}
+        }
 
         if (balanceRes && balanceRes.ok) {
             const balData = await balanceRes.json();

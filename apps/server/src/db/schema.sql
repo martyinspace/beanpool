@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS posts (
     lat REAL,
     lng REAL,
     origin_node TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT lat_lng_check CHECK (lat BETWEEN -90 AND 90 AND lng BETWEEN -180 AND 180)
 );
 

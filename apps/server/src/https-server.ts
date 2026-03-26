@@ -889,7 +889,8 @@ export async function startHttpsServer(port: number): Promise<void> {
         const category = ctx.query.category as string | undefined;
         const limit = Number(ctx.query.limit) || 50;
         const offset = Number(ctx.query.offset) || 0;
-        ctx.body = getPosts({ type, category, limit, offset });
+        const updatedAfter = ctx.query.updatedAfter as string | undefined;
+        ctx.body = getPosts({ type, category, limit, offset, updatedAfter });
     });
 
     router.post('/api/marketplace/posts', async (ctx) => {

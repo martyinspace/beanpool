@@ -537,7 +537,7 @@ function rowToPost(row: any, photos: any[]): MarketplacePost {
 
 export function createPost(
     type: 'offer' | 'need', category: string, title: string, description: string, credits: number,
-    priceType: 'fixed' | 'hourly', authorPublicKey: string, lat?: number, lng?: number, photos?: string[], repeatable?: boolean,
+    priceType: 'fixed' | 'hourly' | 'daily' | 'weekly' | 'monthly' | string, authorPublicKey: string, lat?: number, lng?: number, photos?: string[], repeatable?: boolean,
 ): MarketplacePost | null {
     if (!getMember(authorPublicKey)) {
         return null;
@@ -548,8 +548,8 @@ export function createPost(
     
     db.transaction(() => {
         db.prepare(`INSERT INTO posts (
-            id, type, category, title, description, credits, price_type, author_pubkey, created_at, active, status, repeatable, lat, lng
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'active', ?, ?, ?)`).run(id, type, category, title, description, credits, priceType, authorPublicKey, createdAt, repeatable ? 1 : 0, lat ?? null, lng ?? null);
+            id, type, category, title, description, credits, price_type, author_pubkey, created_at, active, status, repeatable, lat, lng, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'active', ?, ?, ?, ?)`).run(id, type, category, title, description, credits, priceType, authorPublicKey, createdAt, repeatable ? 1 : 0, lat ?? null, lng ?? null, createdAt);
 
         if (photos && photos.length > 0) {
             const insertPhoto = db.prepare(`INSERT INTO post_photos (post_id, photo_data, order_num) VALUES (?, ?, ?)`);
@@ -562,7 +562,7 @@ export function createPost(
     return post;
 }
 
-export function getPosts(filter?: { id?: string; type?: string; category?: string; status?: string; offset?: number; limit?: number }): MarketplacePost[] {
+export function getPosts(filter?: { id?: string; type?: string; category?: string; status?: string; offset?: number; limit?: number; updatedAfter?: string }): MarketplacePost[] {
     let query = `
         SELECT p.*, m.callsign as author_callsign, a.callsign as accepted_callsign
         FROM posts p
@@ -576,9 +576,14 @@ export function getPosts(filter?: { id?: string; type?: string; category?: strin
     if (filter?.type && filter.type !== 'all') { query += " AND p.type = ?"; params.push(filter.type); }
     if (filter?.category && filter.category !== 'all') { query += " AND p.category = ?"; params.push(filter.category); }
     if (filter?.status) { query += " AND p.status = ?"; params.push(filter.status); }
-    else if (!filter?.id) { query += " AND p.status IN ('active', 'pending')"; }
+    else if (!filter?.id) { query += " AND p.status IN ('active', 'pending', 'cancelled')"; } // include cancelled so clients know to delete
 
-    query += " ORDER BY p.created_at DESC";
+    if (filter?.updatedAfter) {
+        query += " AND p.updated_at >= ?";
+        params.push(filter.updatedAfter);
+    }
+
+    query += " ORDER BY p.updated_at DESC, p.created_at DESC";
     
     if (filter?.limit) {
         query += " LIMIT ? OFFSET ?";
@@ -593,43 +598,43 @@ export function getPosts(filter?: { id?: string; type?: string; category?: strin
 }
 
 export function removePost(id: string, authorPublicKey: string): boolean {
-    const result = db.prepare(`UPDATE posts SET active = 0, status = 'cancelled' WHERE id = ? AND author_pubkey = ?`).run(id, authorPublicKey);
+    const result = db.prepare(`UPDATE posts SET active = 0, status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND author_pubkey = ?`).run(id, authorPublicKey);
     if (result.changes === 0) return false;
     broadcast({ type: 'post_removed', id });
     return true;
 }
 
-export function updatePost(
-    id: string, authorPublicKey: string, updates: {
-        type?: 'offer' | 'need'; category?: string; title?: string; description?: string; credits?: number;
-        priceType?: 'fixed' | 'hourly'; lat?: number; lng?: number; photos?: string[]; repeatable?: boolean;
-    },
-): MarketplacePost | null {
-    const fields: string[] = [];
+export function updatePost(id: string, authorPublicKey: string, updates: Partial<MarketplacePost>): MarketplacePost | null {
+    const setClauses: string[] = [];
     const params: any[] = [];
-    if (updates.type) { fields.push("type=?"); params.push(updates.type); }
-    if (updates.category) { fields.push("category=?"); params.push(updates.category); }
-    if (updates.title) { fields.push("title=?"); params.push(updates.title); }
-    if (updates.description !== undefined) { fields.push("description=?"); params.push(updates.description); }
-    if (updates.credits !== undefined) { fields.push("credits=?"); params.push(updates.credits); }
-    if (updates.priceType !== undefined) { fields.push("price_type=?"); params.push(updates.priceType); }
-    if (updates.lat !== undefined) { fields.push("lat=?"); params.push(updates.lat); }
-    if (updates.lng !== undefined) { fields.push("lng=?"); params.push(updates.lng); }
-    if (updates.repeatable !== undefined) { fields.push("repeatable=?"); params.push(updates.repeatable ? 1 : 0); }
+    
+    if (updates.title) { setClauses.push("title = ?"); params.push(updates.title); }
+    if (updates.description !== undefined) { setClauses.push("description = ?"); params.push(updates.description); }
+    if (updates.category) { setClauses.push("category = ?"); params.push(updates.category); }
+    if (updates.credits !== undefined) { setClauses.push("credits = ?"); params.push(updates.credits); }
+    if (updates.priceType) { setClauses.push("price_type = ?"); params.push(updates.priceType); }
+    if (updates.type) { setClauses.push("type = ?"); params.push(updates.type); }
+    if (updates.lat !== undefined) { setClauses.push("lat = ?"); params.push(updates.lat); }
+    if (updates.lng !== undefined) { setClauses.push("lng = ?"); params.push(updates.lng); }
+    if (updates.repeatable !== undefined) { setClauses.push("repeatable = ?"); params.push(updates.repeatable ? 1 : 0); }
+    
+    if (setClauses.length === 0 && updates.photos === undefined) return getPosts({ id })[0];
 
-    if (fields.length > 0 || updates.photos !== undefined) {
-        db.transaction(() => {
-            if (fields.length > 0) {
-                params.push(id, authorPublicKey);
-                db.prepare(`UPDATE posts SET ${fields.join(',')} WHERE id=? AND author_pubkey=? AND active=1`).run(...params);
-            }
-            if (updates.photos !== undefined) {
-                db.prepare(`DELETE FROM post_photos WHERE post_id=?`).run(id);
-                const insertPhoto = db.prepare(`INSERT INTO post_photos (post_id, photo_data, order_num) VALUES (?, ?, ?)`);
-                updates.photos.slice(0, 3).forEach((p, idx) => insertPhoto.run(id, p, idx));
-            }
-        })();
-    }
+    setClauses.push("updated_at = CURRENT_TIMESTAMP");
+
+    const query = `UPDATE posts SET ${setClauses.join(', ')} WHERE id = ? AND author_pubkey = ? AND active = 1`;
+    params.push(id, authorPublicKey);
+
+    db.transaction(() => {
+        if (setClauses.length > 1) { // >1 because updated_at is always added
+            db.prepare(query).run(...params);
+        }
+        if (updates.photos !== undefined) {
+            db.prepare(`DELETE FROM post_photos WHERE post_id=?`).run(id);
+            const insertPhoto = db.prepare(`INSERT INTO post_photos (post_id, photo_data, order_num) VALUES (?, ?, ?)`);
+            updates.photos.slice(0, 3).forEach((p, idx) => insertPhoto.run(id, p, idx));
+        }
+    })();
 
     const post = getPosts({ id })[0];
     if (!post) return null;
@@ -661,7 +666,7 @@ export function acceptPost(postId: string, buyerPublicKey: string, hours?: numbe
         db.prepare(`INSERT INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`).run(tx.id, tx.postId, tx.buyerPublicKey, tx.sellerPublicKey, tx.credits, tx.hours ?? null, tx.createdAt);
         
         if (!post.repeatable) {
-            db.prepare(`UPDATE posts SET status='pending', accepted_by=?, accepted_at=?, pending_transaction_id=? WHERE id=?`).run(buyerPublicKey, tx.createdAt, tx.id, post.id);
+            db.prepare(`UPDATE posts SET status='pending', accepted_by=?, accepted_at=?, pending_transaction_id=?, updated_at = CURRENT_TIMESTAMP WHERE id=?`).run(buyerPublicKey, tx.createdAt, tx.id, post.id);
         }
     })();
     broadcast({ type: 'post_accepted', postId: post.id, transaction: tx });
@@ -702,7 +707,9 @@ export function completePostTransaction(transactionId: string, confirmerPublicKe
         db.prepare(`UPDATE marketplace_transactions SET status='completed', completed_at=? WHERE id=?`).run(completedAt, transactionId);
         
         if (post && !post.repeatable) {
-            db.prepare(`UPDATE posts SET status='completed', active=0, completed_at=? WHERE id=?`).run(completedAt, post.id);
+            db.prepare(`UPDATE posts SET status='completed', active=0, completed_at=?, updated_at = CURRENT_TIMESTAMP WHERE id=?`).run(completedAt, post.id);
+        } else if (post && post.repeatable) {
+            db.prepare(`UPDATE posts SET status='active', accepted_by=NULL, accepted_at=NULL, pending_transaction_id=NULL, completed_at=?, updated_at = CURRENT_TIMESTAMP WHERE id=?`).run(completedAt, post.id);
         }
     })();
 
@@ -716,10 +723,10 @@ export function cancelPostTransaction(transactionId: string, cancellerPublicKey:
     if (!row || (row.buyer_pubkey !== cancellerPublicKey && row.seller_pubkey !== cancellerPublicKey)) return null;
 
     db.transaction(() => {
-        db.prepare(`UPDATE marketplace_transactions SET status='cancelled' WHERE id=?`).run(transactionId);
+        db.prepare(`UPDATE marketplace_transactions SET status='cancelled', completed_at = CURRENT_TIMESTAMP WHERE id=?`).run(transactionId);
         const post = db.prepare(`SELECT * FROM posts WHERE id=?`).get(row.post_id) as any;
         if (post && !post.repeatable && post.status === 'pending') {
-            db.prepare(`UPDATE posts SET status='active', accepted_by=NULL, accepted_at=NULL, pending_transaction_id=NULL WHERE id=?`).run(post.id);
+            db.prepare(`UPDATE posts SET status='active', accepted_by=NULL, accepted_at=NULL, pending_transaction_id=NULL, updated_at = CURRENT_TIMESTAMP WHERE id=?`).run(post.id);
         }
     })();
     const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;

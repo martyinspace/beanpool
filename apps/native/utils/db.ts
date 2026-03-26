@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadIdentity } from './identity';
 import { sign } from '@noble/ed25519';
-import { hexToBytes, encodeBase64, encodeUtf8 } from './crypto';
+import { hexToBytes, encodeBase64, encodeUtf8, decodeBase64, decodeUtf8 } from './crypto';
 
 /**
  * Singleton database instance.
@@ -11,6 +11,17 @@ import { hexToBytes, encodeBase64, encodeUtf8 } from './crypto';
 let db: SQLite.SQLiteDatabase | null = null;
 let dbInitialized = false;
 let dbInitPromise: Promise<void> | null = null;
+
+// Global JS Mutex to prevent expo-sqlite "database is locked" crashes
+// arising from concurrent loops across background Pillar polls and foreground Inbox rendering
+let dbSyncLock = false;
+async function acquireSyncLock() {
+    while (dbSyncLock) await new Promise(r => setTimeout(r, 50));
+    dbSyncLock = true;
+}
+function releaseSyncLock() {
+    dbSyncLock = false;
+}
 
 export async function getDb(): Promise<SQLite.SQLiteDatabase> {
     if (db) return db;
@@ -101,6 +112,7 @@ async function _doInitDB() {
             price_type TEXT DEFAULT 'fixed',
             repeatable INTEGER DEFAULT 0,
             accepted_by TEXT,
+            accepted_by_callsign TEXT,
             accepted_at DATETIME,
             pending_transaction_id TEXT,
             completed_at DATETIME,
@@ -172,6 +184,12 @@ async function _doInitDB() {
         try {
             await database.execAsync(`ALTER TABLE posts ADD COLUMN repeatable INTEGER DEFAULT 0;`);
         } catch (e) {}
+        // Transaction Tracking Migrations
+        try { await database.execAsync(`ALTER TABLE posts ADD COLUMN accepted_by TEXT;`); } catch (e) {}
+        try { await database.execAsync(`ALTER TABLE posts ADD COLUMN accepted_by_callsign TEXT;`); } catch (e) {}
+        try { await database.execAsync(`ALTER TABLE posts ADD COLUMN accepted_at DATETIME;`); } catch (e) {}
+        try { await database.execAsync(`ALTER TABLE posts ADD COLUMN pending_transaction_id TEXT;`); } catch (e) {}
+        try { await database.execAsync(`ALTER TABLE posts ADD COLUMN completed_at DATETIME;`); } catch (e) {}
     } catch (e) {
         console.error('[SQLite] Database init error:', e);
     }
@@ -230,21 +248,64 @@ export async function getPost(id: string) {
 export async function getConversations(myPubkey: string) {
     const database = await getDb();
     const rows = await database.getAllAsync<any>(`
-        SELECT c.id, c.name, m.ciphertext as lastMessage, m.timestamp
+        SELECT c.id, c.name, m.ciphertext as lastMessage, m.nonce as lastNonce, MAX(m.timestamp) as timestamp,
+        (SELECT memb.callsign FROM conversation_participants cp 
+         LEFT JOIN members memb ON memb.public_key = cp.public_key
+         WHERE cp.conversation_id = c.id AND cp.public_key != ? LIMIT 1) as otherCallsign,
+        (SELECT COUNT(msg.id) FROM messages msg 
+         WHERE msg.conversation_id = c.id 
+         AND msg.author_pubkey != ?
+         AND (msg.timestamp > IFNULL((SELECT last_read_at FROM conversation_participants WHERE conversation_id = c.id AND public_key = ?), '2000-01-01'))
+        ) as unreadCount
         FROM conversations c
         LEFT JOIN messages m ON m.conversation_id = c.id
         WHERE c.id IN (SELECT conversation_id FROM conversation_participants WHERE public_key = ?)
         GROUP BY c.id
-        ORDER BY m.timestamp DESC
-    `, [myPubkey]);
+        ORDER BY timestamp DESC
+    `, [myPubkey, myPubkey, myPubkey, myPubkey]);
     
-    return rows.map(row => ({
-        id: row.id,
-        peer: row.name || row.id.slice(0, 8),
-        lastMessage: row.lastMessage ? '[Encrypted Message]' : 'Started conversation',
-        timestamp: row.timestamp ? new Date(row.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'New',
-        unread: 0
-    }));
+    return rows.map(row => {
+        let displayMsg = row.lastMessage ? '[Encrypted Message]' : 'Started conversation';
+        if (row.lastNonce && row.lastNonce.startsWith('plaintext')) {
+            try {
+                displayMsg = decodeUtf8(decodeBase64(row.lastMessage));
+            } catch {
+                displayMsg = '[Encrypted]';
+            }
+        } else if (row.lastNonce === '00000') {
+            displayMsg = row.lastMessage;
+        }
+
+        return {
+            id: row.id,
+            peer: row.name || row.otherCallsign || row.id.slice(0, 8),
+            lastMessage: displayMsg,
+            timestamp: row.timestamp ? new Date(row.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'New',
+            unread: row.unreadCount || 0
+        };
+    });
+}
+
+export async function markConversationRead(conversationId: string, myPubkey: string) {
+    const database = await getDb();
+    const now = new Date().toISOString();
+    await database.runAsync(
+        'UPDATE conversation_participants SET last_read_at = ? WHERE conversation_id = ? AND public_key = ?',
+        [now, conversationId, myPubkey]
+    );
+}
+
+export async function getGlobalUnreadCount(myPubkey: string): Promise<number> {
+    const database = await getDb();
+    const result = await database.getFirstAsync<any>(`
+        SELECT COUNT(m.id) as count
+        FROM messages m
+        JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id
+        WHERE cp.public_key = ? 
+        AND m.author_pubkey != ?
+        AND (m.timestamp > IFNULL(cp.last_read_at, '2000-01-01'))
+    `, [myPubkey, myPubkey]);
+    return result?.count || 0;
 }
 
 export async function getBalance(pubkey: string) {
@@ -404,20 +465,33 @@ export async function deletePost(id: string) {
 }
 
 export async function applyDelta(delta: any) {
-    const database = await getDb();
-    
-    // Full-replace sync: server response is the source of truth
-    await database.withTransactionAsync(async () => {
-        if (delta.accounts) {
-            for (const acc of delta.accounts) {
-                await database.runAsync(
-                    'INSERT OR REPLACE INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, ?, ?)',
-                    [acc.public_key ?? null, acc.balance ?? 0, acc.last_demurrage_epoch ?? 0]
-                );
-            }
-        }
+    await acquireSyncLock();
+    try {
+        const database = await getDb();
         
-        if (delta.transactions) {
+        // Full-replace sync: server response is the source of truth
+    if (delta.accounts) {
+        for (const acc of delta.accounts) {
+            await database.runAsync(
+                'INSERT OR REPLACE INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, ?, ?)',
+                [acc.public_key ?? null, acc.balance ?? 0, acc.last_demurrage_epoch ?? 0]
+            );
+        }
+    }
+    
+    if (delta.members && delta.members.length > 0) {
+        let sql = 'BEGIN TRANSACTION;\n';
+        for (const m of delta.members) {
+            const pk = (m.publicKey || m.public_key || '').replace(/'/g, "''");
+            const cs = (m.callsign || '').replace(/'/g, "''");
+            const av = m.avatarUrl || m.avatar_url ? `'${m.avatarUrl.replace(/'/g, "''")}'` : 'NULL';
+            sql += `INSERT OR REPLACE INTO members (public_key, callsign, avatar_url) VALUES ('${pk}', '${cs}', ${av});\n`;
+        }
+        sql += 'COMMIT;';
+        await database.execAsync(sql);
+    }
+    
+    if (delta.transactions) {
             for (const t of delta.transactions) {
                 await database.runAsync(
                     'INSERT OR REPLACE INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
@@ -427,11 +501,11 @@ export async function applyDelta(delta: any) {
         }
 
         if (delta.posts !== undefined) {
-            // Wipe stale posts — the server dataset is the full truth
-            await database.runAsync('DELETE FROM posts');
+            // Delta Sync: Server dataset only transmits modified rows.
+            // Deleted posts are transmitted with active=0 and tombstoned here natively.
             for (const p of delta.posts) {
                 await database.runAsync(
-                    'INSERT OR REPLACE INTO posts (id, type, category, title, description, credits, author_pubkey, lat, lng, photos, price_type, repeatable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT OR REPLACE INTO posts (id, type, category, title, description, credits, author_pubkey, lat, lng, photos, price_type, repeatable, status, accepted_by, accepted_by_callsign, pending_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         p.id ?? null,
                         p.type ?? null,
@@ -442,19 +516,140 @@ export async function applyDelta(delta: any) {
                         p.author_pubkey || p.authorPubkey || p.authorPublicKey || null,
                         p.lat ?? null,
                         p.lng ?? null,
-                        p.photos ? JSON.stringify(p.photos) : null,
+                        p.photos ? JSON.stringify(p.photos.filter((url: string) => !url.startsWith('file://'))) : null,
                         p.price_type || p.priceType || 'fixed',
-                        p.repeatable ? 1 : 0
+                        p.repeatable ? 1 : 0,
+                        p.status || 'active',
+                        p.accepted_by || p.acceptedBy || null,
+                        p.accepted_by_callsign || p.acceptedByCallsign || null,
+                        p.pending_transaction_id || p.pendingTransactionId || null
                     ]
                 );
             }
             console.log(`[DB] applyDelta: replaced posts table with ${delta.posts.length} posts from server`);
         }
-    });
+    } finally {
+        releaseSyncLock();
+    }
 }
 
-export async function getConversation(id: string) {
+export async function syncMessages(publicKey: string) {
+    await acquireSyncLock();
+    try {
+        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+        if (!anchorUrl) return;
+        const database = await getDb();
+        
+        const controller1 = new AbortController();
+        const timeout1 = setTimeout(() => controller1.abort(), 10000);
+        
+        const [convRes, dirRes] = await Promise.all([
+            fetch(`${anchorUrl}/api/messages/conversations/${publicKey}`, { headers: { 'Accept': 'application/json' }, signal: controller1.signal }),
+            fetch(`${anchorUrl}/api/members`, { headers: { 'Accept': 'application/json' }, signal: controller1.signal }).catch(() => null)
+        ]);
+        clearTimeout(timeout1);
+        
+        if (dirRes && dirRes.ok) {
+            try {
+                const dirData = await dirRes.json();
+                if (Array.isArray(dirData) && dirData.length > 0) {
+                    let sql = 'BEGIN TRANSACTION;\n';
+                    for (const m of dirData) {
+                        const pk = (m.publicKey || m.public_key || '').replace(/'/g, "''");
+                        const cs = (m.callsign || '').replace(/'/g, "''");
+                        const av = m.avatarUrl || m.avatar_url ? `'${m.avatarUrl.replace(/'/g, "''")}'` : 'NULL';
+                        sql += `INSERT OR REPLACE INTO members (public_key, callsign, avatar_url) VALUES ('${pk}', '${cs}', ${av});\n`;
+                    }
+                    sql += 'COMMIT;';
+                    await database.execAsync(sql);
+                }
+            } catch (e) {}
+        }
+
+        if (!convRes.ok) return;
+        
+        const convData = await convRes.json();
+        if (!convData.conversations) return;
+        
+        for (const conv of convData.conversations) {
+            const localConv = await database.getFirstAsync<any>('SELECT id FROM conversations WHERE id = ?', [conv.id]);
+            if (!localConv) {
+                await database.runAsync('INSERT INTO conversations (id, type, name, created_by, created_at) VALUES (?, ?, ?, ?, ?)', 
+                    [conv.id, conv.type || 'dm', conv.name || null, conv.createdBy || '', conv.createdAt || new Date().toISOString()]);
+                
+                if (Array.isArray(conv.participants)) {
+                    for (const pub of conv.participants) {
+                        await database.runAsync('INSERT OR IGNORE INTO conversation_participants (conversation_id, public_key) VALUES (?, ?)', [conv.id, pub]);
+                    }
+                }
+            }
+            
+            const controller2 = new AbortController();
+            const timeout2 = setTimeout(() => controller2.abort(), 5000);
+            const msgRes = await fetch(`${anchorUrl}/api/messages/${conv.id}`, { headers: { 'Accept': 'application/json' }, signal: controller2.signal });
+            clearTimeout(timeout2);
+            if (!msgRes.ok) continue;
+            
+            const msgData = await msgRes.json();
+            const messages = msgData.messages;
+            if (!Array.isArray(messages)) continue;
+            
+            for (const m of messages) {
+                await database.runAsync(
+                    'INSERT OR IGNORE INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
+                    [m.id, conv.id, m.author_pubkey || m.authorPubkey || '', m.ciphertext || '', m.nonce || '', m.timestamp || m.created_at || new Date().toISOString()]
+                );
+            }
+        }
+    } catch (err) {
+        console.log('[Sync] Failed to pull messages natively', err);
+    } finally {
+        releaseSyncLock();
+    }
+}
+
+export async function syncSingleConversation(conversationId: string) {
+    await acquireSyncLock();
+    try {
+        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+        if (!anchorUrl) return;
+        
+        const database = await getDb();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const msgRes = await fetch(`${anchorUrl}/api/messages/${conversationId}`, { headers: { 'Accept': 'application/json' }, signal: controller.signal });
+        clearTimeout(timeout);
+        
+        if (!msgRes.ok) return;
+        
+        const msgData = await msgRes.json();
+        const messages = msgData.messages;
+        if (!Array.isArray(messages)) return;
+        
+        for (const m of messages) {
+            await database.runAsync(
+                'INSERT OR IGNORE INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
+                [m.id, conversationId, m.author_pubkey || m.authorPubkey || '', m.ciphertext || '', m.nonce || '', m.timestamp || m.created_at || new Date().toISOString()]
+            );
+        }
+    } catch (err) {
+        // Silent catch for background polling
+    } finally {
+        releaseSyncLock();
+    }
+}
+
+export async function getConversation(id: string, myPubkey?: string) {
     const database = await getDb();
+    if (myPubkey) {
+        return await database.getFirstAsync<any>(`
+            SELECT c.name,
+            (SELECT memb.callsign FROM conversation_participants cp 
+             LEFT JOIN members memb ON memb.public_key = cp.public_key
+             WHERE cp.conversation_id = c.id AND cp.public_key != ? LIMIT 1) as otherCallsign
+            FROM conversations c 
+            WHERE id = ?`, [myPubkey, id]);
+    }
     return await database.getFirstAsync<any>('SELECT name FROM conversations WHERE id = ?', [id]);
 }
 
@@ -464,19 +659,32 @@ export async function getMessages(conversationId: string) {
         'SELECT * FROM messages WHERE conversation_id = ? ORDER BY timestamp ASC', 
         [conversationId]
     );
-    return rows.map(row => ({
-        id: row.id,
-        senderId: row.author_pubkey,
-        text: row.ciphertext, // We display ciphertext natively for now representing encrypted payload
-        timestamp: new Date(row.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }));
+    return rows.map(row => {
+        let displayTxt = row.ciphertext;
+        if (row.nonce && row.nonce.startsWith('plaintext')) {
+            try {
+                displayTxt = decodeUtf8(decodeBase64(row.ciphertext));
+            } catch {
+                displayTxt = '[Encrypted]';
+            }
+        }
+        return {
+            id: row.id,
+            senderId: row.author_pubkey,
+            text: displayTxt,
+            timestamp: new Date(row.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+    });
 }
 
 export async function insertMessage(conversationId: string, authorPubkey: string, text: string) {
     const database = await getDb();
     const id = Date.now().toString();
     const timestamp = new Date().toISOString();
-    const nonce = '00000'; // Placeholder for future DHP encryption nonce
+    
+    // Exact parity with PWA encodePlaintext()
+    const nonce = 'plaintext-v1'; 
+    const ciphertext = encodeBase64(encodeUtf8(text));
 
     const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
     if (!anchorUrl) {
@@ -489,7 +697,7 @@ export async function insertMessage(conversationId: string, authorPubkey: string
     const body = {
         conversationId,
         authorPubkey,
-        ciphertext: text,
+        ciphertext,
         nonce
     };
     const bodyString = JSON.stringify(body);
@@ -532,7 +740,7 @@ export async function insertMessage(conversationId: string, authorPubkey: string
     // Safely write to physical storage since the node accepted it
     await database.runAsync(
         'INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
-        [id, conversationId, authorPubkey, text, nonce, timestamp]
+        [id, conversationId, authorPubkey, ciphertext, nonce, timestamp]
     );
 }
 
@@ -618,3 +826,79 @@ export async function redeemInvite(code: string, callsign: string): Promise<bool
         throw e;
     }
 }
+
+// ==========================================
+// MARKETPLACE TRANSACTION AND RATING HELPERS
+// ==========================================
+
+async function _signedRequest(endpoint: string, payload: any) {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) throw new Error('You are off-grid. Please connect to a BeanPool Node to perform this action.');
+
+    const identity = await loadIdentity();
+    if (!identity) throw new Error('No identity found. You must be logged in.');
+
+    const bodyString = JSON.stringify(payload);
+    const privateKeyBytes = hexToBytes(identity.privateKey);
+    const messageBytes = encodeUtf8(bodyString);
+    const signatureBytes = await sign(messageBytes, privateKeyBytes);
+    const signatureBase64 = encodeBase64(signatureBytes);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+    let res;
+    try {
+        res = await fetch(`${anchorUrl}${endpoint}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Public-Key': identity.publicKey,
+                'X-Signature': signatureBase64,
+            },
+            body: bodyString,
+            signal: controller.signal
+        });
+    } catch (e: any) {
+        clearTimeout(timeoutId);
+        throw new Error(e.message || 'Network request failed. You must be connected to a node.');
+    }
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+        let errorMsg = `Server returned ${res.status}`;
+        try {
+            const errJson = await res.json();
+            if (errJson.error) errorMsg = errJson.error;
+        } catch {
+            try {
+                const txt = await res.text();
+                if (txt) errorMsg = txt;
+            } catch {}
+        }
+        throw new Error(errorMsg);
+    }
+    
+    return await res.json();
+}
+
+export async function acceptMarketplacePost(postId: string, buyerPublicKey: string, hours?: number) {
+    return _signedRequest('/api/marketplace/posts/accept', { postId, buyerPublicKey, hours });
+}
+
+export async function completeMarketplaceTransaction(transactionId: string, confirmerPublicKey: string, finalHours?: number) {
+    return _signedRequest('/api/marketplace/transactions/complete', { transactionId, confirmerPublicKey, finalHours });
+}
+
+export async function cancelMarketplaceTransaction(transactionId: string, cancellerPublicKey: string) {
+    return _signedRequest('/api/marketplace/transactions/cancel', { transactionId, cancellerPublicKey });
+}
+
+export async function submitRating(raterPublicKey: string, targetPublicKey: string, score: number, comment: string, transactionId: string) {
+    return _signedRequest('/api/members/rate', { raterPublicKey, targetPublicKey, score, comment, transactionId });
+}
+
+export async function reportAbuse(reporterPublicKey: string, targetPublicKey: string, reason: string, postId?: string) {
+    return _signedRequest('/api/members/report', { reporterPublicKey, targetPublicKey, reason, postId });
+}
+
