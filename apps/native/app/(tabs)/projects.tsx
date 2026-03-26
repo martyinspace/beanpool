@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { getProjects } from '../../utils/db'; // Currently mapped { id, title, goal, current }
@@ -28,9 +28,21 @@ export default function ProjectsScreen() {
         const progress = Math.min(100, (item.current_amount / item.goal_amount) * 100) || 0;
         const isFunded = item.current_amount >= item.goal_amount;
 
+        let parsedPhotos: string[] = [];
+        try {
+            if (item.photos) {
+                parsedPhotos = typeof item.photos === 'string' ? JSON.parse(item.photos) : item.photos;
+            }
+        } catch(e) {}
+        
+        const heroUri = parsedPhotos.length > 0 ? parsedPhotos[0] : null;
+
         return (
             <Pressable style={styles.card}>
                 <View style={[styles.heroImage, { backgroundColor: '#1f2937' }]}>
+                    {heroUri && (
+                        <Image source={{ uri: heroUri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+                    )}
                     {isFunded && (
                         <View style={styles.fundedBadge}>
                             <Text style={styles.fundedBadgeText}>🎉 FUNDED</Text>

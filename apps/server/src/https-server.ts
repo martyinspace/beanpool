@@ -1141,16 +1141,16 @@ export async function startHttpsServer(port: number): Promise<void> {
     });
 
     router.post('/api/crowdfund/projects', async (ctx) => {
-        const { creatorPubkey, title, description, photos, goalAmount, deadlineAt } = (ctx as any).requestBody || {};
+        const { id, creatorPubkey, title, description, photos, goalAmount, deadlineAt } = (ctx as any).requestBody || {};
         if (!creatorPubkey || !title || !goalAmount) {
             ctx.status = 400;
             ctx.body = { error: 'creatorPubkey, title, and goalAmount are required' };
             return;
         }
 
-        const id = crypto.randomUUID();
-        createCrowdfundProject(id, creatorPubkey, title, description || '', photos || [], Number(goalAmount), deadlineAt || null);
-        const project = getCrowdfundProject(id);
+        const projectId = id || crypto.randomUUID();
+        createCrowdfundProject(projectId, creatorPubkey, title, description || '', photos || [], Number(goalAmount), deadlineAt || null);
+        const project = getCrowdfundProject(projectId);
         
         ctx.body = { success: true, project };
     });
