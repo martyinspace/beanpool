@@ -6,7 +6,7 @@ import * as Crypto from 'expo-crypto';
 import { Picker } from '@react-native-picker/picker';
 import MapView, { Marker, PROVIDER_DEFAULT } from '../../components/Map';
 import { useFocusEffect, router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPosts, createPost } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
 
@@ -301,13 +301,15 @@ export default function MapScreen() {
 
             {/* FAB — New Post Button */}
             {!showNewPost && (
-                <TouchableOpacity
-                    style={styles.fab}
-                    onPress={() => setShowNewPost(true)}
-                    activeOpacity={0.8}
-                >
-                    <Text style={styles.fabText}>+</Text>
-                </TouchableOpacity>
+                <SafeAreaView style={StyleSheet.absoluteFill} pointerEvents="box-none">
+                    <TouchableOpacity
+                        style={styles.fab}
+                        onPress={() => setShowNewPost(true)}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={styles.fabText}>+</Text>
+                    </TouchableOpacity>
+                </SafeAreaView>
             )}
 
             {/* Pin drop mode instruction */}
@@ -484,8 +486,8 @@ const styles = StyleSheet.create({
     pinArrow: { width: 0, height: 0, borderLeftWidth: 4, borderRightWidth: 4, borderTopWidth: 9, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
 
     // FAB
-    fab: { position: 'absolute', bottom: 120, right: 16, width: 56, height: 56, borderRadius: 28, backgroundColor: '#d97757', justifyContent: 'center', alignItems: 'center', shadowColor: '#d97757', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8, zIndex: 100 },
-    fabText: { color: '#fff', fontSize: 32, fontWeight: '300', marginTop: -2 },
+    fab: { position: 'absolute', bottom: 24, right: 24, width: 60, height: 60, borderRadius: 30, backgroundColor: '#d97757', justifyContent: 'center', alignItems: 'center', shadowColor: '#d97757', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8, zIndex: 100 },
+    fabText: { color: '#fff', fontSize: 30, fontWeight: '300', marginTop: -2 },
 
     // Pin drop banner
     pinDropBanner: { position: 'absolute', top: 60, left: 20, right: 20, backgroundColor: '#3b82f6', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16, alignItems: 'center', zIndex: 200 },
