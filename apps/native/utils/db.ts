@@ -615,7 +615,7 @@ export async function applyDelta(delta: any) {
                         proj.creatorPubkey ?? proj.creator_pubkey ?? null,
                         proj.title ?? null,
                         proj.description ?? '',
-                        proj.photos ? JSON.stringify(proj.photos.filter((url: string) => !url.startsWith('file://'))) : null,
+                        proj.photos ? JSON.stringify((typeof proj.photos === 'string' ? JSON.parse(proj.photos) : proj.photos).filter((url: string) => !url.startsWith('file://'))) : null,
                         proj.goalAmount ?? proj.goal_amount ?? 0,
                         proj.currentAmount ?? proj.current_amount ?? 0,
                         proj.deadlineAt ?? proj.deadline_at ?? null,
