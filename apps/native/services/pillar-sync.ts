@@ -207,7 +207,9 @@ export async function performSync(): Promise<SyncResult> {
         if (projectsRes && projectsRes.ok) {
             try {
                 const projData = await projectsRes.json();
-                if (Array.isArray(projData)) {
+                if (projData && Array.isArray(projData.projects)) {
+                    delta.projects = projData.projects;
+                } else if (Array.isArray(projData)) {
                     delta.projects = projData;
                 }
             } catch (e) {}
