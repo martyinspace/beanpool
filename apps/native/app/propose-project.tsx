@@ -36,7 +36,7 @@ export default function ProposeProjectModal() {
             <ScrollView contentContainerStyle={styles.scroll}>
                 <View style={styles.infoBox}>
                     <MaterialCommunityIcons name="information" size={20} color="#f59e0b" style={{ marginRight: 8 }} />
-                    <Text style={styles.infoText}>Proposals require network ratification via active Voting Rounds before receiving community pool disbursements.</Text>
+                    <Text style={styles.infoText}>Project proposals must be voted on and approved by the community before any funds are released.</Text>
                 </View>
 
                 {/* Title */}
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
     backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
     headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', letterSpacing: 1, textTransform: 'uppercase' },
     infoBox: { flexDirection: 'row', backgroundColor: '#fffbeb', padding: 16, borderRadius: 12, marginBottom: 24, borderWidth: 1, borderColor: '#fef3c7' },
-    infoText: { flex: 1, fontSize: 13, color: '#92400e', lineHeight: 20 },
+    infoText: { flex: 1, fontSize: 15, color: '#92400e', lineHeight: 22 },
     scroll: { padding: 20 },
     field: { marginBottom: 24 },
     label: { fontSize: 11, fontWeight: 'bold', color: '#6b7280', letterSpacing: 1, marginBottom: 8 },
