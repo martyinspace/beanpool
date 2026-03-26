@@ -1,26 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { getProjects } from '../../utils/db'; // Currently mapped { id, title, goal, current }
 
 export default function ProjectsScreen() {
     const [projects, setProjects] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        getProjects().then((data) => {
-            setProjects(data);
-            setLoading(false);
-        }).catch(err => {
-            console.error(err);
-            setLoading(false);
-        });
-    }, []);
+    useFocusEffect(
+        useCallback(() => {
+            let isActive = true;
+            getProjects().then((data) => {
+                if (isActive) {
+                    setProjects(data);
+                    setLoading(false);
+                }
+            }).catch(err => {
+                console.error(err);
+                if (isActive) setLoading(false);
+            });
+            return () => { isActive = false; };
+        }, [])
+    );
 
     const renderItem = ({ item }: { item: any }) => {
-        const progress = Math.min(100, (item.current / item.goal) * 100) || 0;
-        const isFunded = item.current >= item.goal;
+        const progress = Math.min(100, (item.current_amount / item.goal_amount) * 100) || 0;
+        const isFunded = item.current_amount >= item.goal_amount;
 
         return (
             <Pressable style={styles.card}>
@@ -43,9 +49,9 @@ export default function ProjectsScreen() {
                     <View style={styles.progressSection}>
                         <View style={styles.progressHeader}>
                             <Text style={[styles.currentText, isFunded && styles.currentTextFunded]}>
-                                {item.current} B <Text style={styles.faintText}>raised</Text>
+                                {item.current_amount} B <Text style={styles.faintText}>raised</Text>
                             </Text>
-                            <Text style={styles.goalText}>Goal: {item.goal} B</Text>
+                            <Text style={styles.goalText}>Goal: {item.goal_amount} B</Text>
                         </View>
                         <View style={styles.progressBarBg}>
                             <View style={[styles.progressBarFill, { width: `${progress}%`, backgroundColor: isFunded ? '#10b981' : '#8b5cf6' }]} />
