@@ -62,6 +62,7 @@
 - [x] **Marketplace (14 categories)** — grid/list view, search, category filter, user blocking
 - [x] **Community Projects** — crowdfund proposals with progress bars and funding badges
 - [x] **Pillar Toggle MVP** — Background Merkle sync service for Android/iOS (Expo)
+- [x] **Live Inbox Parity** — SQLite E2E text decryption, Background Sync Mutex Locking, & Native Tab Unread Badges
 - [ ] **Bean Ratings (Native)** — port 🫘 rating system to native app
 - [ ] **Abuse Reporting (Native)** — port reporting UI to native app
 - [ ] **Federation (Native)** — remote marketplace browsing on native

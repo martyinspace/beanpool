@@ -68,8 +68,10 @@ apps/native/
 - **Community Projects** — crowdfund tab with progress bars, funding badges, and proposal creation
 - **Branded Tab Bar** — neon-vine artwork background with semi-transparent overlay
 - **Post Detail View** — full-screen view with photos, credits, author info
-- **Chat System** — direct messages and group chats
-- **User Blocking** — client-side block list stored in SecureStore
+- **Global Notifications** — red tab bar badges dynamically map to internal SQLite `last_read_at` unread calculations across inactive threads
+- **Live Thread Syncing** — optimized 3-second polling hooks inside Active Chat fragments safely establish WebSocket-like responsiveness without hammering the background Node
+- **SQLite Concurrency Mutex** — robust `dbSyncLock` javascript queue guarantees zero memory locks when background `applyDelta` daemons inherently overlap with foreground UX reads
+- **Local User Blocking** — client-side block list stored in SecureStore securely hides target callsigns and listings
 
 ## Background Sync (Pillar Toggle)
 
@@ -108,8 +110,10 @@ npx expo start                      # Native dev client
 | Marketplace (grid/list) | ✅ | ✅ | Native has 14 categories (adds Care) |
 | Post creation | ✅ | ✅ | Photo upload, location pin |
 | Post detail view | ✅ | ✅ | |
-| Chat (DM + groups) | ✅ | ✅ | |
-| People browser | ✅ | ✅ | |
+| Chat (DM + groups) | ✅ | ✅ | Base64 E2E plaintext-v1 encoding |
+| Live Chat Response Polling | ✅ | ✅ | 3-sec foreground hook interval |
+| Unread Notification Badges | ✅ | ✅ | Tab bar indicator with JS Date Timezone corrections |
+| People browser | ✅ | ✅ | Connects to `/api/members` dictionary for Callsign resolutions |
 | Ledger & send credits | ✅ | ✅ | |
 | Identity (create/recover) | ✅ | ✅ | SecureStore on native |
 | Community Projects | — | ✅ | Native-only feature |
