@@ -15,8 +15,9 @@
 - ✅ **Guardian Selection** — select up to 5 friends as recovery guardians (UI ready)
 - ✅ **Native App (Expo)** — 7-tab React Native companion app achieving PWA parity: Map, Projects, Market (14 categories), Chat, People, Ledger, Settings
 - ✅ **Native SQLite + SecureStore** — local data persistence and sovereign identity storage on device
-- ✅ **Community Projects Tab** — native-only crowdfunding feature with progress tracking
+- ✅ **Community Projects Tab** — native-only crowdfunding feature with progress tracking, atomic editing, and destructive rollback for escrow.
 - ✅ **Database Migration (SQLite)** — replaced JSON state engine with `better-sqlite3` on server
+- ✅ **Marketplace Deals Hub** — Sync'd 1-step (Offers) and 3-step (Needs) atomic escrow handshake logic across both Native and PWA.
 
 ---
 

@@ -4,8 +4,7 @@
 > **Read this first** — then see `index.md` for a full documentation map.
 
 ---
-
-## Current State (2026-03-24)
+## Current State (2026-03-28)
 
 **BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🫘 bean reputation system, abuse reporting, community health dashboard, and federation protocol — deployed on **3 sovereign nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity.
 
@@ -20,7 +19,8 @@
 - ✅ **Editable callsign** — change callsign in Profile, syncs to IndexedDB + server
 - ✅ **🫘 Bean reputation** — 5-bean rating with comments, displayed on post tiles and detail view
 - ✅ **Abuse reporting** — reason dropdown (spam, offensive, misleading, harassment, other), admin panel in Settings
-- ✅ **Marketplace** — 13-category bazaar with type/category filters, "My Posts" view, photo attachments (up to 3)
+- ✅ **Marketplace** — 14-category Deals Hub with "My Market" segment controls and unread inbound request counters.
+- ✅ **Escrow Handshake** — Branching 3-step (Needs) vs 1-step (Offers) request flow with smart-contract style `escrow_{id}` wallets, completely synchronized across both Native Expo and PWA UIs.
 - ✅ **Post photos** — up to 3 photos per post, auto-resized to 400px JPEG, primary photo on tiles, gallery in detail
 - ✅ **Post validation** — all fields required, red glow on empty fields, location required
 - ✅ **E2E messaging** — DMs and group chats (plaintext v1, E2E-ready data model)
@@ -115,6 +115,13 @@ AFTER DEPLOYING:
 | Native App | `apps/native` | Expo + React Native — 7-tab mobile client (Map, Projects, Market, Chat, People, Ledger, Settings), SQLite persistence, background Merkle sync |
 | Core Protocol | `packages/beanpool-core` | Shared logic — Ledger, Merkle, Passport, Governance, Trade, Router |
 
+### Escrow & Settlement Architecture
+To prevent double-spend vulnerabilities and guarantee atomic refunds, BeanPool uses synthetic escrow wallets for all pending commitments (both Marketplace Offers/Needs and Crowdfund Projects).
+* When a Deal is accepted or a project is backed, funds are instantly transferred from the backer's normal Ledger into a synthetic wallet named `escrow_{post_id}`.
+* **Role-Based Release:** Only the Payer (Buyer) is authorized to release funds from escrow via `completePostTransaction()`.
+* **Destructive Rollback:** If a post is deleted or reversed, all un-swept funds inside `escrow_{post_id}` are natively auto-refunded to their original backers via `recalculateEscrowRefunds()` in SQLite.
+* **DO NOT** attempt to deduct directly from base Ledgers during final settlement; you must sweep the `escrow_{post_id}` wallet.
+
 ### Key Design Constraints
 - **Ed25519 keypairs** for all identity (community, node, user)
 - **4-port layout:** 4001 (TCP), 4002 (WS), 8080 (HTTP trust), 8443 (HTTPS PWA + API)
@@ -192,4 +199,4 @@ gh run list --limit 3
 
 ---
 
-_Last updated: 2026-03-24 21:15 AEDT_
+_Last updated: 2026-03-28 08:35 AEDT_

@@ -14,6 +14,7 @@ Each participant generates an **Ed25519 keypair** locally on their device. There
 A peer-to-peer economic layer designed to encourage circulation rather than accumulation.
 * **Mutual Credit**: Participants begin with 0.00 credits and a guaranteed credit floor of `−100Ʀ`. This enables immediate participation — you can contribute value before receiving it.
 * **Demurrage (Decay)**: Positive balances decay at 0.5% per month. The decayed value is swept into a shared `COMMONS_BALANCE`, funding community projects via governance proposals.
+* **Escrow Settlement**: Marketplace deals and crowdfunds utilize atomic `escrow_{id}` synthetic wallets to lock funds prior to service delivery, guaranteeing 100% robust refunds on cancellation without double-charging base ledgers.
 * **Merkle Sync**: All account state is hashed into a deterministic Merkle tree. Nodes reconcile state via lazy delta sync.
 
 ### 3. Mesh Network (libp2p)
@@ -23,15 +24,15 @@ The current implementation uses a **libp2p mesh** over TCP and WebSocket transpo
 * **Handshake Protocol**: Mutual trust verification + latency measurement via yamux streams
 * **Cloudflare DNS Auto-Registration**: Each node self-registers its DNS record on startup
 
-### 4. Marketplace (Geo-Located Needs & Offers)
+### 4. Marketplace (Deals Hub & Geo-Located Posts)
 A hyper-local resource coordination system with 13 categories (PWA) / 14 categories (Native, adds Care ❤️):
-* **Blue** (#3b82f6) = Offers — what community members can provide
-* **Orange** (#f97316) = Needs — what community members are looking for
+* **Blue** (#3b82f6) = Offers — what community members can provide (1-step Escrow Accept Flow)
+* **Orange** (#f97316) = Needs — what community members are looking for (3-step Escrow Request Flow)
 * Posts appear as pins on the community map and sync across trusted nodes
 * **Post photos** — up to 3 photos per post, auto-resized to 400px JPEG
-* **Post detail view** with author profile, photo gallery, credits, and action buttons
+* **Deals Hub UI** — branching Payer/Payee button hierarchies parsed natively in the Post detail viewport.
 * **Post validation** — all fields required with visual red glow on empty fields
-* **"My Posts"** toggle to view own listings
+* **"My Market"** segment toggle to view active pending escrow deals vs global feed
 * **Category dropdown** for filtering
 
 ### 5. Messaging (E2E-Ready)

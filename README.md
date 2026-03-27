@@ -28,11 +28,13 @@ Full-screen Leaflet/OSM map as the landing page:
 ### 🤝 Marketplace
 13-category peer-to-peer bazaar:
 - Create posts (offer/need, category, title, description, Ʀ pricing, location pin, up to 3 photos)
-- Filter by type and category dropdown
-- **"My Posts"** toggle to view your own listings
+- **Branching Escrow Handshake** — Atomic smart-contract style settlement:
+  - **Needs (3-step):** Requesters bid on jobs → Author approves → Escrow locks → Author releases funds on completion.
+  - **Offers (1-step):** Requesters accept → Escrow immediately locks → Requester releases funds on completion.
+- Filter by type, category dropdown, and **"My Market"** segment controls for inbound requests and active deals.
 - **Post photos** — up to 3 photos per post, auto-resized to 400px, primary photo on tiles
 - **Post validation** — all fields required, red glow on empty fields, location must be set
-- **Post detail view** — full description, photo gallery, credits, author profile (avatar, bio, contact)
+- **Post detail view** — Deals Hub UI parsing Payer/Payee roles for Escrow Settlement
 - **💬 Message** — opens a DM with the author directly from the post (cross-node messages route securely over the Libp2p mesh)
 - **🫘 Rate** — rate the author 1-5 beans with optional comment
 - **🚩 Report** — report abuse with reason dropdown
@@ -216,7 +218,9 @@ All endpoints are served on port 8443 (HTTPS):
 | `/api/ledger/transactions` | GET | Transaction history |
 | `/api/marketplace/posts` | GET | List marketplace posts (filterable) |
 | `/api/marketplace/posts` | POST | Create a new post (with optional photos) |
-| `/api/marketplace/posts/remove` | POST | Remove a post |
+| `/api/marketplace/posts/remove` | POST | Remove a post (safely refunds atomic escrow) |
+| `/api/crowdfund/projects/update` | POST | Edit a live crowdfund project |
+| `/api/crowdfund/projects/delete` | POST | Destructive rollback + atomic escrow refund |
 | `/api/ratings` | POST | Submit or update a bean rating |
 | `/api/ratings/:publicKey` | GET | Get ratings and average for a member |
 | `/api/reports` | POST | Submit an abuse report |
