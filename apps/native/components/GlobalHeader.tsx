@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Image, Alert, Linking } from 'react-native';
+import * as Location from 'expo-location';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, usePathname } from 'expo-router';
@@ -8,7 +9,38 @@ import { SyncStatus } from './SyncStatus';
 export function GlobalHeader() {
     const insets = useSafeAreaInsets();
     const pathname = usePathname();
-    const [locationEnabled, setLocationEnabled] = useState(true);
+    const [locationEnabled, setLocationEnabled] = useState(false);
+
+    useEffect(() => {
+        (async () => {
+            const { status } = await Location.getForegroundPermissionsAsync();
+            setLocationEnabled(status === 'granted');
+        })();
+    }, []);
+
+    const handleLocationToggle = async () => {
+        let { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+        
+        if (status === 'granted') {
+            Alert.alert("Location Enabled", "BeanPool currently has access to your location. To disable it, please visit your device Settings.", [
+                { text: "Cancel", style: "cancel" },
+                { text: "Open Settings", onPress: () => Linking.openSettings() }
+            ]);
+            return;
+        }
+
+        if (canAskAgain) {
+            const res = await Location.requestForegroundPermissionsAsync();
+            if (res.status === 'granted') {
+                setLocationEnabled(true);
+            }
+        } else {
+            Alert.alert("Permission Denied", "Location permission was denied. Please enable it in your device settings to use location features.", [
+                { text: "Cancel", style: "cancel" },
+                { text: "Open Settings", onPress: () => Linking.openSettings() }
+            ]);
+        }
+    };
 
     const isMapScreen = pathname === '/';
 
@@ -42,7 +74,7 @@ export function GlobalHeader() {
                 <View style={styles.headerRightControls}>
                     <TouchableOpacity 
                         style={[styles.controlPillBtn, { borderRightWidth: 1, borderColor: '#e5e7eb' }]} 
-                        onPress={() => setLocationEnabled(!locationEnabled)} 
+                        onPress={handleLocationToggle} 
                     >
                         <MaterialCommunityIcons name={locationEnabled ? "map-marker-outline" : "map-marker-off-outline"} size={17} color="#4b5563" />
                     </TouchableOpacity>

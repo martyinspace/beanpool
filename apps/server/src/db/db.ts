@@ -327,7 +327,8 @@ export function updateCrowdfundProject(
     title: string,
     description: string,
     photos: string[],
-    goal_amount: number
+    goal_amount: number,
+    deadline_at?: string | null
 ) {
     const project = getCrowdfundProject(id);
     if (!project) throw new Error("Project not found");
@@ -337,11 +338,19 @@ export function updateCrowdfundProject(
         throw new Error("Cannot change funding goal after receiving pledges");
     }
 
-    db.prepare(`
-        UPDATE projects
-        SET title = ?, description = ?, photos = ?, goal_amount = ?
-        WHERE id = ? AND creator_pubkey = ?
-    `).run(title, description, JSON.stringify(photos), goal_amount, id, creator_pubkey);
+    if (deadline_at !== undefined) {
+        db.prepare(`
+            UPDATE projects
+            SET title = ?, description = ?, photos = ?, goal_amount = ?, deadline_at = ?
+            WHERE id = ? AND creator_pubkey = ?
+        `).run(title, description, JSON.stringify(photos), goal_amount, deadline_at, id, creator_pubkey);
+    } else {
+        db.prepare(`
+            UPDATE projects
+            SET title = ?, description = ?, photos = ?, goal_amount = ?
+            WHERE id = ? AND creator_pubkey = ?
+        `).run(title, description, JSON.stringify(photos), goal_amount, id, creator_pubkey);
+    }
 }
 
 export function pledgeToProject(txId: string, projectId: string, fromPubkey: string, amount: number, memo: string) {
@@ -353,29 +362,89 @@ export function pledgeToProject(txId: string, projectId: string, fromPubkey: str
     if (!sender) throw new Error("Sender account not found");
     if (sender.balance < amount) throw new Error("Insufficient balance for pledge");
 
-    const toPubkey = project.creator_pubkey;
+    const escrowPubkey = `escrow_${projectId}`;
 
     const executePledge = db.transaction(() => {
-        // Debit
+        // Ensure synthetic escrow account exists natively
+        db.prepare(`INSERT OR IGNORE INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, 0, 0)`).run(escrowPubkey);
+
+        // Debit backer
         db.prepare(`UPDATE accounts SET balance = balance - ?, last_updated_at = CURRENT_TIMESTAMP WHERE public_key = ?`).run(amount, fromPubkey);
-        // Credit creator natively (Continuous Funding)
-        db.prepare(`UPDATE accounts SET balance = balance + ?, last_updated_at = CURRENT_TIMESTAMP WHERE public_key = ?`).run(amount, toPubkey);
+        
+        // Credit Escrow instead of Creator
+        db.prepare(`UPDATE accounts SET balance = balance + ?, last_updated_at = CURRENT_TIMESTAMP WHERE public_key = ?`).run(amount, escrowPubkey);
         
         // Record tx
         db.prepare(`
             INSERT INTO transactions (id, from_pubkey, to_pubkey, amount, memo, project_id)
             VALUES (?, ?, ?, ?, ?, ?)
-        `).run(txId, fromPubkey, toPubkey, amount, memo, projectId);
+        `).run(txId, fromPubkey, escrowPubkey, amount, memo, projectId);
 
-        // Update Project
+        // Update Project Goals
         db.prepare(`UPDATE projects SET current_amount = current_amount + ? WHERE id = ?`).run(amount, projectId);
 
         const updatedProject = db.prepare(`SELECT current_amount, goal_amount FROM projects WHERE id = ?`).get(projectId) as ProjectRow;
         if (updatedProject.current_amount >= updatedProject.goal_amount && project.status === 'ACTIVE') {
             db.prepare(`UPDATE projects SET status = 'FUNDED' WHERE id = ?`).run(projectId);
+            
+            // Auto-Sweep Escrow to Creator sequentially
+            const escrowBalanceRow = db.prepare(`SELECT balance FROM accounts WHERE public_key = ?`).get(escrowPubkey) as { balance: number };
+            const escrowBalance = escrowBalanceRow ? escrowBalanceRow.balance : Math.max(0, updatedProject.current_amount);
+            
+            if (escrowBalance > 0) {
+                // Drain Escrow
+                db.prepare(`UPDATE accounts SET balance = 0, last_updated_at = CURRENT_TIMESTAMP WHERE public_key = ?`).run(escrowPubkey);
+                // Credit actual Creator
+                db.prepare(`UPDATE accounts SET balance = balance + ?, last_updated_at = CURRENT_TIMESTAMP WHERE public_key = ?`).run(escrowBalance, project.creator_pubkey);
+                
+                // Record atomic Sweep Transaction
+                db.prepare(`
+                    INSERT INTO transactions (id, from_pubkey, to_pubkey, amount, memo, project_id)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                `).run(`sweep_${txId}`, escrowPubkey, project.creator_pubkey, escrowBalance, 'Escrow Release: Funding Goal Reached', projectId);
+            }
         }
     });
 
     executePledge();
+}
+
+export function deleteCrowdfundProject(projectId: string, requesterPubkey: string) {
+    const project = db.prepare(`SELECT * FROM projects WHERE id = ?`).get(projectId) as ProjectRow | undefined;
+    if (!project) throw new Error("Project not found");
+    if (project.creator_pubkey !== requesterPubkey) throw new Error("Unauthorized to delete this project");
+
+    const executeDelete = db.transaction(() => {
+        // If still ACTIVE, funds are locked in Escrow. Refund them to backers.
+        if (project.status === 'ACTIVE') {
+            const escrowPubkey = `escrow_${projectId}`;
+            const pledges = db.prepare(`
+                SELECT from_pubkey, amount, id FROM transactions 
+                WHERE to_pubkey = ? AND project_id = ?
+            `).all(escrowPubkey, projectId) as { from_pubkey: string, amount: number, id: string }[];
+            
+            let totalRefunded = 0;
+            for (const pledge of pledges) {
+                // Return Beans to Backer
+                db.prepare(`UPDATE accounts SET balance = balance + ?, last_updated_at = CURRENT_TIMESTAMP WHERE public_key = ?`).run(pledge.amount, pledge.from_pubkey);
+                
+                // Record the localized Refund Transaction
+                db.prepare(`
+                    INSERT INTO transactions (id, from_pubkey, to_pubkey, amount, memo, project_id)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                `).run(`refund_${pledge.id}`, escrowPubkey, pledge.from_pubkey, pledge.amount, 'Escrow Refund: Project Deleted', projectId);
+                
+                totalRefunded += pledge.amount;
+            }
+            
+            // Drain the escrow account to reconcile the economy symmetrically
+            db.prepare(`UPDATE accounts SET balance = balance - ?, last_updated_at = CURRENT_TIMESTAMP WHERE public_key = ?`).run(totalRefunded, escrowPubkey);
+        }
+
+        // Shred the Project
+        db.prepare(`DELETE FROM projects WHERE id = ?`).run(projectId);
+    });
+
+    executeDelete();
 }
 

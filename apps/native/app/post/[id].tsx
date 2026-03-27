@@ -5,8 +5,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { Picker } from '@react-native-picker/picker';
 import { 
     getPost, updatePost, deletePost, 
+    requestMarketplacePost, approveMarketplaceRequest, rejectMarketplaceRequest, cancelMarketplaceRequest,
     acceptMarketplacePost, completeMarketplaceTransaction, cancelMarketplaceTransaction, 
-    submitRating, reportAbuse 
+    submitRating, reportAbuse, getDb
 } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
 
@@ -58,8 +59,17 @@ export default function PostDetailModal() {
     const [reportReason, setReportReason] = useState('');
     const [submittingReport, setSubmittingReport] = useState(false);
 
+    const [requests, setRequests] = useState<any[]>([]);
+
     useEffect(() => {
-        if (id) { getPost(id as string).then(setPost); }
+        if (id) { 
+            getPost(id as string).then(setPost);
+            const singleId = Array.isArray(id) ? id[0] : id;
+            getDb().then(database => {
+                database.getAllAsync("SELECT * FROM marketplace_transactions WHERE post_id=? AND status='requested'", [singleId])
+                    .then(res => setRequests(res as any[]));
+            });
+        }
     }, [id]);
 
     if (!post) {
@@ -74,6 +84,15 @@ export default function PostDetailModal() {
     }
 
     const isOwnPost = identity?.publicKey === post.author_pubkey;
+    
+    // --- Escrow Roles ---
+    const isAcceptedByMe = identity?.publicKey === post.accepted_by;
+    const isPayer = (post.type === 'offer' && isAcceptedByMe) || (post.type === 'need' && isOwnPost);
+    const isPayee = (post.type === 'offer' && isOwnPost) || (post.type === 'need' && isAcceptedByMe);
+    const targetPeerCallsign = isOwnPost 
+        ? (post.accepted_by_callsign || 'Peer') 
+        : (post.author_callsign || post.author_pubkey?.slice(0, 6) || 'Unknown');
+
     const isOffer = post.type === 'offer';
     const catObj = CATEGORIES.find(c => c.id === post.category);
     const emoji = catObj?.emoji || '📦';
@@ -133,6 +152,38 @@ export default function PostDetailModal() {
                 }
             }},
         ]);
+    };
+
+    const myRequest = requests.find(r => r.buyer_pubkey === identity?.publicKey);
+
+    const handleApprove = async (transactionId: string) => {
+        if (!identity) return;
+        setAccepting(true);
+        try {
+            await approveMarketplaceRequest(transactionId, identity.publicKey);
+            const updated = await getPost(post.id);
+            setPost(updated);
+            Alert.alert('Approved', 'Escrow locked successfully.');
+        } catch (e: any) { Alert.alert('Error', e.message); }
+        setAccepting(false);
+    };
+
+    const handleReject = async (transactionId: string) => {
+        if (!identity) return;
+        try {
+            await rejectMarketplaceRequest(transactionId, identity.publicKey);
+            setRequests(prev => prev.filter(r => r.id !== transactionId));
+        } catch (e: any) { Alert.alert('Error', e.message); }
+    };
+
+    const handleWithdraw = async () => {
+        if (!identity || !myRequest) return;
+        setAccepting(true);
+        try {
+            await cancelMarketplaceRequest(myRequest.id, identity.publicKey);
+            setRequests(prev => prev.filter(r => r.id !== myRequest.id));
+        } catch (e: any) { Alert.alert('Error', e.message); }
+        setAccepting(false);
     };
 
     const pickEditPhoto = async () => {
@@ -216,8 +267,84 @@ export default function PostDetailModal() {
                 </View>
 
                 {/* Action Buttons */}
-                {isOwnPost ? (
-                    // =================== OWN POST ===================
+
+                {/* 1. Pending Escrow State (Applies to both Payer and Payee) */}
+                {post.status === 'pending' && (isPayer || isPayee) && (
+                    <View style={styles.ownPostActions}>
+                        {isPayer ? (
+                            <>
+                                <Text style={{ color: '#10b981', fontSize: 13, fontWeight: '700', textAlign: 'center', marginBottom: 4 }}>
+                                    ✅ Action Required: Release Credits
+                                </Text>
+                                <Text style={{ color: '#6b7280', fontSize: 11, textAlign: 'center', marginBottom: 12, paddingHorizontal: 16 }}>
+                                    You are the Payer. Once {targetPeerCallsign} has fulfilled the terms, release the escrow to complete the transaction.
+                                </Text>
+                                
+                                {showCompleteConfirm ? (
+                                    <View style={styles.confirmBox}>
+                                        <Text style={styles.confirmBoxTitle}>Finalize Transaction</Text>
+                                        {post.price_type !== 'fixed' && (
+                                            <View style={{ marginBottom: 12 }}>
+                                                <Text style={styles.confirmBoxLabel}>ACTUAL {
+                                                    { hourly: 'HOURS', daily: 'DAYS', weekly: 'WEEKS', monthly: 'MONTHS' }[post.price_type as string] || 'UNITS'
+                                                } WORKED</Text>
+                                                <TextInput style={styles.confirmBoxInput} value={completeHours} onChangeText={setCompleteHours} keyboardType="numeric" placeholder="e.g. 2.5" placeholderTextColor="#9ca3af" />
+                                            </View>
+                                        )}
+                                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                                            <Pressable style={styles.cancelActionBtn} onPress={() => setShowCompleteConfirm(false)} disabled={accepting}>
+                                                <Text style={styles.cancelActionBtnText}>Cancel</Text>
+                                            </Pressable>
+                                            <Pressable style={[styles.confirmActionBtn, styles.confirmActionBtnGreen]} disabled={accepting || (post.price_type !== 'fixed' && !completeHours)} onPress={async () => {
+                                                if (!identity || !post.pending_transaction_id) return;
+                                                setAccepting(true);
+                                                try {
+                                                    await completeMarketplaceTransaction(post.pending_transaction_id, identity.publicKey, post.price_type !== 'fixed' ? Number(completeHours) : undefined);
+                                                    setShowCompleteConfirm(false);
+                                                    if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
+                                                } catch(e: any) { Alert.alert('Error', e.message); } finally { setAccepting(false); }
+                                            }}>
+                                                <Text style={styles.confirmActionBtnText}>{accepting ? 'Processing...' : 'Release Credits'}</Text>
+                                            </Pressable>
+                                        </View>
+                                    </View>
+                                ) : (
+                                    <Pressable style={[styles.acceptBtn, styles.acceptBtnOffer]} onPress={() => { setShowCompleteConfirm(true); if(post.price_type !== 'fixed' && !completeHours) setCompleteHours('1'); }}>
+                                        <Text style={styles.acceptBtnText}>✅ Release Credits</Text>
+                                    </Pressable>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <Text style={{ color: '#f59e0b', fontSize: 13, fontWeight: '700', textAlign: 'center', marginTop: 8, marginBottom: 8 }}>
+                                    ⏳ Pending Release by {targetPeerCallsign}
+                                </Text>
+                                <Text style={{ color: '#6b7280', fontSize: 11, textAlign: 'center', marginBottom: 16, paddingHorizontal: 16 }}>
+                                    You are the Payee. Fulfill the terms exactly as agreed, and the Payer will release your credits.
+                                </Text>
+                            </>
+                        )}
+                        
+                        <Pressable style={styles.cancelTxBtn} disabled={accepting} onPress={() => {
+                            Alert.alert('Cancel Transaction', 'Return post to the market?', [
+                                { text: 'No', style: 'cancel' },
+                                { text: 'Yes, Cancel', style: 'destructive', onPress: async () => {
+                                    if(!identity || !post.pending_transaction_id) return;
+                                    setAccepting(true);
+                                    try {
+                                        await cancelMarketplaceTransaction(post.pending_transaction_id, identity.publicKey);
+                                        if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
+                                    } catch(e:any) { Alert.alert('Error', e.message); } finally { setAccepting(false); }
+                                }}
+                            ]);
+                        }}>
+                            <Text style={styles.cancelTxBtnText}>❌ Cancel Escrow</Text>
+                        </Pressable>
+                    </View>
+                )}
+
+                {/* 2. Own Active Posts (Edit / Delete) */}
+                {isOwnPost && post.status !== 'pending' && (
                     editMode ? (
                         <View style={styles.editSection}>
                             <Text style={styles.editSectionTitle}>✏️ Edit Post</Text>
@@ -286,60 +413,6 @@ export default function PostDetailModal() {
                                 </Pressable>
                             </View>
                         </View>
-                    ) : post.status === 'pending' ? (
-                        <View style={styles.ownPostActions}>
-                            <Text style={{ color: '#f59e0b', fontSize: 13, fontWeight: '700', textAlign: 'center', marginBottom: 8 }}>
-                                ⏳ Pending Completion by {post.accepted_by_callsign || 'Buyer'}
-                            </Text>
-                            {showCompleteConfirm ? (
-                                <View style={styles.confirmBox}>
-                                    <Text style={styles.confirmBoxTitle}>Finalize Transaction</Text>
-                                    {post.price_type !== 'fixed' && (
-                                        <View style={{ marginBottom: 12 }}>
-                                            <Text style={styles.confirmBoxLabel}>ACTUAL {
-                                                { hourly: 'HOURS', daily: 'DAYS', weekly: 'WEEKS', monthly: 'MONTHS' }[post.price_type as string] || 'UNITS'
-                                            } WORKED</Text>
-                                            <TextInput style={styles.confirmBoxInput} value={completeHours} onChangeText={setCompleteHours} keyboardType="numeric" placeholder="e.g. 2.5" placeholderTextColor="#9ca3af" />
-                                        </View>
-                                    )}
-                                    <View style={{ flexDirection: 'row', gap: 10 }}>
-                                        <Pressable style={styles.cancelActionBtn} onPress={() => setShowCompleteConfirm(false)} disabled={accepting}>
-                                            <Text style={styles.cancelActionBtnText}>Cancel</Text>
-                                        </Pressable>
-                                        <Pressable style={[styles.confirmActionBtn, styles.confirmActionBtnGreen]} disabled={accepting || (post.price_type !== 'fixed' && !completeHours)} onPress={async () => {
-                                            if (!identity || !post.pending_transaction_id) return;
-                                            setAccepting(true);
-                                            try {
-                                                await completeMarketplaceTransaction(post.pending_transaction_id, identity.publicKey, post.price_type !== 'fixed' ? Number(completeHours) : undefined);
-                                                setShowCompleteConfirm(false);
-                                                if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
-                                            } catch(e: any) { Alert.alert('Error', e.message); } finally { setAccepting(false); }
-                                        }}>
-                                            <Text style={styles.confirmActionBtnText}>{accepting ? 'Processing...' : 'Release Credits'}</Text>
-                                        </Pressable>
-                                    </View>
-                                </View>
-                            ) : (
-                                <Pressable style={[styles.acceptBtn, styles.acceptBtnOffer]} onPress={() => { setShowCompleteConfirm(true); if(post.price_type !== 'fixed' && !completeHours) setCompleteHours('1'); }}>
-                                    <Text style={styles.acceptBtnText}>✅ Release Credits</Text>
-                                </Pressable>
-                            )}
-                            <Pressable style={styles.cancelTxBtn} disabled={accepting} onPress={() => {
-                                Alert.alert('Cancel Transaction', 'Return post to the market?', [
-                                    { text: 'No', style: 'cancel' },
-                                    { text: 'Yes, Cancel', style: 'destructive', onPress: async () => {
-                                        if(!identity || !post.pending_transaction_id) return;
-                                        setAccepting(true);
-                                        try {
-                                            await cancelMarketplaceTransaction(post.pending_transaction_id, identity.publicKey);
-                                            if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
-                                        } catch(e:any) { Alert.alert('Error', e.message); } finally { setAccepting(false); }
-                                    }}
-                                ]);
-                            }}>
-                                <Text style={styles.cancelTxBtnText}>❌ Cancel Transaction</Text>
-                            </Pressable>
-                        </View>
                     ) : (
                         <View style={styles.ownPostActions}>
                             <Pressable style={styles.editPostBtn} onPress={startEdit}>
@@ -350,25 +423,31 @@ export default function PostDetailModal() {
                             </Pressable>
                         </View>
                     )
-                ) : (
-                    // =================== OTHER'S POST ===================
+                )}
+
+                {/* 3. Unaccepted Posts Displayed to Browsers */}
+                {!isOwnPost && post.status === 'active' && !isAcceptedByMe && (
                     <View style={styles.otherPostActions}>
-                        <Pressable style={styles.messageBtn} onPress={() => {
-                            router.push({ pathname: '/(tabs)/chats', params: { callsign: cardAuthor } });
-                        }}>
-                            <Text style={styles.messageBtnText}>💬 Message</Text>
-                        </Pressable>
-                        
-                        {showAcceptConfirm ? (
+                        {myRequest ? (
                             <View style={styles.confirmBox}>
-                                <Text style={styles.confirmBoxTitle}>{isOffer ? 'Accept this Offer?' : 'Fulfill this Need?'}</Text>
+                                <Text style={styles.confirmBoxTitle}>⏳ Requested (Waiting for Author)</Text>
+                                <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>
+                                    You have offered {myRequest.credits} credits {myRequest.hours ? `(${myRequest.hours} hours)` : ''} for this post.
+                                </Text>
+                                <Pressable style={[styles.cancelActionBtn, { width: '100%' }]} onPress={handleWithdraw} disabled={accepting}>
+                                    <Text style={styles.cancelActionBtnText}>{accepting ? 'Withdrawing...' : 'Withdraw Request'}</Text>
+                                </Pressable>
+                            </View>
+                        ) : showAcceptConfirm ? (
+                            <View style={styles.confirmBox}>
+                                <Text style={styles.confirmBoxTitle}>{isOffer ? 'Accept this Offer?' : 'Request to Fulfill?'}</Text>
                                 {post.price_type !== 'fixed' && (
                                     <View style={{ marginBottom: 12 }}>
                                         <Text style={styles.confirmBoxLabel}>ESTIMATED {
                                             { hourly: 'HOURS', daily: 'DAYS', weekly: 'WEEKS', monthly: 'MONTHS' }[post.price_type as string] || 'UNITS'
                                         }</Text>
                                         <TextInput style={styles.confirmBoxInput} value={acceptHours} onChangeText={setAcceptHours} keyboardType="numeric" placeholder="1" placeholderTextColor="#9ca3af" />
-                                        <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textAlign: 'center', marginTop: 4 }}>Credits will be reserved based on estimate.</Text>
+                                        <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textAlign: 'center', marginTop: 4 }}>Credits will be required upon approval.</Text>
                                     </View>
                                 )}
                                 <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -379,22 +458,67 @@ export default function PostDetailModal() {
                                         if (!identity || !post.id) return;
                                         setAccepting(true);
                                         try {
-                                            await acceptMarketplacePost(post.id, identity.publicKey, post.price_type !== 'fixed' ? Number(acceptHours) : undefined);
-                                            setShowAcceptConfirm(false);
-                                            router.push({ pathname: '/(tabs)/chats', params: { callsign: cardAuthor } });
+                                            const estimatedHrs = post.price_type !== 'fixed' ? Number(acceptHours) : undefined;
+                                            if (isOffer) {
+                                                await acceptMarketplacePost(post.id, identity.publicKey, estimatedHrs);
+                                                setShowAcceptConfirm(false);
+                                            } else {
+                                                await requestMarketplacePost(post.id, identity.publicKey, estimatedHrs);
+                                                setShowAcceptConfirm(false);
+                                                // Optimistically add to local state
+                                                setRequests(prev => [...prev, {
+                                                    id: crypto.randomUUID(), post_id: post.id, buyer_pubkey: identity.publicKey, seller_pubkey: post.author_pubkey,
+                                                    credits: post.price_type === 'fixed' ? post.credits : post.credits * Number(acceptHours),
+                                                    hours: post.price_type === 'fixed' ? null : Number(acceptHours), status: 'requested'
+                                                }]);
+                                            }
                                         } catch (e: any) { Alert.alert('Error', e.message); } finally { setAccepting(false); }
                                     }}>
-                                        <Text style={styles.confirmActionBtnText}>{accepting ? 'Processing...' : 'Confirm'}</Text>
+                                        <Text style={styles.confirmActionBtnText}>{accepting ? 'Processing...' : (isOffer ? 'Confirm Acceptance' : 'Confirm Bid')}</Text>
                                     </Pressable>
                                 </View>
                             </View>
                         ) : (
                             <Pressable style={[styles.acceptBtn, isOffer ? styles.acceptBtnOffer : styles.acceptBtnNeed, (accepting || post.status === 'pending') && { opacity: 0.6 }]} disabled={accepting || post.status === 'pending'} onPress={() => setShowAcceptConfirm(true)}>
                                 <Text style={styles.acceptBtnText}>
-                                    {accepting ? 'Processing...' : (post.status === 'pending' ? '⏳ Pending Confirmation' : (isOffer ? '🤝 Accept Offer' : '🤝 Fulfill Need'))}
+                                    {accepting ? 'Processing...' : (post.status === 'pending' ? '⏳ Pending Confirmation' : (isOffer ? '🤝 Accept Offer' : '✋ Request to Fulfill'))}
                                 </Text>
                             </Pressable>
                         )}
+                    </View>
+                )}
+
+                {/* 3.5 Author Requests Display */}
+                {isOwnPost && post.status === 'active' && requests.length > 0 && (
+                    <View style={styles.requestsContainer}>
+                        <Text style={styles.requestsTitle}>Inbound Bids ({requests.length})</Text>
+                        {requests.map(req => (
+                            <View key={req.id} style={styles.requestCard}>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={styles.requestName}>{req.buyer_pubkey.slice(0, 8)}</Text>
+                                  <Text style={styles.requestAmt}>{req.credits} Credits {req.hours ? `(${req.hours}h)` : ''}</Text>
+                                </View>
+                                <View style={{flexDirection: 'row', gap: 8}}>
+                                    <Pressable style={[styles.approveBtn, accepting && {opacity: 0.5}]} disabled={accepting} onPress={() => handleApprove(req.id)}>
+                                        <Text style={styles.approveBtnText}>Approve</Text>
+                                    </Pressable>
+                                    <Pressable style={[styles.rejectBtn, accepting && {opacity: 0.5}]} disabled={accepting} onPress={() => handleReject(req.id)}>
+                                        <Text style={styles.rejectBtnText}>✕</Text>
+                                    </Pressable>
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* 4. Universal Actions for Peer (Message, Rate, Report) */}
+                {!isOwnPost && (
+                    <View style={[styles.otherPostActions, { marginTop: post.status === 'pending' || post.status === 'active' ? 10 : 0 }]}>
+                        <Pressable style={styles.messageBtn} onPress={() => {
+                            router.push({ pathname: '/(tabs)/chats', params: { callsign: cardAuthor } });
+                        }}>
+                            <Text style={styles.messageBtnText}>💬 Message</Text>
+                        </Pressable>
                         
                         {identity && post.status === 'completed' && post.pending_transaction_id && (
                             <View style={{ marginTop: 16 }}>
@@ -575,4 +699,62 @@ const styles = StyleSheet.create({
     confirmActionBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
     cancelTxBtn: { marginTop: 12, borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
     cancelTxBtnText: { color: '#ef4444', fontSize: 14, fontWeight: '700' },
+    requestsContainer: {
+        marginTop: 20,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderRadius: 12,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)'
+    },
+    requestsTitle: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginBottom: 12
+    },
+    requestCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 8
+    },
+    requestName: {
+        color: '#fff',
+        fontWeight: '600',
+        fontSize: 14,
+        marginBottom: 4
+    },
+    requestAmt: {
+        color: '#10b981',
+        fontSize: 12,
+        fontWeight: '700'
+    },
+    approveBtn: {
+        backgroundColor: '#10b981',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 6
+    },
+    approveBtnText: {
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: 'bold'
+    },
+    rejectBtn: {
+        backgroundColor: 'rgba(239,68,68,0.2)',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: 'rgba(239,68,68,0.3)'
+    },
+    rejectBtnText: {
+        color: '#ef4444',
+        fontSize: 13,
+        fontWeight: 'bold'
+    }
 });

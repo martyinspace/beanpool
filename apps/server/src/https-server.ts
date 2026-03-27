@@ -42,6 +42,7 @@ import {
     createPost, getPosts, removePost, updatePost,
     acceptPost, completePostTransaction, cancelPostTransaction,
     pausePost, resumePost, getMarketplaceTransactions,
+    requestPost, approvePostRequest, rejectPostRequest, cancelPostRequest,
     getCommunityInfo, addWsClient, removeWsClient,
     generateInvite, redeemInvite, getInviteTree, getInvitesByMember,
     updateProfile, getProfile,
@@ -61,7 +62,7 @@ import {
     adminRejectProject,
     getNodeConfig, updateNodeConfig, getDirectoryInfo,
 } from './state-engine.js';
-import { getCrowdfundProjects, getCrowdfundProject, createCrowdfundProject, updateCrowdfundProject, pledgeToProject } from './db/db.js';
+import { getCrowdfundProjects, getCrowdfundProject, createCrowdfundProject, updateCrowdfundProject, pledgeToProject, deleteCrowdfundProject } from './db/db.js';
 
 const PUBLIC_DIR = path.resolve('public');
 const SETTINGS_PATH = path.resolve('public/settings.html');
@@ -964,6 +965,71 @@ export async function startHttpsServer(port: number): Promise<void> {
         ctx.body = { success: true, transaction: tx };
     });
 
+    router.post('/api/marketplace/posts/request', async (ctx) => {
+        const { postId, buyerPublicKey, hours } = (ctx as any).requestBody || {};
+        if (!postId || !buyerPublicKey) {
+            ctx.status = 400;
+            ctx.body = { error: 'postId and buyerPublicKey are required' };
+            return;
+        }
+        const parsedHours = hours != null ? Number(hours) : undefined;
+        const tx = requestPost(postId, buyerPublicKey, parsedHours);
+        if (!tx) {
+            ctx.status = 400;
+            ctx.body = { error: 'Cannot request — post not found, insufficient balance, or you are the author' };
+            return;
+        }
+        ctx.body = { success: true, transaction: tx };
+    });
+
+    router.post('/api/marketplace/transactions/approve', async (ctx) => {
+        const { transactionId, authorPublicKey } = (ctx as any).requestBody || {};
+        if (!transactionId || !authorPublicKey) {
+            ctx.status = 400;
+            ctx.body = { error: 'transactionId and authorPublicKey are required' };
+            return;
+        }
+        const tx = approvePostRequest(transactionId, authorPublicKey);
+        if (!tx) {
+            ctx.status = 400;
+            ctx.body = { error: 'Cannot approve — request not found, unauthorized, or buyer has insufficient funds' };
+            return;
+        }
+        ctx.body = { success: true, transaction: tx };
+    });
+
+    router.post('/api/marketplace/transactions/reject', async (ctx) => {
+        const { transactionId, authorPublicKey } = (ctx as any).requestBody || {};
+        if (!transactionId || !authorPublicKey) {
+            ctx.status = 400;
+            ctx.body = { error: 'transactionId and authorPublicKey are required' };
+            return;
+        }
+        const tx = rejectPostRequest(transactionId, authorPublicKey);
+        if (!tx) {
+            ctx.status = 400;
+            ctx.body = { error: 'Cannot reject — request not found or unauthorized' };
+            return;
+        }
+        ctx.body = { success: true, transaction: tx };
+    });
+
+    router.post('/api/marketplace/transactions/cancel-request', async (ctx) => {
+        const { transactionId, buyerPublicKey } = (ctx as any).requestBody || {};
+        if (!transactionId || !buyerPublicKey) {
+            ctx.status = 400;
+            ctx.body = { error: 'transactionId and buyerPublicKey are required' };
+            return;
+        }
+        const tx = cancelPostRequest(transactionId, buyerPublicKey);
+        if (!tx) {
+            ctx.status = 400;
+            ctx.body = { error: 'Cannot cancel — request not found or unauthorized' };
+            return;
+        }
+        ctx.body = { success: true, transaction: tx };
+    });
+
     router.post('/api/marketplace/transactions/complete', async (ctx) => {
         const { transactionId, confirmerPublicKey, finalHours } = (ctx as any).requestBody || {};
         if (!transactionId || !confirmerPublicKey) {
@@ -1132,7 +1198,10 @@ export async function startHttpsServer(port: number): Promise<void> {
     // ==========================================
 
     router.get('/api/crowdfund/projects', async (ctx) => {
-        ctx.body = { projects: getCrowdfundProjects() };
+        ctx.body = { 
+            projects: getCrowdfundProjects(),
+            maxProjectExpiryDays: getThresholds().maxProjectExpiryDays 
+        };
     });
 
     router.get('/api/crowdfund/projects/:id', async (ctx) => {
@@ -1149,6 +1218,16 @@ export async function startHttpsServer(port: number): Promise<void> {
             return;
         }
 
+        if (deadlineAt) {
+            const maxDays = getThresholds().maxProjectExpiryDays;
+            const diffDays = (new Date(deadlineAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+            if (diffDays > maxDays) {
+                ctx.status = 400;
+                ctx.body = { error: `Project deadline cannot exceed ${maxDays} days` };
+                return;
+            }
+        }
+
         const projectId = id || crypto.randomUUID();
         createCrowdfundProject(projectId, creatorPubkey, title, description || '', photos || [], Number(goalAmount), deadlineAt || null);
         const project = getCrowdfundProject(projectId);
@@ -1157,20 +1236,47 @@ export async function startHttpsServer(port: number): Promise<void> {
     });
 
     router.post('/api/crowdfund/projects/update', async (ctx) => {
-        const { id, creatorPubkey, title, description, photos, goalAmount } = (ctx as any).requestBody || {};
+        const { id, creatorPubkey, title, description, photos, goalAmount, deadlineAt } = (ctx as any).requestBody || {};
         if (!id || !creatorPubkey || !title || !goalAmount) {
             ctx.status = 400;
             ctx.body = { error: 'id, creatorPubkey, title, and goalAmount are required' };
             return;
         }
 
+        if (deadlineAt) {
+            const maxDays = getThresholds().maxProjectExpiryDays;
+            const diffDays = (new Date(deadlineAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+            if (diffDays > maxDays) {
+                ctx.status = 400;
+                ctx.body = { error: `Project deadline cannot exceed ${maxDays} days` };
+                return;
+            }
+        }
+
         try {
-            updateCrowdfundProject(id, creatorPubkey, title, description || '', photos || [], Number(goalAmount));
+            updateCrowdfundProject(id, creatorPubkey, title, description || '', photos || [], Number(goalAmount), deadlineAt);
             const project = getCrowdfundProject(id);
             ctx.body = { success: true, project };
         } catch (e: any) {
             ctx.status = 400;
             ctx.body = { error: e.message || 'Failed to update project' };
+        }
+    });
+
+    router.post('/api/crowdfund/projects/delete', async (ctx) => {
+        const { id, creatorPubkey } = (ctx as any).requestBody || {};
+        if (!id || !creatorPubkey) {
+            ctx.status = 400;
+            ctx.body = { error: 'id and creatorPubkey are required' };
+            return;
+        }
+
+        try {
+            deleteCrowdfundProject(id, creatorPubkey);
+            ctx.body = { success: true };
+        } catch (e: any) {
+            ctx.status = 400;
+            ctx.body = { error: e.message || 'Failed to delete project' };
         }
     });
 

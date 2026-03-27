@@ -24,7 +24,7 @@ export function RadiusPickerPage({ initial, defaultRadius = 20, onApply, onCance
     const mapContainer = useRef<HTMLDivElement>(null);
     const mapRef = useRef<L.Map | null>(null);
     const circleRef = useRef<L.Circle | null>(null);
-    const markerRef = useRef<L.CircleMarker | null>(null);
+    const markerRef = useRef<L.Marker | null>(null);
 
     const [center, setCenter] = useState<[number, number]>(
         initial ? [initial.lat, initial.lng] : [-28.5495, 153.5005] // Default: Mullumbimby
@@ -62,13 +62,15 @@ export function RadiusPickerPage({ initial, defaultRadius = 20, onApply, onCance
         }).addTo(map);
 
         // Center marker
-        const marker = L.circleMarker(center, {
-            radius: 8,
-            color: '#fff',
-            fillColor: '#f59e0b',
-            fillOpacity: 1,
-            weight: 2,
+        const marker = L.marker(center, {
+            draggable: true
         }).addTo(map);
+
+        marker.on('dragend', (e) => {
+            const { lat, lng } = marker.getLatLng();
+            setCenter([lat, lng]);
+            circle.setLatLng([lat, lng]);
+        });
 
         // Tap to move center
         map.on('click', (e: L.LeafletMouseEvent) => {
@@ -205,7 +207,7 @@ export function RadiusPickerPage({ initial, defaultRadius = 20, onApply, onCance
                     textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-faint)',
                     marginBottom: '0.75rem',
                 }}>
-                    Tap the map to move the center point
+                    Tap the map or drag the pin to move the center point
                 </p>
 
                 {/* Apply button */}

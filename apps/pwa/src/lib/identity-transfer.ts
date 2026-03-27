@@ -1,73 +1,60 @@
 /**
  * Identity Transfer — Export/Import via QR Code
  *
- * Exports the identity as a PIN-encrypted JSON payload encoded in a QR-friendly
- * format. The receiving device scans the QR and enters the same PIN to decrypt.
- *
- * Format: https://<origin>?import=<base64-encoded-encrypted-JSON>
- * Legacy:  beanpool://import?d=<base64-encoded-encrypted-JSON>
- * Encryption: AES-GCM with PBKDF2-derived key from PIN
+ * Unified XOR Cipher to ensure compatibility with React Native.
  */
 
 import type { BeanPoolIdentity } from './identity';
 
-const SALT = new TextEncoder().encode('beanpool-identity-transfer-v1');
-
-/**
- * Derive an AES-GCM key from a PIN string using PBKDF2.
- */
-async function deriveKey(pin: string): Promise<CryptoKey> {
-    const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        new TextEncoder().encode(pin),
-        'PBKDF2',
-        false,
-        ['deriveKey']
-    );
-
-    return crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt: SALT, iterations: 100000, hash: 'SHA-256' },
-        keyMaterial,
-        { name: 'AES-GCM', length: 256 },
-        false,
-        ['encrypt', 'decrypt']
-    );
+async function sha256Hex(msg: string): Promise<string> {
+    const buffer = new TextEncoder().encode(msg);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-/**
- * Export an identity as an encrypted URI string (for embedding in a QR code).
- */
+async function deriveKeyBytes(pin: string): Promise<Uint8Array> {
+    const hash1 = await sha256Hex(`beanpool-v1:${pin}`);
+    const hash2 = await sha256Hex(`${hash1}:beanpool-transfer:${pin}`);
+    const bytes = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) {
+        bytes[i] = parseInt(hash2.substring(i * 2, i * 2 + 2), 16);
+    }
+    return bytes;
+}
+
+function xorCipher(data: Uint8Array, key: Uint8Array): Uint8Array {
+    const result = new Uint8Array(data.length);
+    for (let i = 0; i < data.length; i++) {
+        result[i] = data[i] ^ key[i % key.length];
+    }
+    return result;
+}
+
 export async function exportIdentity(identity: BeanPoolIdentity, pin: string): Promise<string> {
-    const key = await deriveKey(pin);
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const plaintext = new TextEncoder().encode(JSON.stringify({
+    const payload = JSON.stringify({
         publicKey: identity.publicKey,
         privateKey: identity.privateKey,
         callsign: identity.callsign,
         createdAt: identity.createdAt,
-    }));
+    });
 
-    const ciphertext = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv },
-        key,
-        plaintext
-    );
+    const key = await deriveKeyBytes(pin);
+    const plaintext = new TextEncoder().encode(payload);
+    const ciphertext = xorCipher(plaintext, key);
 
-    // Combine IV + ciphertext and base64-encode
-    const combined = new Uint8Array(iv.length + new Uint8Array(ciphertext).length);
-    combined.set(iv);
-    combined.set(new Uint8Array(ciphertext), iv.length);
+    // native-crypto uses a custom base64 encoder that maps correctly
+    // btoa on Uint8Array directly
+    let binary = '';
+    for (let i = 0; i < ciphertext.byteLength; i++) {
+        binary += String.fromCharCode(ciphertext[i]);
+    }
+    const b64 = btoa(binary);
 
-    const b64 = btoa(String.fromCharCode(...combined));
-    return `${window.location.origin}?import=${encodeURIComponent(b64)}`;
+    return `${window.location.origin}/?import=${encodeURIComponent(b64)}`;
 }
 
-/**
- * Import an identity from an encrypted URI string.
- * Returns the decrypted identity or throws on wrong PIN / corrupt data.
- */
 export async function decryptIdentity(uri: string, pin: string): Promise<BeanPoolIdentity> {
-    // Parse both new HTTPS format and legacy beanpool:// format
     let b64: string;
     const httpsMatch = uri.match(/[?&]import=(.+?)(?:&|$)/);
     const legacyMatch = uri.match(/beanpool:\/\/import\?d=(.+)/);
@@ -78,25 +65,21 @@ export async function decryptIdentity(uri: string, pin: string): Promise<BeanPoo
     } else {
         throw new Error('Invalid import URI');
     }
-    const combined = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
 
-    // Split IV (first 12 bytes) and ciphertext
-    const iv = combined.slice(0, 12);
-    const ciphertext = combined.slice(12);
+    const binary = atob(b64);
+    const ciphertext = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+        ciphertext[i] = binary.charCodeAt(i);
+    }
 
-    const key = await deriveKey(pin);
+    const key = await deriveKeyBytes(pin);
+    const plaintext = xorCipher(ciphertext, key);
 
-    const plaintext = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv },
-        key,
-        ciphertext
-    );
+    const json = new TextDecoder().decode(plaintext);
+    const identity = JSON.parse(json) as BeanPoolIdentity;
 
-    const identity = JSON.parse(new TextDecoder().decode(plaintext)) as BeanPoolIdentity;
-
-    // Validate required fields
     if (!identity.publicKey || !identity.privateKey || !identity.callsign) {
-        throw new Error('Invalid identity data');
+        throw new Error('Invalid identity data — wrong PIN?');
     }
 
     return identity;

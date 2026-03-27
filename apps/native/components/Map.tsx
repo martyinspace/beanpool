@@ -1,4 +1,4 @@
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, Callout, PROVIDER_DEFAULT } from 'react-native-maps';
 
-export { Marker, PROVIDER_DEFAULT };
+export { Marker, Callout, PROVIDER_DEFAULT };
 export default MapView;

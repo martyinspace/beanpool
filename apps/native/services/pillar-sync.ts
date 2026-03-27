@@ -152,7 +152,7 @@ export async function performSync(): Promise<SyncResult> {
         const postsTimeout = setTimeout(() => postsController.abort(), 30000); // Extended for heavy initial payloads
         const balanceTimeout = setTimeout(() => balanceController.abort(), 30000);
 
-        const [postsRes, balanceRes, directoryRes, projectsRes] = await Promise.all([
+        const [postsRes, balanceRes, directoryRes, projectsRes, txRes, mkptxRes] = await Promise.all([
             fetch(`${anchorUrl}/api/marketplace/posts?limit=1000${lastSyncParam}&_t=${Date.now()}`, {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' },
@@ -172,7 +172,17 @@ export async function performSync(): Promise<SyncResult> {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' },
                 signal: postsController.signal
-            })
+            }),
+            pubKey ? fetch(`${anchorUrl}/api/ledger/transactions?publicKey=${pubKey}&limit=200&_t=${Date.now()}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                signal: balanceController.signal
+            }) : Promise.resolve(null),
+            pubKey ? fetch(`${anchorUrl}/api/marketplace/transactions?publicKey=${pubKey}&limit=50&_t=${Date.now()}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                signal: postsController.signal
+            }) : Promise.resolve(null)
         ]);
 
         clearTimeout(postsTimeout);
@@ -209,6 +219,9 @@ export async function performSync(): Promise<SyncResult> {
                 const projData = await projectsRes.json();
                 if (projData && Array.isArray(projData.projects)) {
                     delta.projects = projData.projects;
+                    if (projData.maxProjectExpiryDays) {
+                        await AsyncStorage.setItem('beanpool_max_expiry_days', String(projData.maxProjectExpiryDays));
+                    }
                 } else if (Array.isArray(projData)) {
                     delta.projects = projData;
                 }
@@ -222,6 +235,24 @@ export async function performSync(): Promise<SyncResult> {
                 balance: balData.balance || 0,
                 last_demurrage_epoch: balData.last_demurrage_epoch || 0
             });
+        }
+
+        if (txRes && txRes.ok) {
+            try {
+                const txData = await txRes.json();
+                if (Array.isArray(txData)) {
+                    delta.transactions = txData;
+                }
+            } catch (e) {}
+        }
+        
+        if (mkptxRes && mkptxRes.ok) {
+            try {
+                const mkptxData = await mkptxRes.json();
+                if (Array.isArray(mkptxData)) {
+                    delta.marketplaceTransactions = mkptxData;
+                }
+            } catch (e) {}
         }
 
         // Apply physical updates to local Native device SQLite Matrix

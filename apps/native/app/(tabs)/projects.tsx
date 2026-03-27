@@ -25,9 +25,20 @@ export default function ProjectsScreen() {
                 console.error(err);
                 if (isActive) setLoading(false);
             });
-            return () => { isActive = false; };
+            return () => {
+                isActive = false;
+            };
         }, [])
     );
+
+    const getDaysRemaining = (deadline: string | null) => {
+        if (!deadline) return null;
+        const diff = new Date(deadline).getTime() - new Date().getTime();
+        const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+        if (days < 0) return 'Expired';
+        if (days === 0) return 'Ends today';
+        return `${days} days left`;
+    };
 
     const renderItem = ({ item }: { item: any }) => {
         const progress = Math.min(100, (item.current_amount / item.goal_amount) * 100) || 0;
@@ -61,7 +72,7 @@ export default function ProjectsScreen() {
                         goal: item.goal_amount,
                         current: item.current_amount,
                         creator_pubkey: item.creator_pubkey,
-                        photos: typeof item.photos === 'string' ? item.photos : JSON.stringify(item.photos || [])
+                        creator_callsign: item.creator_callsign
                     }
                 })}
             >
@@ -84,8 +95,7 @@ export default function ProjectsScreen() {
                                     title: item.title, 
                                     description: item.description, 
                                     goal: item.goal_amount, 
-                                    current: item.current_amount, 
-                                    photos: typeof item.photos === 'string' ? item.photos : JSON.stringify(item.photos || []) 
+                                    current: item.current_amount
                                 } 
                             })}
                         >
@@ -98,16 +108,28 @@ export default function ProjectsScreen() {
                 </View>
 
                 <View style={styles.cardBody}>
+                    {/* Description */}
                     <Text style={styles.description} numberOfLines={2}>
-                        {item.description || "Community crowdfund initiative."}
+                        {item.description || 'No description provided.'}
                     </Text>
-                    
+
+                    <Text style={{ fontSize: 12, color: '#6b7280', fontWeight: '500', marginBottom: 12 }}>
+                        Proposed by <Text style={{ color: '#10b981', fontWeight: 'bold' }}>{item.creator_callsign || 'Unknown'}</Text>
+                    </Text>
+
                     <View style={styles.progressSection}>
                         <View style={styles.progressHeader}>
                             <Text style={[styles.currentText, isFunded && styles.currentTextFunded]}>
                                 {item.current_amount} B <Text style={styles.faintText}>raised</Text>
                             </Text>
-                            <Text style={styles.goalText}>Goal: {item.goal_amount} B</Text>
+                            <View style={{ alignItems: 'flex-end' }}>
+                                <Text style={styles.goalText}>Goal: {item.goal_amount} B</Text>
+                                {item.deadline_at && (
+                                    <Text style={{ fontSize: 10, color: getDaysRemaining(item.deadline_at) === 'Expired' ? '#ef4444' : '#8b5cf6', marginTop: 2, fontWeight: 'bold' }}>
+                                        {getDaysRemaining(item.deadline_at)}
+                                    </Text>
+                                )}
+                            </View>
                         </View>
                         <View style={styles.progressBarBg}>
                             <View style={[styles.progressBarFill, { width: `${progress}%`, backgroundColor: isFunded ? '#10b981' : '#8b5cf6' }]} />

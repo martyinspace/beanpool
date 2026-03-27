@@ -6,14 +6,14 @@ const SALT = encodeUtf8('beanpool-identity-transfer-v1');
 async function deriveKey(pin: string): Promise<CryptoKey> {
     const keyMaterial = await crypto.subtle.importKey(
         'raw',
-        encodeUtf8(pin),
+        encodeUtf8(pin).buffer as ArrayBuffer,
         'PBKDF2',
         false,
         ['deriveKey']
     );
 
     return crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt: SALT, iterations: 100000, hash: 'SHA-256' },
+        { name: 'PBKDF2', salt: SALT.buffer as ArrayBuffer, iterations: 100000, hash: 'SHA-256' },
         keyMaterial,
         { name: 'AES-GCM', length: 256 },
         false,
@@ -38,7 +38,7 @@ export async function exportIdentity(identity: BeanPoolIdentity, pin: string): P
     const ciphertext = await crypto.subtle.encrypt(
         { name: 'AES-GCM', iv },
         key,
-        plaintext
+        plaintext.buffer as ArrayBuffer
     );
 
     const combined = new Uint8Array(iv.length + new Uint8Array(ciphertext).length);
@@ -76,7 +76,7 @@ export async function decryptIdentity(uri: string, pin: string): Promise<BeanPoo
     const plaintext = await crypto.subtle.decrypt(
         { name: 'AES-GCM', iv },
         key,
-        ciphertext
+        ciphertext.buffer as ArrayBuffer
     );
 
     const identity = JSON.parse(decodeUtf8(new Uint8Array(plaintext))) as BeanPoolIdentity;

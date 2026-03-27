@@ -126,7 +126,20 @@ async function _doInitDB() {
         CREATE INDEX IF NOT EXISTS idx_active_posts ON posts(created_at DESC) WHERE status = 'active';
         CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category);
 
-        -- 4. Messaging & Chat
+        -- 4. Marketplace Transactions
+        CREATE TABLE IF NOT EXISTS marketplace_transactions (
+            id TEXT PRIMARY KEY,
+            post_id TEXT NOT NULL,
+            buyer_pubkey TEXT NOT NULL,
+            seller_pubkey TEXT NOT NULL,
+            credits REAL NOT NULL,
+            hours REAL,
+            status TEXT DEFAULT 'pending',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME
+        );
+
+        -- 5. Messaging & Chat
         CREATE TABLE IF NOT EXISTS conversations (
             id TEXT PRIMARY KEY,
             type TEXT NOT NULL,
@@ -222,7 +235,7 @@ export async function getPosts(filter?: { type?: string; category?: string }) {
         SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar
         FROM posts p
         LEFT JOIN members m ON p.author_pubkey = m.public_key
-        WHERE p.status = 'active'
+        WHERE p.status IN ('active', 'pending', 'completed')
     `;
     let params: any[] = [];
     
@@ -373,13 +386,35 @@ export async function updateMemberProfile(pubkey: string, data: { callsign: stri
 
 export async function getProjects() {
     const database = await getDb();
-    const rows = await database.getAllAsync<any>('SELECT * FROM projects ORDER BY created_at DESC');
+    const rows = await database.getAllAsync<any>(`
+        SELECT p.*, m.callsign as creator_callsign
+        FROM projects p
+        LEFT JOIN members m ON p.creator_pubkey = m.public_key
+        ORDER BY p.created_at DESC
+    `);
     return rows.map(row => ({
         ...row,
         goal: row.goal_amount,
         current: row.current_amount,
         type: 'community' // fallback mapping
     }));
+}
+
+export async function getProjectById(id: string) {
+    const database = await getDb();
+    const row = await database.getFirstAsync<any>(`
+        SELECT p.*, m.callsign as creator_callsign
+        FROM projects p
+        LEFT JOIN members m ON p.creator_pubkey = m.public_key
+        WHERE p.id = ?;
+    `, [id]);
+    if (!row) return null;
+    return {
+        ...row,
+        goal: row.goal_amount,
+        current: row.current_amount,
+        type: 'community'
+    };
 }
 
 export async function createPost(post: any) {
@@ -458,7 +493,13 @@ export async function createPost(post: any) {
     );
 }
 
-export async function createProject(project: { title: string, description: string, goal_amount: number, photos?: string[] }) {
+export async function createProject(project: {
+    title: string;
+    description: string;
+    goal_amount: number;
+    photos?: string[];
+    deadline_at?: string | null;
+}) {
     await waitForInit();
     await acquireSyncLock();
     try {
@@ -481,7 +522,7 @@ export async function createProject(project: { title: string, description: strin
             description: project.description,
             photos: project.photos || [],
             goalAmount: project.goal_amount,
-            deadlineAt: null,
+            deadlineAt: project.deadline_at || null,
         };
         const bodyString = JSON.stringify(body);
 
@@ -525,9 +566,9 @@ export async function createProject(project: { title: string, description: strin
         // Save to SQLite
         const database = await getDb();
         await database.runAsync(
-            `INSERT INTO projects (id, creator_pubkey, title, description, photos, goal_amount, current_amount, status, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, 0, 'ACTIVE', ?)`,
-            [projectId, identity.publicKey, project.title, project.description, JSON.stringify(project.photos || []), project.goal_amount, new Date().toISOString()]
+             `INSERT INTO projects (id, creator_pubkey, title, description, photos, goal_amount, current_amount, status, created_at, deadline_at)
+              VALUES (?, ?, ?, ?, ?, ?, 0, 'ACTIVE', ?, ?)`,
+             [projectId, identity.publicKey, project.title, project.description, JSON.stringify(project.photos || []), project.goal_amount, new Date().toISOString(), project.deadline_at || null]
         );
     } finally {
         releaseSyncLock();
@@ -540,7 +581,8 @@ export async function updateCrowdfundProjectApi(
     title: string,
     description: string,
     photos: string[],
-    goalAmount: number
+    goalAmount: number,
+    deadlineAt?: string | null
 ) {
     const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
     if (!anchorUrl) {
@@ -559,6 +601,7 @@ export async function updateCrowdfundProjectApi(
         description,
         photos,
         goalAmount,
+        deadlineAt: deadlineAt || null,
     };
     const bodyString = JSON.stringify(body);
 
@@ -589,22 +632,76 @@ export async function updateCrowdfundProjectApi(
 
     if (!res.ok) {
         const txt = await res.text();
-        let errMsg = 'Network request failed or server rejected the update.';
-        try {
-            const json = JSON.parse(txt);
-            if (json.error) errMsg = json.error;
-        } catch (e) {
-            if (txt) errMsg = txt;
-        }
-        throw new Error(errMsg);
+        throw new Error(txt || 'Failed to update project.');
     }
 
-    // Save to SQLite
+    // Update local SQLite
     const database = await getDb();
-    await database.runAsync(
-        `UPDATE projects SET title = ?, description = ?, photos = ?, goal_amount = ? WHERE id = ?`,
-        [title, description, JSON.stringify(photos), goalAmount, projectId]
-    );
+    if (deadlineAt !== undefined) {
+         await database.runAsync(
+             `UPDATE projects SET title = ?, description = ?, photos = ?, goal_amount = ?, deadline_at = ?
+              WHERE id = ? AND creator_pubkey = ?`,
+             [title, description, JSON.stringify(photos), goalAmount, deadlineAt, projectId, identity.publicKey]
+         );
+    } else {
+         await database.runAsync(
+             `UPDATE projects SET title = ?, description = ?, photos = ?, goal_amount = ?
+              WHERE id = ? AND creator_pubkey = ?`,
+             [title, description, JSON.stringify(photos), goalAmount, projectId, identity.publicKey]
+         );
+    }
+}
+
+export async function deleteCrowdfundProjectApi(projectId: string) {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) {
+        throw new Error('You are currently offline. Please connect to a BeanPool Node to delete your project.');
+    }
+
+    const identity = await loadIdentity();
+    if (!identity) {
+        throw new Error('No identity found.');
+    }
+
+    const body = {
+        id: projectId,
+        creatorPubkey: identity.publicKey
+    };
+    const bodyString = JSON.stringify(body);
+
+    const privateKeyBytes = hexToBytes(identity.privateKey);
+    const messageBytes = encodeUtf8(bodyString);
+    const signatureBytes = await sign(messageBytes, privateKeyBytes);
+    const signatureBase64 = encodeBase64(signatureBytes);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    let res;
+    try {
+        res = await fetch(`${anchorUrl}/api/crowdfund/projects/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Public-Key': identity.publicKey,
+                'X-Signature': signatureBase64,
+            },
+            body: bodyString,
+            signal: controller.signal,
+        });
+    } catch (e: any) {
+        throw new Error(e.message || 'Network request failed. You must be connected to a node to delete projects.');
+    } finally {
+        clearTimeout(timeoutId);
+    }
+    
+    if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Failed to delete project: ${errorText}`);
+    }
+    
+    // Local SQLite Cascade Delete
+    const database = await getDb();
+    await database.runAsync(`DELETE FROM projects WHERE id = ?;`, [projectId]);
 }
 
 export async function pledgeToCrowdfundProjectApi(projectId: string, amount: number, memo: string) {
@@ -641,6 +738,35 @@ export async function updatePost(id: string, updates: any) {
 }
 
 export async function deletePost(id: string) {
+    // 1. Enforce Online Connection & Broadcast First
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) throw new Error('Action requires internet connection.');
+
+    const identity = await loadIdentity();
+    if (!identity) throw new Error('Not logged in. Identity required.');
+
+    const payload = JSON.stringify({ id, authorPublicKey: identity.publicKey });
+    
+    const privateKeyBytes = hexToBytes(identity.privateKey);
+    const messageBytes = encodeUtf8(payload);
+    const signatureBytes = await sign(messageBytes, privateKeyBytes);
+    const signature = encodeBase64(signatureBytes);
+    
+    try {
+        const res = await fetch(`${anchorUrl}/api/marketplace/posts/remove`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Public-Key': identity.publicKey, 'X-Signature': signature },
+            body: payload
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to remove post on Node');
+        }
+    } catch (e: any) {
+        throw new Error(`Offline or anchor node unreachable: ${e.message}`);
+    }
+
+    // 2. Erase from local SQLite Cache
     const database = await getDb();
     await database.runAsync('DELETE FROM posts WHERE id = ?', [id]);
 }
@@ -661,22 +787,21 @@ export async function applyDelta(delta: any) {
     }
     
     if (delta.members && delta.members.length > 0) {
-        let sql = 'BEGIN TRANSACTION;\n';
         for (const m of delta.members) {
-            const pk = (m.publicKey || m.public_key || '').replace(/'/g, "''");
-            const cs = (m.callsign || '').replace(/'/g, "''");
-            const av = m.avatarUrl || m.avatar_url ? `'${m.avatarUrl.replace(/'/g, "''")}'` : 'NULL';
-            sql += `INSERT OR REPLACE INTO members (public_key, callsign, avatar_url) VALUES ('${pk}', '${cs}', ${av});\n`;
+            const pk = m.publicKey || m.public_key || '';
+            const cs = m.callsign || '';
+            const av = m.avatarUrl || m.avatar_url || null;
+            await database.runAsync('INSERT OR REPLACE INTO members (public_key, callsign, avatar_url) VALUES (?, ?, ?)', [pk, cs, av]);
         }
-        sql += 'COMMIT;';
-        await database.execAsync(sql);
     }
     
     if (delta.transactions) {
             for (const t of delta.transactions) {
+                const fromKey = t.from_pubkey || t.from || null;
+                const toKey = t.to_pubkey || t.to || null;
                 await database.runAsync(
                     'INSERT OR REPLACE INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
-                    [t.id ?? null, t.from_pubkey ?? null, t.to_pubkey ?? null, t.amount ?? 0, t.memo ?? null, t.timestamp ?? null]
+                    [t.id ?? null, fromKey, toKey, t.amount ?? 0, t.memo ?? null, t.timestamp ?? null]
                 );
             }
         }
@@ -704,6 +829,25 @@ export async function applyDelta(delta: any) {
                         p.accepted_by || p.acceptedBy || null,
                         p.accepted_by_callsign || p.acceptedByCallsign || null,
                         p.pending_transaction_id || p.pendingTransactionId || null
+                    ]
+                );
+            }
+        }
+
+        if (delta.marketplaceTransactions !== undefined) {
+            for (const tx of delta.marketplaceTransactions) {
+                await database.runAsync(
+                    'INSERT OR REPLACE INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [
+                        tx.id ?? null,
+                        tx.postId ?? tx.post_id ?? null,
+                        tx.buyerPublicKey ?? tx.buyer_pubkey ?? null,
+                        tx.sellerPublicKey ?? tx.seller_pubkey ?? null,
+                        tx.credits ?? 0,
+                        tx.hours ?? null,
+                        tx.status ?? 'pending',
+                        tx.createdAt ?? tx.created_at ?? new Date().toISOString(),
+                        tx.completedAt ?? tx.completed_at ?? null
                     ]
                 );
             }
@@ -755,15 +899,12 @@ export async function syncMessages(publicKey: string) {
             try {
                 const dirData = await dirRes.json();
                 if (Array.isArray(dirData) && dirData.length > 0) {
-                    let sql = 'BEGIN TRANSACTION;\n';
                     for (const m of dirData) {
-                        const pk = (m.publicKey || m.public_key || '').replace(/'/g, "''");
-                        const cs = (m.callsign || '').replace(/'/g, "''");
-                        const av = m.avatarUrl || m.avatar_url ? `'${m.avatarUrl.replace(/'/g, "''")}'` : 'NULL';
-                        sql += `INSERT OR REPLACE INTO members (public_key, callsign, avatar_url) VALUES ('${pk}', '${cs}', ${av});\n`;
+                        const pk = m.publicKey || m.public_key || '';
+                        const cs = m.callsign || '';
+                        const av = m.avatarUrl || m.avatar_url || null;
+                        await database.runAsync('INSERT OR REPLACE INTO members (public_key, callsign, avatar_url) VALUES (?, ?, ?)', [pk, cs, av]);
                     }
-                    sql += 'COMMIT;';
-                    await database.execAsync(sql);
                 }
             } catch (e) {}
         }
@@ -1085,18 +1226,61 @@ async function _signedRequest(endpoint: string, payload: any) {
 }
 
 export async function acceptMarketplacePost(postId: string, buyerPublicKey: string, hours?: number) {
-    return _signedRequest('/api/marketplace/posts/accept', { postId, buyerPublicKey, hours });
+    const res = await _signedRequest('/api/marketplace/posts/accept', { postId, buyerPublicKey, hours });
+    try {
+        const database = await getDb();
+        await database.runAsync("UPDATE posts SET status = 'pending', accepted_by = ? WHERE id = ?", [buyerPublicKey, postId]);
+        // Note: the backend assigns the pending_transaction_id. The sync loop will pull it shortly.
+    } catch(e) {}
+    return res;
 }
 
 export async function completeMarketplaceTransaction(transactionId: string, confirmerPublicKey: string, finalHours?: number) {
-    return _signedRequest('/api/marketplace/transactions/complete', { transactionId, confirmerPublicKey, finalHours });
+    const res = await _signedRequest('/api/marketplace/transactions/complete', { transactionId, confirmerPublicKey, finalHours });
+    try {
+        const database = await getDb();
+        await database.runAsync("UPDATE posts SET status = 'completed' WHERE pending_transaction_id = ?", [transactionId]);
+    } catch(e) {}
+    return res;
 }
 
 export async function cancelMarketplaceTransaction(transactionId: string, cancellerPublicKey: string) {
-    return _signedRequest('/api/marketplace/transactions/cancel', { transactionId, cancellerPublicKey });
+    const res = await _signedRequest('/api/marketplace/transactions/cancel', { transactionId, cancellerPublicKey });
+    try {
+        const database = await getDb();
+        await database.runAsync("UPDATE posts SET status = 'active', accepted_by = NULL, pending_transaction_id = NULL WHERE pending_transaction_id = ?", [transactionId]);
+    } catch(e) {}
+    return res;
+}
+
+export async function requestMarketplacePost(postId: string, buyerPublicKey: string, hours?: number) {
+    // Unlike 'accept', requesting does not lock the post. It just creates a requested transaction.
+    return _signedRequest('/api/marketplace/posts/request', { postId, buyerPublicKey, hours });
+}
+
+export async function approveMarketplaceRequest(transactionId: string, authorPublicKey: string) {
+    const res = await _signedRequest('/api/marketplace/transactions/approve', { transactionId, authorPublicKey });
+    try {
+        const database = await getDb();
+        // The transaction becomes pending, and the post becomes pending.
+        await database.runAsync("UPDATE posts SET status = 'pending', pending_transaction_id = ? WHERE id = (SELECT post_id FROM marketplace_transactions WHERE id = ?)", [transactionId, transactionId]);
+    } catch(e) {}
+    return res;
+}
+
+export async function rejectMarketplaceRequest(transactionId: string, authorPublicKey: string) {
+    return _signedRequest('/api/marketplace/transactions/reject', { transactionId, authorPublicKey });
+}
+
+export async function cancelMarketplaceRequest(transactionId: string, buyerPublicKey: string) {
+    return _signedRequest('/api/marketplace/transactions/cancel-request', { transactionId, buyerPublicKey });
 }
 
 export async function reportAbuse(reporterPublicKey: string, targetPublicKey: string, reason: string, postId?: string) {
     return _signedRequest('/api/members/report', { reporterPublicKey, targetPublicKey, reason, postId });
 }
 
+
+export async function submitRating(raterPublicKey: string, targetPublicKey: string, rating: number, comment: string, transactionId?: string) {
+    return _signedRequest('/api/members/rate', { raterPublicKey, targetPublicKey, rating, comment, transactionId });
+}

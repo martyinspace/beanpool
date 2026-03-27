@@ -20,9 +20,11 @@ interface Props {
 }
 
 export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onToggleTheme }: Props) {
-    const [mode, setMode] = useState<'menu' | 'export' | 'profile'>('menu');
+    const [mode, setMode] = useState<'menu' | 'export' | 'import' | 'profile'>('menu');
     const [pin, setPin] = useState('');
     const [exportUri, setExportUri] = useState('');
+    const [importUri, setImportUri] = useState('');
+    const [importPin, setImportPin] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState<string | null>(null);
@@ -42,6 +44,39 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
             setExportUri(uri);
         } catch {
             setError('Export failed.');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function handleImport() {
+        if (importPin.length < 4) {
+            setError('PIN must be at least 4 digits.');
+            return;
+        }
+        if (!importUri || (!importUri.includes('import=') && !importUri.includes('beanpool://'))) {
+            setError('Invalid Transfer URI.');
+            return;
+        }
+        setLoading(true);
+        setError(null);
+        try {
+            const { decryptIdentity } = await import('../lib/identity-transfer');
+            const importedIdentity = await decryptIdentity(importUri, importPin);
+            
+            if (window.confirm(`Do you want to permanently merge this device onto the "${importedIdentity.callsign}" identity? Your current web keys will be destroyed.`)) {
+                localStorage.setItem('beanpool_identity', JSON.stringify({
+                    publicKey: importedIdentity.publicKey,
+                    privateKey: importedIdentity.privateKey,
+                    callsign: importedIdentity.callsign,
+                    createdAt: importedIdentity.createdAt,
+                }));
+                onIdentityUpdated(importedIdentity);
+                setMode('menu');
+                alert('Success: Device Unified Successfully!');
+            }
+        } catch (e: any) {
+            setError(e.message || 'Decrypt error. Wrong PIN?');
         } finally {
             setLoading(false);
         }
@@ -101,6 +136,13 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                             className="w-full py-4 px-5 rounded-2xl bg-white dark:bg-nature-900 text-nature-900 dark:text-white font-bold border border-nature-200 dark:border-nature-800 shadow-sm hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors text-left flex items-center justify-between group"
                         >
                             <span>📤 Export Identity</span>
+                            <span className="text-nature-400 dark:text-nature-500 group-hover:text-nature-600 dark:group-hover:text-nature-300 transition-colors">→</span>
+                        </button>
+                        <button
+                            onClick={() => { setMode('import'); setImportUri(''); setImportPin(''); setError(null); }}
+                            className="w-full py-4 px-5 rounded-2xl bg-white dark:bg-nature-900 text-nature-900 dark:text-white font-bold border border-nature-200 dark:border-nature-800 shadow-sm hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors text-left flex items-center justify-between group"
+                        >
+                            <span>📥 Import Identity</span>
                             <span className="text-nature-400 dark:text-nature-500 group-hover:text-nature-600 dark:group-hover:text-nature-300 transition-colors">→</span>
                         </button>
                     </div>
@@ -194,6 +236,55 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                                 </p>
                             </>
                         )}
+                        <button
+                            onClick={() => setMode('menu')}
+                            className="w-full py-3 rounded-xl font-semibold bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                )}
+
+                {mode === 'import' && (
+                    <div className="bg-white dark:bg-nature-900 rounded-2xl p-6 shadow-soft border border-nature-200 dark:border-nature-800 animate-in fade-in slide-in-from-bottom-2 duration-300 transition-colors">
+                        <h3 className="text-lg font-bold text-nature-950 dark:text-white mb-3 m-0 transition-colors">📥 Import Identity</h3>
+                        <p className="text-nature-600 dark:text-nature-400 text-[15px] mb-5 leading-relaxed transition-colors">
+                            Paste the Transfer URI and enter the 4+ digit PIN from your other device to securely merge.
+                        </p>
+                        
+                        <textarea 
+                            value={importUri}
+                            onChange={(e) => setImportUri(e.target.value)}
+                            placeholder="https://.../?import=..."
+                            className="w-full h-24 py-3 px-4 mb-3 rounded-xl border border-nature-200 dark:border-nature-800 bg-oat-50/50 dark:bg-nature-950/50 text-nature-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-terra-300 dark:focus:ring-terra-600 transition-all font-mono text-xs resize-none"
+                            autoCapitalize="none"
+                            autoCorrect="false"
+                        />
+                        
+                        <input
+                            type="password"
+                            inputMode="numeric"
+                            value={importPin}
+                            onChange={(e) => setImportPin(e.target.value)}
+                            placeholder="PIN"
+                            maxLength={8}
+                            className="w-full py-3 px-4 mb-4 rounded-xl border border-nature-200 dark:border-nature-800 bg-oat-50/50 dark:bg-nature-950/50 text-nature-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-terra-300 dark:focus:ring-terra-600 transition-all font-mono text-center tracking-[0.2em] text-lg placeholder:tracking-normal placeholder:font-sans placeholder:text-sm"
+                        />
+                        
+                        {error && <p className="text-red-500 dark:text-red-400 text-sm mb-4 font-medium px-1 animate-pulse">{error}</p>}
+                        
+                        <button 
+                            onClick={handleImport} 
+                            disabled={loading || importPin.length < 4 || !importUri} 
+                            className={`w-full py-3.5 mb-3 rounded-xl font-bold transition-all shadow-sm ${
+                                !loading && importPin.length >= 4 && importUri
+                                    ? 'bg-nature-900 dark:bg-white text-white dark:text-nature-900 hover:bg-nature-800 dark:hover:bg-oat-100 hover:shadow-md' 
+                                    : 'bg-oat-200 dark:bg-nature-800 text-oat-500 dark:text-nature-500 cursor-not-allowed'
+                            }`}
+                        >
+                            {loading ? 'Decrypting...' : 'Decrypt & Merge Device'}
+                        </button>
+                        
                         <button
                             onClick={() => setMode('menu')}
                             className="w-full py-3 rounded-xl font-semibold bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors"

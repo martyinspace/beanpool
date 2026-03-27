@@ -48,6 +48,7 @@ export interface Thresholds {
     washTradingMinTxns: number;      // Min txns in window to flag (default: 4)
     inactiveMemberDays: number;      // Days with no activity to flag (default: 30)
     isolatedBranchMinTxns: number;   // Min internal txns to flag isolation (default: 3)
+    maxProjectExpiryDays: number;    // Max days allowed for crowdfund expiry (default: 365)
 }
 
 const DEFAULT_CONFIG: LocalConfig = {
@@ -156,6 +157,7 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
     washTradingMinTxns: 4,
     inactiveMemberDays: 30,
     isolatedBranchMinTxns: 3,
+    maxProjectExpiryDays: 365,
 };
 
 export function getThresholds(): Thresholds {

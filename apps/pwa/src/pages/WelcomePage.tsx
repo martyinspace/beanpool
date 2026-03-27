@@ -141,6 +141,11 @@ export function WelcomePage({ onComplete }: Props) {
                     await registerMember(pendingIdentity.publicKey, pendingIdentity.callsign);
                 } catch { /* offline */ }
             }
+            
+            // Onboarding complete — explicitly ask for location once
+            if ('geolocation' in navigator) {
+                navigator.geolocation.getCurrentPosition(() => {}, () => {});
+            }
             onComplete(pendingIdentity);
         } finally {
             setLoading(false);
@@ -164,6 +169,11 @@ export function WelcomePage({ onComplete }: Props) {
             try {
                 await registerMember(identity.publicKey, identity.callsign);
             } catch { /* offline */ }
+            
+            // Recovery complete — explicitly ask for location once
+            if ('geolocation' in navigator) {
+                navigator.geolocation.getCurrentPosition(() => {}, () => {});
+            }
             onComplete(identity);
         } catch {
             setError('Recovery failed. Check your words and try again.');
@@ -185,6 +195,11 @@ export function WelcomePage({ onComplete }: Props) {
             try {
                 await registerMember(imported.publicKey, imported.callsign);
             } catch { /* offline — will register on next sync */ }
+            
+            // Import complete — explicitly ask for location once
+            if ('geolocation' in navigator) {
+                navigator.geolocation.getCurrentPosition(() => {}, () => {});
+            }
             onComplete(imported);
         } catch {
             setError('Import failed — wrong PIN or invalid code.');

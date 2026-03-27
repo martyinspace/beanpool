@@ -19,6 +19,7 @@ import {
     getNodeInfo, getRemotePosts, sendRemoteTransfer, sendFederationMessage,
     acceptMarketplacePost, completeMarketplaceTransaction,
     cancelMarketplaceTransaction, getMyMarketplaceTransactions, getNodeConfig,
+    requestMarketplacePost, approveMarketplaceRequest, rejectMarketplaceRequest, cancelMarketplaceRequest,
     type MarketplacePost, type MemberProfile, type NodeInfo, type MarketplaceTransaction, type NodeConfig,
 } from '../lib/api';
 import { type BeanPoolIdentity } from '../lib/identity';
@@ -115,6 +116,32 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
     const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
     const [completeHours, setCompleteHours] = useState('');
 
+    // Requests Dashboard
+    const [requests, setRequests] = useState<MarketplaceTransaction[]>([]);
+
+    // Active Deals Segment Toggle
+    const [activeTab, setActiveTab] = useState<'feed' | 'deals'>('feed');
+    // ALL of the user's posts or accepted fulfillments, sorted by urgency
+    const myMarketPosts = posts.filter(p => 
+        identity && 
+        (p.authorPublicKey === identity.publicKey || (p as any).acceptedBy === identity.publicKey)
+    ).sort((a, b) => {
+        if (a.status === 'pending' && b.status !== 'pending') return -1;
+        if (b.status === 'pending' && a.status !== 'pending') return 1;
+        if (a.status === 'active' && b.status !== 'active') return -1;
+        if (b.status === 'active' && a.status !== 'active') return 1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    // Global requests waiting for the current user's approval
+    const [globalRequests, setGlobalRequests] = useState<MarketplaceTransaction[]>([]);
+
+    const pendingDealsCount = posts.filter(p => 
+        p.status === 'pending' && 
+        identity && 
+        (p.authorPublicKey === identity.publicKey || (p as any).acceptedBy === identity.publicKey)
+    ).length + globalRequests.length;
+
     // Author ratings cache for tiles
     const [authorRatingsCache, setAuthorRatingsCache] = useState<Record<string, { average: number; count: number }>>({}); 
 
@@ -124,8 +151,14 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
             if (typeFilter !== 'all') filter.type = typeFilter;
             if (categoryFilter !== 'all') filter.category = categoryFilter;
 
-            // Always fetch home node
-            const homeData = await getMarketplacePosts(filter);
+            // Always fetch home node + global requests
+            const [homeData, myTxs] = await Promise.all([
+                getMarketplacePosts(filter),
+                identity ? getMyMarketplaceTransactions(identity.publicKey).catch(() => []) : Promise.resolve([])
+            ]);
+            
+            setGlobalRequests(myTxs.filter(t => t.buyerPublicKey === identity?.publicKey && t.status === 'requested'));
+
             let allPosts: MarketplacePost[] = [...homeData];
 
             // Fetch from all enabled peer nodes in parallel
@@ -200,7 +233,18 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
         getMemberRatings(selectedPost.authorPublicKey)
             .then(r => setAuthorAvgRating({ average: r.average, count: r.count, asProvider: r.asProvider, asReceiver: r.asReceiver }))
             .catch(() => {});
-    }, [selectedPost?.id]);
+        
+        // Fetch requests if this is a Need
+        if (selectedPost.type === 'need') {
+            getMyMarketplaceTransactions(identity?.publicKey || '')
+                .then(txs => {
+                    setRequests(txs.filter(t => t.postId === selectedPost.id && t.status === 'requested'));
+                })
+                .catch(() => setRequests([]));
+        } else {
+            setRequests([]);
+        }
+    }, [selectedPost?.id, identity?.publicKey]);
 
     async function handleMessageAuthor() {
         if (!identity || !selectedPost) return;
@@ -250,6 +294,14 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
         const postedDate = new Date(selectedPost.createdAt);
         const ago = getTimeAgo(postedDate);
         const isOwnPost = identity?.publicKey === selectedPost.authorPublicKey;
+        
+        // --- Escrow Roles ---
+        const isAcceptedByMe = identity?.publicKey === (selectedPost as any).acceptedBy;
+        const isPayer = (selectedPost.type === 'offer' && isAcceptedByMe) || (selectedPost.type === 'need' && isOwnPost);
+        const isPayee = (selectedPost.type === 'offer' && isOwnPost) || (selectedPost.type === 'need' && isAcceptedByMe);
+        const targetPeerCallsign = isOwnPost 
+            ? (selectedPost.acceptedByCallsign || 'Peer') 
+            : selectedPost.authorCallsign;
 
         return (
             <div className="p-4 max-w-lg mx-auto pb-24">
@@ -369,25 +421,252 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                     </div>
                 </div>
 
-                {/* Action buttons */}
-                {!isOwnPost && (
+                 {/* Action buttons */}
+                 
+                 {/* 1. Pending Escrow State (Applies to both Payer and Payee) */}
+                 {selectedPost.status === 'pending' && (isPayer || isPayee) && (
+                     <div className="flex flex-col gap-2 mt-4">
+                         {isPayer ? (
+                             <>
+                                 <p className="text-emerald-600 dark:text-emerald-400 text-sm font-bold text-center mb-1">
+                                     ✅ Action Required: Release Credits
+                                 </p>
+                                 <p className="text-xs text-nature-500 text-center mb-2 px-4 shadow-sm">
+                                     You are the Payer. Once {targetPeerCallsign} has fulfilled the terms, release the escrow to complete the transaction.
+                                 </p>
+                                 
+                                 {showCompleteConfirm ? (
+                                     <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4 shadow-inner mt-2">
+                                         <p className="font-bold text-emerald-900 dark:text-emerald-400 mb-2 text-center text-sm">
+                                             Finalize Transaction
+                                         </p>
+                                         
+                                         {selectedPost.priceType === 'hourly' && (
+                                             <div className="mb-3">
+                                                 <label className="block text-xs font-bold text-emerald-700 dark:text-emerald-500 mb-1 uppercase tracking-wider">
+                                                     Actual Hours Worked
+                                                 </label>
+                                                 <input
+                                                     type="number"
+                                                     value={completeHours}
+                                                     onChange={(e) => setCompleteHours(e.target.value)}
+                                                     min="0.5"
+                                                     step="0.5"
+                                                     placeholder="e.g. 2.5"
+                                                     className="w-full bg-white dark:bg-nature-900 border border-emerald-200 dark:border-emerald-800 rounded-lg px-3 py-2 text-nature-900 dark:text-white font-mono text-center focus:ring-2 focus:ring-emerald-400 focus:outline-none"
+                                                 />
+                                             </div>
+                                         )}
+                                         
+                                         <div className="text-center mb-4 text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-white dark:bg-nature-900 py-2.5 rounded-lg border border-emerald-100 dark:border-emerald-900 shadow-sm">
+                                             {(() => {
+                                                 const hrs = Number(completeHours) || 0;
+                                                 const tot = selectedPost.priceType === 'hourly' ? selectedPost.credits * hrs : selectedPost.credits;
+                                                 return `Transferring ${tot} B to ${targetPeerCallsign}`;
+                                             })()}
+                                         </div>
+                                         
+                                         <div className="flex gap-2">
+                                             <button
+                                                 onClick={() => setShowCompleteConfirm(false)}
+                                                 disabled={accepting}
+                                                 className="flex-1 py-2.5 rounded-lg border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors text-sm"
+                                             >
+                                                 Cancel
+                                             </button>
+                                             <button
+                                                 onClick={async () => {
+                                                     if (!identity || !selectedPost.pendingTransactionId) return;
+                                                     setAccepting(true);
+                                                     try {
+                                                         const isHourly = selectedPost.priceType === 'hourly';
+                                                         const finalHours = isHourly ? Number(completeHours) : undefined;
+                                                         await completeMarketplaceTransaction(selectedPost.pendingTransactionId, identity.publicKey, finalHours);
+                                                         setSelectedPost(null);
+                                                         setShowCompleteConfirm(false);
+                                                         refresh();
+                                                     } catch (e: any) {
+                                                         setError(e.message || 'Failed to complete transaction');
+                                                     } finally {
+                                                         setAccepting(false);
+                                                     }
+                                                 }}
+                                                 disabled={accepting || (selectedPost.priceType === 'hourly' && (!completeHours || Number(completeHours) <= 0))}
+                                                 className={`flex-1 py-2.5 rounded-lg font-bold text-white text-sm transition-all shadow-sm ${
+                                                     accepting 
+                                                         ? 'bg-emerald-400 cursor-not-allowed opacity-60' 
+                                                         : 'bg-emerald-600 hover:bg-emerald-700'
+                                                 }`}
+                                             >
+                                                 {accepting ? 'Processing...' : 'Release Credits'}
+                                             </button>
+                                         </div>
+                                     </div>
+                                 ) : (
+                                     <button
+                                         onClick={() => {
+                                             setShowCompleteConfirm(true);
+                                             if (selectedPost.priceType === 'hourly' && !completeHours) {
+                                                 setCompleteHours('1');
+                                             }
+                                         }}
+                                         disabled={accepting}
+                                         className={`w-full py-3.5 rounded-xl font-bold text-white text-[15px] transition-all shadow-md ${
+                                             accepting ? 'bg-emerald-400 cursor-not-allowed opacity-60' : 'bg-emerald-500 hover:bg-emerald-600'
+                                         }`}
+                                     >
+                                         {accepting ? 'Processing...' : '✅ Release Credits'}
+                                     </button>
+                                 )}
+                             </>
+                         ) : (
+                             <>
+                                 <p className="text-amber-500 text-sm font-semibold text-center mt-2 mb-2">
+                                     ⏳ Pending Release by {targetPeerCallsign}
+                                 </p>
+                                 <p className="text-xs text-nature-500 text-center mb-2 px-4 shadow-sm">
+                                     You are the Payee. Fulfill the terms exactly as agreed, and the Payer will release your credits.
+                                 </p>
+                             </>
+                         )}
+                         
+                         <button
+                             onClick={async () => {
+                                 if (!identity || !selectedPost.pendingTransactionId) return;
+                                 if (!confirm('Cancel this transaction and return the post to the market?')) return;
+                                 setAccepting(true);
+                                 try {
+                                     await cancelMarketplaceTransaction(selectedPost.pendingTransactionId, identity.publicKey);
+                                     setSelectedPost(null);
+                                     refresh();
+                                 } catch (e: any) {
+                                     setError(e.message || 'Failed to cancel transaction');
+                                 } finally {
+                                     setAccepting(false);
+                                 }
+                             }}
+                             disabled={accepting}
+                             className={`w-full py-3 mt-2 rounded-xl border font-bold text-sm transition-colors ${
+                                 accepting ? 'border-red-200 text-red-300 cursor-not-allowed' : 'border-red-300 text-red-500 hover:bg-red-50'
+                             }`}
+                         >
+                             ❌ Cancel Escrow
+                         </button>
+                     </div>
+                 )}
+
+                {/* 1.5 Pending Requests (For Authors of Needs) */}
+                {isOwnPost && selectedPost.type === 'need' && selectedPost.status === 'active' && requests.length > 0 && (
+                    <div className="mt-4 bg-oat-50 dark:bg-nature-950 border border-amber-200 dark:border-amber-900/50 rounded-xl p-3 shadow-sm">
+                        <p className="font-bold text-amber-800 dark:text-amber-500 text-sm mb-2 text-center">
+                            ✋ Pending Offers to Fulfill ({requests.length})
+                        </p>
+                        <div className="flex flex-col gap-2">
+                            {requests.map(req => (
+                                <div key={req.id} className="bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-lg p-3 flex flex-col shadow-sm">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-nature-900 dark:text-white text-sm">
+                                                {req.sellerCallsign}
+                                            </span>
+                                            <span className="text-xs text-nature-500">
+                                                {req.hours ? `${req.hours} hours estimated` : 'Offered to fulfill'}
+                                            </span>
+                                        </div>
+                                        <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm bg-emerald-50 dark:bg-emerald-900/40 px-2 py-0.5 rounded">
+                                            {req.credits} B
+                                        </span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={async () => {
+                                                if (!identity) return;
+                                                setAccepting(true);
+                                                try {
+                                                    await rejectMarketplaceRequest(req.id, identity.publicKey);
+                                                    setRequests(prev => prev.filter(r => r.id !== req.id));
+                                                } catch (e: any) {
+                                                    setError(e.message || 'Failed to reject offer');
+                                                } finally {
+                                                    setAccepting(false);
+                                                }
+                                            }}
+                                            disabled={accepting}
+                                            className="flex-1 py-1.5 rounded-md border border-nature-200 dark:border-nature-700 text-nature-600 dark:text-nature-400 font-bold text-xs hover:bg-red-50 hover:text-red-600 hover:border-red-200 dark:hover:bg-red-900/30 transition-colors"
+                                        >
+                                            Deny
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                if (!identity) return;
+                                                setAccepting(true);
+                                                try {
+                                                    await approveMarketplaceRequest(req.id, identity.publicKey);
+                                                    const updated = await getMarketplacePosts({ id: selectedPost.id });
+                                                    if (updated.length > 0) setSelectedPost(updated[0]);
+                                                    refresh();
+                                                } catch (e: any) {
+                                                    setError(e.message || 'Failed to approve offer. Check your balance.');
+                                                } finally {
+                                                    setAccepting(false);
+                                                }
+                                            }}
+                                            disabled={accepting}
+                                            className="flex-1 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-colors"
+                                        >
+                                            Approve & Escrow
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* 2. Unaccepted Posts Displayed to Browsers */}
+                {!isOwnPost && selectedPost.status === 'active' && !isAcceptedByMe && (
                     <div style={{
                         display: 'flex', flexDirection: 'column', gap: '0.5rem',
                         marginTop: '0.75rem',
                     }}>
-                        <button
-                            onClick={handleMessageAuthor}
-                            disabled={messaging}
-                            className={`w-full py-3.5 rounded-xl font-bold text-white text-[15px] transition-all shadow-md ${
-                                messaging ? 'bg-nature-500 cursor-not-allowed opacity-60' : 'bg-nature-800 hover:bg-nature-900'
-                            }`}
-                        >
-                            {messaging ? 'Opening chat...' : '💬 Message'}
-                        </button>
-                        {showAcceptConfirm ? (
+                        {(() => {
+                            const myRequest = requests.find(r => r.sellerPublicKey === identity?.publicKey);
+                            if (myRequest) {
+                                return (
+                                    <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4 shadow-sm text-center">
+                                        <span className="text-4xl block mb-2">⏳</span>
+                                        <p className="font-bold text-amber-800 dark:text-amber-500 mb-1">
+                                            Offer Pending Approval
+                                        </p>
+                                        <p className="text-xs text-nature-600 dark:text-nature-400 mb-4">
+                                            The author is reviewing your offer to fulfill this need.
+                                        </p>
+                                        <button
+                                            onClick={async () => {
+                                                if (!identity) return;
+                                                setAccepting(true);
+                                                try {
+                                                    await cancelMarketplaceRequest(myRequest.id, identity.publicKey);
+                                                    setRequests(prev => prev.filter(r => r.id !== myRequest.id));
+                                                } catch (e: any) {
+                                                    setError(e.message || 'Failed to cancel request');
+                                                } finally {
+                                                    setAccepting(false);
+                                                }
+                                            }}
+                                            disabled={accepting}
+                                            className="w-full py-2.5 rounded-lg border border-red-200 text-red-600 font-bold hover:bg-red-50 transition-colors text-sm"
+                                        >
+                                            {accepting ? 'Canceling...' : 'Cancel Offer'}
+                                        </button>
+                                    </div>
+                                );
+                            }
+
+                            return showAcceptConfirm ? (
                             <div className="bg-oat-50 dark:bg-nature-950 border border-nature-200 dark:border-nature-800 rounded-xl p-4 shadow-inner mt-2">
                                 <p className="font-bold text-nature-900 dark:text-white mb-2 text-center text-sm">
-                                    {selectedPost.type === 'offer' ? 'Accept this Offer?' : 'Fulfill this Need?'}
+                                    {selectedPost.type === 'offer' ? 'Accept this Offer?' : 'Offer to Fulfill this Need?'}
                                 </p>
                                 
                                 {selectedPost.priceType === 'hourly' && (
@@ -447,7 +726,11 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                                     }
                                                     handleMessageAuthor();
                                                 } else {
-                                                    await acceptMarketplacePost(selectedPost.id, identity.publicKey, estimatedHours);
+                                                    if (selectedPost.type === 'offer') {
+                                                        await acceptMarketplacePost(selectedPost.id, identity.publicKey, estimatedHours);
+                                                    } else {
+                                                        await requestMarketplacePost(selectedPost.id, identity.publicKey, estimatedHours);
+                                                    }
                                                     handleMessageAuthor();
                                                     refresh();
                                                 }
@@ -472,20 +755,34 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                         ) : (
                             <button
                                 onClick={() => setShowAcceptConfirm(true)}
-                                disabled={accepting || selectedPost.status === 'pending'}
+                                disabled={accepting}
                                 className={`w-full py-3.5 rounded-xl font-bold text-white text-[15px] transition-all shadow-md ${
-                                    accepting || selectedPost.status === 'pending'
+                                    accepting 
                                         ? 'bg-nature-400 cursor-not-allowed opacity-60'
                                         : selectedPost.type === 'offer' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-terra-600 hover:bg-terra-700'
                                 }`}
                             >
-                                 {accepting ? 'Processing...' : (
-                                     selectedPost.status === 'pending'
-                                         ? '⏳ Pending Confirmation'
-                                         : (selectedPost.type === 'offer' ? '🤝 Accept Offer' : '🤝 Fulfill Need')
-                                 )}
+                                 {accepting ? 'Processing...' : (selectedPost.type === 'offer' ? '🤝 Accept Offer' : '✋ Offer to Fulfill')}
                             </button>
-                        )}
+                        );
+                        })()}
+                        
+                    </div>
+                )}
+                
+                {/* 3. Global Message Button (Visible to Non-Authors) */}
+                {!isOwnPost && (
+                    <div className="mt-2">
+                        <button
+                            onClick={handleMessageAuthor}
+                            disabled={messaging}
+                            className={`w-full py-3.5 mt-1 rounded-xl font-bold text-white text-[15px] transition-all shadow-md ${
+                                messaging ? 'bg-nature-500 cursor-not-allowed opacity-60' : 'bg-nature-800 hover:bg-nature-900'
+                            }`}
+                        >
+                            {messaging ? 'Opening chat...' : '💬 Message'}
+                        </button>
+                        
                         {/* Transaction-gated rating — only show on completed posts where user was a participant */}
                         {identity && selectedPost.status === 'completed' && selectedPost.pendingTransactionId && (
                             identity.publicKey === selectedPost.authorPublicKey || 
@@ -620,124 +917,9 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                     </div>
                 )}
 
-                {isOwnPost && (
+                {isOwnPost && selectedPost.status !== 'pending' && (
                     <div className="flex flex-col gap-2 mt-4">
                         {!editMode ? (
-                            selectedPost.status === 'pending' ? (
-                                <>
-                                    <p className="text-amber-500 text-sm font-semibold text-center mb-2">
-                                        ⏳ Pending Completion by {selectedPost.acceptedByCallsign || 'Buyer'}
-                                    </p>
-                                    {showCompleteConfirm ? (
-                                        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4 shadow-inner mt-2">
-                                            <p className="font-bold text-emerald-900 dark:text-emerald-400 mb-2 text-center text-sm">
-                                                Finalize Transaction
-                                            </p>
-                                            
-                                            {selectedPost.priceType === 'hourly' && (
-                                                <div className="mb-3">
-                                                    <label className="block text-xs font-bold text-emerald-700 dark:text-emerald-500 mb-1 uppercase tracking-wider">
-                                                        Actual Hours Worked
-                                                    </label>
-                                                    <input
-                                                        type="number"
-                                                        value={completeHours}
-                                                        onChange={(e) => setCompleteHours(e.target.value)}
-                                                        min="0.5"
-                                                        step="0.5"
-                                                        placeholder="e.g. 2.5"
-                                                        className="w-full bg-white dark:bg-nature-900 border border-emerald-200 dark:border-emerald-800 rounded-lg px-3 py-2 text-nature-900 dark:text-white font-mono text-center focus:ring-2 focus:ring-emerald-400 focus:outline-none"
-                                                    />
-                                                </div>
-                                            )}
-                                            
-                                            <div className="text-center mb-4 text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-white dark:bg-nature-900 py-2.5 rounded-lg border border-emerald-100 dark:border-emerald-900 shadow-sm">
-                                                {(() => {
-                                                    const hrs = Number(completeHours) || 0;
-                                                    const tot = selectedPost.priceType === 'hourly' ? selectedPost.credits * hrs : selectedPost.credits;
-                                                    return `Transferring ${tot} B to ${selectedPost.type === 'offer' ? 'you' : selectedPost.acceptedByCallsign}`;
-                                                })()}
-                                            </div>
-                                            
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => setShowCompleteConfirm(false)}
-                                                    disabled={accepting}
-                                                    className="flex-1 py-2.5 rounded-lg border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors text-sm"
-                                                >
-                                                    Cancel
-                                                </button>
-                                                <button
-                                                    onClick={async () => {
-                                                        if (!identity || !selectedPost.pendingTransactionId) return;
-                                                        setAccepting(true);
-                                                        try {
-                                                            const isHourly = selectedPost.priceType === 'hourly';
-                                                            const finalHours = isHourly ? Number(completeHours) : undefined;
-                                                            await completeMarketplaceTransaction(selectedPost.pendingTransactionId, identity.publicKey, finalHours);
-                                                            setSelectedPost(null);
-                                                            setShowCompleteConfirm(false);
-                                                            refresh();
-                                                        } catch (e: any) {
-                                                            setError(e.message || 'Failed to complete transaction');
-                                                        } finally {
-                                                            setAccepting(false);
-                                                        }
-                                                    }}
-                                                    disabled={accepting || (selectedPost.priceType === 'hourly' && (!completeHours || Number(completeHours) <= 0))}
-                                                    className={`flex-1 py-2.5 rounded-lg font-bold text-white text-sm transition-all shadow-sm ${
-                                                        accepting 
-                                                            ? 'bg-emerald-400 cursor-not-allowed opacity-60' 
-                                                            : 'bg-emerald-600 hover:bg-emerald-700'
-                                                    }`}
-                                                >
-                                                    {accepting ? 'Processing...' : 'Release Credits'}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <button
-                                            onClick={() => {
-                                                setShowCompleteConfirm(true);
-                                                // Initialize completeHours based on original credits if hourly but not set yet
-                                                if (selectedPost.priceType === 'hourly' && !completeHours) {
-                                                    // This represents a guess; the original hours isn't attached to the post directly for the author, 
-                                                    // but we can default to 1 for simplicity and force them to enter the actual amount.
-                                                    setCompleteHours('1');
-                                                }
-                                            }}
-                                            disabled={accepting}
-                                            className={`w-full py-3.5 rounded-xl font-bold text-white text-[15px] transition-all shadow-md ${
-                                                accepting ? 'bg-emerald-400 cursor-not-allowed opacity-60' : 'bg-emerald-500 hover:bg-emerald-600'
-                                            }`}
-                                        >
-                                            {accepting ? 'Processing...' : '✅ Release Credits'}
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={async () => {
-                                            if (!identity || !selectedPost.pendingTransactionId) return;
-                                            if (!confirm('Cancel this transaction and return the post to the market?')) return;
-                                            setAccepting(true);
-                                            try {
-                                                await cancelMarketplaceTransaction(selectedPost.pendingTransactionId, identity.publicKey);
-                                                setSelectedPost(null);
-                                                refresh();
-                                            } catch (e: any) {
-                                                setError(e.message || 'Failed to cancel transaction');
-                                            } finally {
-                                                setAccepting(false);
-                                            }
-                                        }}
-                                        disabled={accepting}
-                                        className={`w-full py-3 rounded-xl border font-bold text-sm transition-colors ${
-                                            accepting ? 'border-red-200 text-red-300 cursor-not-allowed' : 'border-red-300 text-red-500 hover:bg-red-50'
-                                        }`}
-                                    >
-                                        ❌ Cancel Transaction
-                                    </button>
-                                </>
-                            ) : (
                             <>
                                 <button
                                     onClick={() => {
@@ -776,7 +958,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                     {deleting === selectedPost.id ? 'Deleting...' : '🗑️ Delete Post'}
                                 </button>
                             </>
-                        )) : (
+                        ) : (
                             <div className="bg-white dark:bg-nature-950 border border-nature-200 dark:border-nature-800 rounded-2xl p-5 shadow-sm">
                                 <h3 className="font-bold text-lg text-nature-950 dark:text-white mb-4 tracking-tight">✏️ Edit Post</h3>
 
@@ -962,6 +1144,35 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                 />
             )}
 
+            {/* Top Segmented Control (Feed vs Deals) */}
+            <div className="flex bg-nature-100 dark:bg-nature-800 rounded-xl p-1 mb-3 shadow-inner">
+                <button
+                    onClick={() => setActiveTab('feed')}
+                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${
+                        activeTab === 'feed'
+                            ? 'bg-white dark:bg-nature-900 text-nature-900 dark:text-white shadow-sm'
+                            : 'text-nature-500 hover:text-nature-700 dark:hover:text-nature-300'
+                    }`}
+                >
+                    Global Feed
+                </button>
+                <button
+                    onClick={() => setActiveTab('deals')}
+                    className={`flex-1 flex gap-2 items-center justify-center py-2 text-sm font-bold rounded-lg transition-all ${
+                        activeTab === 'deals'
+                            ? 'bg-white dark:bg-nature-900 text-nature-900 dark:text-white shadow-sm'
+                            : 'text-nature-500 hover:text-nature-700 dark:hover:text-nature-300'
+                    }`}
+                >
+                    <span>My Market</span>
+                    {pendingDealsCount > 0 && (
+                        <span className="bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
+                            {pendingDealsCount}
+                        </span>
+                    )}
+                </button>
+            </div>
+
             {/* ── Compact Top Header ── */}
             <div className="mb-2">
                 {/* Search + Primary Actions */}
@@ -1106,9 +1317,15 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
             {loading ? (
                 <p className="text-nature-500 text-center py-8">Loading...</p>
             ) : (() => {
-                let filtered = showMine && identity
-                    ? posts.filter(p => p.authorPublicKey === identity.publicKey)
-                    : posts;
+                let filtered = posts;
+                
+                if (activeTab === 'deals') {
+                    filtered = myMarketPosts;
+                } else if (showMine && identity) {
+                    filtered = posts.filter(p => p.authorPublicKey === identity.publicKey);
+                } else {
+                    filtered = posts.filter(p => p.status === 'active');
+                }
 
                 // Text search
                 if (searchQuery.trim()) {

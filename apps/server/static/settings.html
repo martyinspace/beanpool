@@ -676,6 +676,10 @@
                     <label>Isolated Branch Min Txns</label>
                     <input type="number" id="th-isolatedBranchMinTxns" step="1">
                 </div>
+                <div class="field">
+                    <label>Max Project Expiry (days)</label>
+                    <input type="number" id="th-maxProjectExpiryDays" step="1">
+                </div>
 
                 <div style="display:flex;gap:0.5rem;">
                     <button class="btn btn-primary" id="save-thresholds-btn" style="flex:1;">💾 Save</button>
@@ -1355,7 +1359,8 @@
             'creditFloor', 'demurrageRate', 'demurrageEpochDays',
             'syncIntervalMin', 'initialSyncDelaySec', 'handshakeIntervalSec',
             'retryIntervalSec', 'maxRetryBackoffMin',
-            'washTradingWindowHours', 'washTradingMinTxns', 'inactiveMemberDays', 'isolatedBranchMinTxns'
+            'washTradingWindowHours', 'washTradingMinTxns', 'inactiveMemberDays', 'isolatedBranchMinTxns',
+            'maxProjectExpiryDays'
         ];
 
         async function loadThresholds() {

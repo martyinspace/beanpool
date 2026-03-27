@@ -34,6 +34,8 @@ export default function SettingsScreen() {
     // Transfer logic
     const [pin, setPin] = useState('');
     const [exportUri, setExportUri] = useState('');
+    const [importUri, setImportUri] = useState('');
+    const [importPin, setImportPin] = useState('');
 
     if (!identity) return null;
 
@@ -128,6 +130,50 @@ export default function SettingsScreen() {
         }
     }
 
+    async function handleImport() {
+        if (importPin.length < 4) {
+            Alert.alert('Error', 'PIN must be at least 4 digits.');
+            return;
+        }
+        if (!importUri || !importUri.includes('import=')) {
+            Alert.alert('Error', 'Invalid Transfer URI.');
+            return;
+        }
+        setLoading(true);
+        try {
+            const { nativeDecryptIdentity } = await import('../../utils/native-crypto');
+            const importedIdentity = await nativeDecryptIdentity(importUri, importPin);
+            
+            Alert.alert(
+                "Overwrite Device Identity?",
+                `Do you want to permanently merge this device onto the "${importedIdentity.callsign}" identity? Your current device keys will be destroyed.`,
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { 
+                        text: "Yes, Merge Devices", 
+                        style: "destructive",
+                        onPress: async () => {
+                            await wipeIdentity();
+                            await SecureStore.setItemAsync('beanpool_identity', JSON.stringify({
+                                publicKey: importedIdentity.publicKey,
+                                privateKey: importedIdentity.privateKey,
+                                callsign: importedIdentity.callsign,
+                                createdAt: importedIdentity.createdAt,
+                            }));
+                            setIdentity(importedIdentity);
+                            setMode('menu');
+                            Alert.alert('Success', 'Device Unified Successfully!');
+                        }
+                    }
+                ]
+            );
+        } catch (e: any) {
+            Alert.alert('Import Failed', e.message || 'Decrypt error. Wrong PIN?');
+        } finally {
+            setLoading(false);
+        }
+    }
+
     async function handleCopy() {
         if (exportUri) {
             await Clipboard.setStringAsync(exportUri);
@@ -179,6 +225,10 @@ export default function SettingsScreen() {
                     </Pressable>
                     <Pressable style={styles.menuBtn} onPress={() => { setMode('export'); setPin(''); setExportUri(''); }}>
                         <Text style={styles.menuText}>📤 Export Identity</Text>
+                        <Text style={styles.menuArrow}>→</Text>
+                    </Pressable>
+                    <Pressable style={styles.menuBtn} onPress={() => { setMode('import'); setImportUri(''); setImportPin(''); }}>
+                        <Text style={styles.menuText}>📥 Import Identity</Text>
                         <Text style={styles.menuArrow}>→</Text>
                     </Pressable>
                     <Pressable style={[styles.menuBtn, { borderBottomWidth: 0 }]} onPress={() => setMode('advanced')}>
@@ -283,6 +333,43 @@ export default function SettingsScreen() {
                             </View>
                         </>
                     )}
+                    
+                    <Pressable style={styles.backBtn} onPress={() => setMode('menu')}>
+                        <Text style={styles.backBtnText}>Cancel</Text>
+                    </Pressable>
+                </View>
+            )}
+
+            {mode === 'import' && (
+                <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>📥 Import Identity</Text>
+                    
+                    <Text style={styles.infoText}>
+                        Paste the Identity Transfer URI (or beanpool://import string) and enter the 4+ digit PIN from your other device to securely merge.
+                    </Text>
+                    <TextInput 
+                        style={[styles.input, { height: 80, textAlignVertical: 'top', fontSize: 13, fontFamily: 'monospace' }]}
+                        value={importUri}
+                        onChangeText={setImportUri}
+                        placeholder="https://.../?import=..."
+                        placeholderTextColor="#9ca3af"
+                        multiline
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                    />
+                    <TextInput 
+                        style={[styles.input, { textAlign: 'center', fontSize: 20, letterSpacing: 8, marginBottom: 24 }]}
+                        value={importPin}
+                        onChangeText={setImportPin}
+                        placeholder="PIN"
+                        keyboardType="number-pad"
+                        maxLength={8}
+                        secureTextEntry
+                    />
+                    
+                    <Pressable style={[styles.primaryBtn, (importPin.length < 4 || !importUri) && { opacity: 0.5 }]} onPress={handleImport} disabled={loading || importPin.length < 4 || !importUri}>
+                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Decrypt & Merge Device</Text>}
+                    </Pressable>
                     
                     <Pressable style={styles.backBtn} onPress={() => setMode('menu')}>
                         <Text style={styles.backBtnText}>Cancel</Text>

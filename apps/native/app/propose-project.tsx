@@ -1,32 +1,56 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Image } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { createProject } from '../utils/db';
 import * as ImagePicker from 'expo-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 export default function ProposeProjectModal() {
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [goalAmount, setGoalAmount] = useState('');
+    const [deadlineDate, setDeadlineDate] = useState<Date | null>(null);
+    const [showPicker, setShowPicker] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const submittingRef = useRef(false);
     const [photos, setPhotos] = useState<string[]>([]);
 
+    const [maxExpiryDays, setMaxExpiryDays] = useState<number>(365);
+    useEffect(() => {
+        AsyncStorage.getItem('beanpool_max_expiry_days').then(val => {
+            if (val) setMaxExpiryDays(Number(val));
+        });
+    }, []);
+
+    const maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() + maxExpiryDays);
+
     const handleSubmit = async () => {
+        if (submittingRef.current) return;
         if (!title.trim() || !goalAmount.trim()) {
             Alert.alert("Missing Fields", "Please provide a project title and requested goal amount.");
             return;
         }
 
+        let parsedDeadline = null;
+        if (deadlineDate) {
+            parsedDeadline = deadlineDate.toISOString();
+        }
+
+        submittingRef.current = true;
         setSubmitting(true);
         try {
             await createProject({
                 title: title.trim(),
                 description: description.trim(),
                 goal_amount: parseInt(goalAmount, 10) || 0,
-                photos
+                photos,
+                deadline_at: parsedDeadline
             });
             Alert.alert("Proposal Submitted", "Your community project proposal has been broadcast to the network.", [
                 { text: "OK", onPress: () => router.back() }
@@ -35,6 +59,7 @@ export default function ProposeProjectModal() {
             Alert.alert("Submission Failed", e.message || "Could not propose project.");
         } finally {
             setSubmitting(false);
+            submittingRef.current = false;
         }
     };
 
@@ -49,100 +74,131 @@ export default function ProposeProjectModal() {
                 <View style={{ width: 40 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.scroll}>
-                <View style={styles.infoBox}>
-                    <MaterialCommunityIcons name="information" size={20} color="#f59e0b" style={{ marginRight: 8 }} />
-                    <Text style={styles.infoText}>Project proposals must be voted on and approved by the community before any funds are released.</Text>
-                </View>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+                <ScrollView contentContainerStyle={styles.scroll}>
+                    <View style={styles.infoBox}>
+                        <MaterialCommunityIcons name="information" size={20} color="#f59e0b" style={{ marginRight: 8 }} />
+                        <Text style={styles.infoText}>Project proposals must be voted on and approved by the community before any funds are released.</Text>
+                    </View>
 
-                {/* Title */}
-                <View style={styles.field}>
-                    <Text style={styles.label}>PROJECT TITLE</Text>
-                    <TextInput 
-                        style={styles.input}
-                        placeholder="e.g. Community Garden Tool Shed"
-                        value={title}
-                        onChangeText={setTitle}
-                        maxLength={60}
-                    />
-                </View>
+                    {/* Title */}
+                    <View style={styles.field}>
+                        <Text style={styles.label}>PROJECT TITLE</Text>
+                        <TextInput 
+                            style={styles.input}
+                            placeholder="e.g. Community Garden Tool Shed"
+                            value={title}
+                            onChangeText={setTitle}
+                            maxLength={60}
+                        />
+                    </View>
 
-                {/* Goal Amount */}
-                <View style={styles.field}>
-                    <Text style={styles.label}>FUNDING GOAL (Ʀ)</Text>
-                    <TextInput 
-                        style={[styles.input, styles.priceInput]}
-                        placeholder="0"
-                        keyboardType="numeric"
-                        value={goalAmount}
-                        onChangeText={setGoalAmount}
-                        maxLength={6}
-                    />
-                    {/* PWA states "Commons allocation limit bounds this locally". */}
-                    <Text style={styles.hint}>Amount requested from the community pool.</Text>
-                </View>
+                    {/* Goal Amount */}
+                    <View style={styles.field}>
+                        <Text style={styles.label}>FUNDING GOAL (Ʀ)</Text>
+                        <TextInput 
+                            style={[styles.input, styles.priceInput]}
+                            placeholder="0"
+                            keyboardType="numeric"
+                            value={goalAmount}
+                            onChangeText={setGoalAmount}
+                            maxLength={6}
+                        />
+                        {/* PWA states "Commons allocation limit bounds this locally". */}
+                        <Text style={styles.hint}>Amount requested from the community pool.</Text>
+                    </View>
 
-                {/* Photos */}
-                <View style={styles.field}>
-                    <Text style={styles.label}>PROJECT PHOTOS (MAX 3)</Text>
-                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
-                        {photos.map((uri, idx) => (
-                            <View key={idx} style={{ position: 'relative' }}>
-                                <Image source={{ uri }} style={{ width: 80, height: 80, borderRadius: 12, backgroundColor: '#f3f4f6' }} />
-                                <Pressable 
-                                    onPress={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
-                                    style={{ position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3 }}
-                                >
-                                    <MaterialCommunityIcons name="close" size={16} color="#ffffff" />
-                                </Pressable>
-                            </View>
-                        ))}
-                        {photos.length < 3 && (
-                            <Pressable 
-                                onPress={async () => {
-                                    const res = await ImagePicker.launchImageLibraryAsync({
-                                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                                        allowsEditing: true,
-                                        aspect: [16, 9],
-                                        quality: 0.8,
-                                        base64: true,
-                                    });
-                                    if (!res.canceled && res.assets[0].base64) {
-                                        setPhotos(prev => [...prev, `data:image/jpeg;base64,${res.assets[0].base64}`]);
+                    {/* Deadline */}
+                    <View style={styles.field}>
+                        <Text style={styles.label}>FUNDING DEADLINE (OPTIONAL)</Text>
+                        <Pressable 
+                            style={[styles.input, { justifyContent: 'center' }]} 
+                            onPress={() => setShowPicker(true)}
+                        >
+                            <Text style={{ color: deadlineDate ? '#111827' : '#9ca3af', fontSize: 16 }}>
+                                {deadlineDate ? deadlineDate.toISOString().split('T')[0] : "Select Deadline Date"}
+                            </Text>
+                        </Pressable>
+                        {showPicker && (
+                            <DateTimePicker
+                                value={deadlineDate || new Date()}
+                                mode="date"
+                                display="default"
+                                minimumDate={new Date()}
+                                maximumDate={maxDate}
+                                onChange={(event: any, selectedDate?: Date) => {
+                                    setShowPicker(false);
+                                    if (event.type === 'set' && selectedDate) {
+                                        setDeadlineDate(selectedDate);
                                     }
                                 }}
-                                style={{ width: 80, height: 80, borderRadius: 12, borderWidth: 2, borderColor: '#e5e7eb', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}
-                            >
-                                <MaterialCommunityIcons name="image-plus" size={28} color="#9ca3af" />
-                            </Pressable>
+                            />
                         )}
+                        <Text style={styles.hint}>If set, project will automatically expire on this date.</Text>
                     </View>
+
+                    {/* Photos */}
+                    <View style={styles.field}>
+                        <Text style={styles.label}>PROJECT PHOTOS (MAX 3)</Text>
+                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                            {photos.map((uri, idx) => (
+                                <View key={idx} style={{ position: 'relative' }}>
+                                    <Image source={{ uri }} style={{ width: 80, height: 80, borderRadius: 12, backgroundColor: '#f3f4f6' }} />
+                                    <Pressable 
+                                        onPress={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
+                                        style={{ position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3 }}
+                                    >
+                                        <MaterialCommunityIcons name="close" size={16} color="#ffffff" />
+                                    </Pressable>
+                                </View>
+                            ))}
+                            {photos.length < 3 && (
+                                <Pressable 
+                                    onPress={async () => {
+                                        const res = await ImagePicker.launchImageLibraryAsync({
+                                            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                                            allowsEditing: true,
+                                            aspect: [16, 9],
+                                            quality: 0.8,
+                                            base64: true,
+                                        });
+                                        if (!res.canceled && res.assets[0].base64) {
+                                            setPhotos(prev => [...prev, `data:image/jpeg;base64,${res.assets[0].base64}`]);
+                                        }
+                                    }}
+                                    style={{ width: 80, height: 80, borderRadius: 12, borderWidth: 2, borderColor: '#e5e7eb', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}
+                                >
+                                    <MaterialCommunityIcons name="image-plus" size={28} color="#9ca3af" />
+                                </Pressable>
+                            )}
+                        </View>
+                    </View>
+
+                    {/* Description */}
+                    <View style={styles.field}>
+                        <Text style={styles.label}>PROPOSAL DETAILS</Text>
+                        <TextInput 
+                            style={[styles.input, styles.textarea]}
+                            placeholder="Describe the project, who benefits, and how the credits will be allocated..."
+                            value={description}
+                            onChangeText={setDescription}
+                            multiline
+                            textAlignVertical="top"
+                        />
+                    </View>
+
+                </ScrollView>
+
+                <View style={styles.footer}>
+                    <Pressable style={styles.submitBtn} onPress={handleSubmit} disabled={submitting}>
+                        {submitting ? (
+                            <ActivityIndicator color="#ffffff" />
+                        ) : (
+                            <Text style={styles.submitBtnText}>SUBMIT TO NETWORK</Text>
+                        )}
+                    </Pressable>
                 </View>
-
-                {/* Description */}
-                <View style={styles.field}>
-                    <Text style={styles.label}>PROPOSAL DETAILS</Text>
-                    <TextInput 
-                        style={[styles.input, styles.textarea]}
-                        placeholder="Describe the project, who benefits, and how the credits will be allocated..."
-                        value={description}
-                        onChangeText={setDescription}
-                        multiline
-                        textAlignVertical="top"
-                    />
-                </View>
-
-            </ScrollView>
-
-            <View style={styles.footer}>
-                <Pressable style={styles.submitBtn} onPress={handleSubmit} disabled={submitting}>
-                    {submitting ? (
-                        <ActivityIndicator color="#ffffff" />
-                    ) : (
-                        <Text style={styles.submitBtnText}>SUBMIT TO NETWORK</Text>
-                    )}
-                </Pressable>
-            </View>
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 }

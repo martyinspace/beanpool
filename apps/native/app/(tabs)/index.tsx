@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { StyleSheet, View, Text, Platform, Alert, TouchableOpacity, ScrollView, TextInput, Pressable, Switch, KeyboardAvoidingView, Dimensions, Image as RNImage, Keyboard } from 'react-native';
+import { StyleSheet, View, Text, Platform, Alert, TouchableOpacity, ScrollView, TextInput, Pressable, Switch, KeyboardAvoidingView, Dimensions, Image as RNImage, Keyboard, Linking } from 'react-native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as Crypto from 'expo-crypto';
@@ -65,10 +65,13 @@ const MapPin = ({ post, author, catObj }: { post: any, author: string, catObj: a
     return (
         <Marker
             coordinate={{ latitude: post.lat, longitude: post.lng }}
-            title={post.title}
-            description={`${author} • ${post.credits} Ʀ`}
-            tracksViewChanges={track}
+            title={(post.title || '').trim() || 'Marketplace Post'}
+            description={`${author} • ${post.credits || 0} Ʀ`}
             anchor={{ x: 0.5, y: 1 }}
+            onCalloutPress={() => {
+                console.log(`[MAP] Callout pressed! Routing to post -> ${post.id}`);
+                router.push(`/post/${post.id}`);
+            }}
         >
             <View style={styles.pinContainer}>
                 <View style={[styles.pinCircle, { borderColor: markerColor }]}>
@@ -118,21 +121,23 @@ export default function MapScreen() {
         try { setPosts(await getPosts()); } catch (e) { console.error('Failed to load map points', e); }
     };
 
-    useEffect(() => { setupCompliancePermissions(); }, []);
-
-    const setupCompliancePermissions = async () => {
-        try {
-            if (Platform.OS === 'android') {
-                Alert.alert("Location Required", "BeanPool uses your location to plot your position on the local community map.",
-                    [{ text: "Continue", onPress: async () => await Location.requestForegroundPermissionsAsync() }]);
-            } else {
-                await Location.requestForegroundPermissionsAsync();
-            }
-        } catch (e) { console.error("Compliance initialization skip (Dev Mode):", e); }
-    };
+    // We no longer automatically request permissions on init.
+    // The user must explicitly request location via the GPS button.
 
     const centerOnUser = async () => {
-        const { status } = await Location.requestForegroundPermissionsAsync();
+        let { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+        if (status !== 'granted') {
+            if (canAskAgain) {
+                const res = await Location.requestForegroundPermissionsAsync();
+                status = res.status;
+            } else {
+                Alert.alert("Permission Denied", "Location permission was denied. Please enable it in your device settings to center the map.", [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Open Settings", onPress: () => Linking.openSettings() }
+                ]);
+                return;
+            }
+        }
         if (status !== 'granted') return;
         try {
             const location = await Location.getCurrentPositionAsync({});
@@ -151,8 +156,20 @@ export default function MapScreen() {
     };
 
     const useMyLocation = async () => {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') { Alert.alert("Permission Denied", "Location permission is needed."); return; }
+        let { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+        if (status !== 'granted') {
+            if (canAskAgain) {
+                const res = await Location.requestForegroundPermissionsAsync();
+                status = res.status;
+            } else {
+                Alert.alert("Permission Denied", "Location permission was denied. Please enable it in your device settings to use your current location.", [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Open Settings", onPress: () => Linking.openSettings() }
+                ]);
+                return;
+            }
+        }
+        if (status !== 'granted') return;
         try {
             const loc = await Location.getCurrentPositionAsync({});
             const lat = Math.round(loc.coords.latitude * 10000) / 10000;

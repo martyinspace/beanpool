@@ -52,6 +52,7 @@ export default function MarketScreen() {
     const [showMine, setShowMine] = useState(false);
     const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
     const [radiusKm, setRadiusKm] = useState<number | null>(null);
+    const [locationCenter, setLocationCenter] = useState<{lat: number, lng: number} | null>(null);
     const [showRadiusPicker, setShowRadiusPicker] = useState(false);
 
     useEffect(() => {
@@ -107,16 +108,38 @@ export default function MarketScreen() {
         );
     };
 
-    const filteredPosts = posts.filter(p => {
+    const [activeTab, setActiveTab] = useState<'feed' | 'deals'>('feed');
+
+    const pendingDeals = posts.filter(p => 
+        p.status === 'pending' && 
+        identity && 
+        (p.author_pubkey === identity.publicKey || p.accepted_by === identity.publicKey)
+    );
+
+    const myMarketPosts = posts.filter(p => 
+        identity && 
+        (p.author_pubkey === identity.publicKey || p.accepted_by === identity.publicKey)
+    ).sort((a, b) => {
+        if (a.status === 'pending' && b.status !== 'pending') return -1;
+        if (b.status === 'pending' && a.status !== 'pending') return 1;
+        if (a.status === 'active' && b.status !== 'active') return -1;
+        if (b.status === 'active' && a.status !== 'active') return 1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    const filteredPosts = activeTab === 'deals' ? myMarketPosts : posts.filter(p => {
+        // Only active posts belong in the Global Feed
+        if (p.status !== 'active') return false;
+        
         if (blockedUsers.includes(p.author_pubkey)) return false;
         if (categoryFilter !== 'all' && p.category !== categoryFilter) return false;
         if (showMine && identity && p.author_pubkey !== identity.publicKey) return false;
         
         // Location filter (Mullumbimby default for now inline with other hardcoded areas)
         if (radiusKm && p.lat && p.lng) {
-            const DEFAULT_LAT = -28.5523;
-            const DEFAULT_LNG = 153.4991;
-            const dist = getDistanceInKm(DEFAULT_LAT, DEFAULT_LNG, p.lat, p.lng);
+            const centerLat = locationCenter ? locationCenter.lat : -28.5523;
+            const centerLng = locationCenter ? locationCenter.lng : 153.4991;
+            const dist = getDistanceInKm(centerLat, centerLng, p.lat, p.lng);
             if (dist > radiusKm) return false;
         }
 
@@ -133,31 +156,54 @@ export default function MarketScreen() {
 
     const HeaderComponent = (
         <View>
-            {/* Search row + filter/view toggles */}
-            <View style={styles.searchRow}>
-                <View style={styles.searchWrap}>
-                    <Text style={{ opacity: 0.4, fontSize: 14 }}>🔍</Text>
-                    <TextInput 
-                        style={styles.searchInput}
-                        placeholder="Search..."
-                        placeholderTextColor="#9ca3af"
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                    />
-                </View>
+            {/* Top Segmented Control (Feed vs Deals) */}
+            <View style={styles.tabContainer}>
                 <Pressable 
-                    onPress={() => setShowFilters(!showFilters)} 
-                    style={[styles.iconBtn, showFilters && styles.iconBtnActive]}
+                    style={[styles.tabBtn, activeTab === 'feed' && styles.tabBtnActive]}
+                    onPress={() => setActiveTab('feed')}
                 >
-                    <MaterialCommunityIcons name="filter-variant" size={20} color={showFilters ? '#fff' : '#6b7280'} />
+                    <Text style={[styles.tabBtnText, activeTab === 'feed' && styles.tabBtnTextActive]}>Global Feed</Text>
                 </Pressable>
                 <Pressable 
-                    onPress={() => setViewMode(v => v === 'list' ? 'grid' : 'list')} 
-                    style={styles.iconBtn}
+                    style={[styles.tabBtn, activeTab === 'deals' && styles.tabBtnActive]}
+                    onPress={() => setActiveTab('deals')}
                 >
-                    <MaterialCommunityIcons name={viewMode === 'list' ? 'view-grid-outline' : 'view-list-outline'} size={20} color="#6b7280" />
+                    <Text style={[styles.tabBtnText, activeTab === 'deals' && styles.tabBtnTextActive]}>My Market</Text>
+                    {pendingDeals.length > 0 && (
+                        <View style={styles.dealBadge}>
+                            <Text style={styles.dealBadgeText}>{pendingDeals.length}</Text>
+                        </View>
+                    )}
                 </Pressable>
             </View>
+
+            {/* Search row + filter/view toggles */}
+            {activeTab === 'feed' && (
+                <View style={[styles.searchRow, { marginTop: 12 }]}>
+                    <View style={styles.searchWrap}>
+                        <Text style={{ opacity: 0.4, fontSize: 14 }}>🔍</Text>
+                        <TextInput 
+                            style={styles.searchInput}
+                            placeholder="Search..."
+                            placeholderTextColor="#9ca3af"
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                        />
+                    </View>
+                    <Pressable 
+                        onPress={() => setShowFilters(!showFilters)} 
+                        style={[styles.iconBtn, showFilters && styles.iconBtnActive]}
+                    >
+                        <MaterialCommunityIcons name="filter-variant" size={20} color={showFilters ? '#fff' : '#6b7280'} />
+                    </Pressable>
+                    <Pressable 
+                        onPress={() => setViewMode(v => v === 'list' ? 'grid' : 'list')} 
+                        style={styles.iconBtn}
+                    >
+                        <MaterialCommunityIcons name={viewMode === 'list' ? 'view-grid-outline' : 'view-list-outline'} size={20} color="#6b7280" />
+                    </Pressable>
+                </View>
+            )}
 
             {/* Collapsible Filter Panel */}
             {showFilters && (
@@ -360,12 +406,16 @@ export default function MarketScreen() {
             <RadiusPickerModal
                 visible={showRadiusPicker}
                 initialRadius={radiusKm}
-                onApply={(r) => {
+                initialLat={locationCenter?.lat}
+                initialLng={locationCenter?.lng}
+                onApply={(r, lat, lng) => {
                     setRadiusKm(r);
+                    setLocationCenter({ lat, lng });
                     setShowRadiusPicker(false);
                 }}
                 onReset={() => {
                     setRadiusKm(null);
+                    setLocationCenter(null);
                     setShowRadiusPicker(false);
                 }}
                 onCancel={() => setShowRadiusPicker(false)}
@@ -379,6 +429,15 @@ const styles = StyleSheet.create({
     topBar: { padding: 16, paddingBottom: 12, backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
     topTitle: { fontSize: 28, fontWeight: '800', color: '#1f2937', letterSpacing: -0.5 },
     listContent: { padding: 16, paddingBottom: 100 },
+
+    // Tabs
+    tabContainer: { flexDirection: 'row', backgroundColor: '#f3f4f6', borderRadius: 12, padding: 4, marginBottom: 4 },
+    tabBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 8, flexDirection: 'row', gap: 6 },
+    tabBtnActive: { backgroundColor: '#ffffff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
+    tabBtnText: { fontSize: 13, fontWeight: '700', color: '#6b7280' },
+    tabBtnTextActive: { color: '#1f2937', fontWeight: '800' },
+    dealBadge: { backgroundColor: '#ef4444', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
+    dealBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '900' },
 
     // Search row
     searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },

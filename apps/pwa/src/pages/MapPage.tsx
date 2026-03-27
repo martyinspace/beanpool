@@ -104,11 +104,11 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
 
         // Light mode by default — no filter needed
 
-        // Try to get user location on init
-        map.locate({ setView: false });
-        map.on('locationfound', (e) => {
-            setUserMarker(map, e.latlng);
-        });
+        // We specifically DO NOT request location on init here anymore
+        // map.locate({ setView: false });
+        // map.on('locationfound', (e) => {
+        //     setUserMarker(map, e.latlng);
+        // });
 
         // Event delegation for popup "View in Market" buttons
         const container = mapContainer.current;

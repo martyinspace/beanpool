@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
     getCrowdfundProjects, createCrowdfundProject, pledgeToCrowdfundProject, 
-    type CrowdfundProject, getAllMembers 
+    type CrowdfundProject, getAllMembers, request 
 } from '../lib/api';
 import { type BeanPoolIdentity } from '../lib/identity';
 
@@ -22,6 +22,7 @@ export function ProjectsPage({ identity }: Props) {
     const [newTitle, setNewTitle] = useState('');
     const [newDescription, setNewDescription] = useState('');
     const [newGoal, setNewGoal] = useState<number | ''>('');
+    const [newDeadline, setNewDeadline] = useState('');
     const [newPhotos, setNewPhotos] = useState<string[]>([]);
     const [creating, setCreating] = useState(false);
     
@@ -34,20 +35,34 @@ export function ProjectsPage({ identity }: Props) {
     const [editTitle, setEditTitle] = useState('');
     const [editDescription, setEditDescription] = useState('');
     const [editGoal, setEditGoal] = useState<number | ''>('');
+    const [editDeadline, setEditDeadline] = useState('');
     const [editPhotos, setEditPhotos] = useState<string[]>([]);
     const [updating, setUpdating] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     // Profile Cache
     const [profiles, setProfiles] = useState<Record<string, { callsign: string, homeNodeUrl?: string }>>({});
+    const [maxExpiryDays, setMaxExpiryDays] = useState<number>(365);
+
+    const maxDateString = useMemo(() => {
+        const d = new Date();
+        d.setDate(d.getDate() + maxExpiryDays);
+        return d.toISOString().split('T')[0];
+    }, [maxExpiryDays]);
+
+    const minDateString = useMemo(() => {
+        return new Date().toISOString().split('T')[0];
+    }, []);
 
     const fetchProjects = async () => {
         try {
             setLoading(true);
-            const [{ projects }, members] = await Promise.all([
+            const [data, members] = await Promise.all([
                 getCrowdfundProjects(),
                 getAllMembers()
             ]);
-            setProjects(projects);
+            setProjects(data.projects);
+            if (data.maxProjectExpiryDays) setMaxExpiryDays(data.maxProjectExpiryDays);
             
             const profs: Record<string, { callsign: string, homeNodeUrl?: string }> = {};
             members.forEach(m => {
@@ -106,13 +121,19 @@ export function ProjectsPage({ identity }: Props) {
         if (!identity) return;
         if (!newTitle.trim() || !newGoal || Number(newGoal) <= 0) return;
         
+        let deadlineAt = null;
+        if (newDeadline) {
+            deadlineAt = new Date(newDeadline).toISOString();
+        }
+
         setCreating(true);
         try {
-            await createCrowdfundProject(identity.publicKey, newTitle, newDescription, newPhotos, Number(newGoal), null);
+            await createCrowdfundProject(identity.publicKey, newTitle, newDescription, newPhotos, Number(newGoal), deadlineAt);
             setShowNewProject(false);
             setNewTitle('');
             setNewDescription('');
             setNewGoal('');
+            setNewDeadline('');
             setNewPhotos([]);
             fetchProjects();
         } catch (err: any) {
@@ -150,6 +171,7 @@ export function ProjectsPage({ identity }: Props) {
         setEditTitle(selectedProject.title);
         setEditDescription(selectedProject.description || '');
         setEditGoal(selectedProject.goal_amount);
+        setEditDeadline(selectedProject.deadline_at ? new Date(selectedProject.deadline_at).toISOString().split('T')[0] : '');
         try { setEditPhotos(JSON.parse(selectedProject.photos) || []); } catch { setEditPhotos([]); }
         setIsEditingProject(true);
     };
@@ -157,6 +179,11 @@ export function ProjectsPage({ identity }: Props) {
     const submitUpdateProject = async () => {
         if (!identity || !selectedProject) return;
         if (!editTitle.trim() || !editGoal || Number(editGoal) <= 0) return;
+
+        let deadlineAt = null;
+        if (editDeadline) {
+            deadlineAt = new Date(editDeadline).toISOString();
+        }
 
         setUpdating(true);
         try {
@@ -166,7 +193,8 @@ export function ProjectsPage({ identity }: Props) {
                 editTitle.trim(),
                 editDescription.trim(),
                 editPhotos,
-                Number(editGoal)
+                Number(editGoal),
+                deadlineAt
             ));
             setSelectedProject(project);
             setProjects(prev => prev.map(p => p.id === project.id ? project : p));
@@ -180,6 +208,15 @@ export function ProjectsPage({ identity }: Props) {
 
     // Calculate progress helpers
     const getProgress = (current: number, goal: number) => Math.min(100, (current / goal) * 100);
+
+    const getDaysRemaining = (deadline: string | null) => {
+        if (!deadline) return null;
+        const diff = new Date(deadline).getTime() - new Date().getTime();
+        const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+        if (days < 0) return 'Expired';
+        if (days === 0) return 'Ends today';
+        return `${days} days left`;
+    };
 
     return (
         <div className="flex flex-col h-full bg-bg-primary relative" style={{ overflowY: 'auto', paddingBottom: '4rem' }}>
@@ -259,11 +296,16 @@ export function ProjectsPage({ identity }: Props) {
 
                                     {/* Progress Goal Bar */}
                                     <div className="mt-1">
-                                        <div className="flex justify-between text-xs font-bold mb-1.5">
+                                        <div className="flex justify-between text-xs font-bold mb-1.5 items-end flex-wrap gap-1">
                                             <span className={isFunded ? 'text-emerald-500' : 'text-text-primary'}>
                                                 {project.current_amount} B <span className="text-nature-500 font-normal">raised</span>
                                             </span>
-                                            <span className="text-nature-500">Goal: {project.goal_amount} B</span>
+                                            <div className="text-right">
+                                                <span className="text-nature-500">Goal: {project.goal_amount} B</span>
+                                                {project.deadline_at && (
+                                                    <div className={`mt-0.5 text-[10px] ${getDaysRemaining(project.deadline_at) === 'Expired' ? 'text-red-500' : 'text-accent'}`}>{getDaysRemaining(project.deadline_at)}</div>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="h-2 w-full bg-nature-200 dark:bg-nature-800 rounded-full overflow-hidden">
                                             <div 
@@ -312,6 +354,15 @@ export function ProjectsPage({ identity }: Props) {
                                 className="w-full bg-bg-input border border-border-secondary p-3 rounded-xl text-text-primary focus:border-accent outline-none font-mono text-lg"
                                 placeholder="1000"
                                 min="1"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-nature-500 uppercase mb-1">Funding Deadline (Optional)</label>
+                            <input 
+                                type="date" value={newDeadline} onChange={e => setNewDeadline(e.target.value)}
+                                className="w-full bg-bg-input border border-border-secondary p-3 rounded-xl text-text-primary focus:border-accent outline-none font-medium text-lg"
+                                min={minDateString} max={maxDateString}
                             />
                         </div>
 
@@ -430,6 +481,15 @@ export function ProjectsPage({ identity }: Props) {
                                 </div>
 
                                 <div>
+                                    <label className="block text-xs font-bold text-nature-500 uppercase mb-1">Funding Deadline (Optional)</label>
+                                    <input 
+                                        type="date" value={editDeadline} onChange={e => setEditDeadline(e.target.value)}
+                                        className="w-full bg-bg-input border border-border-secondary p-3 rounded-xl text-text-primary focus:border-accent outline-none font-medium text-lg shadow-inner"
+                                        min={minDateString} max={maxDateString}
+                                    />
+                                </div>
+
+                                <div>
                                     <label className="block text-xs font-bold text-nature-500 uppercase mb-1">Description</label>
                                     <textarea 
                                         value={editDescription} onChange={e => setEditDescription(e.target.value)}
@@ -484,6 +544,31 @@ export function ProjectsPage({ identity }: Props) {
                                         {updating ? 'Saving...' : 'Save Changes'}
                                     </button>
                                 </div>
+
+                                <div className="mt-6 pt-6 border-t border-red-900/30">
+                                    <button
+                                        onClick={async () => {
+                                            if (window.confirm("CRITICAL WARNING: This will immediately delete your project and automatically refund all current backers from the smart escrow wallet. This action cannot be undone. Are you sure you want to proceed?")) {
+                                                setDeleting(true);
+                                                try {
+                                                    await request('POST', '/api/crowdfund/projects/delete', { id: selectedProject.id, creatorPubkey: identity!.publicKey });
+                                                    alert("Project deleted and funds refunded to backers.");
+                                                    setIsEditingProject(false);
+                                                    setSelectedProject(null);
+                                                    fetchProjects();
+                                                } catch (e: any) {
+                                                    alert(e.message || "Failed to delete project");
+                                                } finally {
+                                                    setDeleting(false);
+                                                }
+                                            }
+                                        }}
+                                        disabled={deleting}
+                                        className="w-full py-3.5 rounded-xl font-bold bg-red-900/20 text-red-500 border border-red-900/50 hover:bg-red-500 hover:text-white transition-colors"
+                                    >
+                                        {deleting ? 'Deleting...' : 'Delete Project & Refund Backers'}
+                                    </button>
+                                </div>
                             </div>
                         ) : (
                             <>
@@ -531,21 +616,32 @@ export function ProjectsPage({ identity }: Props) {
 
                             {/* Progress Bar Large */}
                             <div className="bg-bg-card p-5 rounded-2xl border border-border-secondary shadow-sm mt-2">
-                                <div className="flex items-end gap-2 mb-3">
-                                    <span className={`text-3xl font-black ${selectedProject.current_amount >= selectedProject.goal_amount ? 'text-emerald-500' : 'text-text-primary'} drop-shadow-sm`}>
-                                        {selectedProject.current_amount}
-                                    </span>
-                                    <span className="text-sm font-bold text-nature-500 mb-1">
-                                        Beans raised of <span className="text-text-primary">{selectedProject.goal_amount}</span> goal
-                                    </span>
+                                <div className="flex items-start justify-between gap-4 mb-3 flex-wrap">
+                                    <div className="flex flex-col gap-1">
+                                        <span className={`text-3xl font-black ${selectedProject.current_amount >= selectedProject.goal_amount ? 'text-emerald-500' : 'text-text-primary'} drop-shadow-sm`}>
+                                            {selectedProject.current_amount} <span className="text-sm font-bold text-nature-500">B raised</span>
+                                        </span>
+                                        <span className="text-sm font-bold text-nature-500">
+                                            Goal: <span className="text-text-primary">{selectedProject.goal_amount} B</span>
+                                        </span>
+                                    </div>
+                                    {selectedProject.deadline_at && (
+                                        <div className={`font-bold text-sm px-3 py-1.5 rounded-lg border shadow-sm whitespace-nowrap ${getDaysRemaining(selectedProject.deadline_at) === 'Expired' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-accent/10 text-accent border-accent/20'}`}>
+                                            ⏳ {getDaysRemaining(selectedProject.deadline_at)}
+                                        </div>
+                                    )}
                                 </div>
                                 
-                                <div className="h-3 w-full bg-nature-200 dark:bg-nature-800 rounded-full overflow-hidden shadow-inner">
+                                <div className="h-3 w-full bg-nature-200 dark:bg-nature-800 rounded-full overflow-hidden shadow-inner mb-3">
                                     <div 
                                         className={`h-full transition-all duration-1000 ${selectedProject.current_amount >= selectedProject.goal_amount ? 'bg-emerald-500' : 'bg-gradient-to-r from-accent to-emerald-400'}`}
                                         style={{ width: `${getProgress(selectedProject.current_amount, selectedProject.goal_amount)}%` }}
                                     />
                                 </div>
+
+                                <p className="text-[11px] text-nature-500 leading-relaxed bg-nature-900/30 p-2.5 rounded-lg border border-border-secondary">
+                                    🔒 <span className="font-bold text-nature-400">Smart Escrow:</span> Pledges are securely held here and only released when the goal is met. If deleted, Beans are automatically refunded.
+                                </p>
                             </div>
 
                             {/* Description */}

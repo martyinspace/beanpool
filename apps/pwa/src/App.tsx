@@ -35,6 +35,11 @@ function HeaderControls({ showSettings, setShowSettings }: { showSettings: boole
         setLocationEnabled(nextState);
         localStorage.setItem('beanpool-privacy-tier', nextState ? '3' : '0');
         if ('vibrate' in navigator) navigator.vibrate(50);
+        
+        // Explicitly request location permission when toggling ON
+        if (nextState && 'geolocation' in navigator) {
+            navigator.geolocation.getCurrentPosition(() => {}, () => {});
+        }
     };
 
     return (
@@ -102,6 +107,7 @@ export function App() {
     const [theme, toggleTheme] = useTheme();
     const [sysAnnouncement, setSysAnnouncement] = useState<{ title: string, body: string, severity: string } | null>(null);
     const [totalUnread, setTotalUnread] = useState(0);
+    const [pendingDealsCount, setPendingDealsCount] = useState(0);
     const [marketClickCount, setMarketClickCount] = useState(0);
 
     function navigateToTab(tab: string, contextId?: string) {
@@ -138,13 +144,31 @@ export function App() {
         return unsub;
     }, [identity]);
 
-    // Poll unread message count
+    // Poll unread message count and active deals
     useEffect(() => {
         if (!identity) return;
         const pollUnread = async () => {
             try {
                 const result = await getConversations(identity.publicKey);
                 setTotalUnread(result.totalUnread || 0);
+
+                // Poll marketplace for active deals + inbound requests
+                const { getMarketplacePosts, getMyMarketplaceTransactions } = await import('./lib/api');
+                const [posts, txs] = await Promise.all([
+                    getMarketplacePosts(),
+                    getMyMarketplaceTransactions(identity.publicKey)
+                ]);
+                
+                const activeDeals = posts.filter(p => 
+                    p.status === 'pending' && 
+                    (p.authorPublicKey === identity.publicKey || p.acceptedBy === identity.publicKey)
+                ).length;
+                
+                const pendingRequests = txs.filter(t => 
+                    t.buyerPublicKey === identity.publicKey && t.status === 'requested'
+                ).length;
+
+                setPendingDealsCount(activeDeals + pendingRequests);
             } catch { /* offline */ }
         };
         pollUnread();
@@ -174,8 +198,8 @@ export function App() {
 
     const TABS: { id: Tab; label: string; emoji: string }[] = [
         { id: 'map', label: 'Map', emoji: '🗺️' },
-        { id: 'projects', label: 'Projects', emoji: '🌱' },
         { id: 'marketplace', label: 'Market', emoji: '🤝' },
+        { id: 'projects', label: 'Projects', emoji: '🌱' },
         { id: 'messages', label: 'Chat', emoji: '💬' },
         { id: 'people', label: 'People', emoji: '👥' },
         { id: 'ledger', label: 'Ledger', emoji: '📊' },
@@ -343,6 +367,29 @@ export function App() {
                                         textShadow: 'none', // Reset shadow for badge readability
                                     }}>
                                         {totalUnread > 99 ? '99+' : totalUnread}
+                                    </span>
+                                )}
+                                {tab.id === 'marketplace' && pendingDealsCount > 0 && (
+                                    <span style={{
+                                        position: 'absolute',
+                                        top: '-6px',
+                                        right: '-10px',
+                                        background: 'var(--danger)',
+                                        color: '#fff',
+                                        fontSize: '0.6rem',
+                                        fontWeight: 700,
+                                        minWidth: '16px',
+                                        height: '16px',
+                                        borderRadius: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: '0 3px',
+                                        lineHeight: 1,
+                                        boxShadow: '0 0 6px var(--danger)',
+                                        textShadow: 'none',
+                                    }}>
+                                        {pendingDealsCount}
                                     </span>
                                 )}
                             </span>

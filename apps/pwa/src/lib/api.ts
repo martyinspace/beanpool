@@ -34,7 +34,8 @@ async function signWithWebCrypto(privateKeyHex: string, payload: any): Promise<s
     return bytesToBase64(new Uint8Array(signatureBytes));
 }
 
-async function request<T>(method: string, path: string, body?: any): Promise<T> {
+// Base request helper with auth
+export async function request<T>(method: string, path: string, body?: any): Promise<T> {
     const opts: RequestInit = {
         method,
         headers: {
@@ -275,13 +276,14 @@ export interface MarketplaceTransaction {
     sellerCallsign: string;
     credits: number;
     hours?: number;
-    status: 'pending' | 'completed' | 'cancelled';
+    status: 'requested' | 'rejected' | 'pending' | 'completed' | 'cancelled';
     createdAt: string;
     completedAt?: string;
 }
 
-export async function getMarketplacePosts(filter?: { type?: string; category?: string }): Promise<MarketplacePost[]> {
+export async function getMarketplacePosts(filter?: { id?: string; type?: string; category?: string }): Promise<MarketplacePost[]> {
     const params = new URLSearchParams();
+    if (filter?.id) params.set('id', filter.id);
     if (filter?.type) params.set('type', filter.type);
     if (filter?.category) params.set('category', filter.category);
     return request('GET', `/api/marketplace/posts?${params}`);
@@ -331,6 +333,30 @@ export async function acceptMarketplacePost(
     postId: string, buyerPublicKey: string, hours?: number
 ): Promise<{ success: boolean; transaction: MarketplaceTransaction }> {
     return request('POST', '/api/marketplace/posts/accept', { postId, buyerPublicKey, hours });
+}
+
+export async function requestMarketplacePost(
+    postId: string, buyerPublicKey: string, hours?: number
+): Promise<{ success: boolean; transaction: MarketplaceTransaction }> {
+    return request('POST', '/api/marketplace/posts/request', { postId, buyerPublicKey, hours });
+}
+
+export async function approveMarketplaceRequest(
+    transactionId: string, authorPublicKey: string
+): Promise<{ success: boolean; transaction: MarketplaceTransaction }> {
+    return request('POST', '/api/marketplace/transactions/approve', { transactionId, authorPublicKey });
+}
+
+export async function rejectMarketplaceRequest(
+    transactionId: string, authorPublicKey: string
+): Promise<{ success: boolean }> {
+    return request('POST', '/api/marketplace/transactions/reject', { transactionId, authorPublicKey });
+}
+
+export async function cancelMarketplaceRequest(
+    transactionId: string, cancellerPublicKey: string
+): Promise<{ success: boolean }> {
+    return request('POST', '/api/marketplace/transactions/cancel-request', { transactionId, cancellerPublicKey });
 }
 
 export async function completeMarketplaceTransaction(
@@ -461,7 +487,16 @@ export async function getRemotePosts(baseUrl: string, filters?: { type?: string;
     if (filters?.category) params.set('category', filters.category);
     const qs = params.toString() ? `?${params}` : '';
 
-    const res = await fetch(`${baseUrl}/api/marketplace/posts${qs}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    let res;
+    try {
+        res = await fetch(`${baseUrl}/api/marketplace/posts${qs}`, { signal: controller.signal });
+    } finally {
+        clearTimeout(timeoutId);
+    }
+    
     if (!res.ok) throw new Error(`Failed to fetch posts from ${baseUrl}`);
     const data = await res.json();
 
@@ -612,7 +647,7 @@ export interface CrowdfundProject {
     created_at: string;
 }
 
-export async function getCrowdfundProjects(): Promise<{ projects: CrowdfundProject[] }> {
+export async function getCrowdfundProjects(): Promise<{ projects: CrowdfundProject[], maxProjectExpiryDays: number }> {
     return request('GET', '/api/crowdfund/projects');
 }
 
@@ -624,8 +659,8 @@ export async function createCrowdfundProject(creatorPubkey: string, title: strin
     return request('POST', '/api/crowdfund/projects', { creatorPubkey, title, description, photos, goalAmount, deadlineAt });
 }
 
-export async function updateCrowdfundProject(id: string, creatorPubkey: string, title: string, description: string, photos: string[], goalAmount: number): Promise<{ success: boolean; project: CrowdfundProject }> {
-    return request('POST', '/api/crowdfund/projects/update', { id, creatorPubkey, title, description, photos, goalAmount });
+export async function updateCrowdfundProject(id: string, creatorPubkey: string, title: string, description: string, photos: string[], goalAmount: number, deadlineAt: string | null = null): Promise<{ success: boolean; project: CrowdfundProject }> {
+    return request('POST', '/api/crowdfund/projects/update', { id, creatorPubkey, title, description, photos, goalAmount, deadlineAt });
 }
 
 export async function pledgeToCrowdfundProject(projectId: string, fromPubkey: string, amount: number, memo: string): Promise<{ success: boolean; txId: string }> {

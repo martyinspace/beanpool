@@ -644,9 +644,116 @@ export function updatePost(id: string, authorPublicKey: string, updates: Partial
 
 // ===================== MARKETPLACE TRANSACTIONS =====================
 
+export function requestPost(postId: string, requesterPublicKey: string, hours?: number): MarketplaceTransaction | null {
+    const post = db.prepare(`SELECT * FROM posts WHERE id=?`).get(postId) as any;
+    if (!post || post.status !== 'active' || post.author_pubkey === requesterPublicKey) return null;
+
+    // For Needs, the Author pays. For Offers, the Requester pays.
+    const isOffer = post.type === 'offer';
+    const payerPubkey = isOffer ? requesterPublicKey : post.author_pubkey;
+    const payeePubkey = isOffer ? post.author_pubkey : requesterPublicKey;
+
+    // Check if the PAYER has enough balance at the time of request to prevent spam
+    const cost = post.price_type === 'hourly' ? (post.credits * (hours || 1)) : post.credits;
+    if (getBalance(payerPubkey).balance < cost) return null;
+
+    const transactionId = crypto.randomUUID();
+    
+    db.transaction(() => {
+        db.prepare(`
+            INSERT INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'requested', CURRENT_TIMESTAMP)
+        `).run(transactionId, postId, payerPubkey, payeePubkey, cost, hours || null);
+    })();
+
+    // Note: getMarketplaceTransactions fetches by user; we'll fetch for the requester
+    const tx = getMarketplaceTransactions(requesterPublicKey).find(t => t.id === transactionId)!;
+    broadcast({ type: 'transaction_requested', transaction: tx });
+    return tx;
+}
+
+export function approvePostRequest(transactionId: string, authorPublicKey: string): MarketplaceTransaction | null {
+    const row = db.prepare("SELECT * FROM marketplace_transactions WHERE id=? AND status='requested'").get(transactionId) as any;
+    if (!row) return null;
+
+    const post = db.prepare(`SELECT * FROM posts WHERE id=?`).get(row.post_id) as any;
+    if (!post || post.author_pubkey !== authorPublicKey) return null; // Only the Author can approve a request
+
+    const isOffer = post.type === 'offer';
+    const expectedAuthorRole = isOffer ? row.seller_pubkey : row.buyer_pubkey;
+    if (expectedAuthorRole !== authorPublicKey) return null;
+
+    // Verify payer STILL has enough money at the exact moment of approval
+    const currentBalance = getBalance(row.buyer_pubkey).balance;
+    if (currentBalance < row.credits) return null;
+
+    db.transaction(() => {
+        // 1. Lock the funds in Escrow
+        transfer(row.buyer_pubkey, `escrow_${row.post_id}`, row.credits, `Escrow hold for post ${row.post_id}`);
+        
+        // 2. Mark this transaction as pending
+        db.prepare(`UPDATE marketplace_transactions SET status='pending' WHERE id=?`).run(transactionId);
+        
+        // 3. Mark the Post as pending
+        if (!post.repeatable) {
+            db.prepare(`UPDATE posts SET status='pending', accepted_by=?, accepted_at=CURRENT_TIMESTAMP, pending_transaction_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+              .run(row.seller_pubkey === authorPublicKey ? row.buyer_pubkey : row.seller_pubkey, transactionId, row.post_id);
+              
+            // 4. Reject all other competing requests for this Non-Repeatable post
+            db.prepare(`UPDATE marketplace_transactions SET status='rejected', completed_at=CURRENT_TIMESTAMP WHERE post_id=? AND id!=? AND status='requested'`)
+              .run(row.post_id, transactionId);
+        }
+    })();
+
+    const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
+    broadcast({ type: 'transaction_approved', transaction: tx });
+    broadcast({ type: 'post_updated', post: getPosts({ id: row.post_id })[0] });
+    return tx;
+}
+
+export function rejectPostRequest(transactionId: string, authorPublicKey: string): MarketplaceTransaction | null {
+    const row = db.prepare("SELECT * FROM marketplace_transactions WHERE id=? AND status='requested'").get(transactionId) as any;
+    if (!row) return null;
+
+    const post = db.prepare(`SELECT * FROM posts WHERE id=?`).get(row.post_id) as any;
+    if (!post) return null;
+
+    const isOffer = post.type === 'offer';
+    const expectedAuthorRole = isOffer ? row.seller_pubkey : row.buyer_pubkey;
+    if (expectedAuthorRole !== authorPublicKey) return null;
+
+    db.prepare(`UPDATE marketplace_transactions SET status='rejected', completed_at=CURRENT_TIMESTAMP WHERE id=?`).run(transactionId);
+    
+    const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
+    broadcast({ type: 'transaction_rejected', transaction: tx });
+    return tx;
+}
+
+export function cancelPostRequest(transactionId: string, requesterPublicKey: string): MarketplaceTransaction | null {
+    const row = db.prepare("SELECT * FROM marketplace_transactions WHERE id=? AND status='requested'").get(transactionId) as any;
+    if (!row) return null;
+
+    const post = db.prepare(`SELECT * FROM posts WHERE id=?`).get(row.post_id) as any;
+    if (!post) return null;
+
+    const isOffer = post.type === 'offer';
+    const expectedRequesterRole = isOffer ? row.buyer_pubkey : row.seller_pubkey;
+    if (expectedRequesterRole !== requesterPublicKey) return null;
+
+    db.prepare(`UPDATE marketplace_transactions SET status='cancelled', completed_at=CURRENT_TIMESTAMP WHERE id=?`).run(transactionId);
+    
+    const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
+    broadcast({ type: 'transaction_cancelled', transaction: tx });
+    return tx;
+}
+
 export function acceptPost(postId: string, buyerPublicKey: string, hours?: number): MarketplaceTransaction | null {
     const post = getPosts({ id: postId, status: 'active' })[0];
     if (!post || post.authorPublicKey === buyerPublicKey) return null;
+
+    if (post.type !== 'offer') {
+        return null; // Only Offers can be 1-step accepted
+    }
 
     if (post.priceType === 'hourly' && (typeof hours !== 'number' || hours <= 0)) {
         return null; // Must provide valid hours for an hourly post
@@ -654,6 +761,9 @@ export function acceptPost(postId: string, buyerPublicKey: string, hours?: numbe
 
     const buyer = getMember(buyerPublicKey);
     const finalCredits = post.priceType === 'hourly' ? post.credits * hours! : post.credits;
+
+    // Check balance
+    if (getBalance(buyerPublicKey).balance < finalCredits) return null;
 
     const tx: MarketplaceTransaction = {
         id: crypto.randomUUID(), postId: post.id, postTitle: post.title, buyerPublicKey,
@@ -663,8 +773,13 @@ export function acceptPost(postId: string, buyerPublicKey: string, hours?: numbe
     };
 
     db.transaction(() => {
+        // 1. Lock funds
+        transfer(buyerPublicKey, `escrow_${post.id}`, finalCredits, `Escrow hold for offer ${post.id}`);
+
+        // 2. Insert pending tx
         db.prepare(`INSERT INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`).run(tx.id, tx.postId, tx.buyerPublicKey, tx.sellerPublicKey, tx.credits, tx.hours ?? null, tx.createdAt);
         
+        // 3. Update post
         if (!post.repeatable) {
             db.prepare(`UPDATE posts SET status='pending', accepted_by=?, accepted_at=?, pending_transaction_id=?, updated_at = CURRENT_TIMESTAMP WHERE id=?`).run(buyerPublicKey, tx.createdAt, tx.id, post.id);
         }
@@ -675,7 +790,9 @@ export function acceptPost(postId: string, buyerPublicKey: string, hours?: numbe
 
 export function completePostTransaction(transactionId: string, confirmerPublicKey: string, finalHours?: number): MarketplaceTransaction | null {
     const row = db.prepare("SELECT * FROM marketplace_transactions WHERE id=? AND status='pending'").get(transactionId) as any;
-    if (!row || row.seller_pubkey !== confirmerPublicKey) return null;
+    
+    // Security Fix: IN Escrow, the Payer (buyer) is the ONLY one authorized to release funds to the Payee (seller).
+    if (!row || row.buyer_pubkey !== confirmerPublicKey) return null;
 
     const post = db.prepare("SELECT * FROM posts WHERE id=?").get(row.post_id) as any;
     const completedAt = new Date().toISOString();
@@ -690,18 +807,10 @@ export function completePostTransaction(transactionId: string, confirmerPublicKe
         }
 
         if (row.credits > 0 && post) {
-            const isOffer = post.type === 'offer';
-            const from = isOffer ? row.buyer_pubkey : row.seller_pubkey;
-            const to = isOffer ? row.seller_pubkey : row.buyer_pubkey;
-            const success = ledger.transfer(from, to, row.credits);
-            if (success) {
-                txnRecord = { id: crypto.randomUUID(), from, to, amount: row.credits, memo: `Completed: ${post.title}`, timestamp: completedAt };
-                db.prepare(`INSERT INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?)`).run(txnRecord.id, txnRecord.from, txnRecord.to, txnRecord.amount, txnRecord.memo, txnRecord.timestamp);
-                const fromAcc = ledger.getAccount(from);
-                const toAcc = ledger.getAccount(to);
-                db.prepare(`UPDATE accounts SET balance=?, last_demurrage_epoch=?, last_updated_at=? WHERE public_key=?`).run(fromAcc.balance, fromAcc.lastDemurrageEpoch, completedAt, from);
-                db.prepare(`UPDATE accounts SET balance=?, last_demurrage_epoch=?, last_updated_at=? WHERE public_key=?`).run(toAcc.balance, toAcc.lastDemurrageEpoch, completedAt, to);
-            }
+            // Funds are stored in escrow_${post.id} since the transaction went 'pending'
+            // We just need to transfer from the synthetic escrow wallet to the Payee (seller_pubkey)
+            transfer(`escrow_${row.post_id}`, row.seller_pubkey, row.credits, `Completed: ${post.title}`);
+            // Note: the transfer function handles creating the transaction record and updating balances
         }
 
         db.prepare(`UPDATE marketplace_transactions SET status='completed', completed_at=? WHERE id=?`).run(completedAt, transactionId);
@@ -723,6 +832,9 @@ export function cancelPostTransaction(transactionId: string, cancellerPublicKey:
     if (!row || (row.buyer_pubkey !== cancellerPublicKey && row.seller_pubkey !== cancellerPublicKey)) return null;
 
     db.transaction(() => {
+        // Reverse Escrow Funds -> Refund Buyer
+        transfer(`escrow_${row.post_id}`, row.buyer_pubkey, row.credits, `Escrow refund for cancelled post ${row.post_id}`);
+
         db.prepare(`UPDATE marketplace_transactions SET status='cancelled', completed_at = CURRENT_TIMESTAMP WHERE id=?`).run(transactionId);
         const post = db.prepare(`SELECT * FROM posts WHERE id=?`).get(row.post_id) as any;
         if (post && !post.repeatable && post.status === 'pending') {

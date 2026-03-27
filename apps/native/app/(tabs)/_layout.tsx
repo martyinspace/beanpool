@@ -3,11 +3,12 @@ import { GlobalHeader } from '../../components/GlobalHeader';
 import { View, Image, StyleSheet, Text } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useIdentity } from '../IdentityContext';
-import { getGlobalUnreadCount, syncMessages } from '../../utils/db';
+import { getGlobalUnreadCount, syncMessages, getPosts } from '../../utils/db';
 
 export default function TabLayout() {
     const { identity } = useIdentity();
     const [unread, setUnread] = useState(0);
+    const [dealsCount, setDealsCount] = useState(0);
 
     useEffect(() => {
         if (!identity?.publicKey) return;
@@ -18,6 +19,11 @@ export default function TabLayout() {
                 // Calculate unread sum across the updated SQLite pool
                 const count = await getGlobalUnreadCount(identity.publicKey);
                 setUnread(count);
+
+                // Calculate active deals
+                const allPosts = await getPosts();
+                const active = allPosts.filter((p: any) => p.status === 'pending' && (p.author_pubkey === identity.publicKey || p.accepted_by === identity.publicKey)).length;
+                setDealsCount(active);
             } catch (e) {}
         };
         checkUnread();
@@ -62,17 +68,18 @@ export default function TabLayout() {
                 }} 
             />
             <Tabs.Screen 
+                name="market" 
+                options={{ 
+                    title: 'Market',
+                    tabBarBadge: dealsCount > 0 ? dealsCount : undefined,
+                    tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>🤝</Text> 
+                }} 
+            />
+            <Tabs.Screen 
                 name="projects" 
                 options={{ 
                     title: 'Projects',
                     tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>🌱</Text> 
-                }} 
-            />
-            <Tabs.Screen 
-                name="market" 
-                options={{ 
-                    title: 'Market',
-                    tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>🤝</Text> 
                 }} 
             />
             <Tabs.Screen 

@@ -10,17 +10,23 @@ const DEFAULT_LNG = 153.4991;
 interface RadiusPickerModalProps {
     visible: boolean;
     initialRadius: number | null;
-    onApply: (radius: number) => void;
+    initialLat?: number;
+    initialLng?: number;
+    onApply: (radius: number, lat: number, lng: number) => void;
     onCancel: () => void;
     onReset: () => void;
 }
 
-export function RadiusPickerModal({ visible, initialRadius, onApply, onCancel, onReset }: RadiusPickerModalProps) {
+export function RadiusPickerModal({ visible, initialRadius, initialLat, initialLng, onApply, onCancel, onReset }: RadiusPickerModalProps) {
     const [radius, setRadius] = useState<number>(initialRadius || 50);
+    const [center, setCenter] = useState({ 
+        latitude: initialLat || DEFAULT_LAT, 
+        longitude: initialLng || DEFAULT_LNG 
+    });
 
     const region = {
-        latitude: DEFAULT_LAT,
-        longitude: DEFAULT_LNG,
+        latitude: center.latitude,
+        longitude: center.longitude,
         latitudeDelta: (radius / 111) * 2.5, // Rough zoom estimation based on radius
         longitudeDelta: (radius / 111) * 2.5,
     };
@@ -45,10 +51,15 @@ export function RadiusPickerModal({ visible, initialRadius, onApply, onCancel, o
                         region={region}
                         provider={PROVIDER_GOOGLE}
                         customMapStyle={mapStyle}
+                        onPress={(e) => setCenter(e.nativeEvent.coordinate)}
                     >
-                        <Marker coordinate={{ latitude: DEFAULT_LAT, longitude: DEFAULT_LNG }} />
+                        <Marker 
+                            coordinate={center} 
+                            draggable 
+                            onDragEnd={(e) => setCenter(e.nativeEvent.coordinate)} 
+                        />
                         <Circle 
-                            center={{ latitude: DEFAULT_LAT, longitude: DEFAULT_LNG }}
+                            center={center}
                             radius={radius * 1000} // meters
                             strokeWidth={2}
                             strokeColor="#fbbf24"
@@ -83,9 +94,9 @@ export function RadiusPickerModal({ visible, initialRadius, onApply, onCancel, o
                         <Text style={styles.sliderLabel}>100km</Text>
                     </View>
 
-                    <Text style={styles.hintText}>Tap the map to move the center point</Text>
+                    <Text style={styles.hintText}>Tap the map or drag the pin to move the center point</Text>
 
-                    <Pressable style={styles.applyBtn} onPress={() => onApply(radius)}>
+                    <Pressable style={styles.applyBtn} onPress={() => onApply(radius, center.latitude, center.longitude)}>
                         <Text style={styles.applyBtnText}>Apply — {radius}km radius</Text>
                     </Pressable>
                 </View>
