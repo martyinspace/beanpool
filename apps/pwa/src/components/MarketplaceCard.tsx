@@ -84,7 +84,7 @@ export function MarketplaceCard({ post, authorRating, remoteNode, viewMode = 'gr
                     {/* Price Overlay */}
                     <div className={`absolute right-2 bg-nature-900/90 backdrop-blur-md text-white font-bold tracking-tight shadow-md ${isGrid ? 'bottom-2 px-2.5 py-1 rounded-lg text-sm' : 'bottom-3 right-3 px-4 py-1.5 rounded-xl'}`}>
                         {post.credits} <span className="text-[10px] font-normal opacity-80">{
-                            { fixed: 'B', hourly: 'B/hr', daily: 'B/d', weekly: 'B/w', monthly: 'B/m' }[post.priceType] || 'B'
+                            { fixed: 'B', hourly: 'B/Hr', daily: 'B/Dy', weekly: 'B/Wk', monthly: 'B/Mo' }[post.priceType] || 'B'
                         }</span>
                     </div>
                 </div>
@@ -93,7 +93,7 @@ export function MarketplaceCard({ post, authorRating, remoteNode, viewMode = 'gr
                     <span className={`${isGrid ? 'text-3xl' : 'text-4xl'} opacity-20`}>{emoji}</span>
                     <div className={`absolute right-2 bg-nature-900/90 backdrop-blur-md text-white font-bold tracking-tight shadow-md ${isGrid ? 'bottom-2 px-2.5 py-1 rounded-lg text-sm' : 'bottom-3 right-3 px-4 py-1.5 rounded-xl'}`}>
                         {post.credits} <span className="text-[10px] font-normal opacity-80">{
-                            { fixed: 'B', hourly: 'B/hr', daily: 'B/d', weekly: 'B/w', monthly: 'B/m' }[post.priceType] || 'B'
+                            { fixed: 'B', hourly: 'B/Hr', daily: 'B/Dy', weekly: 'B/Wk', monthly: 'B/Mo' }[post.priceType] || 'B'
                         }</span>
                     </div>
                 </div>

@@ -654,9 +654,9 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     >
                         <option value="fixed">Total</option>
                         <option value="hourly">/ Hr</option>
-                        <option value="daily">/ d</option>
-                        <option value="weekly">/ w</option>
-                        <option value="monthly">/ m</option>
+                        <option value="daily">/ Dy</option>
+                        <option value="weekly">/ Wk</option>
+                        <option value="monthly">/ Mo</option>
                     </select>
                 </div>
 

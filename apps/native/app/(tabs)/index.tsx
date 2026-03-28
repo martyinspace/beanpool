@@ -445,7 +445,7 @@ export default function MapScreen() {
                                         setPostPriceType(types[(types.indexOf(postPriceType) + 1) % types.length]);
                                     }} style={styles.priceTypeBtn}>
                                         <Text style={styles.priceTypeBtnText}>{
-                                            { fixed: 'Total', hourly: '/ Hr', daily: '/ d', weekly: '/ w', monthly: '/ m' }[postPriceType] || 'Total'
+                                            { fixed: 'Total', hourly: '/ Hr', daily: '/ Dy', weekly: '/ Wk', monthly: '/ Mo' }[postPriceType] || 'Total'
                                         }</Text>
                                     </Pressable>
                                 </View>

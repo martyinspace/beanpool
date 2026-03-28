@@ -260,7 +260,7 @@ export default function PostDetailModal() {
                 <View style={styles.priceCard}>
                     <Text style={styles.priceLabel}>{priceLabel}</Text>
                     <Text style={styles.priceValue}>{post.credits} <Text style={styles.priceCurrency}>B{
-                        { fixed: '', hourly: ' / Hr', daily: ' / d', weekly: ' / w', monthly: ' / m' }[post.price_type as string] || ''
+                        { fixed: '', hourly: ' / Hr', daily: ' / Dy', weekly: ' / Wk', monthly: ' / Mo' }[post.price_type as string] || ''
                     }</Text></Text>
                 </View>
 
@@ -396,7 +396,7 @@ export default function PostDetailModal() {
                                     setEditPriceType(types[(types.indexOf(editPriceType) + 1) % types.length]);
                                 }} style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, justifyContent: 'center' }}>
                                     <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '700' }}>{
-                                        { fixed: 'Total', hourly: '/ Hr', daily: '/ d', weekly: '/ w', monthly: '/ m' }[editPriceType] || 'Total'
+                                        { fixed: 'Total', hourly: '/ Hr', daily: '/ Dy', weekly: '/ Wk', monthly: '/ Mo' }[editPriceType] || 'Total'
                                     }</Text>
                                 </Pressable>
                             </View>
@@ -483,7 +483,7 @@ export default function PostDetailModal() {
                                                 setShowAcceptConfirm(false);
                                                 // Optimistically add to local state
                                                 setRequests(prev => [...prev, {
-                                                    id: crypto.randomUUID(), post_id: post.id, buyer_pubkey: identity.publicKey, seller_pubkey: post.author_pubkey,
+                                                    id: Math.random().toString(36).substring(2, 11), post_id: post.id, buyer_pubkey: identity.publicKey, seller_pubkey: post.author_pubkey,
                                                     credits: post.price_type === 'fixed' ? post.credits : post.credits * Number(acceptHours),
                                                     hours: post.price_type === 'fixed' ? null : Number(acceptHours), status: 'requested'
                                                 }]);

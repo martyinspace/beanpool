@@ -339,10 +339,10 @@ export default function MarketScreen() {
         
         const cardAuthor = item.author_callsign || item.author_pubkey?.slice(0, 6) || 'Unknown';
         
-        const priceLabel = item.price_type === 'hourly' ? '/hr' : 
-                           item.price_type === 'daily' ? '/day' : 
-                           item.price_type === 'weekly' ? '/wk' : 
-                           item.price_type === 'monthly' ? '/mo' : '';
+        const priceLabel = item.price_type === 'hourly' ? '/Hr' : 
+                           item.price_type === 'daily' ? '/Dy' : 
+                           item.price_type === 'weekly' ? '/Wk' : 
+                           item.price_type === 'monthly' ? '/Mo' : '';
 
         if (viewMode === 'grid') {
             return (

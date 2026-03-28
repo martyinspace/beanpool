@@ -357,7 +357,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                             </span>
                             <div className="text-3xl font-bold text-nature-900 dark:text-white font-mono tracking-tight">
                                 {selectedPost.credits}<span className="text-xl text-nature-400 ml-1 font-sans font-medium">{
-                                    { fixed: 'B', hourly: 'B/hr', daily: 'B/d', weekly: 'B/w', monthly: 'B/m' }[selectedPost.priceType] || 'B'
+                                    { fixed: 'B', hourly: 'B/Hr', daily: 'B/Dy', weekly: 'B/Wk', monthly: 'B/Mo' }[selectedPost.priceType] || 'B'
                                 }</span>
                             </div>
                         </div>
