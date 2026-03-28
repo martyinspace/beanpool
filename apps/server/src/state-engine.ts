@@ -600,7 +600,7 @@ export function getPosts(filter?: { id?: string; type?: string; category?: strin
 }
 
 export function removePost(id: string, authorPublicKey: string): boolean {
-    const result = db.prepare(`UPDATE posts SET active = 0, status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND author_pubkey = ?`).run(id, authorPublicKey);
+    const result = db.prepare(`UPDATE posts SET active = 0, status = 'cancelled', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND author_pubkey = ?`).run(id, authorPublicKey);
     if (result.changes === 0) return false;
     broadcast({ type: 'post_removed', id });
     return true;
@@ -622,7 +622,7 @@ export function updatePost(id: string, authorPublicKey: string, updates: Partial
     
     if (setClauses.length === 0 && updates.photos === undefined) return getPosts({ id })[0];
 
-    setClauses.push("updated_at = CURRENT_TIMESTAMP");
+    setClauses.push("updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')");
 
     const query = `UPDATE posts SET ${setClauses.join(', ')} WHERE id = ? AND author_pubkey = ? AND active = 1`;
     params.push(id, authorPublicKey);
@@ -667,7 +667,7 @@ export function requestPost(postId: string, requesterPublicKey: string, hours?: 
     db.transaction(() => {
         db.prepare(`
             INSERT INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'requested', CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, 'requested', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
         `).run(transactionId, postId, payerPubkey, payeePubkey, cost, hours || null);
     })();
 
@@ -701,11 +701,11 @@ export function approvePostRequest(transactionId: string, authorPublicKey: strin
         
         // 3. Mark the Post as pending
         if (!post.repeatable) {
-            db.prepare(`UPDATE posts SET status='pending', accepted_by=?, accepted_at=CURRENT_TIMESTAMP, pending_transaction_id=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
+            db.prepare(`UPDATE posts SET status='pending', accepted_by=?, accepted_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), pending_transaction_id=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`)
               .run(row.seller_pubkey === authorPublicKey ? row.buyer_pubkey : row.seller_pubkey, transactionId, row.post_id);
               
             // 4. Reject all other competing requests for this Non-Repeatable post
-            db.prepare(`UPDATE marketplace_transactions SET status='rejected', completed_at=CURRENT_TIMESTAMP WHERE post_id=? AND id!=? AND status='requested'`)
+            db.prepare(`UPDATE marketplace_transactions SET status='rejected', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE post_id=? AND id!=? AND status='requested'`)
               .run(row.post_id, transactionId);
         }
     })();
@@ -727,7 +727,7 @@ export function rejectPostRequest(transactionId: string, authorPublicKey: string
     const expectedAuthorRole = isOffer ? row.seller_pubkey : row.buyer_pubkey;
     if (expectedAuthorRole !== authorPublicKey) return null;
 
-    db.prepare(`UPDATE marketplace_transactions SET status='rejected', completed_at=CURRENT_TIMESTAMP WHERE id=?`).run(transactionId);
+    db.prepare(`UPDATE marketplace_transactions SET status='rejected', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`).run(transactionId);
     
     const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
     broadcast({ type: 'transaction_rejected', transaction: tx });
@@ -745,7 +745,7 @@ export function cancelPostRequest(transactionId: string, requesterPublicKey: str
     const expectedRequesterRole = isOffer ? row.buyer_pubkey : row.seller_pubkey;
     if (expectedRequesterRole !== requesterPublicKey) return null;
 
-    db.prepare(`UPDATE marketplace_transactions SET status='cancelled', completed_at=CURRENT_TIMESTAMP WHERE id=?`).run(transactionId);
+    db.prepare(`UPDATE marketplace_transactions SET status='cancelled', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`).run(transactionId);
     
     const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
     broadcast({ type: 'transaction_cancelled', transaction: tx });
@@ -788,7 +788,7 @@ export function acceptPost(postId: string, buyerPublicKey: string, hours?: numbe
         
         // 3. Update post
         if (!post.repeatable) {
-            db.prepare(`UPDATE posts SET status='pending', accepted_by=?, accepted_at=?, pending_transaction_id=?, updated_at = CURRENT_TIMESTAMP WHERE id=?`).run(buyerPublicKey, tx.createdAt, tx.id, post.id);
+            db.prepare(`UPDATE posts SET status='pending', accepted_by=?, accepted_at=?, pending_transaction_id=?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`).run(buyerPublicKey, tx.createdAt, tx.id, post.id);
         }
     })();
     broadcast({ type: 'post_accepted', postId: post.id, transaction: tx });
@@ -823,9 +823,9 @@ export function completePostTransaction(transactionId: string, confirmerPublicKe
         db.prepare(`UPDATE marketplace_transactions SET status='completed', completed_at=? WHERE id=?`).run(completedAt, transactionId);
         
         if (post && !post.repeatable) {
-            db.prepare(`UPDATE posts SET status='completed', active=0, completed_at=?, updated_at = CURRENT_TIMESTAMP WHERE id=?`).run(completedAt, post.id);
+            db.prepare(`UPDATE posts SET status='completed', active=0, completed_at=?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`).run(completedAt, post.id);
         } else if (post && post.repeatable) {
-            db.prepare(`UPDATE posts SET status='active', accepted_by=NULL, accepted_at=NULL, pending_transaction_id=NULL, completed_at=?, updated_at = CURRENT_TIMESTAMP WHERE id=?`).run(completedAt, post.id);
+            db.prepare(`UPDATE posts SET status='active', accepted_by=NULL, accepted_at=NULL, pending_transaction_id=NULL, completed_at=?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`).run(completedAt, post.id);
         }
     })();
 
@@ -842,10 +842,10 @@ export function cancelPostTransaction(transactionId: string, cancellerPublicKey:
         // Reverse Escrow Funds -> Refund Buyer
         transfer(`escrow_${row.post_id}`, row.buyer_pubkey, row.credits, `Escrow refund for cancelled post ${row.post_id}`);
 
-        db.prepare(`UPDATE marketplace_transactions SET status='cancelled', completed_at = CURRENT_TIMESTAMP WHERE id=?`).run(transactionId);
+        db.prepare(`UPDATE marketplace_transactions SET status='cancelled', completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`).run(transactionId);
         const post = db.prepare(`SELECT * FROM posts WHERE id=?`).get(row.post_id) as any;
         if (post && !post.repeatable && post.status === 'pending') {
-            db.prepare(`UPDATE posts SET status='active', accepted_by=NULL, accepted_at=NULL, pending_transaction_id=NULL, updated_at = CURRENT_TIMESTAMP WHERE id=?`).run(post.id);
+            db.prepare(`UPDATE posts SET status='active', accepted_by=NULL, accepted_at=NULL, pending_transaction_id=NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`).run(post.id);
         }
     })();
     const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
@@ -1139,14 +1139,14 @@ export function adminDeletePost(postId: string) {
         for (const tx of pending) {
             // Escrow refund automatically handles balance updates and transaction records
             transfer(`escrow_${postId}`, tx.buyer_pubkey, tx.credits, `Escrow refund for removed post`);
-            db.prepare("UPDATE marketplace_transactions SET status='cancelled', completed_at=CURRENT_TIMESTAMP WHERE id=?").run(tx.id);
+            db.prepare("UPDATE marketplace_transactions SET status='cancelled', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?").run(tx.id);
         }
         
         // Cancel requested transactions
-        db.prepare("UPDATE marketplace_transactions SET status='cancelled', completed_at=CURRENT_TIMESTAMP WHERE post_id=? AND status='requested'").run(postId);
+        db.prepare("UPDATE marketplace_transactions SET status='cancelled', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE post_id=? AND status='requested'").run(postId);
 
         // Soft delete the post
-        db.prepare("UPDATE posts SET active=0, status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE id=?").run(postId);
+        db.prepare("UPDATE posts SET active=0, status='cancelled', updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?").run(postId);
     })();
     broadcast({ type: 'post_removed', id: postId });
 }

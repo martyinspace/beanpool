@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS members (
     public_key TEXT PRIMARY KEY,
     callsign TEXT NOT NULL,
-    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    joined_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     invited_by TEXT REFERENCES members(public_key),
     invite_code TEXT,
     home_node_url TEXT,
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS members (
 CREATE TABLE IF NOT EXISTS invite_codes (
     code TEXT PRIMARY KEY,
     created_by TEXT NOT NULL REFERENCES members(public_key),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     used_by TEXT REFERENCES members(public_key),
     used_at DATETIME,
     intended_for TEXT
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS invite_codes (
 CREATE TABLE IF NOT EXISTS accounts (
     public_key TEXT PRIMARY KEY REFERENCES members(public_key),
     balance REAL DEFAULT 0.0,
-    last_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_updated_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     last_demurrage_epoch INTEGER DEFAULT 0
 );
 
@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     to_pubkey TEXT NOT NULL REFERENCES members(public_key),
     amount REAL NOT NULL CHECK (amount > 0),
     memo TEXT,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    timestamp DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_transactions_from ON transactions(from_pubkey);
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS posts (
     description TEXT NOT NULL,
     credits REAL NOT NULL DEFAULT 0,
     author_pubkey TEXT NOT NULL REFERENCES members(public_key),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     active INTEGER DEFAULT 1,
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'pending', 'paused', 'completed', 'cancelled')),
     price_type TEXT DEFAULT 'fixed',
@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS posts (
     lat REAL,
     lng REAL,
     origin_node TEXT,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     CONSTRAINT lat_lng_check CHECK (lat BETWEEN -90 AND 90 AND lng BETWEEN -180 AND 180)
 );
 
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS marketplace_transactions (
     credits REAL NOT NULL,
     hours REAL,
     status TEXT DEFAULT 'pending',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     completed_at DATETIME
 );
 
@@ -100,7 +100,7 @@ CREATE TABLE IF NOT EXISTS conversations (
     type TEXT NOT NULL,
     name TEXT,
     created_by TEXT REFERENCES members(public_key),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
 CREATE TABLE IF NOT EXISTS conversation_participants (
@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS messages (
     author_pubkey TEXT NOT NULL REFERENCES members(public_key),
     ciphertext TEXT NOT NULL,
     nonce TEXT NOT NULL,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    timestamp DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_time ON messages(conversation_id, timestamp ASC);
 
@@ -124,7 +124,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_conversation_time ON messages(conversati
 CREATE TABLE IF NOT EXISTS friends (
     owner_pubkey TEXT REFERENCES members(public_key),
     friend_pubkey TEXT REFERENCES members(public_key),
-    added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    added_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     is_guardian INTEGER DEFAULT 0,
     PRIMARY KEY (owner_pubkey, friend_pubkey)
 );
@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS ratings (
     stars INTEGER NOT NULL CHECK(stars BETWEEN 1 AND 5),
     comment TEXT,
     transaction_id TEXT REFERENCES marketplace_transactions(id),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     UNIQUE(rater_pubkey, transaction_id)
 );
 
@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS abuse_reports (
     target_pubkey TEXT NOT NULL REFERENCES members(public_key),
     target_post_id TEXT,
     reason TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
 -- 8. Config
@@ -167,5 +167,5 @@ CREATE TABLE IF NOT EXISTS projects (
     current_amount INTEGER DEFAULT 0,
     deadline_at DATETIME,
     status TEXT DEFAULT 'ACTIVE', -- 'ACTIVE', 'FUNDED', 'FAILED', 'COMPLETED'
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );

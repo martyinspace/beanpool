@@ -64,7 +64,7 @@ async function _doInitDB() {
         CREATE TABLE IF NOT EXISTS members (
             public_key TEXT PRIMARY KEY,
             callsign TEXT NOT NULL,
-            joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            joined_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
             invited_by TEXT,
             invite_code TEXT,
             home_node_url TEXT,
@@ -81,7 +81,7 @@ async function _doInitDB() {
         CREATE TABLE IF NOT EXISTS accounts (
             public_key TEXT PRIMARY KEY,
             balance REAL DEFAULT 0.0,
-            last_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_updated_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
             last_demurrage_epoch INTEGER DEFAULT 0
         );
 
@@ -91,7 +91,7 @@ async function _doInitDB() {
             to_pubkey TEXT NOT NULL,
             amount REAL NOT NULL CHECK (amount > 0),
             memo TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            timestamp DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
         );
 
         CREATE INDEX IF NOT EXISTS idx_transactions_from ON transactions(from_pubkey);
@@ -107,7 +107,7 @@ async function _doInitDB() {
             description TEXT NOT NULL,
             credits REAL NOT NULL DEFAULT 0,
             author_pubkey TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
             active INTEGER DEFAULT 1,
             status TEXT DEFAULT 'active' CHECK (status IN ('active', 'pending', 'paused', 'completed', 'cancelled')),
             price_type TEXT DEFAULT 'fixed',
@@ -135,7 +135,7 @@ async function _doInitDB() {
             credits REAL NOT NULL,
             hours REAL,
             status TEXT DEFAULT 'pending',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
             completed_at DATETIME
         );
 
@@ -145,7 +145,7 @@ async function _doInitDB() {
             type TEXT NOT NULL,
             name TEXT,
             created_by TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
         );
 
         CREATE TABLE IF NOT EXISTS conversation_participants (
@@ -161,7 +161,7 @@ async function _doInitDB() {
             author_pubkey TEXT NOT NULL,
             ciphertext TEXT NOT NULL,
             nonce TEXT NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            timestamp DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
         );
         CREATE INDEX IF NOT EXISTS idx_messages_conversation_time ON messages(conversation_id, timestamp ASC);
         
@@ -176,7 +176,7 @@ async function _doInitDB() {
             current_amount INTEGER DEFAULT 0,
             deadline_at DATETIME,
             status TEXT DEFAULT 'ACTIVE',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
         );
     `;
 
