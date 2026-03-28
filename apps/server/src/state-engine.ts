@@ -657,7 +657,8 @@ export function requestPost(postId: string, requesterPublicKey: string, hours?: 
 
     // Check if the PAYER has enough balance at the time of request to prevent spam
     const cost = post.price_type !== 'fixed' ? (post.credits * (hours || 1)) : post.credits;
-    if (getBalance(payerPubkey).balance < cost) throw new Error('Insufficient balance to request this post.');
+    const { balance, floor } = getBalance(payerPubkey);
+    if (balance - cost < floor) throw new Error('Insufficient balance to request this post.');
 
     const transactionId = crypto.randomUUID();
     
@@ -686,8 +687,8 @@ export function approvePostRequest(transactionId: string, authorPublicKey: strin
     if (expectedAuthorRole !== authorPublicKey) throw new Error('Unauthorized');
 
     // Verify payer STILL has enough money at the exact moment of approval
-    const currentBalance = getBalance(row.buyer_pubkey).balance;
-    if (currentBalance < row.credits) throw new Error('Payer has insufficient funds in their wallet');
+    const { balance, floor } = getBalance(row.buyer_pubkey);
+    if (balance - row.credits < floor) throw new Error('Payer has insufficient funds in their wallet');
 
     db.transaction(() => {
         // 1. Lock the funds in Escrow
@@ -766,7 +767,8 @@ export function acceptPost(postId: string, buyerPublicKey: string, hours?: numbe
     const finalCredits = post.priceType !== 'fixed' ? post.credits * hours! : post.credits;
 
     // Check balance
-    if (getBalance(buyerPublicKey).balance < finalCredits) throw new Error('Insufficient balance to accept this offer');
+    const { balance, floor } = getBalance(buyerPublicKey);
+    if (balance - finalCredits < floor) throw new Error('Insufficient balance to accept this offer');
 
     const tx: MarketplaceTransaction = {
         id: crypto.randomUUID(), postId: post.id, postTitle: post.title, buyerPublicKey,
