@@ -3,7 +3,9 @@ import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, ScrollView, 
 import { useFocusEffect, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIdentity } from '../IdentityContext';
-import { getBalance, getTransactions, getProjects, getMemberProfile } from '../../utils/db';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { getBalance, getTransactions, getProjects, getMemberProfile, exportLocalAudit } from '../../utils/db';
 
 export default function LedgerScreen() {
     const { identity } = useIdentity();
@@ -98,7 +100,38 @@ export default function LedgerScreen() {
                 </View>
             ))}
 
-            <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Recent Transactions</Text>
+            <View style={[styles.sectionTitleContainer, { marginTop: 24 }]}>
+                <Text style={styles.sectionTitle}>Recent Transactions</Text>
+                <Pressable
+                    style={styles.auditBtn}
+                    onPress={async () => {
+                        try {
+                            const { balancesCsv, transactionsCsv } = await exportLocalAudit();
+                            const balPath = `${FileSystem.documentDirectory}beanpool_balances.csv`;
+                            const txPath = `${FileSystem.documentDirectory}beanpool_transactions.csv`;
+                            
+                            await FileSystem.writeAsStringAsync(balPath, balancesCsv);
+                            await FileSystem.writeAsStringAsync(txPath, transactionsCsv);
+                            
+                            // Share both by zipping or sharing one by one, iOS supports multiple URLs? No, shareAsync takes one URL. Wait, if it's one URL, maybe we can write a ZIP if available, otherwise just share balances?
+                            // To be safe we'll share transactions which is the most critical audit, or just prompt for both? 
+                            // Actually shareAsync only accepts one URL. I'll combine the CSVs into one node_audit.csv.
+                            const combinedCsv = `--- BALANCES & ESCROW ---\n${balancesCsv}\n\n--- TRANSACTION LOG ---\n${transactionsCsv}`;
+                            const combinedPath = `${FileSystem.documentDirectory}beanpool_node_audit.csv`;
+                            await FileSystem.writeAsStringAsync(combinedPath, combinedCsv);
+                            
+                            if (await Sharing.isAvailableAsync()) {
+                                await Sharing.shareAsync(combinedPath, { mimeType: 'text/csv', dialogTitle: 'BeanPool Node Audit' });
+                            }
+                        } catch (e) {
+                            console.error('Audit export failed', e);
+                            alert('Failed to generate audit export.');
+                        }
+                    }}
+                >
+                    <Text style={styles.auditBtnText}>⬇️ Node Audit</Text>
+                </Pressable>
+            </View>
         </View>
     );
 
@@ -129,9 +162,6 @@ export default function LedgerScreen() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <View style={styles.topBar}>
-                <Text style={styles.topTitle}>Ledger</Text>
-            </View>
             <FlatList
                 data={txns}
                 keyExtractor={item => item.id}
@@ -171,6 +201,9 @@ const styles = StyleSheet.create({
     sendForm: { backgroundColor: '#f3f4f6', padding: 20, borderRadius: 16, marginBottom: 24 },
     sendFormContext: { color: '#6b7280', fontSize: 14, textAlign: 'center' },
     sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1f2937', marginBottom: 16, marginLeft: 4 },
+    sectionTitleContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginLeft: 4, marginRight: 4 },
+    auditBtn: { backgroundColor: '#f3f4f6', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb' },
+    auditBtnText: { color: '#4b5563', fontSize: 12, fontWeight: '800' },
     txnRow: { flexDirection: 'row', backgroundColor: '#ffffff', padding: 16, borderRadius: 16, marginBottom: 12, alignItems: 'center', borderWidth: 1, borderColor: '#f3f4f6' },
     txnIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
     iconCredit: { backgroundColor: 'rgba(16, 185, 129, 0.1)' },

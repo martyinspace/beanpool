@@ -60,7 +60,7 @@ import {
     createProject, updateProject, deleteProject, voteForProject, createVotingRound, closeVotingRound,
     getProjects, getAllProjects, getVotingRounds, getActiveRound, getCommonsBalance,
     adminRejectProject,
-    getNodeConfig, updateNodeConfig, getDirectoryInfo,
+    getNodeConfig, updateNodeConfig, getDirectoryInfo, exportLedgerAudit
 } from './state-engine.js';
 import { getCrowdfundProjects, getCrowdfundProject, createCrowdfundProject, updateCrowdfundProject, pledgeToProject, deleteCrowdfundProject } from './db/db.js';
 
@@ -369,15 +369,20 @@ export async function startHttpsServer(port: number): Promise<void> {
         ctx.body = {
             members: getAllMembers(),
             profiles: getAllMembers().map(m => getProfile(m.publicKey)), // fetch profiles for all
-            posts: getPosts(), // admin wants all posts, even inactive
+            posts: getPosts().filter(p => p.status !== 'cancelled'), // ONLY send non-cancelled posts to admin
             health: getCommunityHealth(),
         };
     });
 
     router.post('/api/local/admin/posts/:id/delete', async (ctx) => {
         if (!checkAdminAuth(ctx as any)) return;
-        adminDeletePost(ctx.params.id);
-        ctx.body = { success: true };
+        try {
+            adminDeletePost(ctx.params.id);
+            ctx.body = { success: true };
+        } catch (e: any) {
+            ctx.status = 500;
+            ctx.body = { error: e.message, stack: e.stack };
+        }
     });
 
     router.post('/api/local/admin/users/:pubkey/status', async (ctx) => {
@@ -767,6 +772,10 @@ export async function startHttpsServer(port: number): Promise<void> {
         ctx.body = getTransactions(publicKey, limit, offset);
     });
 
+    router.get('/api/ledger/export', async (ctx) => {
+        ctx.body = exportLedgerAudit();
+    });
+
     // ===================== MESSAGING API (PUBLIC) =====================
 
     router.post('/api/messages/conversation', async (ctx) => {
@@ -949,53 +958,54 @@ export async function startHttpsServer(port: number): Promise<void> {
     // ===================== MARKETPLACE TRANSACTIONS =====================
 
     router.post('/api/marketplace/posts/accept', async (ctx) => {
-        const { postId, buyerPublicKey, hours } = (ctx as any).requestBody || {};
-        if (!postId || !buyerPublicKey) {
+        try {
+            const { postId, buyerPublicKey, hours } = (ctx as any).requestBody || {};
+            if (!postId || !buyerPublicKey) {
+                ctx.status = 400;
+                ctx.body = { error: 'postId and buyerPublicKey are required' };
+                return;
+            }
+            const parsedHours = hours != null ? Number(hours) : undefined;
+            const tx = acceptPost(postId, buyerPublicKey, parsedHours);
+            ctx.body = { success: true, transaction: tx };
+        } catch (err: any) {
             ctx.status = 400;
-            ctx.body = { error: 'postId and buyerPublicKey are required' };
-            return;
+            ctx.body = { error: err.message };
         }
-        const parsedHours = hours != null ? Number(hours) : undefined;
-        const tx = acceptPost(postId, buyerPublicKey, parsedHours);
-        if (!tx) {
-            ctx.status = 400;
-            ctx.body = { error: 'Cannot accept — post not found, already pending, or you are the author' };
-            return;
-        }
-        ctx.body = { success: true, transaction: tx };
     });
 
     router.post('/api/marketplace/posts/request', async (ctx) => {
-        const { postId, buyerPublicKey, hours } = (ctx as any).requestBody || {};
-        if (!postId || !buyerPublicKey) {
+        try {
+            const { postId, buyerPublicKey, hours } = (ctx as any).requestBody || {};
+            if (!postId || !buyerPublicKey) {
+                ctx.status = 400;
+                ctx.body = { error: 'postId and buyerPublicKey are required' };
+                return;
+            }
+            const parsedHours = hours != null ? Number(hours) : undefined;
+            const tx = requestPost(postId, buyerPublicKey, parsedHours);
+            if (!tx) throw new Error('Cannot request — post not found or unauthorized');
+            ctx.body = { success: true, transaction: tx };
+        } catch (err: any) {
             ctx.status = 400;
-            ctx.body = { error: 'postId and buyerPublicKey are required' };
-            return;
+            ctx.body = { error: err.message };
         }
-        const parsedHours = hours != null ? Number(hours) : undefined;
-        const tx = requestPost(postId, buyerPublicKey, parsedHours);
-        if (!tx) {
-            ctx.status = 400;
-            ctx.body = { error: 'Cannot request — post not found, insufficient balance, or you are the author' };
-            return;
-        }
-        ctx.body = { success: true, transaction: tx };
     });
 
     router.post('/api/marketplace/transactions/approve', async (ctx) => {
-        const { transactionId, authorPublicKey } = (ctx as any).requestBody || {};
-        if (!transactionId || !authorPublicKey) {
+        try {
+            const { transactionId, authorPublicKey } = (ctx as any).requestBody || {};
+            if (!transactionId || !authorPublicKey) {
+                ctx.status = 400;
+                ctx.body = { error: 'transactionId and authorPublicKey are required' };
+                return;
+            }
+            const tx = approvePostRequest(transactionId, authorPublicKey);
+            ctx.body = { success: true, transaction: tx };
+        } catch (err: any) {
             ctx.status = 400;
-            ctx.body = { error: 'transactionId and authorPublicKey are required' };
-            return;
+            ctx.body = { error: err.message };
         }
-        const tx = approvePostRequest(transactionId, authorPublicKey);
-        if (!tx) {
-            ctx.status = 400;
-            ctx.body = { error: 'Cannot approve — request not found, unauthorized, or buyer has insufficient funds' };
-            return;
-        }
-        ctx.body = { success: true, transaction: tx };
     });
 
     router.post('/api/marketplace/transactions/reject', async (ctx) => {

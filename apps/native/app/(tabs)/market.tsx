@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, FlatList, Pressable, SafeAreaView, Platform, Al
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import { useFocusEffect, router } from 'expo-router';
-import { getPosts } from '../../utils/db';
+import { getPosts, getMemberRatings } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
 import { RadiusPickerModal } from '../../components/RadiusPickerModal';
 
@@ -38,6 +38,33 @@ function getDistanceInKm(lat1: number, lon1: number, lat2: number, lon2: number)
       Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
     return R * c; // Distance in km
+}
+
+function PostAuthorRating({ pubkey, callsign, isGrid }: { pubkey: string, callsign: string, isGrid?: boolean }) {
+    const [avg, setAvg] = useState<number | null>(null);
+    useEffect(() => {
+        if (!pubkey) return;
+        getMemberRatings(pubkey).then(r => setAvg(r.average)).catch(() => {});
+    }, [pubkey]);
+    
+    const r = avg !== null ? Math.round(avg) : 0;
+    const beans = avg !== null ? '🫘'.repeat(Math.min(r, 5)) + '○'.repeat(Math.max(0, 5 - r)) : '';
+    
+    if (isGrid) {
+        return (
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
+                <Text style={styles.gridCardAuthor} numberOfLines={1}>{callsign}</Text>
+                {avg !== null && <Text style={{ fontSize: 10 }}>{beans}</Text>}
+            </View>
+        );
+    }
+    
+    return (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 20 }}>
+            <Text style={[styles.cardAuthor, { marginBottom: 0 }]}>By {callsign}</Text>
+            {avg !== null && <Text style={{ fontSize: 13 }}>{beans}</Text>}
+        </View>
+    );
 }
 
 export default function MarketScreen() {
@@ -342,7 +369,7 @@ export default function MarketScreen() {
                     </View>
                     <View style={styles.gridTextContent}>
                         <Text style={styles.gridCardTitle} numberOfLines={1}>{item.title}</Text>
-                        <Text style={styles.gridCardAuthor} numberOfLines={1}>{cardAuthor}</Text>
+                        <PostAuthorRating pubkey={item.author_pubkey} callsign={cardAuthor} isGrid={true} />
                     </View>
                 </Pressable>
             );
@@ -365,7 +392,7 @@ export default function MarketScreen() {
                         <Text style={styles.price}>{item.credits}{priceLabel} Ʀ</Text>
                     </View>
                     <Text style={styles.cardTitle}>{item.title}</Text>
-                    <Text style={styles.cardAuthor}>By {cardAuthor}</Text>
+                    <PostAuthorRating pubkey={item.author_pubkey} callsign={cardAuthor} isGrid={false} />
                     <View style={styles.cardFooter}>
                         <Pressable style={styles.actionBtn}>
                             <MaterialCommunityIcons name="chat-outline" size={16} color="#aaa" />
@@ -382,10 +409,6 @@ export default function MarketScreen() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            {/* Page title banner */}
-            <View style={styles.topBar}>
-                <Text style={styles.topTitle}>Marketplace</Text>
-            </View>
             <View style={{ padding: 16, paddingBottom: 0 }}>
                 {HeaderComponent}
             </View>

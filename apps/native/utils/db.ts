@@ -332,7 +332,7 @@ export async function getGlobalUnreadCount(myPubkey: string): Promise<number> {
 export async function getBalance(pubkey: string) {
     const database = await getDb();
     const row = await database.getFirstAsync<any>('SELECT balance, last_demurrage_epoch FROM accounts WHERE public_key = ?', [pubkey]);
-    const commons = await database.getFirstAsync<any>('SELECT balance FROM accounts WHERE public_key = "COMMONS"');
+    const commons = await database.getFirstAsync<any>('SELECT balance FROM accounts WHERE public_key = "commons" OR public_key = "COMMONS"');
     
     return {
         balance: row?.balance || 0,
@@ -1283,4 +1283,28 @@ export async function reportAbuse(reporterPublicKey: string, targetPublicKey: st
 
 export async function submitRating(raterPublicKey: string, targetPublicKey: string, rating: number, comment: string, transactionId?: string) {
     return _signedRequest('/api/members/rate', { raterPublicKey, targetPublicKey, rating, comment, transactionId });
+}
+
+export async function getMemberRatings(publicKey: string): Promise<{ ratings: any[]; average: number; count: number; asProvider: { average: number; count: number }; asReceiver: { average: number; count: number } }> {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) {
+        // Return default empty state if offline
+        return { ratings: [], average: 0, count: 0, asProvider: { average: 0, count: 0 }, asReceiver: { average: 0, count: 0 } };
+    }
+    
+    try {
+        const res = await fetch(`${anchorUrl}/api/ratings/${publicKey}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        if (!res.ok) {
+            throw new Error(`Failed to fetch ratings: ${res.statusText}`);
+        }
+        return await res.json();
+    } catch (e: any) {
+        console.warn('Failed to fetch ratings, defaulting to 0:', e.message);
+        return { ratings: [], average: 0, count: 0, asProvider: { average: 0, count: 0 }, asReceiver: { average: 0, count: 0 } };
+    }
 }

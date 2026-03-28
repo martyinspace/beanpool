@@ -912,6 +912,34 @@
             className: '', iconSize: [14, 14], iconAnchor: [7, 7]
         });
 
+        const sisterIcon = L.divIcon({
+            html: '<div style="width:14px;height:14px;background:#3b82f6;border-radius:50%;border:2px solid #1e3a8a;box-shadow:0 0 10px rgba(59,130,246,0.6)"></div>',
+            className: '', iconSize: [14, 14], iconAnchor: [7, 7]
+        });
+        const sisterMarkers = [];
+
+        async function plotSisterNodes(connectors) {
+            if (!settingsMap) return;
+            sisterMarkers.forEach(m => settingsMap.removeLayer(m));
+            sisterMarkers.length = 0;
+
+            for (const c of connectors) {
+                if (!c.enabled || !c.publicUrl) continue;
+                try {
+                    const res = await fetch(`${c.publicUrl}/api/local/status`).catch(() => null);
+                    if (res && res.ok) {
+                        const info = await res.json();
+                        if (info.location && info.location.lat && info.location.lng) {
+                            const marker = L.marker([info.location.lat, info.location.lng], { icon: sisterIcon })
+                                .addTo(settingsMap)
+                                .bindPopup(`<div style="text-align:center;"><b>${info.callsign || c.callsign || 'Sister Node'}</b><br><a href="${c.publicUrl}" target="_blank" style="color:#3b82f6;font-size:0.8rem;text-decoration:none;">Visit Node ↗</a></div>`);
+                            sisterMarkers.push(marker);
+                        }
+                    }
+                } catch(e) {}
+            }
+        }
+
         function initMap(lat, lng) {
             if (settingsMap) { settingsMap.invalidateSize(); return; }
             const center = (lat && lng) ? [lat, lng] : [0, 0];
@@ -1001,10 +1029,11 @@
                     return;
                 }
                 authToken = password;
+                let dashboardData = null;
                 const dashRes = await fetch(`${API}/dashboard`);
                 if (dashRes.ok) {
-                    const data = await dashRes.json();
-                    hydrateSettings(data);
+                    dashboardData = await dashRes.json();
+                    hydrateSettings(dashboardData);
                 }
                 showView('settings');
                 loadVersionInfo();
@@ -1017,6 +1046,7 @@
                         parseFloat(document.getElementById('cfg-lat').value) || null,
                         parseFloat(document.getElementById('cfg-lng').value) || null
                     );
+                    if (dashboardData && dashboardData.connectors) plotSisterNodes(dashboardData.connectors);
                     maybeAutoCheck();
                 }, 150);
             } catch (err) {
@@ -1754,8 +1784,8 @@
             if (!el || !adminDataCache) return;
             if (adminDataCache.posts.length === 0) { el.innerHTML = '<div style="padding:1rem;text-align:center;color:#64748b;">No posts</div>'; return; }
             
-            // Sort by date desc
-            const posts = adminDataCache.posts.slice().sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+            // Sort by date desc and filter soft-deleted
+            const posts = adminDataCache.posts.filter(p => (p.status !== 'cancelled' && p.active !== 0)).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
             el.innerHTML = posts.map(p => `
                 <div style="padding:0.5rem;border-bottom:1px solid #1e293b;display:flex;justify-content:space-between;align-items:center;">
                     <div>

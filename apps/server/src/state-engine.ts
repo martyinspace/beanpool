@@ -644,9 +644,11 @@ export function updatePost(id: string, authorPublicKey: string, updates: Partial
 
 // ===================== MARKETPLACE TRANSACTIONS =====================
 
-export function requestPost(postId: string, requesterPublicKey: string, hours?: number): MarketplaceTransaction | null {
+export function requestPost(postId: string, requesterPublicKey: string, hours?: number): MarketplaceTransaction {
     const post = db.prepare(`SELECT * FROM posts WHERE id=?`).get(postId) as any;
-    if (!post || post.status !== 'active' || post.author_pubkey === requesterPublicKey) return null;
+    if (!post) throw new Error('Post not found');
+    if (post.status !== 'active') throw new Error('Post is not active');
+    if (post.author_pubkey === requesterPublicKey) throw new Error('You cannot request your own post');
 
     // For Needs, the Author pays. For Offers, the Requester pays.
     const isOffer = post.type === 'offer';
@@ -654,8 +656,8 @@ export function requestPost(postId: string, requesterPublicKey: string, hours?: 
     const payeePubkey = isOffer ? post.author_pubkey : requesterPublicKey;
 
     // Check if the PAYER has enough balance at the time of request to prevent spam
-    const cost = post.price_type === 'hourly' ? (post.credits * (hours || 1)) : post.credits;
-    if (getBalance(payerPubkey).balance < cost) return null;
+    const cost = post.price_type !== 'fixed' ? (post.credits * (hours || 1)) : post.credits;
+    if (getBalance(payerPubkey).balance < cost) throw new Error('Insufficient balance to request this post.');
 
     const transactionId = crypto.randomUUID();
     
@@ -674,18 +676,18 @@ export function requestPost(postId: string, requesterPublicKey: string, hours?: 
 
 export function approvePostRequest(transactionId: string, authorPublicKey: string): MarketplaceTransaction | null {
     const row = db.prepare("SELECT * FROM marketplace_transactions WHERE id=? AND status='requested'").get(transactionId) as any;
-    if (!row) return null;
+    if (!row) throw new Error('Request not found');
 
     const post = db.prepare(`SELECT * FROM posts WHERE id=?`).get(row.post_id) as any;
-    if (!post || post.author_pubkey !== authorPublicKey) return null; // Only the Author can approve a request
+    if (!post || post.author_pubkey !== authorPublicKey) throw new Error('Only the author can approve a request');
 
     const isOffer = post.type === 'offer';
     const expectedAuthorRole = isOffer ? row.seller_pubkey : row.buyer_pubkey;
-    if (expectedAuthorRole !== authorPublicKey) return null;
+    if (expectedAuthorRole !== authorPublicKey) throw new Error('Unauthorized');
 
     // Verify payer STILL has enough money at the exact moment of approval
     const currentBalance = getBalance(row.buyer_pubkey).balance;
-    if (currentBalance < row.credits) return null;
+    if (currentBalance < row.credits) throw new Error('Payer has insufficient funds in their wallet');
 
     db.transaction(() => {
         // 1. Lock the funds in Escrow
@@ -747,28 +749,29 @@ export function cancelPostRequest(transactionId: string, requesterPublicKey: str
     return tx;
 }
 
-export function acceptPost(postId: string, buyerPublicKey: string, hours?: number): MarketplaceTransaction | null {
+export function acceptPost(postId: string, buyerPublicKey: string, hours?: number): MarketplaceTransaction {
     const post = getPosts({ id: postId, status: 'active' })[0];
-    if (!post || post.authorPublicKey === buyerPublicKey) return null;
+    if (!post) throw new Error('Post not found or not active');
+    if (post.authorPublicKey === buyerPublicKey) throw new Error('Cannot accept your own post');
 
     if (post.type !== 'offer') {
-        return null; // Only Offers can be 1-step accepted
+        throw new Error('Only Offers can be 1-step accepted');
     }
 
-    if (post.priceType === 'hourly' && (typeof hours !== 'number' || hours <= 0)) {
-        return null; // Must provide valid hours for an hourly post
+    if (post.priceType !== 'fixed' && (typeof hours !== 'number' || hours <= 0)) {
+        throw new Error(`Must provide a valid quantity for a ${post.priceType} post`);
     }
 
     const buyer = getMember(buyerPublicKey);
-    const finalCredits = post.priceType === 'hourly' ? post.credits * hours! : post.credits;
+    const finalCredits = post.priceType !== 'fixed' ? post.credits * hours! : post.credits;
 
     // Check balance
-    if (getBalance(buyerPublicKey).balance < finalCredits) return null;
+    if (getBalance(buyerPublicKey).balance < finalCredits) throw new Error('Insufficient balance to accept this offer');
 
     const tx: MarketplaceTransaction = {
         id: crypto.randomUUID(), postId: post.id, postTitle: post.title, buyerPublicKey,
         buyerCallsign: buyer?.callsign || 'Anonymous', sellerPublicKey: post.authorPublicKey,
-        sellerCallsign: post.authorCallsign, credits: finalCredits, hours: post.priceType === 'hourly' ? hours : undefined,
+        sellerCallsign: post.authorCallsign, credits: finalCredits, hours: post.priceType !== 'fixed' ? hours : undefined,
         status: 'pending', createdAt: new Date().toISOString(),
     };
 
@@ -800,7 +803,7 @@ export function completePostTransaction(transactionId: string, confirmerPublicKe
     let txnRecord: Transaction | undefined;
     
     db.transaction(() => {
-        if (finalHours !== undefined && post && post.price_type === 'hourly' && finalHours > 0) {
+        if (finalHours !== undefined && post && post.price_type !== 'fixed' && finalHours > 0) {
             row.hours = finalHours;
             row.credits = post.credits * finalHours;
             db.prepare(`UPDATE marketplace_transactions SET hours=?, credits=? WHERE id=?`).run(row.hours, row.credits, transactionId);
@@ -1126,7 +1129,21 @@ export function adminSetUserStatus(publicKey: string, status: 'active' | 'disabl
 }
 
 export function adminDeletePost(postId: string) {
-    db.prepare("DELETE FROM posts WHERE id=?").run(postId);
+    db.transaction(() => {
+        // Find existing pending transactions to refund escrow
+        const pending = db.prepare("SELECT * FROM marketplace_transactions WHERE post_id=? AND status='pending'").all(postId) as any[];
+        for (const tx of pending) {
+            // Escrow refund automatically handles balance updates and transaction records
+            transfer(`escrow_${postId}`, tx.buyer_pubkey, tx.credits, `Escrow refund for removed post`);
+            db.prepare("UPDATE marketplace_transactions SET status='cancelled', completed_at=CURRENT_TIMESTAMP WHERE id=?").run(tx.id);
+        }
+        
+        // Cancel requested transactions
+        db.prepare("UPDATE marketplace_transactions SET status='cancelled', completed_at=CURRENT_TIMESTAMP WHERE post_id=? AND status='requested'").run(postId);
+
+        // Soft delete the post
+        db.prepare("UPDATE posts SET active=0, status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE id=?").run(postId);
+    })();
     broadcast({ type: 'post_removed', id: postId });
 }
 
@@ -1220,6 +1237,43 @@ export function getDirectoryInfo(): { name: string; memberCount: number; service
         version: '1.0.0',
     };
 }
+
+// ===================== AUDIT EXPORT =====================
+export function exportLedgerAudit(): { balancesCsv: string; transactionsCsv: string } {
+    const members = getAllMembers();
+    const projects = getProjects();
+    const commonsBalance = getCommonsBalance();
+    
+    let balancesCsv = 'Account,Callsign,Balance_Type,Balance\n';
+    balancesCsv += `commons,Community Pool,System,${commonsBalance}\n`;
+    
+    for (const m of members) {
+        const bal = getBalance(m.publicKey).balance;
+        balancesCsv += `${m.publicKey},${m.callsign},Member,${bal}\n`;
+    }
+    
+    for (const p of projects) {
+        if (p.status === 'funded') {
+            balancesCsv += `project_${p.id},Project: ${p.title.replace(/,/g, '')},Project_Funded,${p.requestedAmount}\n`;
+        }
+    }
+    
+    const pendingTxs = db.prepare("SELECT * FROM marketplace_transactions WHERE status='pending'").all() as any[];
+    for (const tx of pendingTxs) {
+        const buyer = members.find(m => m.publicKey === tx.buyer_pubkey);
+        balancesCsv += `escrow_${tx.post_id},Escrow (Payer: ${buyer?.callsign || 'Unknown'}),Pending_Trade,${tx.credits}\n`;
+    }
+    
+    let transactionsCsv = 'Timestamp,Transaction_ID,From_Account,To_Account,Amount,Memo\n';
+    const txHistory = db.prepare("SELECT * FROM transactions ORDER BY timestamp ASC").all() as any[];
+    for (const tx of txHistory) {
+         const memoSafe = (tx.memo || '').replace(/,/g, ';').replace(/\n/g, ' ').replace(/\r/g, '');
+         transactionsCsv += `${tx.timestamp},${tx.id},${tx.from_pubkey},${tx.to_pubkey},${tx.amount},${memoSafe}\n`;
+    }
+    
+    return { balancesCsv, transactionsCsv };
+}
+
 // ===================== COMMUNITY COMMONS =====================
 
 export function createProject(proposerPubkey: string, title: string, description: string, requestedAmount: number): CommunityProject | null {

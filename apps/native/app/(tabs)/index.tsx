@@ -65,6 +65,7 @@ const MapPin = ({ post, author, catObj }: { post: any, author: string, catObj: a
     return (
         <Marker
             coordinate={{ latitude: post.lat, longitude: post.lng }}
+            tracksViewChanges={track}
             title={(post.title || '').trim() || 'Marketplace Post'}
             description={`${author} • ${post.credits || 0} Ʀ`}
             anchor={{ x: 0.5, y: 1 }}
@@ -273,6 +274,7 @@ export default function MapScreen() {
                 userInterfaceStyle={isDarkMap ? "dark" : "light"}
                 showsUserLocation={true}
                 onPress={handleMapPress}
+                onLongPress={handleMapPress}
                 initialRegion={{
                     latitude: -28.5398, longitude: 153.4996,
                     latitudeDelta: 0.0922, longitudeDelta: 0.0421,
@@ -285,7 +287,7 @@ export default function MapScreen() {
                 })}
 
                 {/* Pin drop preview marker */}
-                {pinDropMode && postLat != null && postLng != null && (
+                {showNewPost && postLat != null && postLng != null && (
                     <Marker coordinate={{ latitude: postLat, longitude: postLng }} anchor={{ x: 0.5, y: 0.8 }}>
                         <Text style={{ fontSize: 42 }}>📍</Text>
                     </Marker>
@@ -336,8 +338,29 @@ export default function MapScreen() {
                 </View>
             )}
 
+            {/* Dedicated Pin Drop Confirm/Cancel Footer */}
+            {pinDropMode && showNewPost && (
+                <SafeAreaView style={[styles.sheetWrapper, { bottom: 0, paddingBottom: 20 }]} pointerEvents="box-none">
+                    <View style={[styles.sheet, { padding: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: 120, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', elevation: 20 }]}>
+                        <Pressable 
+                            style={{ flex: 1, padding: 14, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 12, marginRight: 8, alignItems: 'center' }}
+                            onPress={() => { setPinDropMode(false); setPostLat(null); setPostLng(null); }}
+                        >
+                            <Text style={{ color: '#fff', fontWeight: '700' }}>Cancel</Text>
+                        </Pressable>
+                        <Pressable 
+                            style={{ flex: 1, padding: 14, backgroundColor: postLat != null ? '#10b981' : 'rgba(16,185,129,0.3)', borderRadius: 12, marginLeft: 8, alignItems: 'center' }}
+                            disabled={postLat == null}
+                            onPress={() => setPinDropMode(false)}
+                        >
+                            <Text style={{ color: '#fff', fontWeight: '800' }}>Confirm Pin {postLat != null ? '✓' : ''}</Text>
+                        </Pressable>
+                    </View>
+                </SafeAreaView>
+            )}
+
             {/* New Post Bottom Sheet */}
-            {showNewPost && (
+            {showNewPost && !pinDropMode && (
                 <View 
                     style={[StyleSheet.absoluteFill, { zIndex: 500, justifyContent: 'flex-end', paddingBottom: keyboardHeight }]} 
                     pointerEvents="box-none"

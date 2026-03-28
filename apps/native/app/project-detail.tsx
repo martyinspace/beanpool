@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { pledgeToCrowdfundProjectApi, getProjectById } from '../utils/db';
+import { pledgeToCrowdfundProjectApi, getProjectById, getMemberRatings, reportAbuse } from '../utils/db';
 import { loadIdentity } from '../utils/identity';
 
 export default function ProjectDetailScreen() {
@@ -16,6 +16,12 @@ export default function ProjectDetailScreen() {
     const [identity, setIdentity] = useState<any>(null);
 
     const [projectData, setProjectData] = useState<any>(null);
+    const [creatorAvgRating, setCreatorAvgRating] = useState<number | null>(null);
+    const [creatorRatingCount, setCreatorRatingCount] = useState<number>(0);
+
+    const [showReportForm, setShowReportForm] = useState(false);
+    const [reportReason, setReportReason] = useState('');
+    const [submittingReport, setSubmittingReport] = useState(false);
 
     const title = params.title || 'Untitled Project';
     const description = params.description || 'No description provided.';
@@ -38,7 +44,15 @@ export default function ProjectDetailScreen() {
         if (params.id) {
             getProjectById(params.id).then(setProjectData).catch(console.error);
         }
-    }, [params.id]);
+        
+        const pubkey = params.creator_pubkey || projectData?.creator_pubkey;
+        if (pubkey) {
+            getMemberRatings(pubkey).then(res => {
+                setCreatorAvgRating(res.average);
+                setCreatorRatingCount(res.count);
+            }).catch(() => {});
+        }
+    }, [params.id, params.creator_pubkey, projectData?.creator_pubkey]);
 
     const handlePledge = async () => {
         if (!pledgeAmount.trim() || isNaN(Number(pledgeAmount)) || Number(pledgeAmount) <= 0) {
@@ -100,8 +114,13 @@ export default function ProjectDetailScreen() {
                             </View>
                         )}
                         <Text style={styles.title}>{title}</Text>
-                        <Text style={{ fontSize: 15, color: '#6b7280', fontWeight: '500', marginBottom: 20 }}>
+                        <Text style={{ fontSize: 15, color: '#6b7280', fontWeight: '500', marginBottom: 4 }}>
                             Proposed by <Text style={{ color: '#10b981', fontWeight: 'bold' }}>{params.creator_callsign || projectData?.creator_callsign || 'Unknown'}</Text>
+                        </Text>
+                        <Text style={{ fontSize: 13, color: '#6b7280', marginBottom: 20 }}>
+                            {creatorAvgRating !== null && creatorRatingCount > 0 
+                                ? '🫘'.repeat(Math.round(creatorAvgRating)) + '○'.repeat(5 - Math.round(creatorAvgRating)) + ` (${creatorAvgRating.toFixed(1)}) • ${creatorRatingCount} Reviews`
+                                : '☆☆☆☆☆ No ratings yet'}
                         </Text>
                         
                         {/* Progress Section */}
@@ -134,6 +153,43 @@ export default function ProjectDetailScreen() {
                             <Text style={styles.sectionTitle}>About the Project</Text>
                             <Text style={styles.description}>{description}</Text>
                         </View>
+
+                        {/* Report Action */}
+                        {!isCreator && (
+                            <View style={{ marginTop: 24, borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 20 }}>
+                                <Pressable style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }} onPress={() => setShowReportForm(!showReportForm)}>
+                                    <MaterialCommunityIcons name="shield-off-outline" size={20} color="#ef4444" />
+                                    <Text style={{ color: '#ef4444', fontSize: 15, fontWeight: '600' }}>Report Project</Text>
+                                </Pressable>
+                                {showReportForm && (
+                                    <View style={{ marginTop: 16, backgroundColor: 'rgba(239,68,68,0.05)', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)' }}>
+                                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#ef4444', marginBottom: 8, letterSpacing: 1 }}>REPORT REASON</Text>
+                                        <TextInput 
+                                            style={{ backgroundColor: '#ffffff', height: 44, borderRadius: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 12 }}
+                                            placeholder="Why are you reporting this project?"
+                                            value={reportReason}
+                                            onChangeText={setReportReason}
+                                        />
+                                        <Pressable 
+                                            style={{ backgroundColor: reportReason ? '#ef4444' : 'rgba(239,68,68,0.4)', height: 44, borderRadius: 8, justifyContent: 'center', alignItems: 'center' }}
+                                            disabled={!reportReason || submittingReport}
+                                            onPress={async () => {
+                                                const pubkey = params.creator_pubkey || projectData?.creator_pubkey;
+                                                if (!identity || !pubkey) return;
+                                                setSubmittingReport(true);
+                                                try {
+                                                    await reportAbuse(identity.publicKey, pubkey, reportReason, params.id);
+                                                    setShowReportForm(false);
+                                                    Alert.alert('Reported', 'This project has been flagged for review.');
+                                                } catch(e:any) { Alert.alert('Error', e.message); } finally { setSubmittingReport(false); }
+                                            }}
+                                        >
+                                            <Text style={{ color: '#ffffff', fontWeight: 'bold' }}>{submittingReport ? 'Reporting...' : 'Submit Report'}</Text>
+                                        </Pressable>
+                                    </View>
+                                )}
+                            </View>
+                        )}
                     </View>
                 </ScrollView>
 

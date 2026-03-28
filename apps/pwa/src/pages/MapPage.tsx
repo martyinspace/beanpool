@@ -54,7 +54,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
     const [newPostTitle, setNewPostTitle] = useState('');
     const [newPostDescription, setNewPostDescription] = useState('');
     const [newPostCredits, setNewPostCredits] = useState('');
-    const [newPostPriceType, setNewPostPriceType] = useState<'fixed' | 'hourly'>('fixed');
+    const [newPostPriceType, setNewPostPriceType] = useState<'fixed' | 'hourly' | 'daily' | 'weekly' | 'monthly'>('fixed');
     const [newPostRepeatable, setNewPostRepeatable] = useState(false);
     const [newPostPhotos, setNewPostPhotos] = useState<string[]>([]);
     const [posting, setPosting] = useState(false);
@@ -649,11 +649,14 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     />
                     <select
                         value={newPostPriceType}
-                        onChange={e => setNewPostPriceType(e.target.value as 'fixed' | 'hourly')}
+                        onChange={e => setNewPostPriceType(e.target.value as 'fixed' | 'hourly' | 'daily' | 'weekly' | 'monthly')}
                         className="w-24 py-3 px-2 rounded-xl border bg-white dark:bg-nature-800 text-nature-900 dark:text-white text-[14px] font-semibold focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm transition-all border-nature-200 dark:border-nature-700 cursor-pointer appearance-auto"
                     >
                         <option value="fixed">Total</option>
                         <option value="hourly">/ Hr</option>
+                        <option value="daily">/ d</option>
+                        <option value="weekly">/ w</option>
+                        <option value="monthly">/ m</option>
                     </select>
                 </div>
 

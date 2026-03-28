@@ -97,8 +97,7 @@ export default function ChatsScreen() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <View style={styles.header}>
-                <Text style={styles.title}>Messages</Text>
+            <View style={[styles.header, { justifyContent: 'flex-end', borderBottomWidth: 0, paddingBottom: 8 }]}>
                 <Pressable style={styles.newChatBtn} onPress={() => {
                     if (Platform.OS === 'web') {
                         const val = window.prompt("Enter PubKey or Callsign:");

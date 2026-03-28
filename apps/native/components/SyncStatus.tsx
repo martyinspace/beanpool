@@ -13,11 +13,13 @@ function formatTimeAgo(timestamp: number): string {
 
 export function SyncStatus() {
     const [lastSync, setLastSync] = useState<number | null>(null);
+    const [now, setNow] = useState(Date.now());
 
     useEffect(() => {
         async function checkSync() {
             const time = await getLastSyncTime();
             setLastSync(time);
+            setNow(Date.now()); // Force re-render even if time is identical
         }
         
         checkSync();
@@ -26,7 +28,7 @@ export function SyncStatus() {
     }, []);
 
     // For the native UI, if we synced within the last 5 minutes, we consider it 'Online / Synced'.
-    const isOnline = lastSync !== null && (Date.now() - lastSync) < 5 * 60 * 1000;
+    const isOnline = lastSync !== null && (now - lastSync) < 5 * 60 * 1000;
 
     return (
         <View style={[styles.container, isOnline ? styles.onlineBorder : styles.offlineBorder]}>

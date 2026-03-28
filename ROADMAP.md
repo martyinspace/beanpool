@@ -53,7 +53,7 @@
 ## Governance & Credits
 
 - [ ] **Commons Fund Proposals** — UI for creating and voting on community proposals
-- [ ] **Transaction History Export** — CSV/PDF export of credit ledger
+- [x] **Transaction History Export** — Implemented `/api/ledger/export` CSV generation on Web and Native environments.
 
 ## Native App
 
@@ -64,8 +64,8 @@
 - [x] **Community Projects** — crowdfund proposals with progress bars and funding badges
 - [x] **Pillar Toggle MVP** — Background Merkle sync service for Android/iOS (Expo)
 - [x] **Live Inbox Parity** — SQLite E2E text decryption, Background Sync Mutex Locking, & Native Tab Unread Badges
-- [ ] **Bean Ratings (Native)** — port 🫘 rating system to native app
-- [ ] **Abuse Reporting (Native)** — port reporting UI to native app
+- [x] **Bean Ratings (Native)** — port 🫘 rating system to native app
+- [x] **Abuse Reporting (Native)** — port reporting UI to native app
 - [ ] **Federation (Native)** — remote marketplace browsing on native
 - [ ] **App Store & Play Store Submission** — Polish and submit for formal distribution
 - [ ] **Push Notifications** — Message and trade alerts via Firebase Cloud Messaging

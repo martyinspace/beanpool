@@ -450,9 +450,43 @@ export function LedgerPage({ identity }: Props) {
             </div>
 
             {/* Transaction history */}
-            <h3 className="text-lg font-bold mb-3 text-nature-950 px-1">
-                Recent Transactions
-            </h3>
+            <div className="flex justify-between items-center mb-3 px-1">
+                <h3 className="text-lg font-bold text-nature-950">
+                    Recent Transactions
+                </h3>
+                <button
+                    onClick={async () => {
+                        try {
+                            const res = await fetch('/api/ledger/export');
+                            const data = await res.json();
+                            
+                            const balBlob = new Blob([data.balancesCsv], { type: 'text/csv' });
+                            const balUrl = window.URL.createObjectURL(balBlob);
+                            const balA = document.createElement('a');
+                            balA.href = balUrl;
+                            balA.download = 'beanpool_balances.csv';
+                            balA.click();
+                            window.URL.revokeObjectURL(balUrl);
+                            
+                            setTimeout(() => {
+                                const txBlob = new Blob([data.transactionsCsv], { type: 'text/csv' });
+                                const txUrl = window.URL.createObjectURL(txBlob);
+                                const txA = document.createElement('a');
+                                txA.href = txUrl;
+                                txA.download = 'beanpool_transactions.csv';
+                                txA.click();
+                                window.URL.revokeObjectURL(txUrl);
+                            }, 500);
+                        } catch (e) {
+                            console.error('Export failed', e);
+                            alert('Export failed');
+                        }
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-nature-100 dark:bg-nature-800 text-nature-700 dark:text-nature-300 rounded-lg text-[11px] font-bold hover:bg-nature-200 transition-colors border border-nature-200 shadow-sm cursor-pointer"
+                >
+                    ⬇️ Node Audit
+                </button>
+            </div>
             {txns.length === 0 ? (
                 <div className="bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-2xl p-8 text-center text-nature-500 dark:text-nature-400 text-[14px] shadow-sm font-medium">
                     No transactions yet. Start trading on the Marketplace!

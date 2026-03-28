@@ -356,7 +356,9 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                 {selectedPost.type === 'offer' ? 'Asking Price' : 'Willing to Pay'}
                             </span>
                             <div className="text-3xl font-bold text-nature-900 dark:text-white font-mono tracking-tight">
-                                {selectedPost.credits}<span className="text-xl text-nature-400 ml-1 font-sans font-medium">{selectedPost.priceType === 'hourly' ? 'B/hr' : 'B'}</span>
+                                {selectedPost.credits}<span className="text-xl text-nature-400 ml-1 font-sans font-medium">{
+                                    { fixed: 'B', hourly: 'B/hr', daily: 'B/d', weekly: 'B/w', monthly: 'B/m' }[selectedPost.priceType] || 'B'
+                                }</span>
                             </div>
                         </div>
                     </div>
@@ -441,10 +443,10 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                              Finalize Transaction
                                          </p>
                                          
-                                         {selectedPost.priceType === 'hourly' && (
+                                         {selectedPost.priceType !== 'fixed' && (
                                              <div className="mb-3">
                                                  <label className="block text-xs font-bold text-emerald-700 dark:text-emerald-500 mb-1 uppercase tracking-wider">
-                                                     Actual Hours Worked
+                                                     ACTUAL { { hourly: 'HOURS', daily: 'DAYS', weekly: 'WEEKS', monthly: 'MONTHS' }[selectedPost.priceType] || 'UNITS' } WORKED
                                                  </label>
                                                  <input
                                                      type="number"
@@ -461,7 +463,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                          <div className="text-center mb-4 text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-white dark:bg-nature-900 py-2.5 rounded-lg border border-emerald-100 dark:border-emerald-900 shadow-sm">
                                              {(() => {
                                                  const hrs = Number(completeHours) || 0;
-                                                 const tot = selectedPost.priceType === 'hourly' ? selectedPost.credits * hrs : selectedPost.credits;
+                                                 const tot = selectedPost.priceType !== 'fixed' ? selectedPost.credits * hrs : selectedPost.credits;
                                                  return `Transferring ${tot} B to ${targetPeerCallsign}`;
                                              })()}
                                          </div>
@@ -479,8 +481,8 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                                      if (!identity || !selectedPost.pendingTransactionId) return;
                                                      setAccepting(true);
                                                      try {
-                                                         const isHourly = selectedPost.priceType === 'hourly';
-                                                         const finalHours = isHourly ? Number(completeHours) : undefined;
+                                                         const isVariable = selectedPost.priceType !== 'fixed';
+                                                         const finalHours = isVariable ? Number(completeHours) : undefined;
                                                          await completeMarketplaceTransaction(selectedPost.pendingTransactionId, identity.publicKey, finalHours);
                                                          setSelectedPost(null);
                                                          setShowCompleteConfirm(false);
@@ -491,7 +493,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                                          setAccepting(false);
                                                      }
                                                  }}
-                                                 disabled={accepting || (selectedPost.priceType === 'hourly' && (!completeHours || Number(completeHours) <= 0))}
+                                                 disabled={accepting || (selectedPost.priceType !== 'fixed' && (!completeHours || Number(completeHours) <= 0))}
                                                  className={`flex-1 py-2.5 rounded-lg font-bold text-white text-sm transition-all shadow-sm ${
                                                      accepting 
                                                          ? 'bg-emerald-400 cursor-not-allowed opacity-60' 
@@ -506,7 +508,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                      <button
                                          onClick={() => {
                                              setShowCompleteConfirm(true);
-                                             if (selectedPost.priceType === 'hourly' && !completeHours) {
+                                             if (selectedPost.priceType !== 'fixed' && !completeHours) {
                                                  setCompleteHours('1');
                                              }
                                          }}
@@ -669,10 +671,10 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                     {selectedPost.type === 'offer' ? 'Accept this Offer?' : 'Offer to Fulfill this Need?'}
                                 </p>
                                 
-                                {selectedPost.priceType === 'hourly' && (
+                                {selectedPost.priceType !== 'fixed' && (
                                     <div className="mb-3">
                                         <label className="block text-xs font-bold text-nature-600 dark:text-nature-400 mb-1 uppercase tracking-wider">
-                                            Estimated Hours
+                                            ESTIMATED { { hourly: 'HOURS', daily: 'DAYS', weekly: 'WEEKS', monthly: 'MONTHS' }[selectedPost.priceType] || 'UNITS' }
                                         </label>
                                         <input
                                             type="number"
@@ -690,11 +692,11 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                 <div className="text-center mb-4 text-xs font-medium text-nature-700 dark:text-nature-300 bg-white dark:bg-nature-900 py-2 rounded-lg border border-nature-100 dark:border-nature-800">
                                     {(() => {
                                         const hrs = Number(acceptHours) || 0;
-                                        const tot = selectedPost.priceType === 'hourly' ? selectedPost.credits * hrs : selectedPost.credits;
+                                        const tot = selectedPost.priceType !== 'fixed' ? selectedPost.credits * hrs : selectedPost.credits;
                                         const actionText = selectedPost.type === 'offer' ? 'You will pay' : 'You will receive';
                                         return tot === 0 
                                             ? 'This is a free listing (0 B). No credits transferred.'
-                                            : `${actionText} ${tot} B ${selectedPost.priceType === 'hourly' ? `(${hrs} hr)` : ''} when completed.`;
+                                            : `${actionText} ${tot} B ${selectedPost.priceType !== 'fixed' ? `(${hrs} ${ { hourly: 'hr', daily: 'd', weekly: 'w', monthly: 'm' }[selectedPost.priceType] })` : ''} when completed.`;
                                     })()}
                                 </div>
                                 
@@ -711,9 +713,9 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                             if (!identity || !selectedPost) return;
                                             setAccepting(true);
                                             try {
-                                                const isHourly = selectedPost.priceType === 'hourly';
-                                                const estimatedHours = isHourly ? Number(acceptHours) : undefined;
-                                                const totalCredits = isHourly ? selectedPost.credits * (estimatedHours || 0) : selectedPost.credits;
+                                                const isVariable = selectedPost.priceType !== 'fixed';
+                                                const estimatedHours = isVariable ? Number(acceptHours) : undefined;
+                                                const totalCredits = isVariable ? selectedPost.credits * (estimatedHours || 0) : selectedPost.credits;
 
                                                 const remoteNode = (selectedPost as any)._remoteNode;
                                                 if (remoteNode) {
@@ -741,7 +743,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                                 setAccepting(false);
                                             }
                                         }}
-                                        disabled={accepting || (selectedPost.priceType === 'hourly' && (!acceptHours || Number(acceptHours) <= 0))}
+                                        disabled={accepting || (selectedPost.priceType !== 'fixed' && (!acceptHours || Number(acceptHours) <= 0))}
                                         className={`flex-1 py-2.5 rounded-lg font-bold text-white text-sm transition-all shadow-sm ${
                                             accepting 
                                                 ? 'bg-emerald-400 cursor-not-allowed opacity-60' 

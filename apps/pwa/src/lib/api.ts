@@ -249,7 +249,7 @@ export interface MarketplacePost {
     title: string;
     description: string;
     credits: number;
-    priceType: 'fixed' | 'hourly';
+    priceType: 'fixed' | 'hourly' | 'daily' | 'weekly' | 'monthly';
     authorPublicKey: string;
     authorCallsign: string;
     createdAt: string;
@@ -295,7 +295,7 @@ export async function createMarketplacePost(post: {
     title: string;
     description: string;
     credits: number;
-    priceType?: 'fixed' | 'hourly';
+    priceType?: 'fixed' | 'hourly' | 'daily' | 'weekly' | 'monthly';
     authorPublicKey: string;
     lat?: number;
     lng?: number;
@@ -318,7 +318,7 @@ export async function updateMarketplacePost(
         title?: string;
         description?: string;
         credits?: number;
-        priceType?: 'fixed' | 'hourly';
+        priceType?: 'fixed' | 'hourly' | 'daily' | 'weekly' | 'monthly';
         lat?: number;
         lng?: number;
         photos?: string[];

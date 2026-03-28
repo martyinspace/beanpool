@@ -33,7 +33,7 @@ export interface MarketplacePost {
     title: string;
     description: string;
     credits: number;
-    priceType: 'fixed' | 'hourly';
+    priceType: 'fixed' | 'hourly' | 'daily' | 'weekly' | 'monthly';
     authorCallsign: string;
     authorPublicKey: string;
     location: { lat: number; lng: number } | null;

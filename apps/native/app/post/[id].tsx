@@ -7,7 +7,7 @@ import {
     getPost, updatePost, deletePost, 
     requestMarketplacePost, approveMarketplaceRequest, rejectMarketplaceRequest, cancelMarketplaceRequest,
     acceptMarketplacePost, completeMarketplaceTransaction, cancelMarketplaceTransaction, 
-    submitRating, reportAbuse, getDb
+    submitRating, reportAbuse, getDb, getMemberRatings
 } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
 
@@ -61,6 +61,9 @@ export default function PostDetailModal() {
 
     const [requests, setRequests] = useState<any[]>([]);
 
+    const [authorAvgRating, setAuthorAvgRating] = useState<number | null>(null);
+    const [authorRatingCount, setAuthorRatingCount] = useState<number>(0);
+
     useEffect(() => {
         if (id) { 
             getPost(id as string).then(setPost);
@@ -71,6 +74,15 @@ export default function PostDetailModal() {
             });
         }
     }, [id]);
+
+    useEffect(() => {
+        if (post?.author_pubkey) {
+            getMemberRatings(post.author_pubkey).then(res => {
+                setAuthorAvgRating(res.average);
+                setAuthorRatingCount(res.count);
+            }).catch(console.error);
+        }
+    }, [post?.author_pubkey]);
 
     if (!post) {
         return (
@@ -261,7 +273,11 @@ export default function PostDetailModal() {
                         </View>
                         <View style={styles.authorInfo}>
                             <Text style={styles.authorName}>🤠 {cardAuthor}</Text>
-                            <Text style={styles.authorRating}>☆☆☆☆☆ No ratings yet</Text>
+                            <Text style={styles.authorRating}>
+                                {authorAvgRating !== null && authorRatingCount > 0 
+                                    ? renderBeans(authorAvgRating) + ` (${authorAvgRating.toFixed(1)}) • ${authorRatingCount} Reviews`
+                                    : '☆☆☆☆☆ No ratings yet'}
+                            </Text>
                         </View>
                     </View>
                 </View>
@@ -523,14 +539,14 @@ export default function PostDetailModal() {
                         {identity && post.status === 'completed' && post.pending_transaction_id && (
                             <View style={{ marginTop: 16 }}>
                                 <Pressable style={[styles.messageBtn, { borderColor: 'rgba(245,158,11,0.3)', backgroundColor: 'rgba(245,158,11,0.05)' }]} onPress={() => setShowRatingForm(!showRatingForm)}>
-                                    <Text style={[styles.messageBtnText, { color: '#f59e0b' }]}>⭐ Rate {post.author_callsign || 'Author'}</Text>
+                                    <Text style={[styles.messageBtnText, { color: '#f59e0b' }]}>🫘 Rate {post.author_callsign || 'Author'}</Text>
                                 </Pressable>
                                 {showRatingForm && (
                                     <View style={[styles.confirmBox, { marginTop: 8 }]}>
                                         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
                                             {[1,2,3,4,5].map(star => (
                                                 <Pressable key={star} onPress={() => setMyRating(star)}>
-                                                    <Text style={{ fontSize: 32, color: star <= myRating ? '#fbbf24' : 'rgba(255,255,255,0.2)' }}>{star <= myRating ? '★' : '☆'}</Text>
+                                                    <Text style={{ fontSize: 32, color: star <= myRating ? '#fbbf24' : 'rgba(255,255,255,0.2)' }}>{star <= myRating ? '🫘' : '○'}</Text>
                                                 </Pressable>
                                             ))}
                                         </View>
@@ -584,6 +600,11 @@ export default function PostDetailModal() {
             </KeyboardAvoidingView>
         </SafeAreaView>
     );
+}
+
+function renderBeans(rating: number): string {
+    const r = Math.round(rating) || 0;
+    return '🫘'.repeat(Math.min(r, 5)) + '○'.repeat(Math.max(0, 5 - r));
 }
 
 function getTimeAgo(dateStr: string): string {

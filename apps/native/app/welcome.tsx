@@ -22,6 +22,10 @@ export default function WelcomeScreen() {
     const [pendingInviteCode, setPendingInviteCode] = useState('');
 
     async function handleCreate() {
+        if (!inviteCode.trim()) {
+            setError('An invite code is required to join the network.');
+            return;
+        }
         if (callsign.trim().length < 2) {
             setError('Callsign must be at least 2 characters.');
             return;
@@ -136,6 +140,8 @@ export default function WelcomeScreen() {
                                 {seedConfirmed ? '✅ ' : '⬜ '} I've written these words down safely
                             </Text>
                         </Pressable>
+
+                        {error && <Text style={styles.error}>{error}</Text>}
 
                         <Pressable 
                             style={[styles.primaryBtn, !seedConfirmed && styles.disabledBtn]} 

@@ -61,13 +61,24 @@ export function GlobalHeader() {
                     <SyncStatus />
                 </View>
 
-                {/* CENTER: beanpool.org Text Logo */}
+                {/* CENTER: beanpool.org Text Logo or Page Title */}
                 <View style={[styles.headerCenter, { zIndex: 10 }]}>
-                    <Image 
-                        source={require('../assets/images/logo.png')} 
-                        style={{ width: 281, height: 69 }} 
-                        resizeMode="contain" 
-                    />
+                    {isMapScreen ? (
+                        <Image 
+                            source={require('../assets/images/logo.png')} 
+                            style={{ width: 281, height: 69 }} 
+                            resizeMode="contain" 
+                        />
+                    ) : (
+                        <Text style={styles.headerTitle}>
+                            {pathname === '/market' ? 'Marketplace' :
+                             pathname === '/projects' ? 'Community Projects' :
+                             pathname === '/chats' ? 'Messages' :
+                             pathname === '/people' ? 'People' :
+                             pathname === '/ledger' ? 'Ledger' :
+                             pathname === '/settings' ? 'Settings' : 'BeanPool'}
+                        </Text>
+                    )}
                 </View>
 
                 {/* RIGHT: Controls */}
@@ -138,6 +149,15 @@ const styles = StyleSheet.create({
         fontSize: 14,
         letterSpacing: 2,
         textTransform: 'lowercase',
+    },
+    headerTitle: {
+        color: '#ffffff',
+        fontSize: 22,
+        fontWeight: '900',
+        letterSpacing: 0.5,
+        textShadowColor: 'rgba(0,0,0,0.75)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 6,
     },
     logoHighlight: {
         color: '#cb5326', // terra-400 equivalent

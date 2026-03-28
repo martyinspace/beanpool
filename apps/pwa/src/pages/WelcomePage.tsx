@@ -104,6 +104,11 @@ export function WelcomePage({ onComplete }: Props) {
         const trimmedCallsign = callsign.trim();
         const trimmedCode = normaliseInviteCode(inviteCode);
 
+        if (!trimmedCode) {
+            setError('An invite code is required to join this node.');
+            return;
+        }
+
         if (trimmedCallsign.length < 2) {
             setError('Callsign must be at least 2 characters.');
             return;
@@ -139,7 +144,11 @@ export function WelcomePage({ onComplete }: Props) {
             } else {
                 try {
                     await registerMember(pendingIdentity.publicKey, pendingIdentity.callsign);
-                } catch { /* offline */ }
+                } catch (err: any) {
+                    setError(err.message || 'Registration failed.');
+                    setLoading(false);
+                    return;
+                }
             }
             
             // Onboarding complete — explicitly ask for location once

@@ -17,10 +17,11 @@
 - ✅ **Admin community config** — name, email, phone in Settings → Community tab
 - ✅ **Member profiles** — avatar (camera + gallery), editable callsign, bio, contact details with 3-tier visibility
 - ✅ **Editable callsign** — change callsign in Profile, syncs to IndexedDB + server
+- ✅ **Public Transparency** — The global Invite Tree is now viewable from genesis down by all members, and both PWA/Native clients support full Node Ledger Audit (Balances + full Txn History) CSV downloads via local/remote execution.
 - ✅ **🫘 Bean reputation** — 5-bean rating with comments, displayed on post tiles and detail view
 - ✅ **Abuse reporting** — reason dropdown (spam, offensive, misleading, harassment, other), admin panel in Settings
 - ✅ **Marketplace** — 14-category Deals Hub with "My Market" segment controls and unread inbound request counters.
-- ✅ **Escrow Handshake** — Branching 3-step (Needs) vs 1-step (Offers) request flow with smart-contract style `escrow_{id}` wallets, completely synchronized across both Native Expo and PWA UIs.
+- ✅ **Escrow Handshake & Soft-Delets** — Branching 3-step (Needs) vs 1-step (Offers) request flow with smart-contract style `escrow_{id}` wallets securely handling auto-refunds even on post soft-deletion.
 - ✅ **Post photos** — up to 3 photos per post, auto-resized to 400px JPEG, primary photo on tiles, gallery in detail
 - ✅ **Post validation** — all fields required, red glow on empty fields, location required
 - ✅ **E2E messaging** — DMs and group chats (plaintext v1, E2E-ready data model)

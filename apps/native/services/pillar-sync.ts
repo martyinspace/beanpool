@@ -268,7 +268,7 @@ export async function performSync(): Promise<SyncResult> {
         return result;
 
     } catch (err: any) {
-        console.error('[Pillar Sync] Error:', err);
+        console.log('[Pillar Sync] Offline or Sync Error:', err.message || err);
         result.durationMs = Date.now() - startTime;
         result.errorMessage = String(err?.message || err);
         return result;

@@ -50,7 +50,7 @@ export function InvitePage({ identity }: Props) {
 
     async function loadTree() {
         try {
-            const result = await getInviteTree(identity.publicKey);
+            const result = await getInviteTree();
             setTree(result);
         } catch { /* offline */ }
     }

@@ -142,14 +142,6 @@ export default function ProjectsScreen() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <View style={styles.header}>
-                <Text style={styles.headerEmoji}>🌱</Text>
-                <View>
-                    <Text style={styles.headerTitle}>Community Projects</Text>
-                    <Text style={styles.headerSubtitle}>Crowdfund shared goals with Beans</Text>
-                </View>
-            </View>
-            
             <FlatList
                 data={projects}
                 keyExtractor={item => item.id}
