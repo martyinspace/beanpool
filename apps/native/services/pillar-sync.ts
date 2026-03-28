@@ -141,8 +141,10 @@ export async function performSync(): Promise<SyncResult> {
         try {
             const lastSync = await AsyncStorage.getItem(STORAGE_KEYS.LAST_SYNC);
             if (lastSync) {
+                // Incorporate a 5-minute time buffer to account for clock drift between client and server
+                const driftAdjusted = Math.max(0, parseInt(lastSync, 10) - 300_000);
                 // Convert numeric timestamp to ISO-8601 string for SQLite comparison
-                const isoSync = new Date(parseInt(lastSync, 10)).toISOString();
+                const isoSync = new Date(driftAdjusted).toISOString();
                 lastSyncParam = `&updatedAfter=${encodeURIComponent(isoSync)}`;
             }
         } catch (e) {}
@@ -257,6 +259,14 @@ export async function performSync(): Promise<SyncResult> {
 
         // Apply physical updates to local Native device SQLite Matrix
         await applyDelta(delta);
+
+        // Notify active screens to re-render if we received new posts or projects
+        if (delta.posts?.length > 0 || delta.projects?.length > 0) {
+            try {
+                const { DeviceEventEmitter } = require('react-native');
+                DeviceEventEmitter.emit('sync_data_updated');
+            } catch (e) {}
+        }
 
         // Step 3: Success — save timestamp
         await AsyncStorage.setItem(STORAGE_KEYS.LAST_SYNC, String(Date.now()));

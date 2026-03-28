@@ -34,6 +34,7 @@ export interface MarketplacePost {
     authorPublicKey: string;
     authorCallsign: string;
     createdAt: string;
+    updatedAt?: string;
     active: boolean;
     status: 'active' | 'pending' | 'paused' | 'completed' | 'cancelled';
     repeatable: boolean;
@@ -520,6 +521,7 @@ function rowToPost(row: any, photos: any[]): MarketplacePost {
         authorPublicKey: row.author_pubkey,
         authorCallsign: row.author_callsign,
         createdAt: row.created_at,
+        updatedAt: row.updated_at || row.created_at,
         active: Boolean(row.active),
         status: row.status,
         repeatable: Boolean(row.repeatable),

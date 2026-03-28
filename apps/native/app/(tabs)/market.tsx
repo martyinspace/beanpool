@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, FlatList, Pressable, SafeAreaView, Platform, Alert, Image, TextInput, ScrollView } from 'react-native';
+import { StyleSheet, View, Text, FlatList, Pressable, SafeAreaView, Platform, Alert, Image, TextInput, ScrollView, DeviceEventEmitter } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import { useFocusEffect, router } from 'expo-router';
@@ -91,6 +91,11 @@ export default function MarketScreen() {
             loadPosts();
         }, [filter])
     );
+
+    useEffect(() => {
+        const sub = DeviceEventEmitter.addListener('sync_data_updated', () => loadPosts());
+        return () => sub.remove();
+    }, [filter]);
 
     const loadPosts = async () => {
         const queryFilter = filter === 'all' ? undefined : { type: filter === 'needs' ? 'need' : 'offer' };

@@ -516,7 +516,7 @@ export default function PostDetailModal() {
                                 </View>
                                 <View style={{flexDirection: 'row', gap: 8}}>
                                     <Pressable style={[styles.approveBtn, accepting && {opacity: 0.5}]} disabled={accepting} onPress={() => handleApprove(req.id)}>
-                                        <Text style={styles.approveBtnText}>Approve</Text>
+                                        <Text style={styles.approveBtnText}>Approve & Escrow</Text>
                                     </Pressable>
                                     <Pressable style={[styles.rejectBtn, accepting && {opacity: 0.5}]} disabled={accepting} onPress={() => handleReject(req.id)}>
                                         <Text style={styles.rejectBtnText}>✕</Text>

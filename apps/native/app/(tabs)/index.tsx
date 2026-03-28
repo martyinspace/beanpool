@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { StyleSheet, View, Text, Platform, Alert, TouchableOpacity, ScrollView, TextInput, Pressable, Switch, KeyboardAvoidingView, Dimensions, Image as RNImage, Keyboard, Linking } from 'react-native';
+import { StyleSheet, View, Text, Platform, Alert, TouchableOpacity, ScrollView, TextInput, Pressable, Switch, KeyboardAvoidingView, Dimensions, Image as RNImage, Keyboard, Linking, DeviceEventEmitter } from 'react-native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as Crypto from 'expo-crypto';
@@ -117,6 +117,11 @@ export default function MapScreen() {
     useFocusEffect(
         React.useCallback(() => { loadPosts(); }, [])
     );
+
+    useEffect(() => {
+        const sub = DeviceEventEmitter.addListener('sync_data_updated', () => loadPosts());
+        return () => sub.remove();
+    }, []);
 
     const loadPosts = async () => {
         try { setPosts(await getPosts()); } catch (e) { console.error('Failed to load map points', e); }
