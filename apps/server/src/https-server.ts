@@ -905,7 +905,7 @@ export async function startHttpsServer(port: number): Promise<void> {
     });
 
     router.post('/api/marketplace/posts', async (ctx) => {
-        const { type, category, title, description, credits, priceType, authorPublicKey, lat, lng, photos, repeatable } =
+        const { id, type, category, title, description, credits, priceType, authorPublicKey, lat, lng, photos, repeatable } =
             (ctx as any).requestBody || {};
         if (!type || !title || !authorPublicKey) {
             ctx.status = 400;
@@ -919,6 +919,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             lng != null ? Number(lng) : undefined,
             photos,
             repeatable === true || repeatable === 'true',
+            id
         );
         if (!post) {
             ctx.status = 400;

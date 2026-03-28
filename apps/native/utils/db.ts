@@ -432,6 +432,7 @@ export async function createPost(post: any) {
     }
 
     const body = {
+        id: post.id,
         type: post.type,
         category: post.category,
         title: post.title,
@@ -811,7 +812,7 @@ export async function applyDelta(delta: any) {
             // Deleted posts are transmitted with active=0 and tombstoned here natively.
             for (const p of delta.posts) {
                 await database.runAsync(
-                    'INSERT OR REPLACE INTO posts (id, type, category, title, description, credits, author_pubkey, lat, lng, photos, price_type, repeatable, status, accepted_by, accepted_by_callsign, pending_transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT OR REPLACE INTO posts (id, type, category, title, description, credits, author_pubkey, lat, lng, photos, price_type, repeatable, status, accepted_by, accepted_by_callsign, accepted_at, completed_at, pending_transaction_id, created_at, updated_at, origin_node) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         p.id ?? null,
                         p.type ?? null,
@@ -828,7 +829,12 @@ export async function applyDelta(delta: any) {
                         p.status || 'active',
                         p.accepted_by || p.acceptedBy || null,
                         p.accepted_by_callsign || p.acceptedByCallsign || null,
-                        p.pending_transaction_id || p.pendingTransactionId || null
+                        p.accepted_at || p.acceptedAt || null,
+                        p.completed_at || p.completedAt || null,
+                        p.pending_transaction_id || p.pendingTransactionId || null,
+                        p.created_at || p.createdAt || null,
+                        p.updated_at || p.updatedAt || null,
+                        p.origin_node || p.originNode || null
                     ]
                 );
             }

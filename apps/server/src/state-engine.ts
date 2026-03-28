@@ -539,27 +539,27 @@ function rowToPost(row: any, photos: any[]): MarketplacePost {
 
 export function createPost(
     type: 'offer' | 'need', category: string, title: string, description: string, credits: number,
-    priceType: 'fixed' | 'hourly' | 'daily' | 'weekly' | 'monthly' | string, authorPublicKey: string, lat?: number, lng?: number, photos?: string[], repeatable?: boolean,
+    priceType: 'fixed' | 'hourly' | 'daily' | 'weekly' | 'monthly' | string, authorPublicKey: string, lat?: number, lng?: number, photos?: string[], repeatable?: boolean, id?: string
 ): MarketplacePost | null {
     if (!getMember(authorPublicKey)) {
         return null;
     }
 
-    const id = crypto.randomUUID();
+    const finalId = id || crypto.randomUUID();
     const createdAt = new Date().toISOString();
     
     db.transaction(() => {
         db.prepare(`INSERT INTO posts (
             id, type, category, title, description, credits, price_type, author_pubkey, created_at, active, status, repeatable, lat, lng, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'active', ?, ?, ?, ?)`).run(id, type, category, title, description, credits, priceType, authorPublicKey, createdAt, repeatable ? 1 : 0, lat ?? null, lng ?? null, createdAt);
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'active', ?, ?, ?, ?)`).run(finalId, type, category, title, description, credits, priceType, authorPublicKey, createdAt, repeatable ? 1 : 0, lat ?? null, lng ?? null, createdAt);
 
         if (photos && photos.length > 0) {
             const insertPhoto = db.prepare(`INSERT INTO post_photos (post_id, photo_data, order_num) VALUES (?, ?, ?)`);
-            photos.slice(0, 3).forEach((p, idx) => insertPhoto.run(id, p, idx));
+            photos.slice(0, 3).forEach((p, idx) => insertPhoto.run(finalId, p, idx));
         }
     })();
 
-    const post = getPosts({ id }).find(p => p.id === id)!;
+    const post = getPosts({ id: finalId }).find(p => p.id === finalId)!;
     broadcast({ type: 'new_post', post });
     return post;
 }
