@@ -108,6 +108,7 @@ async function _doInitDB() {
             credits REAL NOT NULL DEFAULT 0,
             author_pubkey TEXT NOT NULL,
             created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            updated_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
             active INTEGER DEFAULT 1,
             status TEXT DEFAULT 'active' CHECK (status IN ('active', 'pending', 'paused', 'completed', 'cancelled')),
             price_type TEXT DEFAULT 'fixed',
@@ -193,6 +194,20 @@ async function _doInitDB() {
         
         try {
             await database.execAsync(`ALTER TABLE projects ADD COLUMN photos TEXT;`);
+        } catch (e) {
+            // Column likely already exists, ignore
+        }
+
+        // Add missing columns introduced in the State Engine patch
+        try {
+            await database.execAsync(`ALTER TABLE posts ADD COLUMN updated_at DATETIME;`);
+            console.log('[SQLite] Successfully added updated_at column');
+        } catch (e) {
+            console.warn('[SQLite] Failed to add updated_at column (or it exists):', e);
+        }
+        
+        try {
+            await database.execAsync(`ALTER TABLE posts ADD COLUMN origin_node TEXT;`);
         } catch (e) {
             // Column likely already exists, ignore
         }

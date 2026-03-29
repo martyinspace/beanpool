@@ -570,15 +570,23 @@ export function getPosts(filter?: { id?: string; type?: string; category?: strin
         FROM posts p
         LEFT JOIN members m ON p.author_pubkey = m.public_key
         LEFT JOIN members a ON p.accepted_by = a.public_key
-        WHERE p.active = 1
+        WHERE 1=1
     `;
     const params: any[] = [];
+
+    if (!filter?.id && !filter?.updatedAfter) {
+        // Regular client paginated fetch: only active/pending
+        query += " AND p.active = 1 AND p.status IN ('active', 'pending')";
+    } else if (filter?.updatedAfter) {
+        // Sync daemon fetch: MUST include completed/cancelled/deleted states to sync deletions
+    } else {
+        query += " AND p.active = 1";
+    }
 
     if (filter?.id) { query += " AND p.id = ?"; params.push(filter.id); }
     if (filter?.type && filter.type !== 'all') { query += " AND p.type = ?"; params.push(filter.type); }
     if (filter?.category && filter.category !== 'all') { query += " AND p.category = ?"; params.push(filter.category); }
     if (filter?.status) { query += " AND p.status = ?"; params.push(filter.status); }
-    else if (!filter?.id) { query += " AND p.status IN ('active', 'pending', 'cancelled')"; } // include cancelled so clients know to delete
 
     if (filter?.updatedAfter) {
         query += " AND p.updated_at >= ?";
