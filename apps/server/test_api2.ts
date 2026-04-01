@@ -1,0 +1,1 @@
+import { initStateEngine, registerMember } from './src/state-engine.ts'; try { initStateEngine(); registerMember('testpub3', 'TestMember3'); console.log('✅ OK'); } catch(e) { console.error('❌ CRASH', e); }

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeanPool — Community Exchange for Local Neighborhoods</title>
+    <meta name="description" content="BeanPool is a decentralized exchange platform that lets communities trade services, share resources, and fund local projects — peer-to-peer, no middlemen.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>🫘</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav id="navbar">
+        <div class="nav-inner">
+            <a href="#" class="logo">🫘 <span>BeanPool</span></a>
+            <div class="nav-links">
+                <a href="#how-it-works">How It Works</a>
+                <a href="#features">Features</a>
+                <a href="#live-nodes">Live Nodes</a>
+                <a href="#get-started" class="nav-cta">Get Started</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section id="hero">
+        <div class="hero-bg"></div>
+        <div class="hero-content">
+            <div class="hero-badge">🌱 Open Source · Peer-to-Peer · Community-Owned</div>
+            <h1>Exchange for <span class="gradient-text">Communities</span>,<br>Not Corporations</h1>
+            <p class="hero-subtitle">BeanPool is a local exchange platform that lets neighborhoods trade services, share resources, and fund community projects — peer-to-peer, no middlemen, no fees.</p>
+            <div class="hero-actions">
+                <a href="#get-started" class="btn btn-primary">Start Your Node →</a>
+                <a href="#how-it-works" class="btn btn-ghost">Learn More</a>
+            </div>
+            <div class="hero-stats">
+                <div class="stat">
+                    <span class="stat-value" id="stat-nodes">—</span>
+                    <span class="stat-label">Live Nodes</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value" id="stat-members">—</span>
+                    <span class="stat-label">Community Members</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">0%</span>
+                    <span class="stat-label">Interest Rate</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Live Nodes Map -->
+    <section id="live-nodes" style="padding-top: 1.5rem; padding-bottom: 2.5rem;">
+        <div class="container">
+            <div class="section-header" style="margin-bottom: 2rem;">
+                <h2>Find Your Local Exchange</h2>
+                <p>Discover sovereign communities running BeanPool connecting people near you.</p>
+            </div>
+            <div class="map-wrapper">
+                <div id="nodes-map"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section id="how-it-works" style="padding-top: 2rem;">
+        <div class="container">
+            <div class="section-header">
+                <h2>How BeanPool Works</h2>
+                <p>A community exchange where everyone starts at zero. Value flows from real services exchanged between real people — no money changes hands.</p>
+            </div>
+            <div class="steps-grid">
+                <div class="step-card">
+                    <div class="step-icon">🏡</div>
+                    <div class="step-number">01</div>
+                    <h3>Start a Node</h3>
+                    <p>Deploy a BeanPool node for your neighborhood, town, or community. It runs on any server — even a Raspberry Pi.</p>
+                </div>
+                <div class="step-card">
+                    <div class="step-icon">🤝</div>
+                    <div class="step-number">02</div>
+                    <h3>Invite Members</h3>
+                    <p>Members join through a web-of-trust invitation tree. Each person is vouched for by someone already in the network.</p>
+                </div>
+                <div class="step-card">
+                    <div class="step-icon">🔄</div>
+                    <div class="step-number">03</div>
+                    <h3>Trade Services</h3>
+                    <p>Post what you need or offer on the marketplace. When services are exchanged, your balance adjusts — positive for providers, negative for receivers.</p>
+                </div>
+                <div class="step-card">
+                    <div class="step-icon">🏛️</div>
+                    <div class="step-number">04</div>
+                    <h3>Fund Projects</h3>
+                    <p>Demurrage (a tiny daily fee on idle balances) flows into a Community Commons pool. Members vote to fund local projects.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    <!-- App Preview -->
+    <section id="app-preview" style="background: rgba(15, 23, 42, 0.4); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+        <div class="container">
+            <div class="section-header">
+                <h2>Inside The Protocol</h2>
+                <p>A sovereign application that looks and feels like modern software, completely decentralized.</p>
+            </div>
+            <div class="screenshots-grid">
+                <img src="assets/screenshots/dashboard.png" alt="Node Dashboard" class="app-screenshot">
+                <img src="assets/screenshots/marketplace.png" alt="Marketplace View" class="app-screenshot">
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section id="features">
+        <div class="container">
+            <div class="section-header">
+                <h2>Built Different</h2>
+                <p>Not a blockchain. Not a startup. A platform owned by the communities that run it.</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card feature-highlight">
+                    <div class="feature-icon">🫘</div>
+                    <h3>Balanced Exchange</h3>
+                    <p>No money changes hands. When you provide a service, your balance goes up. When you receive one, it goes down. The community always balances to zero.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🗺️</div>
+                    <h3>Local-First Marketplace</h3>
+                    <p>An integrated marketplace with map pins, category tags, and the ability to browse needs and offers from connected nodes.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🌳</div>
+                    <h3>Web of Trust</h3>
+                    <p>Membership is managed through an invitation tree — not anonymous sign-ups. This keeps communities accountable and Sybil-resistant.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📡</div>
+                    <h3>Federation</h3>
+                    <p>Nodes can discover and connect to each other, sharing marketplace posts across community boundaries.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🏛️</div>
+                    <h3>Community Commons</h3>
+                    <p>Demurrage (a small daily tax on idle balances) feeds a commons pool. Members propose and vote on projects to fund.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⭐</div>
+                    <h3>Rating System</h3>
+                    <p>Provider and receiver ratings build after each transaction, creating trust signals that are visible across the network.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💬</div>
+                    <h3>Encrypted Messaging</h3>
+                    <p>Communicate securely with other members to negotiate trades, share details, and organize community events using end-to-end encryption.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- Get Started -->
+    <section id="get-started">
+        <div class="container">
+            <div class="cta-card">
+                <h2>Start Your Community Node</h2>
+                <p>BeanPool runs anywhere Docker runs. Grab the source, set your community name, and invite your first members.</p>
+                <div class="cta-steps">
+                    <div class="cta-step">
+                        <code>git clone https://github.com/martyinspace/beanpool.git</code>
+                    </div>
+                    <div class="cta-step">
+                        <code>cp .env.example .env  # Set your community name & domain</code>
+                    </div>
+                    <div class="cta-step">
+                        <code>docker compose up -d</code>
+                    </div>
+                </div>
+                <a href="https://github.com/martyinspace/beanpool" class="btn btn-primary" target="_blank" rel="noopener">
+                    View on GitHub →
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-inner">
+                <div class="footer-brand">
+                    <span class="logo">🫘 BeanPool</span>
+                    <p>Community exchange for local neighborhoods.</p>
+                </div>
+                <div class="footer-links">
+                    <a href="https://github.com/martyinspace/beanpool" target="_blank" rel="noopener">GitHub</a>
+                    <a href="#how-it-works">How It Works</a>
+                    <a href="#features">Features</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>Open source under MIT license. Made with 🫘 by communities, for communities.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="main.js"></script>
+</body>
+</html>
