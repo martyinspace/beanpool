@@ -4,12 +4,14 @@
     "slug": "beanpool-pillar",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/images/logo.png",
     "scheme": "beanpool",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
-      "backgroundColor": "#0a0a0a"
+      "backgroundColor": "#0a0a0a",
+      "image": "./assets/images/logo.png",
+      "resizeMode": "contain"
     },
     "ios": {
       "supportsTablet": false,
@@ -27,9 +29,16 @@
       "adaptiveIcon": {
         "backgroundColor": "#0a0a0a"
       },
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDpRO8fjR8U-7pyFPbjvro6FCAPLZL2bBo"
+        }
+      },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "plugins": [
@@ -43,7 +52,21 @@
         }
       ],
       "expo-sqlite",
-      "@react-native-community/datetimepicker"
-    ]
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "BeanPool relies exclusively on your device's GPS to plot your Sovereign Identity on the community map, enabling you to physically discover neighboring Marketplace needs and offers.",
+          "isIosBackgroundLocationEnabled": true
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-secure-store"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "17a2a61a-9cbe-457e-bb10-84d8a666e6eb"
+      }
+    }
   }
 }
