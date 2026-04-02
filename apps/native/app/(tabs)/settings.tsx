@@ -366,6 +366,10 @@ export default function SettingsScreen() {
                         <Text style={styles.menuText}>⚖️ Terms of Service & EULA</Text>
                         <Text style={styles.menuArrow}>→</Text>
                     </Pressable>
+                    <Pressable style={styles.menuBtn} onPress={() => Linking.openURL('https://beanpool.org/safety.html')}>
+                        <Text style={styles.menuText}>🚸 Child Safety Standards</Text>
+                        <Text style={styles.menuArrow}>→</Text>
+                    </Pressable>
                     <Pressable style={styles.menuBtn} onPress={() => setMode('advanced')}>
                         <Text style={styles.menuText}>⚙️ Advanced / Subsystem</Text>
                         <Text style={styles.menuArrow}>→</Text>
@@ -599,8 +603,14 @@ export default function SettingsScreen() {
                         {advancedLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Wipe Cache & Migrate</Text>}
                     </Pressable>
 
-                    <View style={{ height: 1, backgroundColor: '#e5e7eb', marginVertical: 24 }} />
+                    <Pressable style={styles.backBtn} onPress={() => setMode('menu')}>
+                        <Text style={styles.backBtnText}>← Back</Text>
+                    </Pressable>
+                </View>
+            )}
 
+            {mode === 'wipe' && (
+                <View style={styles.card}>
                     <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#ef4444', marginBottom: 8 }}>Danger Zone</Text>
                     <Text style={styles.infoText}>This destroys your cryptographic private keys from your phone permanently. You will not be able to recover your account or your ledger balances without a backup.</Text>
                     
