@@ -100,4 +100,23 @@ export async function wipeIdentity(): Promise<void> {
     } else {
         await SecureStore.deleteItemAsync(KEY_ID);
     }
+    
+    try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        const allKeys = await AsyncStorage.getAllKeys();
+        const syncKeys = allKeys.filter((k: string) => k.startsWith('pillar_sync_') || k.startsWith('pillar:'));
+        if (syncKeys.length > 0) {
+            await AsyncStorage.multiRemove(syncKeys);
+        }
+        
+        await AsyncStorage.removeItem('beanpool_anchor_url');
+        
+        const { getDb } = require('./db');
+        const db = await getDb();
+        if (db) {
+            await db.execAsync('DELETE FROM messages; DELETE FROM conversations; DELETE FROM posts; DELETE FROM projects;');
+        }
+    } catch (e) {
+        console.error('Failed to fully wipe native identity state', e);
+    }
 }

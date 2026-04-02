@@ -68,7 +68,7 @@ const PUBLIC_DIR = path.resolve('public');
 import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const SETTINGS_PATH = path.join(__dirname, '../static/settings.html');
+
 
 // Rate limiter for auth endpoints (15 attempts per minute per IP)
 const authAttempts = new Map<string, { count: number; resetAt: number }>();
@@ -211,10 +211,14 @@ export async function startHttpsServer(port: number): Promise<void> {
     // ===================== SETTINGS PAGE =====================
 
     router.get('/settings', async (ctx) => {
-        if (fs.existsSync(SETTINGS_PATH)) {
+        const publicPath = path.join(__dirname, '../public/settings.html');
+        const staticPath = path.join(__dirname, '../static/settings.html');
+        const resolvedPath = fs.existsSync(publicPath) ? publicPath : staticPath;
+
+        if (fs.existsSync(resolvedPath)) {
             ctx.type = 'html';
             ctx.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-            ctx.body = fs.createReadStream(SETTINGS_PATH);
+            ctx.body = fs.createReadStream(resolvedPath);
         } else {
             ctx.status = 404;
             ctx.body = 'Settings page not found. Ensure settings.html is in the public directory.';

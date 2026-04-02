@@ -120,7 +120,7 @@ export function GlobalHeader() {
         <View style={[styles.headerWrapper, isMapScreen && styles.headerAbsolute]}>
             <View style={StyleSheet.absoluteFillObject}>
                 <Image 
-                    source={require('../assets/images/neon-vines-banner.png')} 
+                    source={require('../assets/images/neon-vines-banner.jpg')} 
                     style={[StyleSheet.absoluteFillObject, { width: '100%', height: '100%', transform: [{ scale: 1.5 }] }]}
                     resizeMode="cover"
                 />

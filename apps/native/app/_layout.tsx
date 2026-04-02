@@ -19,11 +19,12 @@ function RootLayoutNav() {
     useEffect(() => {
         if (isLoading) return;
 
-        const inAuthGroup = segments[0] === '(tabs)';
-        
-        if (!identity && inAuthGroup) {
+        // If we have no identity and we aren't already on the welcome screen, kick us out
+        if (!identity && segments[0] !== 'welcome') {
             router.replace('/welcome');
-        } else if (identity && segments[0] === 'welcome') {
+        } 
+        // If we DO have an identity but we aren't in the secure tabs area, let us in
+        else if (identity && segments[0] !== '(tabs)') {
             router.replace('/(tabs)');
         }
     }, [identity, isLoading, segments]);

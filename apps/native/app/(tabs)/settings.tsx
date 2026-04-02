@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Alert, Image, Share } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Alert, Image, Share, Linking } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useIdentity } from '../IdentityContext';
 import * as SecureStore from 'expo-secure-store';
@@ -11,10 +11,11 @@ import { updateMemberProfile, getMemberProfile } from '../../utils/db';
 import { getSavedNodes, SavedNode, removeSavedNode, getDatabaseFilenameForNode } from '../../utils/nodes';
 import * as FileSystem from 'expo-file-system';
 import { router } from 'expo-router';
+import Constants from 'expo-constants';
 
 export default function SettingsScreen() {
     const { identity, setIdentity } = useIdentity();
-    const [mode, setMode] = useState<'menu' | 'profile' | 'export' | 'import' | 'advanced'>('menu');
+    const [mode, setMode] = useState<'menu' | 'profile' | 'export' | 'import' | 'advanced' | 'wipe'>('menu');
     const [editCallsign, setEditCallsign] = useState(identity?.callsign || '');
     const [avatar, setAvatar] = useState<string | null>(null);
     const [bio, setBio] = useState('');
@@ -343,6 +344,7 @@ export default function SettingsScreen() {
             </View>
 
             {mode === 'menu' && (
+                <>
                 <View style={styles.menuGroup}>
                     <Pressable style={styles.menuBtn} onPress={() => setMode('profile')}>
                         <Text style={styles.menuText}>👤 Edit Profile</Text>
@@ -356,11 +358,27 @@ export default function SettingsScreen() {
                         <Text style={styles.menuText}>📥 Import Identity</Text>
                         <Text style={styles.menuArrow}>→</Text>
                     </Pressable>
-                    <Pressable style={[styles.menuBtn, { borderBottomWidth: 0 }]} onPress={() => setMode('advanced')}>
+                    <Pressable style={styles.menuBtn} onPress={() => Linking.openURL('https://beanpool.org/privacy.html')}>
+                        <Text style={styles.menuText}>🛡️ Privacy Policy</Text>
+                        <Text style={styles.menuArrow}>→</Text>
+                    </Pressable>
+                    <Pressable style={styles.menuBtn} onPress={() => Linking.openURL('https://beanpool.org/terms.html')}>
+                        <Text style={styles.menuText}>⚖️ Terms of Service & EULA</Text>
+                        <Text style={styles.menuArrow}>→</Text>
+                    </Pressable>
+                    <Pressable style={styles.menuBtn} onPress={() => setMode('advanced')}>
                         <Text style={styles.menuText}>⚙️ Advanced / Subsystem</Text>
                         <Text style={styles.menuArrow}>→</Text>
                     </Pressable>
+                    <Pressable style={[styles.menuBtn, { borderBottomWidth: 0, backgroundColor: '#fff5f5' }]} onPress={() => { setMode('wipe'); setWipeConfirm(''); }}>
+                        <Text style={[styles.menuText, { color: '#ef4444', fontWeight: 'bold' }]}>⚠️ Delete Account</Text>
+                        <Text style={[styles.menuArrow, { color: '#fca5a5' }]}>→</Text>
+                    </Pressable>
                 </View>
+                <Text style={{ textAlign: 'center', marginTop: 32, fontSize: 13, color: '#9ca3af', fontWeight: '600', letterSpacing: 1 }}>
+                    BEANPOOL OS {Constants.expoConfig?.version || 'DEV'}
+                </Text>
+                </>
             )}
 
             {mode === 'profile' && (

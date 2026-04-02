@@ -61,6 +61,8 @@ export default function WelcomeScreen() {
                 if (inviteMatch) {
                     parsedCode = decodeURIComponent(inviteMatch[1]);
                 }
+            } else if (__DEV__) {
+                await AsyncStorage.setItem('beanpool_anchor_url', 'http://localhost:5173');
             }
 
             const identity = await createIdentity(callsign.trim());
@@ -106,9 +108,10 @@ export default function WelcomeScreen() {
         setLoading(true);
         setError(null);
         try {
-            if (recoveryAnchorUrl.trim() && recoveryAnchorUrl.startsWith('http')) {
-                await AsyncStorage.setItem('beanpool_anchor_url', recoveryAnchorUrl.trim());
-            }
+            let finalAnchorUrl = recoveryAnchorUrl.trim() && recoveryAnchorUrl.startsWith('http') 
+                ? recoveryAnchorUrl.trim() 
+                : (__DEV__ ? 'http://localhost:5173' : 'https://review.beanpool.org:8443');
+            await AsyncStorage.setItem('beanpool_anchor_url', finalAnchorUrl);
 
             const identity = await createIdentityFromMnemonic(words, recoveryCallsign.trim());
             setIdentity(identity);
@@ -183,6 +186,14 @@ export default function WelcomeScreen() {
                             onPress={handleConfirmSeed}
                         >
                             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Continue →</Text>}
+                        </Pressable>
+
+                        <Pressable 
+                            style={styles.backBtn} 
+                            onPress={() => { setPendingIdentity(null); setError(null); }}
+                            disabled={loading}
+                        >
+                            <Text style={styles.backBtnText}>← Back</Text>
                         </Pressable>
                     </View>
                 </ScrollView>

@@ -1354,12 +1354,15 @@ export async function createConversationApi(type: 'dm' | 'group', participants: 
 
 export async function redeemInvite(code: string, callsign: string, identityToRegister?: any): Promise<boolean> {
     try {
-        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || 'https://review.beanpool.org:8443';
+        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || (__DEV__ ? 'http://localhost:5173' : 'https://review.beanpool.org:8443');
 
         const identity = identityToRegister || await loadIdentity();
         if (!identity) throw new Error('No identity to register');
 
-        const body = { code, publicKey: identity.publicKey, callsign };
+        const isOfflineTicket = !code.startsWith('BP-');
+        const body = isOfflineTicket 
+            ? { ticketB64: code, publicKey: identity.publicKey, callsign }
+            : { code, publicKey: identity.publicKey, callsign };
         const bodyString = JSON.stringify(body);
 
         const privateKeyBytes = hexToBytes(identity.privateKey);
@@ -1368,7 +1371,6 @@ export async function redeemInvite(code: string, callsign: string, identityToReg
         
         const signatureBase64 = encodeBase64(signatureBytes);
 
-        const isOfflineTicket = code.startsWith('BP-');
         const endpoint = isOfflineTicket ? '/api/invite/redeem-offline' : '/api/invite/redeem';
 
         const res = await fetch(`${anchorUrl}${endpoint}`, {

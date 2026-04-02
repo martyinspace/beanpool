@@ -40,3 +40,6 @@ apps/server/public/
 
 # Database files
 *.db
+
+# API Keys & Service Accounts
+pc-api-key.json

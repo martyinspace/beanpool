@@ -127,7 +127,12 @@ export default function MapScreen() {
     }, []);
 
     const loadPosts = async () => {
-        try { setPosts(await getPosts()); } catch (e) { console.error('Failed to load map points', e); }
+        try { 
+            const p = await getPosts();
+            setPosts(p); 
+        } catch (e: any) { 
+            console.error('Failed to load map points', e); 
+        }
     };
 
     // We no longer automatically request permissions on init.
@@ -312,10 +317,16 @@ export default function MapScreen() {
                     latitudeDelta: 0.0922, longitudeDelta: 0.0421,
                 }}
             >
-                {posts.filter(p => typeof p.lat === 'number' && typeof p.lng === 'number').map(post => {
+                {posts.filter(p => {
+                    if (p.lat == null || p.lng == null) return false;
+                    const l1 = Number(p.lat);
+                    const l2 = Number(p.lng);
+                    return !isNaN(l1) && !isNaN(l2);
+                }).map(post => {
                     const author = post.author_callsign || post.author_pubkey?.slice(0, 6) || 'Unknown';
                     const catObj = CATEGORIES.find(c => c.id === post.category);
-                    return <MapPin key={post.id} post={post} author={author} catObj={catObj} currencyStr={currencyStr} />;
+                    const safePost = { ...post, lat: Number(post.lat), lng: Number(post.lng) };
+                    return <MapPin key={post.id} post={safePost} author={author} catObj={catObj} currencyStr={currencyStr} />;
                 })}
 
                 {/* Pin drop preview marker */}
