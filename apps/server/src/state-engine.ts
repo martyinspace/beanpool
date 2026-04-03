@@ -192,6 +192,14 @@ export function initStateEngine(): void {
     initSchema();
     migrateLegacyState();
     
+    // Seed SYSTEM user securely bypassing foreign key constraints
+    db.pragma('foreign_keys = OFF');
+    try {
+        db.prepare("INSERT OR IGNORE INTO members (public_key, callsign, invited_by, invite_code) VALUES ('SYSTEM', 'System', 'genesis', 'genesis')").run();
+    } finally {
+        db.pragma('foreign_keys = ON');
+    }
+
     // Load ledger accounts into LedgerManager
     const accounts = db.prepare("SELECT public_key as id, balance, last_demurrage_epoch as lastDemurrageEpoch FROM accounts").all() as any[];
     if (accounts.length > 0) {
@@ -1003,9 +1011,16 @@ export function getMarketplaceTransactions(publicKey: string, filter?: { status?
     params.push(limit, offset);
 
     const rows = db.prepare(query).all(...params) as any[];
-    return rows.map(r => ({
-        id: r.id, postId: r.post_id, postTitle: r.postTitle, buyerPublicKey: r.buyer_pubkey, buyerCallsign: r.buyerCallsign, sellerPublicKey: r.seller_pubkey, sellerCallsign: r.sellerCallsign, credits: r.credits, status: r.status, createdAt: r.created_at, completedAt: r.completed_at, ratedByBuyer: !!r.ratedByBuyer, ratedBySeller: !!r.ratedBySeller
-    }));
+    const postIds = Array.from(new Set(rows.map(r => r.post_id)));
+    const photos = postIds.length > 0 ? db.prepare(`SELECT * FROM post_photos WHERE post_id IN (${postIds.map(() => '?').join(',')})`).all(...postIds) as any[] : [];
+
+    return rows.map(r => {
+        const coverImageRow = photos.find(p => p.post_id === r.post_id && p.order_num === 0) || photos.find(p => p.post_id === r.post_id);
+        const coverImage = coverImageRow ? coverImageRow.photo_data : null;
+        return {
+            id: r.id, postId: r.post_id, postTitle: r.postTitle, buyerPublicKey: r.buyer_pubkey, buyerCallsign: r.buyerCallsign, sellerPublicKey: r.seller_pubkey, sellerCallsign: r.sellerCallsign, credits: r.credits, status: r.status, createdAt: r.created_at, completedAt: r.completed_at, ratedByBuyer: !!r.ratedByBuyer, ratedBySeller: !!r.ratedBySeller, coverImage
+        };
+    });
 }
 // ===================== COMMUNITY INFO =====================
 

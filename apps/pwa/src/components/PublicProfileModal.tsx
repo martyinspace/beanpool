@@ -32,7 +32,7 @@ export function PublicProfileModal({
 
     const renderStars = (avg: number) => {
         const rounded = Math.round(avg || 0);
-        return '🫘'.repeat(rounded) + '○'.repeat(5 - rounded);
+        return '★'.repeat(rounded) + '☆'.repeat(5 - rounded);
     };
 
     return (

@@ -408,10 +408,12 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                             <span className="text-xs font-bold text-nature-500 dark:text-nature-400 uppercase tracking-widest block mb-1">
                                 {selectedPost.type === 'offer' ? 'Asking Price' : 'Willing to Pay'}
                             </span>
-                            <div className="text-3xl font-bold text-nature-900 dark:text-white font-mono tracking-tight">
-                                {selectedPost.credits}<span className="text-xl text-nature-400 ml-1 font-sans font-medium">{
-                                    { fixed: 'B', hourly: 'B/Hr', daily: 'B/Dy', weekly: 'B/Wk', monthly: 'B/Mo' }[selectedPost.priceType] || 'B'
-                                }</span>
+                            <div className="text-3xl font-bold text-nature-900 dark:text-white font-mono tracking-tight" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap' }}>
+                                <span>{selectedPost.credits}</span>
+                                <span className="text-xl text-nature-400 font-sans font-medium flex items-center" style={{ flexShrink: 0 }}>
+                                    <img src="/assets/bean.png" style={{ width: '20px', height: '20px', marginLeft: '4px', marginRight: '2px', flexShrink: 0 }} alt="B" />
+                                    {{ fixed: '', hourly: '/Hr', daily: '/Dy', weekly: '/Wk', monthly: '/Mo' }[selectedPost.priceType] || ''}
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -648,7 +650,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                             <span className="text-amber-600">🤝</span> <span className="underline decoration-nature-300 underline-offset-2">{req.sellerCallsign}</span>
                                         </button>
                                         <span className="text-xs text-amber-500 mt-0.5 font-semibold">
-                                            {req.bidderRating?.count > 0 ? `🫘 ${req.bidderRating.average.toFixed(1)} (${req.bidderRating.count} reviews)` : '☆☆☆☆☆ No ratings yet'}
+                                            {req.bidderRating?.count > 0 ? `★ ${req.bidderRating.average.toFixed(1)} (${req.bidderRating.count} reviews)` : '☆☆☆☆☆ No ratings yet'}
                                         </span>
                                         <span className="text-xs text-nature-500 mt-1">
                                             {req.hours ? `${req.hours} hours estimated` : 'Offered to fulfill'}
@@ -1555,6 +1557,8 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                 const partnerCallsign = isBuyer ? tx.sellerCallsign : tx.buyerCallsign;
                                 const partnerPubkey = isBuyer ? tx.sellerPublicKey : tx.buyerPublicKey;
 
+                                const coverImage = (tx as any).coverImage || null;
+
                                 return (
                                     <div 
                                         key={tx.id} 
@@ -1576,26 +1580,34 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                             }
                                         }}
                                     >
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div>
-                                                <div className="flex gap-2 items-center mb-1">
-                                                    <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                                                        isPending ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400'
-                                                        : isCompleted ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' 
-                                                        : 'bg-nature-200 text-nature-700 dark:bg-nature-800 dark:text-nature-400'
-                                                    }`}>
-                                                        {tx.status}
-                                                    </span>
-                                                    <span className="text-xs text-nature-500 font-bold">
-                                                        {new Date(tx.createdAt).toLocaleDateString()}
-                                                    </span>
+                                        <div className="flex gap-3 mb-2">
+                                            {coverImage ? (
+                                                <img src={coverImage} alt="Cover" className="w-16 h-16 rounded-xl object-cover bg-nature-100 flex-shrink-0" />
+                                            ) : (
+                                                <div className="w-16 h-16 rounded-xl bg-nature-100 dark:bg-nature-800 flex items-center justify-center flex-shrink-0">
+                                                    <span className="text-2xl opacity-50">{isBuyer ? '🛒' : '🏷️'}</span>
                                                 </div>
-                                                <h3 className="font-black text-nature-900 dark:text-white line-clamp-1">{tx.postTitle}</h3>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className={`font-black tracking-tight ${isBuyer ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                                                    {isBuyer ? '-' : '+'}{tx.credits} B
-                                                </span>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <div className="flex gap-2 items-center">
+                                                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                                                            isPending ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400'
+                                                            : isCompleted ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' 
+                                                            : 'bg-nature-200 text-nature-700 dark:bg-nature-800 dark:text-nature-400'
+                                                        }`}>
+                                                            {tx.status}
+                                                        </span>
+                                                        <span className="text-xs text-nature-500 font-bold whitespace-nowrap">
+                                                            {new Date(tx.createdAt).toLocaleDateString()}
+                                                        </span>
+                                                    </div>
+                                                    <div className={`font-black tracking-tight text-right pl-2 ${isBuyer ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'nowrap', minWidth: 'fit-content' }}>
+                                                        <span>{isBuyer ? '-' : '+'}{tx.credits}</span>
+                                                        <img src="/assets/bean.png" style={{ width: '14px', height: '14px', marginLeft: '3px', flexShrink: 0 }} alt="B" />
+                                                    </div>
+                                                </div>
+                                                <h3 className="font-black text-nature-900 dark:text-white truncate">{tx.postTitle}</h3>
                                             </div>
                                         </div>
                                         <div className="flex justify-between items-end mt-3">

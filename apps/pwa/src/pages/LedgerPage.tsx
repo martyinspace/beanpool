@@ -122,17 +122,17 @@ export function LedgerPage({ identity }: Props) {
                 <div className="flex-1 bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-2xl p-5 text-center shadow-sm">
                     <p className="text-nature-500 dark:text-nature-400 text-sm font-semibold mb-2">Balance</p>
                     <p className={`text-3xl font-bold font-mono ${loading ? 'text-nature-400' : balance >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                        {loading ? '...' : `${balance >= 0 ? '+' : ''}${balance.toFixed(2)}B`}
+                        {loading ? '...' : <span style={{ whiteSpace: 'nowrap', display: 'inline-block' }}>{balance >= 0 ? '+' : ''}{balance.toFixed(2)}&nbsp;<img src="/assets/bean.png" style={{ display: 'inline-block', width: '22px', height: '22px', verticalAlign: 'middle', marginTop: '-4px' }} alt="B" /></span>}
                     </p>
                     <p className="text-nature-400 text-xs mt-1 font-medium">
-                        Floor: {balanceInfo?.floor ?? -100}B
+                        Floor: <span style={{ whiteSpace: 'nowrap', display: 'inline-block' }}>{balanceInfo?.floor ?? -100}&nbsp;<img src="/assets/bean.png" style={{ display: 'inline-block', width: '12px', height: '12px', verticalAlign: 'middle', marginTop: '-2px' }} alt="B" /></span>
                     </p>
                 </div>
 
                 <div className="flex-1 bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-2xl p-5 text-center shadow-sm">
                     <p className="text-nature-500 dark:text-nature-400 text-sm font-semibold mb-2">Commons</p>
                     <p className="text-3xl font-bold text-amber-500 font-mono">
-                        {loading ? '...' : `${(balanceInfo?.commonsBalance ?? 0).toFixed(2)}B`}
+                        {loading ? '...' : <span style={{ whiteSpace: 'nowrap', display: 'inline-block' }}>{(balanceInfo?.commonsBalance ?? 0).toFixed(2)}&nbsp;<img src="/assets/bean.png" style={{ display: 'inline-block', width: '22px', height: '22px', verticalAlign: 'middle', marginTop: '-4px' }} alt="B" /></span>}
                     </p>
                     <p className="text-nature-400 text-xs mt-1 font-medium">
                         🌱 Community Pool
@@ -208,8 +208,8 @@ export function LedgerPage({ identity }: Props) {
                     <span className="text-[13px] font-bold text-red-600">
                         🔥 Monthly Decay (0.5%)
                     </span>
-                    <span className="text-[13px] font-bold text-red-700 font-mono">
-                        −{(balance * 0.005).toFixed(3)}B/mo → Commons
+                    <span className="text-[13px] font-bold text-red-700 font-mono" style={{ whiteSpace: 'nowrap', display: 'inline-block' }}>
+                        −{(balance * 0.005).toFixed(3)}&nbsp;<img src="/assets/bean.png" style={{ display: 'inline-block', width: '13px', height: '13px', verticalAlign: 'middle', marginTop: '-2px' }} alt="B" /> /mo → Commons
                     </span>
                 </div>
             )}
@@ -331,8 +331,8 @@ export function LedgerPage({ identity }: Props) {
                                                     {project.description}
                                                 </p>
                                             )}
-                                            <p className="text-[11px] font-bold text-nature-400 mt-2 uppercase tracking-wide">
-                                                by {project.proposerCallsign} · <span className="text-amber-600 border border-amber-200 bg-amber-50 px-1.5 py-0.5 rounded text-xs lowercase font-mono">{project.requestedAmount.toFixed(2)}B</span>
+                                            <p className="text-[11px] font-bold text-nature-400 mt-2 uppercase tracking-wide flex items-center flex-wrap">
+                                                <span className="mr-1">by {project.proposerCallsign} ·</span> <span className="text-amber-600 border border-amber-200 bg-amber-50 px-1.5 py-0.5 rounded text-xs lowercase font-mono" style={{ whiteSpace: 'nowrap', display: 'inline-block' }}>{project.requestedAmount.toFixed(2)}&nbsp;<img src="/assets/bean.png" style={{ display: 'inline-block', width: '12px', height: '12px', verticalAlign: 'middle', marginTop: '-2px' }} alt="B" /></span>
                                             </p>
                                         </div>
                                         {isActive && (
@@ -508,8 +508,8 @@ export function LedgerPage({ identity }: Props) {
                                         {new Date(tx.timestamp).toLocaleString()}
                                     </p>
                                 </div>
-                                <p className={`text-lg font-bold font-mono ${isSent ? 'text-red-500' : 'text-emerald-500'}`}>
-                                    {isSent ? '−' : '+'}{tx.amount.toFixed(2)}B
+                                <p style={{ whiteSpace: 'nowrap' }} className={`text-lg font-bold font-mono ${isSent ? 'text-red-500' : 'text-emerald-500'}`}>
+                                    {isSent ? '−' : '+'}{tx.amount.toFixed(2)}&nbsp;<img src="/assets/bean.png" style={{ display: 'inline-block', width: '16px', height: '16px', verticalAlign: 'middle', marginTop: '-4px' }} alt="B" />
                                 </p>
                             </div>
                         );

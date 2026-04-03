@@ -233,24 +233,27 @@ export function App() {
                 {/* Subtle dark overlay to ensure text/buttons pop against the complex glowing mesh */}
                 <div className="absolute inset-0 bg-black/10 dark:bg-black/50 pointer-events-none" />
 
-                <div className="relative z-10">
+                <div className="relative z-10" style={{ marginTop: '12px' }}>
                     <SyncStatus />
                 </div>
 
                 {/* Dynamic Page Title or Map Banner (Absolutely Centered) */}
                 <div className="absolute left-1/2 -translate-x-1/2 flex justify-center items-center pointer-events-none z-10">
                     {activeTab !== 'map' || showSettings ? (
-                        <span className="font-extrabold text-[1.4rem] tracking-tight text-rainbow drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] pointer-events-auto">
+                        <span className="font-extrabold text-[1.4rem] tracking-tight text-rainbow drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] pointer-events-auto text-center" style={{ marginTop: '8px' }}>
                             {TABS.find(t => t.id === activeTab)?.label === 'Market' ? 'Marketplace' : TABS.find(t => t.id === activeTab)?.label}
                         </span>
                     ) : (
-                        <div className="bg-black/60 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 shadow-lg pointer-events-auto flex items-center shadow-black/50">
-                            <img src="/logo.png" alt="BeanPool" className="h-[52px] object-contain drop-shadow-sm" />
+                        <div className="relative flex flex-col items-center pointer-events-auto" style={{ transform: 'translateX(-12px) translateY(-8px)' }}>
+                            <img src="/logo.png" alt="BeanPool" style={{ width: '280px', height: '76px', marginTop: '-8px', marginBottom: '-12px', objectFit: 'contain' }} className="drop-shadow-sm" />
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" style={{ position: 'absolute', bottom: '-10px', right: '90px', width: '20px', height: '20px', opacity: 0.9, color: 'white' }}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                            </svg>
                         </div>
                     )}
                 </div>
 
-                <div className="relative z-10" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div className="relative z-10" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '12px' }}>
                     <button
                         onClick={() => { setActiveTab('people'); setPeopleSubView('invites'); setShowSettings(false); }}
                         className="flex items-center justify-center px-3 bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-700 rounded-full shadow-sm cursor-pointer transition-transform hover:scale-105"

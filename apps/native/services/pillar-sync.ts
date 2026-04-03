@@ -144,7 +144,14 @@ export async function performSync(): Promise<SyncResult> {
         console.log(`[Pillar Sync] ✅ Anchor discovered: ${anchorUrl}`);
 
         // Step 2: Fetch Posts and Balance directly via standard REST APIs
-        const identityRaw = await AsyncStorage.getItem('beanpool:identity');
+        let identityRaw = null;
+        try {
+            const SecureStore = require('expo-secure-store');
+            identityRaw = await SecureStore.getItemAsync('sovereign-identity');
+        } catch (e) {
+            identityRaw = await AsyncStorage.getItem('beanpool:identity');
+        }
+
         let pubKey = '';
         if (identityRaw) {
             try {

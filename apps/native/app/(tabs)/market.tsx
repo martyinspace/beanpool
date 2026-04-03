@@ -50,7 +50,7 @@ function PostAuthorRating({ pubkey, callsign, isGrid }: { pubkey: string, callsi
     }, [pubkey]);
     
     const r = avg !== null ? Math.round(avg) : 0;
-    const beans = avg !== null ? '🫘'.repeat(Math.min(r, 5)) + '○'.repeat(Math.max(0, 5 - r)) : '';
+    const beans = avg !== null ? '★'.repeat(Math.min(r, 5)) + '☆'.repeat(Math.max(0, 5 - r)) : '';
     
     if (isGrid) {
         return (
@@ -62,7 +62,7 @@ function PostAuthorRating({ pubkey, callsign, isGrid }: { pubkey: string, callsi
     }
     
     return (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 20 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 0 }}>
             <Text style={[styles.cardAuthor, { marginBottom: 0 }]}>By {callsign}</Text>
             {avg !== null && <Text style={{ fontSize: 13 }}>{beans}</Text>}
         </View>
@@ -187,7 +187,7 @@ export default function MarketScreen() {
     const pendingDeals = posts.filter(p => {
         if (!identity) return false;
         if (p.status === 'pending' && (p.author_pubkey === identity.publicKey || p.accepted_by === identity.publicKey)) return true;
-        return myTransactions.some(t => t.post_id === p.id && t.status === 'pending');
+        return myTransactions.some(t => t.postId === p.id && t.status === 'pending');
     });
 
     const myMarketPosts = posts.filter(p => 
@@ -195,7 +195,7 @@ export default function MarketScreen() {
         (
             p.author_pubkey === identity.publicKey || 
             p.accepted_by === identity.publicKey ||
-            myTransactions.some(t => t.post_id === p.id && t.status === 'pending' && (t.buyer_pubkey === identity.publicKey || t.seller_pubkey === identity.publicKey))
+            myTransactions.some(t => t.postId === p.id && t.status === 'pending' && (t.buyerPublicKey === identity.publicKey || t.sellerPublicKey === identity.publicKey))
         )
     ).sort((a, b) => {
         if (a.status === 'pending' && b.status !== 'pending') return -1;
@@ -457,29 +457,48 @@ export default function MarketScreen() {
             const InnerCard = () => (
                 <View style={[
                     styles.card, 
-                    { padding: 16, borderLeftWidth: 4, borderLeftColor: isBuyer ? '#ef4444' : '#10b981' },
+                    { padding: 16 },
                     !isCompleted && !isPending && { opacity: 0.5, backgroundColor: '#f9fafb' },
                     isPending && { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0', borderWidth: 1 }
                 ]}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <View style={{ backgroundColor: isCompleted ? '#d1fae5' : '#e5e7eb', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                                <Text style={{ fontSize: 10, fontWeight: '800', color: isCompleted ? '#065f46' : '#4b5563', textTransform: 'uppercase' }}>
-                                    {item.status}
-                                </Text>
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                        {item.coverImage ? (
+                            <Image source={{ uri: item.coverImage }} style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: '#e5e7eb' }} />
+                        ) : (
+                            <View style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                                <Text style={{ fontSize: 24, opacity: 0.5 }}>{isBuyer ? '🛒' : '🏷️'}</Text>
                             </View>
-                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#9ca3af' }}>
-                                {new Date(item.createdAt).toLocaleDateString()}
+                        )}
+                        <View style={{ flex: 1, justifyContent: 'center' }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <View style={{ backgroundColor: isCompleted ? '#d1fae5' : '#e5e7eb', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                        <Text style={{ fontSize: 10, fontWeight: '800', color: isCompleted ? '#065f46' : '#4b5563', textTransform: 'uppercase' }}>
+                                            {item.status}
+                                        </Text>
+                                    </View>
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#9ca3af' }}>
+                                        {new Date(item.createdAt).toLocaleDateString()}
+                                    </Text>
+                                </View>
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <Text style={{ fontWeight: '900', color: isBuyer ? '#dc2626' : '#059669', fontSize: 16 }} numberOfLines={1}>
+                                        {isBuyer ? '- ' : '+ '}{item.credits}
+                                    </Text>
+                                    <Image source={require('../../assets/images/bean.png')} style={{ width: 16, height: 16, marginLeft: 2, resizeMode: 'contain' }} />
+                                    {!!item.hours && (
+                                        <Text style={{ fontWeight: '900', color: isBuyer ? '#dc2626' : '#059669', fontSize: 16 }} numberOfLines={1}>
+                                            {` (${item.hours}h)`}
+                                        </Text>
+                                    )}
+                                </View>
+                            </View>
+                            
+                            <Text style={{ fontSize: 16, fontWeight: '900', color: '#1f2937', marginBottom: 4 }} numberOfLines={1}>
+                                {item.postTitle}
                             </Text>
                         </View>
-                        <Text style={{ fontWeight: '900', color: isBuyer ? '#dc2626' : '#059669', fontSize: 16 }}>
-                            {isBuyer ? '-' : '+'}{item.credits} B
-                        </Text>
                     </View>
-                    
-                    <Text style={{ fontSize: 16, fontWeight: '900', color: '#1f2937', marginBottom: 12 }} numberOfLines={1}>
-                        {item.postTitle}
-                    </Text>
                     
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                         <Text style={{ fontSize: 12, fontWeight: '600', color: '#6b7280' }}>
@@ -510,7 +529,7 @@ export default function MarketScreen() {
             return <InnerCard />;
         }
 
-        let coverImage = null;
+        let coverImage: string | null = null;
         if (item.photos) {
             try {
                 const arr = JSON.parse(item.photos);
@@ -525,7 +544,7 @@ export default function MarketScreen() {
                            item.price_type === 'weekly' ? '/Wk' : 
                            item.price_type === 'monthly' ? '/Mo' : '';
 
-        if (viewMode === 'grid') {
+        if (viewMode === 'grid' && activeTab !== 'deals') {
             return (
                 <Pressable 
                     style={[styles.card, styles.gridCard]}
@@ -541,8 +560,12 @@ export default function MarketScreen() {
                                 </Text>
                             </View>
                         )}
-                        <View style={styles.gridPriceBadge}>
-                            <CurrencyDisplay style={styles.gridPriceText} amount={item.credits + (priceLabel || '')} hideAmount={false} />
+                        <View style={[styles.gridPriceBadge, { flexDirection: 'row', alignItems: 'center' }]}>
+                            <Text style={styles.gridPriceText} numberOfLines={1}>
+                                {item.credits !== undefined && item.credits !== null ? item.credits : '?'}
+                                {priceLabel || ''}
+                            </Text>
+                            <Image source={require('../../assets/images/bean.png')} style={{ width: 12, height: 12, marginLeft: 2, resizeMode: 'contain' }} />
                         </View>
                         {!!item.repeatable && (
                             <View style={[styles.gridPriceBadge, { left: 8, right: undefined, backgroundColor: 'rgba(249, 115, 22, 0.9)' }]}>
@@ -561,37 +584,47 @@ export default function MarketScreen() {
             );
         }
 
-        // List View Return
+        // List View Return (Matching 'In Progress' horizontal format)
         return (
-            <Pressable 
-                style={styles.card}
-                onPress={() => router.push(`/post/${item.id}`)}
-            >
-                {coverImage && (
-                    <Image source={{ uri: coverImage }} style={styles.cardCoverImage} />
-                )}
-                <View style={styles.cardTextContent}>
-                    <View style={styles.cardHeader}>
-                        <View style={[styles.badge, item.type === 'offer' ? styles.badgeOffer : styles.badgeNeed]}>
-                            <Text style={styles.badgeText}>{item.type.toUpperCase()}</Text>
-                        </View>
-                        {!!item.repeatable && (
-                            <View style={[styles.badge, { backgroundColor: 'rgba(249, 115, 22, 0.1)', borderWidth: 1, borderColor: 'rgba(249, 115, 22, 0.2)', marginLeft: 8 }]}>
-                                <Text style={[styles.badgeText, { color: '#c2410c' }]}>↻ RECURRING</Text>
+            <Pressable onPress={() => router.push(`/post/${item.id}`)}>
+                <View style={[styles.card, { padding: 16 }]}>
+                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                        {coverImage ? (
+                            <Image source={{ uri: coverImage }} style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: '#e5e7eb' }} />
+                        ) : (
+                            <View style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                                <Text style={{ fontSize: 24, opacity: 0.5 }}>
+                                    {MARKETPLACE_CATEGORIES.find(c => c.id === item.category)?.emoji || '📦'}
+                                </Text>
                             </View>
                         )}
-                        <CurrencyDisplay style={styles.price} amount={item.credits + (priceLabel || '')} hideAmount={false} />
-                    </View>
-                    <Text style={styles.cardTitle}>{item.title}</Text>
-                    <PostAuthorRating pubkey={item.author_pubkey} callsign={cardAuthor} isGrid={false} />
-                    <View style={styles.cardFooter}>
-                        <Pressable style={styles.actionBtn}>
-                            <MaterialCommunityIcons name="chat-outline" size={16} color="#aaa" />
-                            <Text style={styles.actionText}>Message</Text>
-                        </Pressable>
-                        <Pressable style={styles.reportBtn} onPress={() => handleContentAction(item.author_pubkey, cardAuthor, item.id)}>
-                            <MaterialCommunityIcons name="shield-off-outline" size={18} color="#ef4444" />
-                        </Pressable>
+                        <View style={{ flex: 1, justifyContent: 'center' }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <View style={[styles.badge, item.type === 'offer' ? styles.badgeOffer : styles.badgeNeed, { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, margin: 0 }]}>
+                                        <Text style={[styles.badgeText, { fontSize: 10 }]}>{item.type.toUpperCase()}</Text>
+                                    </View>
+                                    {!!item.repeatable && (
+                                        <View style={{ backgroundColor: 'rgba(249, 115, 22, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(249, 115, 22, 0.2)' }}>
+                                            <Text style={{ fontSize: 10, fontWeight: '800', color: '#c2410c' }}>↻ RECURRING</Text>
+                                        </View>
+                                    )}
+                                </View>
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <Text style={[styles.price, { fontSize: 16 }]} numberOfLines={1}>
+                                        {item.credits !== undefined && item.credits !== null ? item.credits : '?'}
+                                        {priceLabel || ''}
+                                    </Text>
+                                    <Image source={require('../../assets/images/bean.png')} style={{ width: 14, height: 14, marginLeft: 2, resizeMode: 'contain' }} />
+                                </View>
+                            </View>
+                            
+                            <Text style={{ fontSize: 16, fontWeight: '900', color: '#1f2937', marginBottom: 4 }} numberOfLines={1}>
+                                {item.title}
+                            </Text>
+                            
+                            <PostAuthorRating pubkey={item.author_pubkey} callsign={cardAuthor} isGrid={false} />
+                        </View>
                     </View>
                 </View>
             </Pressable>
@@ -605,12 +638,12 @@ export default function MarketScreen() {
             </View>
             <FlatList
                 key={viewMode + activeTab + dealsTab}
-                numColumns={viewMode === 'grid' && !(activeTab === 'deals' && dealsTab === 'history') ? 2 : 1}
+                numColumns={viewMode === 'grid' && activeTab !== 'deals' ? 2 : 1}
                 data={listData}
                 keyExtractor={item => item.id}
                 renderItem={renderItem}
                 contentContainerStyle={styles.listContent}
-                columnWrapperStyle={viewMode === 'grid' && !(activeTab === 'deals' && dealsTab === 'history') ? styles.gridRow : undefined}
+                columnWrapperStyle={viewMode === 'grid' && activeTab !== 'deals' ? styles.gridRow : undefined}
                 showsVerticalScrollIndicator={false}
                 ListEmptyComponent={
                     <View style={{ padding: 32, alignItems: 'center' }}>

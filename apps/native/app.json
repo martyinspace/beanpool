@@ -2,7 +2,7 @@
   "expo": {
     "name": "BeanPool Pillar",
     "slug": "beanpool-pillar",
-    "version": "1.0.1",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/logo.png",
     "scheme": "beanpool",
@@ -25,7 +25,7 @@
       }
     },
     "android": {
-      "versionCode": 2,
+      "versionCode": 5,
       "package": "org.beanpool.pillar",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/logo.png",

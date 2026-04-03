@@ -163,7 +163,8 @@ async function _doInitDB() {
             hours REAL,
             status TEXT DEFAULT 'pending',
             created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-            completed_at DATETIME
+            completed_at DATETIME,
+            cover_image TEXT
         );
 
         -- 5. Messaging & Chat
@@ -254,6 +255,11 @@ async function _doInitDB() {
         } catch (e) {
             // Column likely already exists, ignore
         }
+
+        // Add cover_image to marketplace_transactions
+        try {
+            await database.execAsync(`ALTER TABLE marketplace_transactions ADD COLUMN cover_image TEXT;`);
+        } catch (e) {}
 
         // Add price_type column if not exists
         try {
@@ -1055,7 +1061,7 @@ export async function applyDelta(delta: any) {
             console.log(`[DB] applying ${delta.marketplaceTransactions.length} marketplace_transactions...`);
             for (const tx of delta.marketplaceTransactions) {
                 await database.runAsync(
-                    'INSERT OR REPLACE INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT OR REPLACE INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, completed_at, cover_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         tx.id ?? null,
                         tx.postId ?? tx.post_id ?? null,
@@ -1065,7 +1071,8 @@ export async function applyDelta(delta: any) {
                         tx.hours ?? null,
                         tx.status ?? 'pending',
                         tx.createdAt ?? tx.created_at ?? new Date().toISOString(),
-                        tx.completedAt ?? tx.completed_at ?? null
+                        tx.completedAt ?? tx.completed_at ?? null,
+                        tx.coverImage ?? tx.cover_image ?? null
                     ]
                 );
             }
@@ -1474,8 +1481,8 @@ export async function acceptMarketplacePost(postId: string, buyerPublicKey: stri
         if (res?.transaction) {
             const tx = res.transaction;
             await database.runAsync(
-                'INSERT OR REPLACE INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                [tx.id, tx.postId || postId, tx.buyerPublicKey || buyerPublicKey, tx.sellerPublicKey || null, tx.credits || 0, tx.hours || null, tx.status || 'pending', tx.createdAt || new Date().toISOString()]
+                'INSERT OR REPLACE INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, cover_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [tx.id, tx.postId || postId, tx.buyerPublicKey || buyerPublicKey, tx.sellerPublicKey || null, tx.credits || 0, tx.hours || null, tx.status || 'pending', tx.createdAt || new Date().toISOString(), tx.coverImage || null]
             );
         }
 
@@ -1673,6 +1680,7 @@ export async function getMarketplaceTransactions(publicKey: string, filter?: { s
         status: r.status, 
         createdAt: r.created_at, 
         completedAt: r.completed_at,
+        coverImage: r.cover_image,
         ratedByBuyer: !!r.ratedByBuyer,
         ratedBySeller: !!r.ratedBySeller
     }));

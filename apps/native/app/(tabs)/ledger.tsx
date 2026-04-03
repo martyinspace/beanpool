@@ -301,8 +301,11 @@ export default function LedgerScreen() {
                     <Text style={styles.txnMemo}>{item.memo}</Text>
                     <Text style={styles.txnTime}>{item.timestamp}</Text>
                 </View>
-                <View style={styles.txnAmountCol}>
-                    <CurrencyDisplay style={[styles.txnAmount, isCredit ? styles.positiveText : styles.negativeText]} amount={`${isCredit ? '+' : '-'}${item.amount}`} />
+                <View style={[styles.txnAmountCol, { flexDirection: 'row', alignItems: 'center' }]}>
+                    <Text style={[styles.txnAmount, isCredit ? styles.positiveText : styles.negativeText]} numberOfLines={1}>
+                        {isCredit ? '+' : '-'}{item.amount}
+                    </Text>
+                    <Image source={require('../../assets/images/bean.png')} style={{ width: 16, height: 16, marginLeft: 2, resizeMode: 'contain' }} />
                 </View>
             </View>
         );

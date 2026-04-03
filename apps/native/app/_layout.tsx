@@ -23,8 +23,8 @@ function RootLayoutNav() {
         if (!identity && segments[0] !== 'welcome') {
             router.replace('/welcome');
         } 
-        // If we DO have an identity but we aren't in the secure tabs area, let us in
-        else if (identity && segments[0] !== '(tabs)') {
+        // If we DO have an identity and we are stuck on the welcome screen or root, push us into the secure area
+        else if (identity && (segments.length === 0 || segments[0] === 'welcome')) {
             router.replace('/(tabs)');
         }
     }, [identity, isLoading, segments]);

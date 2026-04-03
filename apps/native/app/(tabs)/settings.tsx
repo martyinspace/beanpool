@@ -29,6 +29,7 @@ export default function SettingsScreen() {
     const [wipeConfirm, setWipeConfirm] = useState('');
     const [advancedLoading, setAdvancedLoading] = useState(false);
     const [savedNodes, setSavedNodes] = useState<(SavedNode & { status: 'pinging' | 'online' | 'offline', sizeBytes: number })[]>([]);
+    const [newNodeAlias, setNewNodeAlias] = useState('');
     
     React.useEffect(() => {
         if (mode === 'advanced') {
@@ -164,8 +165,6 @@ export default function SettingsScreen() {
         } catch(e) {}
     }
 
-    const [newNodeAlias, setNewNodeAlias] = useState('');
-
     async function handleUpdateAnchor() {
         if (!newAnchorInput.trim()) {
             Alert.alert("Invalid URL", "Please enter a valid BeanPool Node IP address.");
@@ -282,7 +281,7 @@ export default function SettingsScreen() {
                         style: "destructive",
                         onPress: async () => {
                             await wipeIdentity();
-                            await SecureStore.setItemAsync('beanpool_identity', JSON.stringify({
+                            await SecureStore.setItemAsync('sovereign-identity', JSON.stringify({
                                 publicKey: importedIdentity.publicKey,
                                 privateKey: importedIdentity.privateKey,
                                 callsign: importedIdentity.callsign,

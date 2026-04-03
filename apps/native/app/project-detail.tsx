@@ -120,7 +120,7 @@ export default function ProjectDetailScreen() {
                         </Text>
                         <Text style={{ fontSize: 13, color: '#6b7280', marginBottom: 20 }}>
                             {creatorAvgRating !== null && creatorRatingCount > 0 
-                                ? '🫘'.repeat(Math.round(creatorAvgRating)) + '○'.repeat(5 - Math.round(creatorAvgRating)) + ` (${creatorAvgRating.toFixed(1)}) • ${creatorRatingCount} Reviews`
+                                ? '★'.repeat(Math.round(creatorAvgRating)) + '☆'.repeat(5 - Math.round(creatorAvgRating)) + ` (${creatorAvgRating.toFixed(1)}) • ${creatorRatingCount} Reviews`
                                 : '☆☆☆☆☆ No ratings yet'}
                         </Text>
                         

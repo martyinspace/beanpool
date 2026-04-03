@@ -56,7 +56,7 @@ export function CurrencyDisplay({ amount, style, hideAmount = false }: Props) {
         return () => { mounted = false; };
     }, []);
 
-    const amtStr = (!hideAmount && amount !== undefined) ? amount.toString() + ' ' : '';
+    const amtStr = (!hideAmount && amount !== undefined) ? amount.toString() + '\u00A0' : '';
     
     const flatStyle = StyleSheet.flatten(style) || {};
     const fontSize = flatStyle.fontSize ? flatStyle.fontSize * 1.05 : 18;

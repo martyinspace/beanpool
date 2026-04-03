@@ -102,8 +102,10 @@ for NODE in "${TARGETS[@]}"; do
     export ADMIN_PASSWORD='${ADMIN_PASSWORD}'
     echo \"Public IP: \$PUBLIC_IP\"
     echo \"DNS Record: \$CF_RECORD_NAME\"
-    sudo -E docker compose -p beanpool pull
-    sudo docker image prune -af 2>/dev/null || true
+    # Temporarily building directly on server instead of GHCR pull
+    # sudo -E docker compose -p beanpool pull
+    sudo docker image prune -f 2>/dev/null || true
+    sudo -E docker compose -p beanpool build
     sudo -E docker compose -p beanpool up -d
   " 2>&1
 

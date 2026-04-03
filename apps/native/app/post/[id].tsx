@@ -12,6 +12,7 @@ import {
 } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
 import { ReviewModal } from '../../components/ReviewModal';
+import { CurrencyDisplay } from '../../components/CurrencyDisplay';
 
 const CATEGORIES = [
     { id: 'food', emoji: '🥕', label: 'Food' },
@@ -263,7 +264,7 @@ export default function PostDetailModal() {
             <View style={styles.header}>
                 <Pressable onPress={goBack} style={styles.backButton}>
                     <Text style={styles.backText}>←</Text>
-                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', marginLeft: 4 }}>Back</Text>
+                    <Text style={{ color: '#1f2937', fontSize: 16, fontWeight: 'bold', marginLeft: 4 }}>Back</Text>
                 </Pressable>
                 <Text style={[styles.headerTitle, { flex: 1, textAlign: 'center' }]}>{isOffer ? 'Offer' : 'Need'}</Text>
                 <View style={{ width: 68 }} />
@@ -301,9 +302,12 @@ export default function PostDetailModal() {
                 {/* Price Card */}
                 <View style={styles.priceCard}>
                     <Text style={styles.priceLabel}>{priceLabel}</Text>
-                    <Text style={styles.priceValue}>{post.credits} <Text style={styles.priceCurrency}>B{
-                        { fixed: '', hourly: ' / Hr', daily: ' / Dy', weekly: ' / Wk', monthly: ' / Mo' }[post.price_type as string] || ''
-                    }</Text></Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap' }}>
+                        <CurrencyDisplay amount={post.credits} style={styles.priceValue} />
+                        <Text style={[styles.priceCurrency, { marginLeft: 2 }]}>{
+                            { fixed: '', hourly: ' / Hr', daily: ' / Dy', weekly: ' / Wk', monthly: ' / Mo' }[post.price_type as string] || ''
+                        }</Text>
+                    </View>
                 </View>
 
                 {/* Author Card */}
@@ -342,11 +346,14 @@ export default function PostDetailModal() {
                                     <View style={styles.confirmBox}>
                                         <Text style={styles.confirmBoxTitle}>Finalize Transaction</Text>
                                         {post.price_type !== 'fixed' && (
-                                            <View style={{ marginBottom: 12 }}>
-                                                <Text style={styles.confirmBoxLabel}>ACTUAL {
+                                            <View style={{ marginBottom: 16 }}>
+                                                <Text style={styles.confirmBoxLabel}>CONFIRM ACTUAL {
                                                     { hourly: 'HOURS', daily: 'DAYS', weekly: 'WEEKS', monthly: 'MONTHS' }[post.price_type as string] || 'UNITS'
                                                 } WORKED</Text>
                                                 <TextInput style={styles.confirmBoxInput} value={completeHours} onChangeText={setCompleteHours} keyboardType="numeric" placeholder="e.g. 2.5" placeholderTextColor="#9ca3af" />
+                                                <Text style={{ color: '#6b7280', fontSize: 12, textAlign: 'center', marginTop: 4, paddingHorizontal: 12 }}>
+                                                    Adjust the final time up or down if the scope changed. The final credits released will be calculated automatically.
+                                                </Text>
                                             </View>
                                         )}
                                         <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -374,7 +381,7 @@ export default function PostDetailModal() {
                                         </View>
                                     </View>
                                 ) : (
-                                    <Pressable style={[styles.acceptBtn, styles.acceptBtnOffer]} onPress={() => { setShowCompleteConfirm(true); if(post.price_type !== 'fixed' && !completeHours) setCompleteHours('1'); }}>
+                                    <Pressable style={[styles.acceptBtn, styles.acceptBtnOffer]} onPress={() => { setShowCompleteConfirm(true); if(post.price_type !== 'fixed' && !completeHours) setCompleteHours(activeTx?.hours ? String(activeTx.hours) : '1'); }}>
                                         <Text style={styles.acceptBtnText}>✅ Release Credits</Text>
                                     </Pressable>
                                 )}
@@ -384,9 +391,16 @@ export default function PostDetailModal() {
                                 <Text style={{ color: '#f59e0b', fontSize: 13, fontWeight: '700', textAlign: 'center', marginTop: 8, marginBottom: 8 }}>
                                     ⏳ Pending Release by {targetPeerCallsign}
                                 </Text>
-                                <Text style={{ color: '#6b7280', fontSize: 11, textAlign: 'center', marginBottom: 16, paddingHorizontal: 16 }}>
-                                    You are the Payee. Fulfill the terms exactly as agreed, and the Payer will release your credits.
-                                </Text>
+                                <View style={{ paddingHorizontal: 16, marginBottom: 16, gap: 8 }}>
+                                    <Text style={{ color: '#1f2937', fontSize: 14, textAlign: 'center', fontWeight: '600', lineHeight: 20 }}>
+                                        You are the Payee. Fulfill the terms exactly as agreed, then ask the Payer to release your credits.
+                                    </Text>
+                                    <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+                                        <Text style={{ color: '#b91c1c', fontSize: 13, textAlign: 'center', fontWeight: '700' }}>
+                                            Note: If this post is still visible here, you have not yet received your credits.
+                                        </Text>
+                                    </View>
+                                </View>
                             </>
                         )}
                         
@@ -422,7 +436,7 @@ export default function PostDetailModal() {
                 {isOwnPost && (post.status === 'completed' || activeTx?.status === 'completed') && (
                     <View style={styles.confirmBox}>
                         <Text style={[styles.confirmBoxTitle, { color: '#10b981' }]}>✅ Deal Completed</Text>
-                        <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>
+                        <Text style={{ color: '#4b5563', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>
                             This deal has concluded successfully and credits have been processed on the Ledger.
                         </Text>
                     </View>
@@ -463,8 +477,8 @@ export default function PostDetailModal() {
                                 <Pressable onPress={() => {
                                     const types = ['fixed', 'hourly', 'daily', 'weekly', 'monthly'];
                                     setEditPriceType(types[(types.indexOf(editPriceType) + 1) % types.length]);
-                                }} style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 16, justifyContent: 'center' }}>
-                                    <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '700' }}>{
+                                }} style={{ backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 16, justifyContent: 'center' }}>
+                                    <Text style={{ color: '#1f2937', fontSize: 13, fontWeight: '700' }}>{
                                         { fixed: 'Total', hourly: '/ Hr', daily: '/ Dy', weekly: '/ Wk', monthly: '/ Mo' }[editPriceType] || 'Total'
                                     }</Text>
                                 </Pressable>
@@ -529,8 +543,8 @@ export default function PostDetailModal() {
                     <View style={styles.otherPostActions}>
                         {myRequest ? (
                             <View style={styles.confirmBox}>
-                                <Text style={styles.confirmBoxTitle}>⏳ Requested (Waiting for Author)</Text>
-                                <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>
+                                <Text style={[styles.confirmBoxTitle, { color: '#10b981' }]}>Deal Established</Text>
+                                <Text style={{ color: '#4b5563', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>
                                     {isOffer 
                                         ? `You have committed ${myRequest.credits} credits ${myRequest.hours ? `(${myRequest.hours} hours)` : ''} to Escrow for this offer.`
                                         : `You have requested to earn ${myRequest.credits} credits ${myRequest.hours ? `(${myRequest.hours} hours)` : ''} for fulfilling this need.`
@@ -545,8 +559,8 @@ export default function PostDetailModal() {
                                 <Text style={styles.confirmBoxTitle}>{isOffer ? 'Accept this Offer?' : 'Offer to Fulfill?'}</Text>
                                 
                                 <View style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: 12, borderRadius: 8, borderColor: 'rgba(245, 158, 11, 0.3)', borderWidth: 1, marginBottom: 16 }}>
-                                    <Text style={{ color: '#fcd34d', fontSize: 13, fontWeight: 'bold', marginBottom: 4 }}>🔒 Escrow Protocol</Text>
-                                    <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, lineHeight: 18 }}>
+                                    <Text style={{ color: '#c2410c', fontSize: 12, fontWeight: 'bold', marginBottom: 4 }}>🔒 Escrow Protocol</Text>
+                                    <Text style={{ color: '#4b5563', fontSize: 12, lineHeight: 18 }}>
                                         {isOffer 
                                             ? `By proceeding, you commit ${post.price_type === 'fixed' ? post.credits : `your authorized`} credits to an Escrow smart contract. The credits will only be transferred to the seller once you mark the transaction as complete.`
                                             : `This transaction is protected by Escrow. The payer has already committed the credits to a secure contract. Once you complete the task, they will release the funds to your wallet.`}
@@ -554,11 +568,9 @@ export default function PostDetailModal() {
                                 </View>
                                 {post.price_type !== 'fixed' && (
                                     <View style={{ marginBottom: 12 }}>
-                                        <Text style={styles.confirmBoxLabel}>ESTIMATED {
-                                            { hourly: 'HOURS', daily: 'DAYS', weekly: 'WEEKS', monthly: 'MONTHS' }[post.price_type as string] || 'UNITS'
-                                        }</Text>
-                                        <TextInput style={styles.confirmBoxInput} value={acceptHours} onChangeText={setAcceptHours} keyboardType="numeric" placeholder="1" placeholderTextColor="#9ca3af" />
-                                        <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, textAlign: 'center', marginTop: 4 }}>Credits will be required upon approval.</Text>
+                                        <Text style={styles.confirmBoxLabel}>ESCROW AMOUNT (HOURS)</Text>
+                                        <TextInput style={styles.confirmBoxInput} value={acceptHours} onChangeText={setAcceptHours} placeholder="Hours" placeholderTextColor="#9ca3af" keyboardType="numeric" editable={post.price_type !== 'fixed'} />
+                                        <Text style={{ color: '#9ca3af', fontSize: 10, textAlign: 'center', marginTop: 4 }}>Credits will be required upon approval.</Text>
                                     </View>
                                 )}
                                 <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -624,7 +636,7 @@ export default function PostDetailModal() {
                                       </Text>
                                   </Pressable>
                                   <Text style={{ fontSize: 12, color: '#fbbf24', marginTop: 2, fontWeight: '600' }}>
-                                    {req.count > 0 ? `🫘 ${req.avgRating.toFixed(1)} (${req.count} reviews)` : '☆☆☆☆☆ No ratings yet'}
+                                    {req.count > 0 ? `★ ${req.avgRating.toFixed(1)} (${req.count} reviews)` : '☆☆☆☆☆ No ratings yet'}
                                   </Text>
                                   <Text style={styles.requestAmt}>{req.hours ? `${req.hours} hours estimated` : 'Offered to fulfill'}</Text>
                                 </View>
@@ -659,21 +671,22 @@ export default function PostDetailModal() {
                         {identity && (post.status === 'completed' || activeTx?.status === 'completed') && (activeTx?.id || post.pending_transaction_id) && (
                             <View style={{ marginTop: 16 }}>
                                 <Pressable style={[styles.messageBtn, { borderColor: 'rgba(245,158,11,0.3)', backgroundColor: 'rgba(245,158,11,0.05)' }]} onPress={() => setShowRatingForm(!showRatingForm)}>
-                                    <Text style={[styles.messageBtnText, { color: '#f59e0b' }]}>🫘 Rate {post.author_callsign || 'Author'}</Text>
+                                    <Text style={[styles.messageBtnText, { color: '#f59e0b' }]}>★ Rate {post.author_callsign || 'Author'}</Text>
                                 </Pressable>
                                 {showRatingForm && (
                                     <View style={[styles.confirmBox, { marginTop: 8 }]}>
                                         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
                                             {[1,2,3,4,5].map(star => (
                                                 <Pressable key={star} onPress={() => setMyRating(star)}>
-                                                    <Text style={{ fontSize: 32, color: star <= myRating ? '#fbbf24' : 'rgba(255,255,255,0.2)' }}>{star <= myRating ? '🫘' : '○'}</Text>
+                                                    <Text style={{ fontSize: 32, color: star <= myRating ? '#fbbf24' : '#d1d5db' }}>{star <= myRating ? '★' : '☆'}</Text>
                                                 </Pressable>
                                             ))}
                                         </View>
-                                        <TextInput style={[styles.confirmBoxInput, { height: 60, textAlign: 'left', textAlignVertical: 'top' }]} value={ratingComment} onChangeText={setRatingComment} placeholder="Leave a comment (optional)..." placeholderTextColor="#9ca3af" multiline />
-                                        <Pressable style={[styles.confirmActionBtn, { backgroundColor: myRating >= 1 ? '#f59e0b' : 'rgba(255,255,255,0.2)' }]} disabled={myRating < 1 || submittingRating} onPress={async () => {
-                                            const txToRate = activeTx?.id || post.pending_transaction_id;
+                                        <TextInput style={[styles.editInput, { minHeight: 60, marginBottom: 12 }]} value={ratingComment} onChangeText={setRatingComment} placeholder="Leave an optional comment..." placeholderTextColor="#9ca3af" multiline />
+                                        <Pressable style={[styles.confirmActionBtn, { backgroundColor: myRating >= 1 ? '#f59e0b' : '#e5e7eb' }]} disabled={myRating < 1 || submittingRating} onPress={async () => {
+                                            if(!identity || !activeTx) return;
                                             try {
+                                                const txToRate = activeTx?.id || post.pending_transaction_id;
                                                 setSubmittingRating(true);
                                                 await submitRating(identity.publicKey, post.author_pubkey, myRating, ratingComment, txToRate);
                                                 setShowRatingForm(false);
@@ -702,7 +715,7 @@ export default function PostDetailModal() {
                                         <Picker.Item label="Other" value="Other" />
                                     </Picker>
                                 </View>
-                                <Pressable style={[styles.confirmActionBtn, { backgroundColor: reportReason ? '#ef4444' : 'rgba(255,255,255,0.2)' }]} disabled={!reportReason || submittingReport} onPress={async () => {
+                                <Pressable style={[styles.confirmActionBtn, { backgroundColor: reportReason ? '#ef4444' : '#e5e7eb' }]} disabled={!reportReason || submittingReport} onPress={async () => {
                                     if(!identity || !post.id) return;
                                     try {
                                         setSubmittingReport(true);
@@ -741,7 +754,7 @@ export default function PostDetailModal() {
 
 function renderBeans(rating: number): string {
     const r = Math.round(rating) || 0;
-    return '🫘'.repeat(Math.min(r, 5)) + '○'.repeat(Math.max(0, 5 - r));
+    return '★'.repeat(Math.min(r, 5)) + '☆'.repeat(Math.max(0, 5 - r));
 }
 
 function getTimeAgo(dateStr: string): string {
@@ -758,16 +771,16 @@ function getTimeAgo(dateStr: string): string {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#1e261e' },
-    errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#1e261e' },
-    errorText: { color: '#9ca3af', fontSize: 16, textAlign: 'center', marginBottom: 24, lineHeight: 24 },
+    container: { flex: 1, backgroundColor: '#f9fafb' },
+    errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#f9fafb' },
+    errorText: { color: '#6b7280', fontSize: 16, textAlign: 'center', marginBottom: 24, lineHeight: 24 },
     closeBtn: { backgroundColor: '#d97757', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12 },
     closeBtnText: { color: '#fff', fontWeight: 'bold' },
 
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
     backButton: { flexDirection: 'row', width: 68, height: 40, alignItems: 'center' },
-    backText: { color: '#fff', fontSize: 24, marginTop: -2 },
-    headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff', letterSpacing: 1, textTransform: 'uppercase' },
+    backText: { color: '#1f2937', fontSize: 24, marginTop: -2 },
+    headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#1f2937', letterSpacing: 1, textTransform: 'uppercase' },
 
     scroll: { paddingBottom: 60 },
 
@@ -776,97 +789,97 @@ const styles = StyleSheet.create({
     catBadge: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     catEmoji: { fontSize: 20 },
     catLabel: { fontSize: 12, fontWeight: '900', letterSpacing: 0.5 },
-    timeAgo: { color: 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: '600' },
+    timeAgo: { color: '#9ca3af', fontSize: 12, fontWeight: '600' },
 
     // Title & Description
-    postTitle: { color: '#fff', fontSize: 24, fontWeight: '800', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
-    description: { color: 'rgba(255,255,255,0.6)', fontSize: 15, lineHeight: 22, paddingHorizontal: 20, paddingBottom: 16 },
+    postTitle: { color: '#1f2937', fontSize: 24, fontWeight: '800', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
+    description: { color: '#4b5563', fontSize: 15, lineHeight: 22, paddingHorizontal: 20, paddingBottom: 16 },
 
     // Photos
     photosScroll: { paddingLeft: 20, marginBottom: 16 },
-    photoImage: { width: 160, height: 120, borderRadius: 12, marginRight: 10, backgroundColor: 'rgba(255,255,255,0.1)' },
+    photoImage: { width: 160, height: 120, borderRadius: 12, marginRight: 10, backgroundColor: '#f3f4f6' },
 
     // Price Card
-    priceCard: { marginHorizontal: 20, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', paddingVertical: 20, alignItems: 'center', marginBottom: 16 },
-    priceLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 },
-    priceValue: { color: '#fff', fontSize: 36, fontWeight: '800' },
-    priceCurrency: { fontSize: 20, fontWeight: '500', color: 'rgba(255,255,255,0.5)' },
+    priceCard: { marginHorizontal: 20, backgroundColor: '#ffffff', borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb', paddingVertical: 20, alignItems: 'center', marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
+    priceLabel: { color: '#9ca3af', fontSize: 11, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 },
+    priceValue: { color: '#1f2937', fontSize: 36, fontWeight: '800' },
+    priceCurrency: { fontSize: 20, fontWeight: '500', color: '#6b7280' },
 
     // Author Card
-    authorCard: { marginHorizontal: 20, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', padding: 16, marginBottom: 20 },
-    authorCardLabel: { color: 'rgba(255,255,255,0.3)', fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginBottom: 12 },
+    authorCard: { marginHorizontal: 20, backgroundColor: '#ffffff', borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb', padding: 16, marginBottom: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
+    authorCardLabel: { color: '#9ca3af', fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginBottom: 12 },
     authorRow: { flexDirection: 'row', alignItems: 'center' },
-    avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(217,119,87,0.2)', justifyContent: 'center', alignItems: 'center' },
+    avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(217,119,87,0.1)', justifyContent: 'center', alignItems: 'center' },
     avatarLetter: { color: '#d97757', fontSize: 20, fontWeight: 'bold' },
     authorInfo: { marginLeft: 12 },
-    authorName: { color: '#fff', fontSize: 16, fontWeight: '700' },
-    authorRating: { color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 2 },
+    authorName: { color: '#1f2937', fontSize: 16, fontWeight: '700' },
+    authorRating: { color: '#6b7280', fontSize: 12, marginTop: 2 },
 
     // Own Post Actions
     ownPostActions: { paddingHorizontal: 20, gap: 10 },
     editPostBtn: { backgroundColor: '#d97757', borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
     editPostBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
-    deletePostBtn: { borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 2, borderColor: 'rgba(239,68,68,0.4)' },
+    deletePostBtn: { borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 2, borderColor: 'rgba(239,68,68,0.2)' },
     deletePostBtnText: { color: '#ef4444', fontSize: 14, fontWeight: '700' },
 
     // Other's Post Actions
     otherPostActions: { paddingHorizontal: 20, gap: 10 },
-    messageBtn: { backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 14, paddingVertical: 16, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-    messageBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    messageBtn: { backgroundColor: '#ffffff', borderRadius: 14, paddingVertical: 16, alignItems: 'center', borderWidth: 1, borderColor: '#e5e7eb' },
+    messageBtnText: { color: '#1f2937', fontSize: 16, fontWeight: '700' },
     acceptBtn: { borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
     acceptBtnOffer: { backgroundColor: '#10b981' },
     acceptBtnNeed: { backgroundColor: '#ea580c' },
     acceptBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
 
     // Edit Section
-    editSection: { marginHorizontal: 20, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', padding: 16 },
-    editSectionTitle: { color: '#fff', fontSize: 18, fontWeight: '800', marginBottom: 16 },
+    editSection: { marginHorizontal: 20, backgroundColor: '#ffffff', borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb', padding: 16 },
+    editSectionTitle: { color: '#1f2937', fontSize: 18, fontWeight: '800', marginBottom: 16 },
     editTypeRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-    editTypeBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 2, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center' },
+    editTypeBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#f9fafb', alignItems: 'center' },
     editTypeBtnOffer: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
     editTypeBtnNeed: { backgroundColor: '#ea580c', borderColor: '#ea580c' },
-    editTypeBtnText: { fontSize: 14, fontWeight: '800', color: 'rgba(255,255,255,0.5)' },
+    editTypeBtnText: { fontSize: 14, fontWeight: '800', color: '#9ca3af' },
     editTypeBtnTextActive: { color: '#fff' },
-    editPickerWrap: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', marginBottom: 10, overflow: 'hidden' },
-    editPicker: { color: '#fff', height: 50 },
-    editInput: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 12, color: '#fff', fontSize: 15, marginBottom: 10 },
-    editPhotoLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 8 },
+    editPickerWrap: { backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 10, overflow: 'hidden' },
+    editPicker: { color: '#1f2937', height: 50 },
+    editInput: { backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 14, paddingVertical: 12, color: '#1f2937', fontSize: 15, marginBottom: 10 },
+    editPhotoLabel: { color: '#9ca3af', fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 8 },
     editPhotosRow: { flexDirection: 'row', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
     editPhotoThumb: { width: 60, height: 60, borderRadius: 12, overflow: 'hidden', position: 'relative' },
     editPhotoImg: { width: 60, height: 60, borderRadius: 12 },
     editPhotoRemove: { position: 'absolute', top: -2, right: -2, width: 20, height: 20, borderRadius: 10, backgroundColor: '#ef4444', justifyContent: 'center', alignItems: 'center' },
     editPhotoRemoveText: { color: '#fff', fontSize: 10, fontWeight: '800' },
-    editPhotoAdd: { width: 60, height: 60, borderRadius: 12, borderWidth: 2, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center' },
-    editPhotoAddIcon: { color: 'rgba(255,255,255,0.4)', fontSize: 26 },
+    editPhotoAdd: { width: 60, height: 60, borderRadius: 12, borderWidth: 2, borderStyle: 'dashed', borderColor: '#d1d5db', justifyContent: 'center', alignItems: 'center', backgroundColor: '#f9fafb' },
+    editPhotoAddIcon: { color: '#9ca3af', fontSize: 26 },
     editBtnRow: { flexDirection: 'row', gap: 10 },
-    editCancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', alignItems: 'center' },
-    editCancelBtnText: { color: 'rgba(255,255,255,0.6)', fontSize: 15, fontWeight: '700' },
+    editCancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#ffffff', alignItems: 'center' },
+    editCancelBtnText: { color: '#6b7280', fontSize: 15, fontWeight: '700' },
     editSaveBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: '#d97757', alignItems: 'center' },
-    editSaveBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.1)' },
+    editSaveBtnDisabled: { backgroundColor: '#d1d5db' },
     editSaveBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
 
     // Transaction Logic Components
-    confirmBox: { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, marginTop: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-    confirmBoxTitle: { color: '#fff', fontSize: 15, fontWeight: '800', textAlign: 'center', marginBottom: 12 },
-    confirmBoxLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginBottom: 6 },
-    confirmBoxInput: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 16, paddingVertical: 14, color: '#fff', fontSize: 16, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
-    cancelActionBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-    cancelActionBtnText: { color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: '700' },
+    confirmBox: { backgroundColor: '#ffffff', borderRadius: 16, padding: 16, marginTop: 8, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
+    confirmBoxTitle: { color: '#1f2937', fontSize: 15, fontWeight: '800', textAlign: 'center', marginBottom: 12 },
+    confirmBoxLabel: { color: '#9ca3af', fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginBottom: 6 },
+    confirmBoxInput: { backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 16, paddingVertical: 14, color: '#1f2937', fontSize: 16, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
+    cancelActionBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
+    cancelActionBtnText: { color: '#6b7280', fontSize: 14, fontWeight: '700' },
     confirmActionBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     confirmActionBtnGreen: { backgroundColor: '#10b981' },
     confirmActionBtnText: { color: '#fff', fontSize: 14, fontWeight: '800' },
-    cancelTxBtn: { marginTop: 12, borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+    cancelTxBtn: { marginTop: 12, borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)', backgroundColor: '#ffffff', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
     cancelTxBtnText: { color: '#ef4444', fontSize: 14, fontWeight: '700' },
     requestsContainer: {
         marginTop: 20,
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: '#ffffff',
         borderRadius: 12,
         padding: 16,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)'
+        borderColor: '#e5e7eb'
     },
     requestsTitle: {
-        color: '#fff',
+        color: '#1f2937',
         fontSize: 16,
         fontWeight: 'bold',
         marginBottom: 12
@@ -875,13 +888,15 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: 'rgba(0,0,0,0.2)',
+        backgroundColor: '#f9fafb',
+        borderWidth: 1,
+        borderColor: '#f3f4f6',
         borderRadius: 8,
         padding: 12,
         marginBottom: 8
     },
     requestName: {
-        color: '#fff',
+        color: '#1f2937',
         fontWeight: '600',
         fontSize: 14,
         marginBottom: 4
@@ -903,7 +918,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold'
     },
     rejectBtn: {
-        backgroundColor: 'rgba(239,68,68,0.2)',
+        backgroundColor: '#fff',
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 6,

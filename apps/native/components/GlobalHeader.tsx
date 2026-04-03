@@ -145,24 +145,34 @@ export function GlobalHeader() {
                     activeOpacity={0.7} 
                     onPress={openDropdown}
                 >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 }}>
+                    <View style={{ flexDirection: 'column', alignItems: 'center', position: 'relative', transform: [{ translateX: isMapScreen ? -12 : -6 }, { translateY: isMapScreen ? -8 : 0 }] }}>
                         {isMapScreen ? (
-                            <Image 
-                                source={require('../assets/images/logo.png')} 
-                                style={{ width: 140, height: 34, marginRight: 4 }} 
-                                resizeMode="contain" 
-                            />
+                            <View style={{ position: 'relative' }}>
+                                <Image 
+                                    source={require('../assets/images/logo.png')} 
+                                    style={{ width: 280, height: 76, marginTop: -8, marginBottom: -12 }} 
+                                    resizeMode="contain" 
+                                />
+                                <MaterialCommunityIcons 
+                                    name="chevron-down" 
+                                    size={20} 
+                                    color="#ffffff" 
+                                    style={{ position: 'absolute', bottom: -10, right: 90, opacity: 0.9 }} 
+                                />
+                            </View>
                         ) : (
-                            <Text style={[styles.headerTitle, { fontSize: 18, marginRight: 4 }]}>
-                                {pathname === '/market' ? 'Marketplace' :
-                                 pathname === '/projects' ? 'Community Projects' :
-                                 pathname === '/chats' ? 'Messages' :
-                                 pathname === '/people' ? 'People' :
-                                 pathname === '/ledger' ? 'Ledger' :
-                                 pathname === '/settings' ? 'Settings' : 'BeanPool'}
-                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={[styles.headerTitle, { fontSize: 20, marginBottom: 0 }]}>
+                                    {pathname === '/market' ? 'Marketplace' :
+                                     pathname === '/projects' ? 'Community Projects' :
+                                     pathname === '/chats' ? 'Messages' :
+                                     pathname === '/people' ? 'People' :
+                                     pathname === '/ledger' ? 'Ledger' :
+                                     pathname === '/settings' ? 'Settings' : 'BeanPool'}
+                                </Text>
+                                <MaterialCommunityIcons name="chevron-down" size={20} color="#ffffff" style={{ opacity: 0.8, marginTop: 2 }} />
+                            </View>
                         )}
-                        <MaterialCommunityIcons name="chevron-down" size={18} color="#ffffff" />
                     </View>
                 </TouchableOpacity>
 
@@ -297,8 +307,8 @@ const styles = StyleSheet.create({
         color: '#cb5326', // terra-400 equivalent
     },
     pillBase: {alignItems: 'center', justifyContent: 'flex-end', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', height: 32, overflow: 'hidden' },
-    headerLeftControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)', height: 32, width: 80, overflow: 'hidden' },
-    headerRightControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', height: 32, width: 72, overflow: 'hidden' },
+    headerLeftControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)', height: 32, width: 80, overflow: 'hidden', marginTop: 12 },
+    headerRightControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', height: 32, width: 72, overflow: 'hidden', marginTop: 12 },
     controlPillBtn: { flex: 1, height: '100%', justifyContent: 'center', alignItems: 'center' },
     modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center' },
     modalContent: { backgroundColor: '#fff', width: '85%', borderRadius: 16, padding: 16, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 10, shadowOffset: { width: 0, height: 10 }, elevation: 5 },
