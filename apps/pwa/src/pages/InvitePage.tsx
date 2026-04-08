@@ -161,8 +161,8 @@ export function InvitePage({ identity }: Props) {
     async function handleShare(code: string) {
         const invite = invites.find(i => i.code === code);
         const namePhrase = invite?.intendedFor ? `Hey ${invite.intendedFor}, ` : '';
-        const inviteUrl = `${window.location.origin}/app?invite=${code}`;
-        const messageText = `${namePhrase}I'm inviting you to my Sovereign BeanPool Node.\n\nStep 1: Download the 'BeanPool' app from your App Store.\nStep 2: Tap this secure link to join my node instantly:\n\n${inviteUrl}`;
+        const inviteUrl = `${window.location.origin}/?invite=${code}`;
+        const messageText = `Join my Sovereign BeanPool Node: ${inviteUrl}`;
         
         const shareData = {
             title: 'Join BeanPool Node',
@@ -238,16 +238,16 @@ export function InvitePage({ identity }: Props) {
                     {newCode && showQR && (
                         <div className="bg-oat-50 dark:bg-nature-950 border-2 border-emerald-500 rounded-2xl p-6 text-center mb-6 shadow-md transition-all">
                             <p className="text-nature-600 dark:text-nature-400 text-[14px] font-medium mb-3">Share this code with someone you trust</p>
-                            <p className="font-mono text-3xl font-bold text-nature-950 dark:text-white tracking-widest mb-4">
-                                {newCode.toUpperCase()}
+                            <p className="font-mono text-xl font-bold text-nature-950 dark:text-white tracking-widest break-all mb-4" title={newCode}>
+                                {newCode.length > 20 ? `${newCode.substring(0, 16)}...` : newCode.toUpperCase()}
                             </p>
                             <div className="bg-white rounded-xl p-4 inline-block mb-5 shadow-sm">
                                 {/* @ts-ignore */}
-                                <QRCodeSVG value={`${window.location.origin}/app?invite=${newCode}`} size={200} />
+                                <QRCodeSVG value={`${window.location.origin}/?invite=${newCode}`} size={200} />
                             </div>
                             <div className="flex gap-3 justify-center">
                                 <button 
-                                    onClick={() => handleCopy(`${window.location.origin}/app?invite=${newCode}`)} 
+                                    onClick={() => handleCopy(`${window.location.origin}/?invite=${newCode}`)} 
                                     className={`py-3 px-6 rounded-xl border text-[14px] font-bold cursor-pointer transition-all ${
                                         copied 
                                             ? 'bg-emerald-100 border-emerald-500 text-emerald-700 dark:bg-emerald-900/50 dark:border-emerald-500 dark:text-emerald-400' 
@@ -278,13 +278,13 @@ export function InvitePage({ identity }: Props) {
                                                     For: {inv.intendedFor}
                                                 </span>
                                             )}
-                                            <span className="font-mono text-[16px] font-bold tracking-wider text-nature-950 dark:text-white">
-                                                {inv.code.toUpperCase()}
+                                            <span className="font-mono text-[14px] font-bold tracking-wider text-nature-950 dark:text-white break-all" title={inv.code}>
+                                                {inv.code.length > 20 ? `${inv.code.substring(0, 16)}...` : inv.code.toUpperCase()}
                                             </span>
                                         </div>
                                         <div className="flex gap-2">
                                             <button 
-                                                onClick={() => handleCopy(`${window.location.origin}/app?invite=${inv.code}`)} 
+                                                onClick={() => handleCopy(`${window.location.origin}/?invite=${inv.code}`)} 
                                                 className="p-2 rounded-lg bg-oat-50 dark:bg-nature-800 border border-nature-200 dark:border-nature-700 text-nature-600 dark:text-nature-400 hover:bg-oat-100 dark:hover:bg-nature-700 cursor-pointer transition-colors shadow-sm"
                                             >
                                                 📋
@@ -316,8 +316,8 @@ export function InvitePage({ identity }: Props) {
                                                 For: {inv.intendedFor}
                                             </span>
                                         )}
-                                        <span className="font-mono text-[14px] text-nature-500 dark:text-nature-500 line-through">
-                                            {inv.code.toUpperCase()}
+                                        <span className="font-mono text-[13px] text-nature-500 dark:text-nature-500 line-through break-all" title={inv.code}>
+                                            {inv.code.length > 20 ? `${inv.code.substring(0, 16)}...` : inv.code.toUpperCase()}
                                         </span>
                                     </div>
                                     <p className="text-nature-400 dark:text-nature-600 text-[11px] font-semibold mt-2 uppercase tracking-wide">

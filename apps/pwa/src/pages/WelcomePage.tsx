@@ -18,15 +18,24 @@ interface Props {
 
 // ===================== INVITE CODE FORMATTING =====================
 
+function extractInviteToken(raw: string): string {
+    const inviteMatch = raw.match(/[?&]invite=([^&]+)/);
+    if (inviteMatch) {
+        return decodeURIComponent(inviteMatch[1]);
+    }
+    return raw;
+}
+
 /** Strip everything except alphanumeric, uppercase, and format as BP-XXXX-XXXX */
 function formatInviteCode(raw: string): string {
-    const trimmed = raw.trim();
+    const extracted = extractInviteToken(raw);
+    const trimmed = extracted.trim();
     if (trimmed.length > 20 && trimmed.startsWith('BP-')) {
         return trimmed; // It's an offline cryptographic ticket. Just return it cleanly.
     }
 
     // Strip non-alphanumeric
-    const clean = raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const clean = extracted.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     const withoutPrefix = clean.startsWith('BP') ? clean.slice(2) : clean;
     const body = withoutPrefix.slice(0, 8);
 
@@ -37,15 +46,16 @@ function formatInviteCode(raw: string): string {
 
 /** Normalise any input to the canonical BP-XXXX-XXXX format for API submission */
 function normaliseInviteCode(raw: string): string {
-    const trimmed = raw.trim();
+    const extracted = extractInviteToken(raw);
+    const trimmed = extracted.trim();
     if (trimmed.length > 20 && trimmed.startsWith('BP-')) {
         return trimmed; // Offline cryptographic bulk token
     }
 
-    const clean = raw.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    const clean = extracted.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     const withoutPrefix = clean.startsWith('BP') ? clean.slice(2) : clean;
     const body = withoutPrefix.slice(0, 8);
-    if (body.length < 8) return raw.trim().toUpperCase(); // partial — return as-is
+    if (body.length < 8) return extracted.trim().toUpperCase(); // partial — return as-is
     return `BP-${body.slice(0, 4)}-${body.slice(4)}`;
 }
 
@@ -100,12 +110,11 @@ export function WelcomePage({ onComplete }: Props) {
     const [seedConfirmed, setSeedConfirmed] = useState(false);
     const [pendingInviteCode, setPendingInviteCode] = useState('');
     const [showNewUser, setShowNewUser] = useState(() => {
-        const params = new URLSearchParams(window.location.search);
-        return !!params.get('invite');
+        return false;
     });
     const [isTrampoline, setIsTrampoline] = useState(() => {
-        const params = new URLSearchParams(window.location.search);
-        return !!params.get('invite');
+        // ALWAYS default to the native app trampoline page
+        return true;
     });
     const [showMemberOptions, setShowMemberOptions] = useState(false);
     const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -420,7 +429,7 @@ export function WelcomePage({ onComplete }: Props) {
                         /* ===== DEEP LINK TRAMPOLINE GATEWAY ===== */
                         <>
                             <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.75rem' }}>
-                                🎟️ You've been invited!
+                                {inviteCode ? "🎟️ You've been invited!" : "📱 Download the App"}
                             </h3>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
                                 BeanPool is designed as a native mobile app. For the best experience, download the app from your store, then tap the button below to join the node instantly.
