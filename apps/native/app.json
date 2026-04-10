@@ -2,7 +2,7 @@
   "expo": {
     "name": "BeanPool Pillar",
     "slug": "beanpool-pillar",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "scheme": "beanpool",
