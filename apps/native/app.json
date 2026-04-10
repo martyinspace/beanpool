@@ -2,7 +2,7 @@
   "expo": {
     "name": "BeanPool Pillar",
     "slug": "beanpool-pillar",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "scheme": "beanpool",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "org.beanpool.pillar",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "associatedDomains": [
         "applinks:beanpool.org",
         "applinks:*.beanpool.org"
@@ -29,7 +29,7 @@
       }
     },
     "android": {
-      "versionCode": 8,
+      "versionCode": 10,
       "package": "org.beanpool.pillar",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/app-icon.png",

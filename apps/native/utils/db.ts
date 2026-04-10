@@ -247,7 +247,7 @@ async function _doInitDB() {
             await database.execAsync(`ALTER TABLE posts ADD COLUMN updated_at DATETIME;`);
             console.log('[SQLite] Successfully added updated_at column');
         } catch (e) {
-            console.warn('[SQLite] Failed to add updated_at column (or it exists):', e);
+            // Column likely already exists, ignore
         }
         
         try {
@@ -1361,15 +1361,16 @@ export async function createConversationApi(type: 'dm' | 'group', participants: 
 
 export async function redeemInvite(code: string, callsign: string, identityToRegister?: any): Promise<boolean> {
     try {
-        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || (__DEV__ ? 'http://localhost:5173' : 'https://review.beanpool.org:8443');
+        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || (__DEV__ ? 'https://127.0.0.1:8443' : 'https://review.beanpool.org:8443');
 
         const identity = identityToRegister || await loadIdentity();
         if (!identity) throw new Error('No identity to register');
 
-        const isOfflineTicket = !code.startsWith('BP-');
+        const isOfflineTicket = code.startsWith('BP-');
+        const codePayload = isOfflineTicket ? code.slice(3) : code;
         const body = isOfflineTicket 
-            ? { ticketB64: code, publicKey: identity.publicKey, callsign }
-            : { code, publicKey: identity.publicKey, callsign };
+            ? { ticketB64: codePayload, publicKey: identity.publicKey, callsign }
+            : { code: codePayload, publicKey: identity.publicKey, callsign };
         const bodyString = JSON.stringify(body);
 
         const privateKeyBytes = hexToBytes(identity.privateKey);

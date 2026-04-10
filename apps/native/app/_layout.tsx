@@ -24,7 +24,7 @@ function RootLayoutNav() {
             router.replace('/welcome');
         } 
         // If we DO have an identity and we are stuck on the welcome screen or root, push us into the secure area
-        else if (identity && (segments.length === 0 || segments[0] === 'welcome')) {
+        else if (identity && ((segments as string[]).length === 0 || (segments as string[])[0] === 'welcome')) {
             router.replace('/(tabs)');
         }
     }, [identity, isLoading, segments]);

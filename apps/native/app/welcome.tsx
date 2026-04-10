@@ -8,6 +8,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
 import { useLocalSearchParams } from 'expo-router';
 
+import * as Clipboard from 'expo-clipboard';
+
 export default function WelcomeScreen() {
     const params = useLocalSearchParams();
     const { setIdentity } = useIdentity();
@@ -24,12 +26,44 @@ export default function WelcomeScreen() {
     const [seedConfirmed, setSeedConfirmed] = useState(false);
     const [inviteCode, setInviteCode] = useState('');
     const [pendingInviteCode, setPendingInviteCode] = useState('');
+    const [processingMagicLink, setProcessingMagicLink] = useState(false);
 
     React.useEffect(() => {
-        if (params?.invite) {
-            setInviteCode(params.invite as string);
-            setMode('create');
-        }
+        let mounted = true;
+        const checkAutoIntercept = async () => {
+            if (params?.invite) {
+                setInviteCode(params.invite as string);
+                setMode('create');
+                return;
+            }
+
+            try {
+                // Tier 3 Privacy Guardrail: Ensure we don't creepily ping the clipboard on returning users
+                const hasLaunched = await AsyncStorage.getItem('bp_has_launched_before');
+                if (!hasLaunched) {
+                    await AsyncStorage.setItem('bp_has_launched_before', 'true');
+                    
+                    const hasCode = await Clipboard.hasStringAsync();
+                    if (hasCode) {
+                        const content = await Clipboard.getStringAsync();
+                        if (content && content.trim().startsWith('BP-')) {
+                            if (mounted) {
+                                setProcessingMagicLink(true);
+                                setInviteCode(content.trim());
+                                setMode('create');
+                                setTimeout(() => setProcessingMagicLink(false), 1500); // UI breathing room
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log("Clipboard read intercepted by OS or failed", e);
+            }
+        };
+        
+        checkAutoIntercept();
+        
+        return () => { mounted = false; };
     }, [params?.invite]);
 
     async function handleCreate() {
@@ -50,10 +84,6 @@ export default function WelcomeScreen() {
                 const originMatch = parsedCode.match(/^https?:\/\/[^\/]+/);
                 if (originMatch) {
                     let extracted = originMatch[0];
-                    // Bypass SSL issues for local self-signed networks by enforcing the Vite HTTP proxy on port 5173
-                    if (extracted.includes('192.168.') || extracted.includes('10.0.')) {
-                        extracted = extracted.replace('https://', 'http://').replace(':8443', ':5173');
-                    }
                     await AsyncStorage.setItem('beanpool_anchor_url', extracted);
                 }
                 // Extract Invite Token
@@ -62,7 +92,7 @@ export default function WelcomeScreen() {
                     parsedCode = decodeURIComponent(inviteMatch[1]);
                 }
             } else if (__DEV__) {
-                await AsyncStorage.setItem('beanpool_anchor_url', 'http://localhost:5173');
+                await AsyncStorage.setItem('beanpool_anchor_url', 'https://127.0.0.1:8443');
             }
 
             const identity = await createIdentity(callsign.trim());
@@ -110,7 +140,7 @@ export default function WelcomeScreen() {
         try {
             let finalAnchorUrl = recoveryAnchorUrl.trim() && recoveryAnchorUrl.startsWith('http') 
                 ? recoveryAnchorUrl.trim() 
-                : (__DEV__ ? 'http://localhost:5173' : 'https://review.beanpool.org:8443');
+                : (__DEV__ ? 'https://127.0.0.1:8443' : 'https://review.beanpool.org:8443');
             await AsyncStorage.setItem('beanpool_anchor_url', finalAnchorUrl);
 
             const identity = await createIdentityFromMnemonic(words, recoveryCallsign.trim());

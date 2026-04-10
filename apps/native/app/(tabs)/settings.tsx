@@ -43,7 +43,7 @@ export default function SettingsScreen() {
                 const enriched = await Promise.all(nodes.map(async node => {
                     let size = 0;
                     try {
-                        const fileInfo = await FileSystem.getInfoAsync(FileSystem.documentDirectory + 'SQLite/' + getDatabaseFilenameForNode(node.url));
+                        const fileInfo = await FileSystem.getInfoAsync((FileSystem as any).documentDirectory + 'SQLite/' + getDatabaseFilenameForNode(node.url));
                         if (fileInfo.exists) size = fileInfo.size;
                     } catch(e) {}
                     return { ...node, status: 'pinging' as const, sizeBytes: size };
@@ -161,7 +161,7 @@ export default function SettingsScreen() {
         setSavedNodes(prev => prev.filter(n => n.url !== targetUrl));
         // Optional: Physically delete the dormant .db file from the OS folder
         try {
-            await FileSystem.deleteAsync(FileSystem.documentDirectory + 'SQLite/' + getDatabaseFilenameForNode(targetUrl), { idempotent: true });
+            await FileSystem.deleteAsync((FileSystem as any).documentDirectory + 'SQLite/' + getDatabaseFilenameForNode(targetUrl), { idempotent: true });
         } catch(e) {}
     }
 

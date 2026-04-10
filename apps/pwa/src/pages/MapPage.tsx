@@ -386,7 +386,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
         if (!markersRef.current || !mapRef.current) return;
         markersRef.current.clearLayers();
 
-        posts.forEach((post) => {
+        posts.filter(post => !post.status || post.status === 'active').forEach((post) => {
             const cat = MARKETPLACE_CATEGORIES.find(c => c.id === post.category);
             const emoji = cat?.emoji || '📌';
             const typeColor = POST_TYPE_COLORS[post.type] || '#888';

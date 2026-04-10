@@ -91,6 +91,10 @@ export default function MapScreen() {
     const [isDarkMap, setIsDarkMap] = useState(false);
     const [posts, setPosts] = useState<any[]>([]);
     const mapRef = useRef<MapView>(null);
+    const [currentRegion, setCurrentRegion] = useState({
+        latitude: -28.5398, longitude: 153.4996,
+        latitudeDelta: 0.0922, longitudeDelta: 0.0421,
+    });
     const insets = useSafeAreaInsets();
     const { identity } = useIdentity();
 
@@ -310,14 +314,13 @@ export default function MapScreen() {
                 customMapStyle={isDarkMap ? darkMapStyle : hidePoisStyle}
                 userInterfaceStyle={isDarkMap ? "dark" : "light"}
                 showsUserLocation={true}
+                onRegionChangeComplete={(r) => setCurrentRegion(r)}
                 onPress={handleMapPress}
                 onLongPress={handleMapPress}
-                initialRegion={{
-                    latitude: -28.5398, longitude: 153.4996,
-                    latitudeDelta: 0.0922, longitudeDelta: 0.0421,
-                }}
+                initialRegion={currentRegion}
             >
                 {posts.filter(p => {
+                    if (p.status && p.status !== 'active') return false;
                     if (p.lat == null || p.lng == null) return false;
                     const l1 = Number(p.lat);
                     const l2 = Number(p.lng);
@@ -345,14 +348,26 @@ export default function MapScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={[styles.zoomBtn, isDarkMap && styles.zoomBtnDark]}
-                    onPress={() => { mapRef.current?.getCamera().then(cam => { if (cam) mapRef.current?.animateCamera({ ...cam, zoom: (cam.zoom || 10) + 1 }, { duration: 300 }); }); }}
+                    onPress={() => {
+                        mapRef.current?.animateToRegion({
+                            ...currentRegion,
+                            latitudeDelta: currentRegion.latitudeDelta / 2,
+                            longitudeDelta: currentRegion.longitudeDelta / 2,
+                        }, 300);
+                    }}
                     activeOpacity={0.7}
                 >
                     <Text style={[styles.zoomBtnText, isDarkMap && styles.zoomBtnTextDark]}>+</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={[styles.zoomBtn, isDarkMap && styles.zoomBtnDark]}
-                    onPress={() => { mapRef.current?.getCamera().then(cam => { if (cam) mapRef.current?.animateCamera({ ...cam, zoom: Math.max((cam.zoom || 10) - 1, 1) }, { duration: 300 }); }); }}
+                    onPress={() => {
+                        mapRef.current?.animateToRegion({
+                            ...currentRegion,
+                            latitudeDelta: currentRegion.latitudeDelta * 2,
+                            longitudeDelta: currentRegion.longitudeDelta * 2,
+                        }, 300);
+                    }}
                     activeOpacity={0.7}
                 >
                     <Text style={[styles.zoomBtnText, isDarkMap && styles.zoomBtnTextDark]}>−</Text>

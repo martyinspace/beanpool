@@ -40,3 +40,8 @@ export function IdentityProvider({ children }: { children: React.ReactNode }) {
 export function useIdentity() {
     return useContext(IdentityContext);
 }
+
+// Dummy default export to satisfy Expo Router's requirement for all files in app/
+export default function IdentityContextRoute() {
+    return null;
+}

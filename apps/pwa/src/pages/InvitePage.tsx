@@ -158,10 +158,47 @@ export function InvitePage({ identity }: Props) {
         }
     }
 
+    async function handleCopyProxy(code: string) {
+        let shortHash = null;
+        try {
+            const res = await fetch('/api/links/shorten', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ payload: code })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.hash) shortHash = data.hash;
+            }
+        } catch (e) {
+            console.log('Shortener unreachable, falling back to raw payload');
+        }
+        
+        const inviteUrl = shortHash ? `${window.location.origin}/i/${shortHash}` : `${window.location.origin}/?invite=${code}`;
+        await handleCopy(inviteUrl);
+    }
+
     async function handleShare(code: string) {
         const invite = invites.find(i => i.code === code);
         const namePhrase = invite?.intendedFor ? `Hey ${invite.intendedFor}, ` : '';
-        const inviteUrl = `${window.location.origin}/?invite=${code}`;
+        
+        // Proxy massive offline payload through shortlink engine
+        let shortHash = null;
+        try {
+            const res = await fetch('/api/links/shorten', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ payload: code })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.hash) shortHash = data.hash;
+            }
+        } catch (e) {
+            console.log('Shortener unreachable, falling back to raw payload');
+        }
+
+        const inviteUrl = shortHash ? `${window.location.origin}/i/${shortHash}` : `${window.location.origin}/?invite=${code}`;
         const messageText = `Join my Sovereign BeanPool Node: ${inviteUrl}`;
         
         const shareData = {
@@ -247,7 +284,7 @@ export function InvitePage({ identity }: Props) {
                             </div>
                             <div className="flex gap-3 justify-center">
                                 <button 
-                                    onClick={() => handleCopy(`${window.location.origin}/?invite=${newCode}`)} 
+                                    onClick={() => handleCopyProxy(newCode)} 
                                     className={`py-3 px-6 rounded-xl border text-[14px] font-bold cursor-pointer transition-all ${
                                         copied 
                                             ? 'bg-emerald-100 border-emerald-500 text-emerald-700 dark:bg-emerald-900/50 dark:border-emerald-500 dark:text-emerald-400' 
@@ -284,7 +321,7 @@ export function InvitePage({ identity }: Props) {
                                         </div>
                                         <div className="flex gap-2">
                                             <button 
-                                                onClick={() => handleCopy(`${window.location.origin}/?invite=${inv.code}`)} 
+                                                onClick={() => handleCopyProxy(inv.code)} 
                                                 className="p-2 rounded-lg bg-oat-50 dark:bg-nature-800 border border-nature-200 dark:border-nature-700 text-nature-600 dark:text-nature-400 hover:bg-oat-100 dark:hover:bg-nature-700 cursor-pointer transition-colors shadow-sm"
                                             >
                                                 📋

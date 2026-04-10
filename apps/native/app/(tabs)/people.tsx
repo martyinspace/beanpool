@@ -26,10 +26,14 @@ export default function PeopleScreen() {
     const [newCode, setNewCode] = useState('');
     const [intendedFor, setIntendedFor] = useState('');
     const [invites, setInvites] = useState<any[]>([]);
+    const [anchorUrl, setAnchorUrl] = useState('https://review.beanpool.org:8443');
 
     useEffect(() => {
         if (view === 'community') loadMembers();
         if (view === 'invites') loadOfflineInvites();
+        AsyncStorage.getItem('beanpool_anchor_url').then(val => {
+            if (val) setAnchorUrl(val);
+        }).catch(() => {});
     }, [view]);
 
     const loadOfflineInvites = async () => {
@@ -83,6 +87,35 @@ export default function PeopleScreen() {
         } finally {
             setGenerating(false);
         }
+    };
+
+    const shareInvite = async (codeToShare: string) => {
+        let shortHash = null;
+        try {
+            const res = await fetch(`${anchorUrl}/api/links/shorten`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ payload: codeToShare })
+            }); // Using standard fetch without AbortSignal.timeout for React Native compatibility
+            if (res.ok) {
+                const data = await res.json();
+                if (data.hash) shortHash = data.hash;
+            }
+        } catch (e) {
+            console.log('Shortener unreachable, falling back to offline code');
+        }
+
+        const magicLink = shortHash ? `${anchorUrl}/i/${shortHash}` : null;
+        
+        let message = `Join my private BeanPool Node!\n\n`;
+        if (magicLink) {
+            message += `Option A (1-Tap Magic):\nClick this link to join automatically:\n${magicLink}\n\n`;
+            message += `Option B (Manual):\nDownload the BeanPool app and paste this exact Invite Code:\n${codeToShare}`;
+        } else {
+            message += `1. Download the BeanPool App:\nhttps://beanpool.org\n\n2. Copy and paste this exact Invite Code:\n${codeToShare}`;
+        }
+
+        await Share.share({ message });
     };
 
 
@@ -194,19 +227,13 @@ export default function PeopleScreen() {
                             <Text style={styles.qrTitle}>Share this cryptographic code</Text>
                             <View style={styles.qrBox}>
                                 <QRCode
-                                    value={`https://beanpool.p2p/app?invite=${newCode}`}
+                                    value={`${anchorUrl}/?invite=${newCode}`}
                                     size={180}
                                 />
                             </View>
                             <Pressable 
                                 style={styles.btnCopyQR}
-                                onPress={async () => {
-                                    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || 'http://192.168.1.145:8443';
-                                    const shareLink = `${anchorUrl}/app?invite=${newCode}`;
-                                    await Share.share({
-                                        message: `I'm inviting you to my Sovereign BeanPool Node.\n\nStep 1: Download the 'BeanPool' app from your App Store.\nStep 2: Tap this secure link to join my node instantly:\n\n${shareLink}`
-                                    });
-                                }}
+                                onPress={() => shareInvite(newCode)}
                             >
                                 <Text style={styles.btnCopyQRText}>📤 Share Invite</Text>
                             </Pressable>
@@ -228,13 +255,7 @@ export default function PeopleScreen() {
                                     </View>
                                     <Pressable 
                                         style={styles.btnCopySmall}
-                                        onPress={async () => {
-                                            const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || 'http://192.168.1.145:8443';
-                                            const shareLink = `${anchorUrl}/app?invite=${inv.code}`;
-                                            await Share.share({
-                                                message: `I'm inviting you to my Sovereign BeanPool Node.\n\nStep 1: Download the 'BeanPool' app from your App Store.\nStep 2: Tap this secure link to join my node instantly:\n\n${shareLink}`
-                                            });
-                                        }}
+                                        onPress={() => shareInvite(inv.code)}
                                     >
                                         <Text style={styles.btnCopySmallText}>Share</Text>
                                     </Pressable>

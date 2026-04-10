@@ -173,3 +173,11 @@ CREATE TABLE IF NOT EXISTS projects (
     status TEXT DEFAULT 'ACTIVE', -- 'ACTIVE', 'FUNDED', 'FAILED', 'COMPLETED'
     created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+
+-- 10. Invite Links (Deferred Deep Linking Shortener)
+CREATE TABLE IF NOT EXISTS invite_links (
+    hash_id TEXT PRIMARY KEY,
+    payload TEXT NOT NULL,
+    created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+

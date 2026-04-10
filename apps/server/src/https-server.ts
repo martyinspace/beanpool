@@ -45,6 +45,7 @@ import {
     requestPost, approvePostRequest, rejectPostRequest, cancelPostRequest,
     getCommunityInfo, addWsClient, removeWsClient,
     generateInvite, redeemInvite, redeemOfflineTicket, getInviteTree, getInvitesByMember,
+    createShortlink, getShortlink,
     updateProfile, getProfile,
     createConversation, sendMessage, getConversationsByMember,
     getConversationMessages, getConversation,
@@ -207,6 +208,45 @@ export async function startHttpsServer(port: number): Promise<void> {
             ctx.body = getCaCertPem();
         });
     }
+
+    // ===================== UNIVERSAL DEEP LINKS (AASA / ASSETLINKS) =====================
+    // Apple App Site Association
+    router.get('/.well-known/apple-app-site-association', async (ctx) => {
+        const teamId = process.env.APPLE_TEAM_ID || '485XM2R33S';
+        const bundleId = 'org.beanpool.pillar';
+
+        ctx.type = 'application/json';
+        ctx.body = {
+            applinks: {
+                apps: [],
+                details: [
+                    {
+                        appID: `${teamId}.${bundleId}`,
+                        paths: ['/i/*', '/?invite=*', '/app*']
+                    }
+                ]
+            }
+        };
+    });
+
+    // Android App Links
+    router.get('/.well-known/assetlinks.json', async (ctx) => {
+        // Fallback to the known SHA256 of org.beanpool.pillar if env is missing
+        const sha256 = process.env.ANDROID_CERT_SHA256 || 'FA:55:52:D6:8C:4A:D6:19:2F:AD:A6:A7:78:39:B4:E8:4D:50:FE:E9:FD:6C:C5:DF:6B:0F:51:E7:CB:DC:03:2B';
+        const packageName = 'org.beanpool.pillar';
+
+        ctx.type = 'application/json';
+        ctx.body = [
+            {
+                relation: ["delegate_permission/common.handle_all_urls"],
+                target: {
+                    namespace: "android_app",
+                    package_name: packageName,
+                    sha256_cert_fingerprints: [sha256]
+                }
+            }
+        ];
+    });
 
     // ===================== SETTINGS PAGE =====================
 
@@ -697,6 +737,115 @@ export async function startHttpsServer(port: number): Promise<void> {
         const invites = getInvitesByMember(publicKey);
         ctx.body = { invites };
     });
+
+    // ===================== SHORTLINK API (DEFERRED DEEP LINKS) =====================
+
+    router.post('/api/links/shorten', async (ctx) => {
+        const { payload } = (ctx as any).requestBody || {};
+        if (!payload) {
+            ctx.status = 400;
+            ctx.body = { error: 'payload is required' };
+            return;
+        }
+
+        try {
+            const hashId = createShortlink(payload);
+            ctx.body = { success: true, hash: hashId };
+        } catch (e: any) {
+            ctx.status = 500;
+            ctx.body = { error: 'Failed to create shortlink' };
+        }
+    });
+
+    router.get('/i/:hash', async (ctx) => {
+        const hash = ctx.params.hash;
+        const payload = getShortlink(hash);
+
+        // Fallback if hash doesn't exist or expired
+        if (!payload) {
+            ctx.redirect('https://beanpool.org');
+            return;
+        }
+
+        const userAgent = ctx.header['user-agent'] || '';
+        let storeUrl = 'https://beanpool.org'; // Fallback
+        
+        if (/android/i.test(userAgent)) {
+            storeUrl = 'https://play.google.com/store/apps/details?id=org.beanpool.app';
+        } else if (/iPad|iPhone|iPod/.test(userAgent)) {
+            storeUrl = 'https://apps.apple.com/us/app/beanpool/idXXXX'; // Will be updated when app store URL is live
+        }
+
+        // Smart Trampoline HTML
+        const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <title>Join BeanPool Node</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #050a14; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .container { text-align: center; padding: 20px; max-width: 400px; }
+        h1 { font-size: 24px; margin-bottom: 8px; }
+        p { color: #94a3b8; font-size: 15px; margin-bottom: 30px; line-height: 1.5; }
+        .btn { display: inline-block; background: #10b981; color: #022c22; font-weight: 600; font-size: 16px; padding: 14px 28px; border-radius: 24px; text-decoration: none; border: none; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4); width: 100%; box-sizing: border-box; }
+        .btn:active { transform: scale(0.98); }
+        .hint { margin-top: 20px; font-size: 13px; color: #64748b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to the Pool.</h1>
+        <p>You've been invited to join a private BeanPool node.</p>
+        
+        <button id="magicBtn" class="btn">Copy Invite & Get App</button>
+        <p class="hint">Once installed, BeanPool will automatically detect your invite when you open it.</p>
+    </div>
+
+    <script>
+        const payload = \`\${payload}\`;
+        const storeUrl = "\${storeUrl}";
+        const btn = document.getElementById('magicBtn');
+
+        // First attempt a direct deep link if they already have the app installed
+        setTimeout(() => {
+             window.location = "beanpool://invite?code=" + encodeURIComponent(payload);
+        }, 50);
+
+        btn.onclick = async () => {
+            btn.textContent = "Copying & Redirecting...";
+            btn.style.opacity = 0.8;
+            btn.style.pointerEvents = "none";
+            
+            try {
+                // Primary method (Works on modern browsers with user interaction)
+                await navigator.clipboard.writeText(payload);
+            } catch (e) {
+                // Fallback method
+                const textArea = document.createElement("textarea");
+                textArea.value = payload;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try { document.execCommand('copy'); } catch(err) {}
+                document.body.removeChild(textArea);
+            }
+            
+            // 100ms OS Heartbeat to allow clipboard buffer to register before redirecting
+            setTimeout(() => {
+                window.location.href = storeUrl;
+            }, 100);
+        };
+    </script>
+</body>
+</html>
+        `;
+
+        ctx.type = 'html';
+        ctx.body = html;
+    });
+
+
 
     // ===================== PROFILE API (PUBLIC) =====================
 

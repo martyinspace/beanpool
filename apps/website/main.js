@@ -9,6 +9,7 @@
 // Nodes must opt-in via the "Publish to beanpool.org" checkbox in settings
 const SEED_NODES = [
     'https://mullum.beanpool.org',
+    'https://review.beanpool.org',
     // Add more as communities join
 ];
 

@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIdentity } from '../IdentityContext';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { getBalance, getTransactions, getProjects, getMemberProfile, exportLocalAudit, getAllCommunityMembers, sendTransfer } from '../../utils/db';
+import { getBalance, getTransactions, getProjects, getMemberProfile, getAllCommunityMembers, sendTransfer } from '../../utils/db';
 import { CurrencyDisplay } from '../../components/CurrencyDisplay';
 
 export default function LedgerScreen() {
@@ -261,26 +261,6 @@ export default function LedgerScreen() {
 
             <View style={[styles.sectionTitleContainer, { marginTop: 24 }]}>
                 <Text style={styles.sectionTitle}>Recent Transactions</Text>
-                <Pressable
-                    style={styles.auditBtn}
-                    onPress={async () => {
-                        try {
-                            const { balancesCsv, transactionsCsv } = await exportLocalAudit();
-                            const combinedCsv = `--- BALANCES & ESCROW ---\n${balancesCsv}\n\n--- TRANSACTION LOG ---\n${transactionsCsv}`;
-                            const combinedPath = `${FileSystem.documentDirectory}beanpool_node_audit.csv`;
-                            await FileSystem.writeAsStringAsync(combinedPath, combinedCsv);
-                            
-                            if (await Sharing.isAvailableAsync()) {
-                                await Sharing.shareAsync(combinedPath, { mimeType: 'text/csv', dialogTitle: 'BeanPool Node Audit' });
-                            }
-                        } catch (e) {
-                            console.error('Audit export failed', e);
-                            Alert.alert('Error', 'Failed to generate audit export.');
-                        }
-                    }}
-                >
-                    <Text style={styles.auditBtnText}>⬇️ Node Audit</Text>
-                </Pressable>
             </View>
         </View>
     );

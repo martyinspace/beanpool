@@ -356,7 +356,7 @@ export function getMember(publicKey: string): Member | undefined {
 
 function generateShortCode(): string {
     const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-    let code = 'BP-';
+    let code = 'INV-';
     for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
     code += '-';
     for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
@@ -456,6 +456,30 @@ export function redeemOfflineTicket(ticketB64: string, joinerPublicKey: string, 
         return { success: false, error: 'Malformed or broken offline ticket payload' };
     }
 }
+
+// ===================== SHORTLINKS =====================
+
+export function createShortlink(payload: string): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let code = '';
+    for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    
+    db.prepare(`INSERT INTO invite_links (hash_id, payload) VALUES (?, ?)`).run(code, payload);
+    return code;
+}
+
+export function getShortlink(hash: string): string | null {
+    const link = db.prepare("SELECT payload FROM invite_links WHERE hash_id = ?").get(hash) as any;
+    return link ? link.payload : null;
+}
+
+export function cleanShortlinks() {
+    // Delete links older than 48 hours to prevent database bloat
+    const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    db.prepare("DELETE FROM invite_links WHERE created_at < ?").run(cutoff);
+}
+
+// ======================================================
 
 export function getInvitesByMember(pubkey: string): InviteCode[] {
     const rows = db.prepare("SELECT * FROM invite_codes WHERE created_by = ?").all(pubkey) as any[];
@@ -699,7 +723,8 @@ export function getPosts(filter?: { id?: string; type?: string; category?: strin
 
     const rows = db.prepare(query).all(...params) as any[];
     const postIds = rows.map(r => r.id);
-    const photos = postIds.length > 0 ? db.prepare(`SELECT * FROM post_photos WHERE post_id IN (${postIds.map(() => '?').join(',')})`).all(...postIds) : [];
+    // [FIX] Never sync massive Base64 photos on a bulk global feed API. The payload hits 6.5MB.
+    const photos = (postIds.length > 0 && filter?.id) ? db.prepare(`SELECT * FROM post_photos WHERE post_id IN (${postIds.map(() => '?').join(',')})`).all(...postIds) : [];
 
     return rows.map(r => rowToPost(r, photos));
 }
