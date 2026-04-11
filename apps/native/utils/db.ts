@@ -1366,8 +1366,8 @@ export async function redeemInvite(code: string, callsign: string, identityToReg
         const identity = identityToRegister || await loadIdentity();
         if (!identity) throw new Error('No identity to register');
 
-        const isOfflineTicket = code.startsWith('BP-');
-        const codePayload = isOfflineTicket ? code.slice(3) : code;
+        const isOfflineTicket = code.startsWith('BP-') && code.length > 20;
+        const codePayload = code.startsWith('BP-') ? code.slice(3) : code;
         const body = isOfflineTicket 
             ? { ticketB64: codePayload, publicKey: identity.publicKey, callsign }
             : { code: codePayload, publicKey: identity.publicKey, callsign };

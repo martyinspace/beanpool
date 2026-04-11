@@ -6,12 +6,13 @@ import { importIdentity } from '../utils/identity';
 import { useIdentity } from './IdentityContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
-import { useLocalSearchParams } from 'expo-router';
-
+import { useGlobalSearchParams } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
+import * as Linking from 'expo-linking';
 
 export default function WelcomeScreen() {
-    const params = useLocalSearchParams();
+    const params = useGlobalSearchParams();
+    const incomingUrl = Linking.useURL();
     const { setIdentity } = useIdentity();
     const [mode, setMode] = useState<'home' | 'member' | 'create' | 'recover' | 'import'>('home');
     const [callsign, setCallsign] = useState('');
@@ -31,9 +32,24 @@ export default function WelcomeScreen() {
     React.useEffect(() => {
         let mounted = true;
         const checkAutoIntercept = async () => {
+            // Priority 1: Raw Expo Linking Intent (bypasses router segment hydration issues)
+            if (incomingUrl) {
+                const parsed = Linking.parse(incomingUrl);
+                if (parsed.queryParams?.invite) {
+                    if (mounted) {
+                        setInviteCode(parsed.queryParams.invite as string);
+                        setMode('create');
+                    }
+                    return;
+                }
+            }
+
+            // Priority 2: Standard Router Params
             if (params?.invite) {
-                setInviteCode(params.invite as string);
-                setMode('create');
+                if (mounted) {
+                    setInviteCode(params.invite as string);
+                    setMode('create');
+                }
                 return;
             }
 
@@ -64,7 +80,7 @@ export default function WelcomeScreen() {
         checkAutoIntercept();
         
         return () => { mounted = false; };
-    }, [params?.invite]);
+    }, [params?.invite, incomingUrl]);
 
     async function handleCreate() {
         if (!inviteCode.trim()) {

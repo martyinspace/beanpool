@@ -1258,7 +1258,7 @@
                 const data = await res.json();
                 if (res.ok && data.code) {
                     const code = data.code.toUpperCase();
-                    const inviteUrl = `${window.location.origin}/welcome?invite=${encodeURIComponent(code)}`;
+                    const inviteUrl = `${window.location.origin}/?invite=${encodeURIComponent(code)}`;
                     document.getElementById('seed-invite-code').textContent = inviteUrl;
                     document.getElementById('seed-invite-qr').src =
                         `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(inviteUrl)}`;

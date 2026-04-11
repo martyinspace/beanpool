@@ -25,10 +25,10 @@ fi
 # Active nodes: number:name:IP:DNS:user
 # Azure nodes use azureuser + SSH key; Debian uses marty + default key
 NODES=(
-  "1:mullum2:20.211.27.68:mullum2.beanpool.org:azureuser"
-  "2:bp-brisbane:20.5.121.158:brisbane.beanpool.org:azureuser"
-  "3:mullum1:192.168.1.219:mullum1.beanpool.org:marty"
-  "4:review:20.96.126.56:review.beanpool.org:azureuser"
+    "1:mullum2:20.211.27.68:mullum2.beanpool.org:azureuser:BeanPool"
+  "2:bp-brisbane:20.5.121.158:brisbane.beanpool.org:azureuser:BeanPool"
+  "3:mullum1:192.168.1.219:mullum1.beanpool.org:marty:BeanPool"
+  "4:review:192.168.1.219:review.beanpool.org:marty:BeanPool-Review"
 )
 
 # Package docker-compose.yml + data-preserving deploy config
@@ -70,7 +70,10 @@ for NODE in "${TARGETS[@]}"; do
   IP=$(echo "$NODE" | cut -d: -f3)
   DNS=$(echo "$NODE" | cut -d: -f4)
   USER=$(echo "$NODE" | cut -d: -f5)
+  DIR=$(echo "$NODE" | cut -d: -f6)
+  if [ -z "$DIR" ]; then DIR="BeanPool"; fi
   HOME_DIR="/home/$USER"
+  PROJECT_DIR="$HOME_DIR/$DIR"
 
   # Azure nodes use the lattice SSH key; others use default
   if [ "$USER" = "azureuser" ]; then
@@ -88,13 +91,13 @@ for NODE in "${TARGETS[@]}"; do
 
   # Stop, preserve data, extract, pull image, start
   ssh $SSH_OPTS $USER@$IP "
-    cd $HOME_DIR/BeanPool 2>/dev/null && sudo docker compose -p beanpool down 2>/dev/null
-    sudo mv $HOME_DIR/BeanPool/data $HOME_DIR/beanpool-data-backup 2>/dev/null || true
-    sudo rm -rf $HOME_DIR/BeanPool
-    mkdir -p $HOME_DIR/BeanPool
-    tar -xzf $HOME_DIR/beanpool-deploy.tar.gz -C $HOME_DIR/BeanPool
-    sudo mv $HOME_DIR/beanpool-data-backup $HOME_DIR/BeanPool/data 2>/dev/null || true
-    cd $HOME_DIR/BeanPool
+    cd $PROJECT_DIR 2>/dev/null && sudo docker compose -p beanpool-\$DIR down 2>/dev/null
+    sudo mv $PROJECT_DIR/data $HOME_DIR/beanpool-data-backup-\$DIR 2>/dev/null || true
+    sudo rm -rf $PROJECT_DIR
+    mkdir -p $PROJECT_DIR
+    tar -xzf $HOME_DIR/beanpool-deploy.tar.gz -C $PROJECT_DIR
+    sudo mv $HOME_DIR/beanpool-data-backup-\$DIR $PROJECT_DIR/data 2>/dev/null || true
+    cd $PROJECT_DIR
     export PUBLIC_IP=\$(curl -s ifconfig.me)
     export CF_API_TOKEN='${CF_API_TOKEN}'
     export CF_ZONE_ID='${CF_ZONE_ID}'
@@ -103,10 +106,10 @@ for NODE in "${TARGETS[@]}"; do
     echo \"Public IP: \$PUBLIC_IP\"
     echo \"DNS Record: \$CF_RECORD_NAME\"
     # Temporarily building directly on server instead of GHCR pull
-    # sudo -E docker compose -p beanpool pull
+    # sudo -E docker compose -p beanpool-\$DIR pull
     sudo docker image prune -f 2>/dev/null || true
-    sudo -E docker compose -p beanpool build
-    sudo -E docker compose -p beanpool up -d
+    sudo -E docker compose -p beanpool-\$DIR build
+    sudo -E docker compose -p beanpool-\$DIR up -d
   " 2>&1
 
   echo "✅ $NAME deployed!"

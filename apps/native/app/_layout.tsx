@@ -1,6 +1,6 @@
 import 'fast-text-encoding';
 import { useEffect, useState, useRef } from 'react';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments, useGlobalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Alert, LogBox, AppState, AppStateStatus } from 'react-native';
 import { registerPillarSync } from '../services/background-task';
@@ -16,12 +16,14 @@ function RootLayoutNav() {
     const segments = useSegments();
     const router = useRouter();
 
+    const params = useGlobalSearchParams();
+
     useEffect(() => {
         if (isLoading) return;
 
         // If we have no identity and we aren't already on the welcome screen, kick us out
         if (!identity && segments[0] !== 'welcome') {
-            router.replace('/welcome');
+            router.replace({ pathname: '/welcome', params });
         } 
         // If we DO have an identity and we are stuck on the welcome screen or root, push us into the secure area
         else if (identity && ((segments as string[]).length === 0 || (segments as string[])[0] === 'welcome')) {

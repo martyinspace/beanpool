@@ -476,7 +476,7 @@ export function WelcomePage({ onComplete }: Props) {
                                 {/* Google Play Store */}
                                 <a 
                                     onClick={async () => { try { if (inviteCode) await navigator.clipboard.writeText(inviteCode); } catch (e) {} }}
-                                    href="https://play.google.com" 
+                                    href="https://play.google.com/store/apps/details?id=org.beanpool.pillar" 
                                     target="_blank" rel="noopener noreferrer"
                                     style={{
                                         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',

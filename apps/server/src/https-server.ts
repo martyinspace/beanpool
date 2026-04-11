@@ -274,12 +274,6 @@ export async function startHttpsServer(port: number): Promise<void> {
         ctx.redirect(`/app${query}`);
     });
 
-    // Handle deep-link bypass route natively fallback for desktop users
-    router.get('/welcome', async (ctx) => {
-        const query = ctx.querystring ? `?${ctx.querystring}` : '';
-        ctx.redirect(`/app${query}`);
-    });
-
     // ===================== LOCAL STATUS API =====================
 
     router.get('/api/local/status', async (ctx) => {
