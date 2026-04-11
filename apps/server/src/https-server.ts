@@ -719,11 +719,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             }
         }
 
-        // Native app 1.0.13 requires "BP-" prefix to trigger clipboard interception.
-        // We gracefully strip it here for legacy "INV-" shortcodes.
-        const normalizedCode = code.startsWith('BP-INV-') ? code.slice(3) : code;
-
-        const result = redeemInvite(normalizedCode, publicKey, callsign.slice(0, 20));
+        const result = redeemInvite(code, publicKey, callsign.slice(0, 20));
         if (!result.success) {
             ctx.status = 400;
             ctx.body = { error: result.error };

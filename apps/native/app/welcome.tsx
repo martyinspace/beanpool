@@ -62,10 +62,11 @@ export default function WelcomeScreen() {
                     const hasCode = await Clipboard.hasStringAsync();
                     if (hasCode) {
                         const content = await Clipboard.getStringAsync();
-                        if (content && content.trim().startsWith('BP-')) {
+                        const cleanContent = content?.trim() || '';
+                        if (cleanContent.startsWith('BP-') || cleanContent.startsWith('INV-')) {
                             if (mounted) {
                                 setProcessingMagicLink(true);
-                                setInviteCode(content.trim());
+                                setInviteCode(cleanContent);
                                 setMode('create');
                                 setTimeout(() => setProcessingMagicLink(false), 1500); // UI breathing room
                             }
