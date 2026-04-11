@@ -356,7 +356,7 @@ export function getMember(publicKey: string): Member | undefined {
 
 function generateShortCode(): string {
     const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-    let code = 'INV-';
+    let code = 'BP-';
     for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
     code += '-';
     for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];

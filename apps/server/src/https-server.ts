@@ -810,7 +810,7 @@ export async function startHttpsServer(port: number): Promise<void> {
 
         // First attempt a direct deep link if they already have the app installed
         setTimeout(() => {
-             window.location = "beanpool://invite?code=" + encodeURIComponent(payload);
+             window.location = "beanpool://welcome?invite=" + encodeURIComponent(payload);
         }, 50);
 
         btn.onclick = async () => {
