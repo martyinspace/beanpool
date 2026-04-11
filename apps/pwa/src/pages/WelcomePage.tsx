@@ -455,7 +455,7 @@ export function WelcomePage({ onComplete }: Props) {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
                                 {/* Apple App Store */}
                                 <a 
-                                    onClick={async () => { try { if (inviteCode) await navigator.clipboard.writeText(inviteCode); } catch (e) {} }}
+                                    onClick={async () => { try { if (inviteCode) await navigator.clipboard.writeText(inviteCode.startsWith('BP-') ? inviteCode : `BP-${inviteCode}`); } catch (e) {} }}
                                     href="https://apps.apple.com" 
                                     target="_blank" rel="noopener noreferrer"
                                     style={{
@@ -475,7 +475,7 @@ export function WelcomePage({ onComplete }: Props) {
 
                                 {/* Google Play Store */}
                                 <a 
-                                    onClick={async () => { try { if (inviteCode) await navigator.clipboard.writeText(inviteCode); } catch (e) {} }}
+                                    onClick={async () => { try { if (inviteCode) await navigator.clipboard.writeText(inviteCode.startsWith('BP-') ? inviteCode : `BP-${inviteCode}`); } catch (e) {} }}
                                     href="https://play.google.com/store/apps/details?id=org.beanpool.pillar" 
                                     target="_blank" rel="noopener noreferrer"
                                     style={{
