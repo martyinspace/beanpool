@@ -39,7 +39,10 @@
 | [HANDOVER.md](HANDOVER.md) | Agent handover: current state, LE rate limits, architecture, how to deploy |
 | [docs/NODE_ADMIN_SETUP.md](docs/NODE_ADMIN_SETUP.md) | Admin setup guide — Docker, Let's Encrypt, no-domain, maintenance |
 | [docs/MIRRORING_AND_FAILOVER.md](docs/MIRRORING_AND_FAILOVER.md) | High availability guide — CRDT mirrors, DNS failover, and community merging |
-| [deploy.sh](deploy.sh) | Deploy script — `bash deploy.sh 1 2 3` for node-specific deploys |
+| [deploy.sh](deploy.sh) | Deploy script — `bash deploy.sh 1 2 3 4` for node-specific deploys |
+
+> [!WARNING]
+> Multi-Tenancy Deploy Gotcha: If multiple nodes are hosted physically on the SAME Debian machine (e.g. `mullum1` and `review`), running `deploy.sh` will blindly overwrite custom `docker-compose.yml` port mappings, triggering immediate `0.0.0.0` port conflict failures. Custom port bridges must be manually patched or ignored from extraction.
 
 ## Contributing
 
@@ -55,7 +58,7 @@
 |-----|-----|-------------|
 | **BeanPool Node** | `apps/server/` | Gateway — genesis, admin, REST APIs, WebSocket, connectors, handshake, lazy sync, libp2p |
 | **PWA** | `apps/pwa/` | UI — map, marketplace (13 categories), messaging, people/friends, ledger, profiles, seed phrase recovery, reputation, privacy |
-| **Native App** | `apps/native/` | 7-tab Expo + React Native mobile client — see [apps/native/README.md](apps/native/README.md) |
+| **Native App** | `apps/native/` | 7-tab Expo + React Native mobile client. Contains all native deferred deep-linking & onboarding logic — see [apps/native/README.md](apps/native/README.md) |
 
 ## Core Protocol
 

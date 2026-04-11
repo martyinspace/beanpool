@@ -93,6 +93,23 @@ Every 15 min (iOS) / configurable (Android):
 | **Pruning** | 1,000 transactions | Protect phone storage |
 | **Checkpoint** | Auto | Resume aborted syncs |
 
+## Deep Link & Onboarding Architecture
+
+To gracefully bypass Apple and Google's URL parameter stripping during uninstalled app boundary crossings, BeanPool implements a 3-tier deep-link mitigation flow carefully balancing reliability and user privacy constraints.
+
+1. **Deferred Deep Linking (Clipboard Inference)**
+   - Apple strictly drops URL parameters if a user must install the app completely from scratch. 
+   - We solve this by having the `WelcomePage.tsx` Web Trampoline inject `navigator.clipboard.writeText()` onto the "Download App Store" buttons.
+   - On the very first native cold boot, `welcome.tsx` queries `Clipboard.hasStringAsync()`. If it spots an `INV-` or `BP-` token, it silently injects it into the workflow without aggressively dumping the user. This is permanently disabled via `AsyncStorage`'s `hasLaunched` flag to stop creepy polling.
+
+2. **Bypassing Expo Router Hydration Drops**
+   - Relying on `useLocalSearchParams()` on Android leads to intent drops, as standard router hydration intrinsically races during cold-boot states, losing the `?invite=` query argument.
+   - We forcefully bypass the router by having the Welcome screen natively pull `Linking.useURL()` on purely the first mount tick.
+
+3. **Android Intent Parser Safe Payloads**
+   - The Android Deep Link parser destructively munches standard Base64 characters (`+`, `/`, `=`) turning them into whitespace inside URL parameters.
+   - Offline cryptographic tickets are entirely encoded in `Base64URL` natively by the PWA and safely reversed exactly before the backend triggers Ed25519 parsing. Invite formats are distinguished primarily by length (Tickets > 20 characters) and fallback legacy genesis codes (`INV-XXXX`).
+
 ## Quick Start
 
 ```bash
