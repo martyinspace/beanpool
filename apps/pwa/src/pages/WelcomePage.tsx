@@ -36,6 +36,15 @@ function formatInviteCode(raw: string): string {
 
     // Strip non-alphanumeric
     const clean = extracted.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    
+    // Legacy support for Node Genesis invites
+    if (clean.startsWith('INV')) {
+        const body = clean.slice(3);
+        if (body.length === 0) return '';
+        if (body.length <= 4) return `INV-${body}`;
+        return `INV-${body.slice(0, 4)}-${body.slice(4, 8)}`;
+    }
+
     const withoutPrefix = clean.startsWith('BP') ? clean.slice(2) : clean;
     const body = withoutPrefix.slice(0, 8);
 
@@ -44,7 +53,7 @@ function formatInviteCode(raw: string): string {
     return `BP-${body.slice(0, 4)}-${body.slice(4)}`;
 }
 
-/** Normalise any input to the canonical BP-XXXX-XXXX format for API submission */
+/** Normalise any input to the canonical format for API submission */
 function normaliseInviteCode(raw: string): string {
     const extracted = extractInviteToken(raw);
     const trimmed = extracted.trim();
@@ -53,6 +62,13 @@ function normaliseInviteCode(raw: string): string {
     }
 
     const clean = extracted.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    
+    if (clean.startsWith('INV')) {
+        const body = clean.slice(3);
+        if (body.length < 8) return extracted.trim().toUpperCase();
+        return `INV-${body.slice(0, 4)}-${body.slice(4, 8)}`;
+    }
+
     const withoutPrefix = clean.startsWith('BP') ? clean.slice(2) : clean;
     const body = withoutPrefix.slice(0, 8);
     if (body.length < 8) return extracted.trim().toUpperCase(); // partial — return as-is
