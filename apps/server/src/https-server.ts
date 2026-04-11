@@ -274,6 +274,12 @@ export async function startHttpsServer(port: number): Promise<void> {
         ctx.redirect(`/app${query}`);
     });
 
+    // Handle deep-link bypass route natively fallback for desktop users
+    router.get('/welcome', async (ctx) => {
+        const query = ctx.querystring ? `?${ctx.querystring}` : '';
+        ctx.redirect(`/app${query}`);
+    });
+
     // ===================== LOCAL STATUS API =====================
 
     router.get('/api/local/status', async (ctx) => {
@@ -702,6 +708,23 @@ export async function startHttpsServer(port: number): Promise<void> {
             ctx.body = { error: 'code, publicKey, and callsign are required' };
             return;
         }
+
+        // Intercept proxy hashes natively so Universal Links can drop them into Welcome screen 
+        if (code.length === 4) {
+            const payload = getShortlink(code);
+            if (payload && payload.startsWith('BP-ey')) {
+                const ticketB64 = payload.slice(3);
+                const result = redeemOfflineTicket(ticketB64, publicKey, callsign.slice(0, 20));
+                if (!result.success) {
+                    ctx.status = 400;
+                    ctx.body = { error: result.error };
+                    return;
+                }
+                ctx.body = { success: true, member: result.member };
+                return;
+            }
+        }
+
         const result = redeemInvite(code, publicKey, callsign.slice(0, 20));
         if (!result.success) {
             ctx.status = 400;
