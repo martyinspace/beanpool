@@ -109,10 +109,11 @@ export function InvitePage({ identity }: Props) {
             const bytes = new TextEncoder().encode(JSON.stringify(ticketObj));
             let binary = '';
             for (const b of bytes) binary += String.fromCharCode(b);
-            const ticketB64 = btoa(binary);
+            const ticketB64Standard = btoa(binary);
+            const ticketB64UrlSafe = ticketB64Standard.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
             
             // Prefix to easily identify offline tickets in UI vs old DB 6-char hashes
-            const code = `BP-${ticketB64}`;
+            const code = `BP-${ticketB64UrlSafe}`;
             
             setNewCode(code);
             setIntendedFor('');
@@ -174,7 +175,7 @@ export function InvitePage({ identity }: Props) {
             console.log('Shortener unreachable, falling back to raw payload');
         }
         
-        const inviteUrl = shortHash ? `${window.location.origin}/welcome?invite=${shortHash}` : `${window.location.origin}/welcome?invite=${code}`;
+        const inviteUrl = shortHash ? `${window.location.origin}/i/${shortHash}` : `${window.location.origin}/?invite=${code}`;
         await handleCopy(inviteUrl);
     }
 
@@ -198,7 +199,7 @@ export function InvitePage({ identity }: Props) {
             console.log('Shortener unreachable, falling back to raw payload');
         }
 
-        const inviteUrl = shortHash ? `${window.location.origin}/welcome?invite=${shortHash}` : `${window.location.origin}/welcome?invite=${code}`;
+        const inviteUrl = shortHash ? `${window.location.origin}/i/${shortHash}` : `${window.location.origin}/?invite=${code}`;
         const messageText = `Join my Sovereign BeanPool Node: ${inviteUrl}`;
         
         const shareData = {
@@ -280,7 +281,7 @@ export function InvitePage({ identity }: Props) {
                             </p>
                             <div className="bg-white rounded-xl p-4 inline-block mb-5 shadow-sm">
                                 {/* @ts-ignore */}
-                                <QRCodeSVG value={`${window.location.origin}/welcome?invite=${newCode}`} size={200} />
+                                <QRCodeSVG value={`${window.location.origin}/?invite=${newCode}`} size={200} />
                             </div>
                             <div className="flex gap-3 justify-center">
                                 <button 

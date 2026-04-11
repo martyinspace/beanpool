@@ -394,7 +394,9 @@ export function redeemInvite(code: string, publicKey: string, callsign: string):
 
 export function redeemOfflineTicket(ticketB64: string, joinerPublicKey: string, callsign: string): { success: boolean; error?: string; member?: Member } {
     try {
-        const ticketStr = Buffer.from(ticketB64, 'base64').toString('utf8');
+        // Support both standard base64 and url-safe base64 by normalizing back to standard
+        const normalizedB64 = ticketB64.replace(/-/g, '+').replace(/_/g, '/');
+        const ticketStr = Buffer.from(normalizedB64, 'base64').toString('utf8');
         const ticketObj = JSON.parse(ticketStr);
         const { p: payloadStr, s: signatureBase64 } = ticketObj;
         
