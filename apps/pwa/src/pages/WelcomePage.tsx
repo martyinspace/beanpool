@@ -456,7 +456,7 @@ export function WelcomePage({ onComplete }: Props) {
                                 {/* Apple App Store */}
                                 <a 
                                     onClick={async () => { try { if (inviteCode) await navigator.clipboard.writeText(inviteCode); } catch (e) {} }}
-                                    href="https://apps.apple.com" 
+                                    href="https://apps.apple.com/app/id6761870086" 
                                     target="_blank" rel="noopener noreferrer"
                                     style={{
                                         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
