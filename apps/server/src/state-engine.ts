@@ -725,8 +725,14 @@ export function getPosts(filter?: { id?: string; type?: string; category?: strin
 
     const rows = db.prepare(query).all(...params) as any[];
     const postIds = rows.map(r => r.id);
-    // [FIX] Never sync massive Base64 photos on a bulk global feed API. The payload hits 6.5MB.
-    const photos = (postIds.length > 0 && filter?.id) ? db.prepare(`SELECT * FROM post_photos WHERE post_id IN (${postIds.map(() => '?').join(',')})`).all(...postIds) : [];
+    
+    // Allow syncing photos so the global feed thumbnails can actually render. 
+    // We fetch only the first photo (order_num = 0) if it's a global feed to save payload size.
+    const photosQuery = filter?.id 
+        ? `SELECT * FROM post_photos WHERE post_id IN (${postIds.map(() => '?').join(',')})`
+        : `SELECT * FROM post_photos WHERE post_id IN (${postIds.map(() => '?').join(',')}) AND order_num = 0`;
+
+    const photos = (postIds.length > 0) ? db.prepare(photosQuery).all(...postIds) : [];
 
     return rows.map(r => rowToPost(r, photos));
 }
