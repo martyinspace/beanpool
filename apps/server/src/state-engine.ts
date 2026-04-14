@@ -357,9 +357,9 @@ export function getMember(publicKey: string): Member | undefined {
 function generateShortCode(): string {
     const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
     let code = 'INV-';
-    for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    for (let i = 0; i < 4; i++) code += chars[crypto.randomInt(chars.length)];
     code += '-';
-    for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    for (let i = 0; i < 4; i++) code += chars[crypto.randomInt(chars.length)];
     return code;
 }
 
@@ -464,7 +464,7 @@ export function redeemOfflineTicket(ticketB64: string, joinerPublicKey: string, 
 export function createShortlink(payload: string): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let code = '';
-    for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    for (let i = 0; i < 4; i++) code += chars[crypto.randomInt(chars.length)];
     
     db.prepare(`INSERT INTO invite_links (hash_id, payload) VALUES (?, ?)`).run(code, payload);
     return code;
