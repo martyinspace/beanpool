@@ -4,7 +4,7 @@
 > **Read this first** — then see `index.md` for a full documentation map.
 
 ---
-## Current State (2026-04-01)
+## Current State (2026-04-15)
 
 **BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🫘 bean reputation system, abuse reporting, community health dashboard, and federation protocol — deployed on **3 sovereign nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity.
 
@@ -191,11 +191,12 @@ gh run list --limit 3
 
 ## Coming Next
 
-- [ ] **Native App Polish & App Store Submission** — Remaining parity items: bean ratings, abuse reporting, federation (remote markets). Then submit to iOS App Store and Google Play Store.
+- [ ] **Native App Polish & App Store Submission** — Remaining parity items: federation (remote markets). Then submit to Apple TestFlight, iOS App Store, and Google Play Store.
+- [ ] **Server-Side Photo Compression Pipeline** — Implementing backend logic to strictly resize/compress payloads independent of client checks.
 - [ ] **Offline PWA caching** via Service Worker
 - [ ] **Federated credit verification** (`/beanpool/verify/1.0.0`)
-- [ ] **Social Recovery** (Guardian Protocol implementation)
+- [ ] **Social Recovery** (Shamir 3-of-5 Guardian Protocol implementation)
 
 ---
 
-_Last updated: 2026-04-01 00:45 AEDT_
+_Last updated: 2026-04-15_
