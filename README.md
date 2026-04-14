@@ -1,0 +1,346 @@
+# BeanPool
+
+> A decentralized mutual credit protocol for sovereign communities.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Status: Beta](https://img.shields.io/badge/Status-Beta-emerald.svg)]()
+
+---
+
+## What is BeanPool?
+
+BeanPool is an open protocol for building a **post-extraction economy**. It connects communities through a decentralized mutual credit system where value is created through cooperation, not extraction. Nodes gossip state over a libp2p mesh, automatically applying demurrage (value decay) to prevent hoarding and fund a community Commons pool.
+
+**Live network:** [review.beanpool.org](https://review.beanpool.org) · [mullum.beanpool.org](https://mullum.beanpool.org:8443) — federated via peer connectors with cross-community marketplace browsing and cryptographically secure Libp2p mesh trading.
+
+---
+
+## Features
+
+### 🗺️ Community Map
+Full-screen Leaflet/OSM map as the landing page:
+- **Light mode** (default) with dark mode toggle 🌙
+- **GPS crosshair** with pulse-animated purple user marker
+- **Marketplace pins** — category emoji icons, colour-coded offers (blue) / needs (orange)
+- **Tap pin → popup → "View in Market →"** navigates directly to the post detail view
+- **Pin-drop posting** — tap the map to choose a location when creating a new post
+
+### 🤝 Marketplace
+13-category peer-to-peer bazaar:
+- Create posts (offer/need, category, title, description, Ʀ pricing, location pin, up to 3 photos)
+- **Branching Escrow Handshake** — Atomic smart-contract style settlement:
+  - **Needs (3-step):** Requesters bid on jobs → Author approves → Escrow locks → Author releases funds on completion.
+  - **Offers (1-step):** Requesters accept → Escrow immediately locks → Requester releases funds on completion.
+- Filter by type, category dropdown, and **"My Market"** segment controls for inbound requests and active deals.
+- **Post photos** — up to 3 photos per post, auto-resized to 400px, primary photo on tiles
+- **Post validation** — all fields required, red glow on empty fields, location must be set
+- **Post detail view** — Deals Hub UI parsing Payer/Payee roles for Escrow Settlement
+- **💬 Message** — opens a DM with the author directly from the post (cross-node messages route securely over the Libp2p mesh)
+- **🫘 Rate** — rate the author 1-5 beans with optional comment
+- **🚩 Report** — report abuse with reason dropdown
+
+### 🫘 Bean Reputation System
+Community trust through bean ratings:
+- **5-bean rating** with optional comment (one rating per rater-per-target, updatable)
+- **Bean display** on marketplace tiles (`🫘🫘🫘○○`) and post detail view
+- **Always visible** — shows `○○○○○ No ratings yet` for unrated members
+- **Rate button** in post detail — "🫘 Rate {name}" opens picker + comment form
+
+### 🚩 Abuse Reporting
+Flag bad actors for admin review:
+- **Report button** in post detail view
+- **Reason dropdown**: Spam/scam, Offensive content, Misleading info, Harassment, Other
+- **Admin panel** in Settings → "🚩 Abuse Reports" — view all reports with reporter, target, reason, date
+
+### 💬 E2E Messaging & Smart CRM Inbox
+DMs and group chats with an E2E-ready data model and transaction context:
+- **Smart CRM Inbox** — Message threads automatically link to their parent Marketplace post, displaying the active title and Object Status (Active/Escrow/Completed). 
+- **Inbox Tab Filtering** — Sort conversations easily via the 'All', 'Transactions', or 'Direct' filters to manage deals logically.
+- **Direct messages** — tap any member or use "Message" from a post detail (cross-node DMs are authenticated via PeerID Noise streams)
+- **Group chats** — create named groups with multiple members
+- **Plaintext v1** encoding (base64) — data model ready for X25519/AES-256-GCM upgrade
+
+### 🎟️ Invite Tree
+Invite-only membership with hierarchical accountability:
+- **Node genesis** — the server admin is the root of the tree, generating seed invite codes from Settings
+- **Admin's personal identity** — admin uses a seed code on their own phone, then invites organically
+- **Single-use invite codes** — each code works once, creating a branch in the tree
+- **QR + share** — copy invite code or share via QR
+- **Online check** — notifies user if offline when generating codes
+- **Invite tree** — full hierarchy of who invited whom
+
+### 👥 People & Friends
+Community connections and guardians:
+- **Friends** — add/remove friends from the community browser
+- **Community** — browse all node members, tap "+ Add" to friend them
+- **Invites** — generate and share invite codes (moved from standalone tab)
+- **Guardians** — select up to 5 trusted friends as recovery guardians
+
+### 🔑 12-Word Seed Phrase
+Deterministic identity from a BIP-39 mnemonic:
+- **New signups** generate a 12-word recovery phrase (128-bit entropy)
+- **Deterministic Ed25519** — same words always regenerate the same keypair
+- **One-time display** — words shown after creation with "I've written these down" confirmation
+- **Recovery mode** — enter 12 words + callsign to restore identity on any device
+- **WebCrypto SHA-256 + PKCS8** — no external crypto dependencies
+
+### 🏠 Landing Page (Welcome Hub)
+Port 80 serves a community welcome hub:
+- **Three clear paths**: New member (invite code), Add another device (transfer link), Lost device (recovery)
+- **Dynamic content** — pulls community name, admin email/phone from node config
+- **FAQ accordion** — common questions with expandable answers
+- **Contact section** — configurable admin contact info
+
+### 👤 Member Profiles
+- **Avatar** with separate Camera / Gallery upload buttons
+- **Editable callsign** — change your display name anytime (blue highlighted field with ✏️ icon)
+- **Bio and contact details** with 3-tier visibility (hidden / trade partners / community)
+- **Online check** — alerts user to connect before saving profile changes
+- Profile shown in post detail views and messaging
+
+### 📊 Ledger
+Mutual credit balance and transaction history:
+- **Send credits** to other members with member picker
+- **Balance gauge** with −100Ʀ floor
+- **Commons Pool** display (funds from demurrage decay)
+- **Transaction history** with sent/received indicators
+
+### 💚 Community Health Dashboard
+Admin insights in Settings page:
+- **Stats grid** — members, tree depth, 7/30-day transactions, active/inactive counts, commons balance
+- **Widest branch** — who has the largest invite tree
+- **Flags** — automated health alerts
+- **Refreshable** with one click
+
+### 🔗 Sovereign Connectors + Federation
+Node-to-node trust relationships with 3 levels:
+- **`peer`** — cross-community federation: browse remote marketplace, trade across nodes
+- **`mirror`** — complete data replication (backup/disaster recovery)
+- **`blocked`** — deny API access from this node
+
+### 🌐 Cross-Community Federation
+Nodes connected as **peers** enable:
+- **Remote marketplace browsing** — PWA queries remote node's API directly
+- **Connected Communities UI** — pill bar to switch between 🏠 Home and 🌐 peer marketplaces
+- **Session cache** — 5-minute cache for instant toggling between communities
+- **Node badges** — 🌐 badges on remote posts to show their origin
+
+### 🔄 Mirror State Sync
+Automatic state synchronisation between `mirror`-trusted nodes:
+- **Merkle hash comparison** — only syncs when state differs
+- **Delta exchange** — new members and posts only
+- **15-minute intervals** with initial sync 30s after boot
+- **Origin tracking** — posts carry their source node ID
+
+### 🔒 Privacy (4-Tier Location Model)
+| Tier | Emoji | GPS Usage | What's Shared |
+|------|-------|-----------|---------------|
+| Ghost *(default)* | 👻 | None | Nothing — manual pin drop |
+| Post-Only | 📍 | Once per post | Location at posting time |
+| Zone | 🔵 | On app open | Fuzzed ±2km, session-stable |
+| Live | 🔴 | Real-time | Exact, foreground only |
+
+### 📲 PWA Install
+Install banner with device-specific instructions:
+- **Android Chrome** → native `beforeinstallprompt` one-tap install
+- **iPhone Safari** → Share → Add to Home Screen steps
+- Bean icon on home screen, full-screen standalone mode
+
+---
+
+## Monorepo Structure
+
+```
+beanpool/
+├── apps/
+│   ├── server/        # BeanPool Node — gateway, PWA host, REST API, libp2p mesh
+│   ├── pwa/           # PWA — map, marketplace (13 categories), messaging, ledger (Vite + React + Leaflet)
+│   └── native/        # Native App — 7-tab mobile client (Expo + React Native), SQLite, background sync
+├── packages/
+│   └── beanpool-core/ # Shared protocol: Ledger, Merkle, Passport, Governance
+├── branding/          # Bean icon assets (16x16 → 512x512)
+├── docs/              # Node admin setup guide
+├── Dockerfile         # Multi-stage build for BeanPool Node container
+├── docker-compose.yml # Docker orchestration
+└── deploy.sh          # Deploy to all nodes via SSH (Azure + Debian)
+```
+
+---
+
+## Quick Start
+
+### Run a BeanPool Node (Docker)
+
+```bash
+git clone https://github.com/martyinspace/beanpool.git
+cd beanpool
+docker compose -p beanpool up -d --build
+```
+
+- **PWA:** `https://localhost:8443/` — community map, marketplace, messaging, ledger
+- **Landing Page:** `http://localhost:8080/` — community welcome hub (3 paths: join, transfer, recover)
+- **P2P Mesh:** TCP `:4001` / WS `:4002`
+
+> 📖 For detailed setup instructions (including Let's Encrypt, no-domain options, and High-Availability mirrors), see [apps/server/README.md](apps/server/README.md).
+
+### Development
+
+```bash
+pnpm install
+cd packages/beanpool-core && pnpm build   # Build shared core first
+cd apps/pwa && pnpm build                 # Build PWA → apps/server/public/
+cd apps/server && pnpm dev                # Start BeanPool Node with hot reload
+```
+
+Or build everything at once:
+
+```bash
+pnpm build   # Builds all packages via Turborepo
+```
+
+---
+
+## REST API
+
+All endpoints are served on port 8443 (HTTPS):
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/community/info` | GET | Community stats (members, posts, transactions) |
+| `/api/community/register` | POST | Register new member (publicKey + callsign) |
+| `/api/community/members` | GET | List all members |
+| `/api/community/health` | GET | Community health dashboard data |
+| `/api/invite/generate` | POST | Generate a single-use invite code |
+| `/api/invite/redeem` | POST | Redeem an invite code to join |
+| `/api/invite/tree` | GET | Full invite hierarchy |
+| `/api/profile/update` | POST | Update member profile (avatar, bio, contact) |
+| `/api/profile/:publicKey` | GET | Get a member's profile |
+| `/api/ledger/balance/:publicKey` | GET | Get balance, floor, commons |
+| `/api/ledger/transfer` | POST | Send credits (from, to, amount, memo) |
+| `/api/ledger/transactions` | GET | Transaction history |
+| `/api/marketplace/posts` | GET | List marketplace posts (filterable) |
+| `/api/marketplace/posts` | POST | Create a new post (with optional photos) |
+| `/api/marketplace/posts/remove` | POST | Remove a post (safely refunds atomic escrow) |
+| `/api/crowdfund/projects/update` | POST | Edit a live crowdfund project |
+| `/api/crowdfund/projects/delete` | POST | Destructive rollback + atomic escrow refund |
+| `/api/ratings` | POST | Submit or update a bean rating |
+| `/api/ratings/:publicKey` | GET | Get ratings and average for a member |
+| `/api/reports` | POST | Submit an abuse report |
+| `/api/admin/reports` | GET | List all abuse reports (admin auth required) |
+| `/api/messages/conversation` | POST | Create a DM or group conversation |
+| `/api/messages/send` | POST | Send a message |
+| `/api/messages/conversations/:pubkey` | GET | List conversations for a member |
+| `/api/messages/messages/:conversationId` | GET | Get messages in a conversation |
+| `/api/friends/:publicKey` | GET | List a member's friends |
+| `/api/friends/add` | POST | Add a friend |
+| `/api/friends/remove` | POST | Remove a friend |
+| `/api/friends/guardian` | POST | Set/unset a friend as recovery guardian |
+| `/api/members` | GET | List all community members |
+| `/api/local/community-info` | GET | Community name, admin email/phone (public) |
+| `/ws` | WebSocket | Real-time state feed |
+
+---
+
+## Port Architecture
+
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| **4001** | TCP | libp2p P2P mesh |
+| **4002** | WS | libp2p WebSocket transport |
+| **8080** | HTTP | HTTP → HTTPS redirect (LAN: QR trust bootstrap) |
+| **8443** | HTTPS | Landing page (`/`), PWA (`/app`), Settings, REST API, WebSocket |
+
+---
+
+## The Protocol
+
+- **Mutual Credit** — participants can go negative (up to −100Ʀ) backed by community trust
+- **Demurrage (Decay)** — positive balances decay at 0.5% per month, returning to the Commons Fund
+- **Gossip Mesh** — nodes connect via libp2p over TCP/WebSockets
+- **Federation Protocol** — peer nodes enable cross-community marketplace browsing and trading via CORS + API
+- **Mirror Sync** — Merkle hash comparison + delta exchange every 15 minutes (backup nodes only)
+- **Sovereign Identity** — Ed25519 keypairs from 12-word BIP-39 mnemonic (deterministic, recoverable)
+- **Invite Tree** — hierarchical membership: node genesis → seed codes → admin identity → organic invites
+- **Handshake Protocol** — mutual trust verification + latency measurement via yamux streams
+- **Bean Reputation** — 5-tier community trust score with comments
+- **Abuse Reporting** — flagging system with admin review panel
+
+---
+
+## Project Documentation
+
+| Document | Description |
+|----------|-------------|
+| [README.md](README.md) | Project overview, features, API table |
+| [HANDOVER.md](HANDOVER.md) | Agent handover: current state, LE rate limits, architecture |
+| [ROADMAP.md](ROADMAP.md) | Planned features and future work |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines, code of conduct, governance model |
+
+### App & Package Documentation
+
+| App / Package | Directory | What It Does |
+|---------------|-----------|-------------|
+| **Server Node** | `apps/server/` | Gateway — genesis, admin, REST APIs, WebSocket, connectors, libp2p. Includes full [network topology setup guide](apps/server/README.md). |
+| **PWA** | `apps/pwa/` | Web UI — map, marketplace (13 categories), messaging, people/friends, ledger. See [PWA Docs](apps/pwa/README.md). |
+| **Native App** | `apps/native/` | 7-tab Expo + React Native mobile client. Contains all native deferred deep-linking. See [Native Docs](apps/native/README.md). |
+| **Core Protocol**| `packages/beanpool-core/` | Shared Library — Identity, Mutual Credit economics, CRDT Mesh synchronisation, Ed25519 cryptography. See [Core Docs](packages/beanpool-core/README.md). |
+
+### Config Files
+
+| File | Purpose |
+|------|---------|
+| `docker-compose.yml` | Port mappings, env vars, volume mounts |
+| `.env` | Cloudflare + admin secrets (**gitignored**) |
+| `Dockerfile` | Multi-stage build: core → PWA → BeanPool Node |
+| `deploy.sh` | Deploy script — Azure + Debian nodes, per-node SSH user |
+| `turbo.json` | Turborepo build pipeline |
+| `pnpm-workspace.yaml` | Monorepo workspace config |
+
+---
+
+## Status
+
+BeanPool is in active development. The PWA is **fully functional** and a **React Native / Expo companion app** has near-complete parity with 7 tabs (Map, Projects, Market, Chat, People, Ledger, Settings), SQLite persistence, and background Merkle sync. Three nodes (Mullum 1, Mullum 2, Review) are deployed with federation protocol for cross-community trading.
+
+**What's working:**
+- ✅ Dynamic Node-Centered Mapping — Leaflet map bounds are dynamically tethered to the node's configured radius, and GPS pin-drop race conditions have been resolved
+- ✅ Invite-only membership with single-use codes + hierarchical invite tree
+- ✅ 12-word BIP-39 seed phrase — deterministic Ed25519 key derivation + recovery
+- ✅ People tab — Friends, Community browser, Invites, Guardians (up to 5)
+- ✅ Landing page welcome hub (HTTPS `/`) — 3 paths (join, transfer, recover) + admin contact info
+- ✅ Admin community config — name, email, phone in Settings → Community tab
+- ✅ Member profiles (avatar via camera/gallery, editable callsign, bio, contact visibility)
+- ✅ 🫘 Bean reputation system — 5-bean ratings with comments on marketplace tiles + detail
+- ✅ Abuse reporting with reason dropdown + admin panel
+- ✅ Marketplace with 13 categories, photos (up to 3), post validation, "My Posts" view
+- ✅ E2E messaging — DMs and group chats
+- ✅ PWA with map, marketplace, messaging, people, ledger
+- ✅ Post detail view with author profile, photos, bean rating, Message/Rate/Report actions
+- ✅ Community health dashboard (admin settings)
+- ✅ REST APIs (30+ endpoints) including friends, ratings, reports
+- ✅ WebSocket real-time state feed
+- ✅ Federation protocol — peer/mirror/blocked trust levels
+- ✅ Cross-community marketplace browsing (Connected Communities UI)
+- ✅ Mirror state sync (Merkle hash + delta exchange, 15-min intervals)
+- ✅ Handshake protocol (~570ms latency between continents)
+- ✅ Let's Encrypt auto-TLS via DNS-01 challenge (Cloudflare API)
+- ✅ 3 live nodes — Mullum 2 (Azure AU), Mullum 1 (bare metal), Review (Azure US)
+- ✅ Node admin setup guide with LE and no-domain instructions
+- ✅ Database Migration (SQLite) — replacing JSON engine with `better-sqlite3` for production scalability
+- ✅ Cryptographically signed APIs — Ed25519 client-side signatures on all POST requests to prevent spoofing
+- ✅ Native App (Expo) — 7-tab React Native companion app: Map, Projects, Market (14 cats), Chat, People, Ledger, Settings
+- ✅ Native SQLite + SecureStore — local persistence and sovereign identity on device
+- ✅ Community Projects — native-only crowdfunding tab with progress tracking
+
+**Coming next:**
+- Native App Polish & App Store Submission (bean ratings, abuse reporting, federation parity)
+- Social Recovery (Shamir 3-of-5 secret sharing via Guardians)
+- Offline PWA caching via Service Worker
+
+---
+
+## License
+
+[MIT](LICENSE)
+
+_Last updated: 2026-04-01 00:45 AEDT_

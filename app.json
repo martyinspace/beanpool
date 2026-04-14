@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "519523ec-1b9f-4952-a115-97264f182b56"
+      }
+    },
+    "android": {
+      "package": "org.beanpool.pillar"
+    }
+  }
+}

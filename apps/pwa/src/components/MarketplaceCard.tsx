@@ -1,0 +1,212 @@
+/**
+ * MarketplaceCard — FB Marketplace-style image-dominant tile
+ *
+ * Designed for a 2-column CSS grid:
+ *  - Square photo (1:1 aspect ratio) fills the top
+ *  - Price + title below in compact text
+ *  - Category emoji badge overlaid on the image
+ *  - Remote node badge if from a peer
+ */
+
+import { MARKETPLACE_CATEGORIES, POST_TYPE_COLORS, type MarketplacePost } from '../lib/marketplace';
+
+interface Props {
+    post: MarketplacePost;
+    authorRating?: { average: number; count: number };
+    remoteNode?: string;
+    onTrade?: (post: MarketplacePost) => void;
+    viewMode?: 'grid' | 'list';
+}
+
+export function MarketplaceCard({ post, authorRating, remoteNode, viewMode = 'grid' }: Props) {
+    const categoryConfig = MARKETPLACE_CATEGORIES.find((c) => c.id === post.category);
+    const typeColor = POST_TYPE_COLORS[post.type];
+    const emoji = categoryConfig?.emoji ?? '📦';
+
+    const nodeBadge = remoteNode
+        ? remoteNode.replace(/^https?:\/\//, '').replace(/\.beanpool\.org.*$/, '').replace(/:\d+$/, '')
+        : null;
+
+    const hasPhoto = post.photos && post.photos.length > 0;
+
+    const isList = viewMode === 'list';
+
+    const isGrid = viewMode === 'grid';
+
+    if (!isGrid) {
+        // Horizontal List View (Matching 'In Progress')
+        return (
+            <div 
+                className="bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-[20px] p-4 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md flex flex-row gap-4 h-full w-full relative overflow-hidden"
+            >
+                {/* Left Thumbnail */}
+                <div className="w-16 h-16 rounded-xl overflow-hidden shadow-inner flex-shrink-0 relative">
+                    {hasPhoto ? (
+                        <img src={post.photos![0]} alt={post.title} className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="w-full h-full bg-oat-50 dark:bg-nature-800 flex justify-center items-center">
+                            <span className="text-2xl opacity-40">{emoji}</span>
+                        </div>
+                    )}
+                </div>
+                
+                {/* Right Content */}
+                <div className="flex-1 flex flex-col justify-center min-w-0">
+                    <div className="flex justify-between items-center mb-1">
+                        <div className="flex gap-2 items-center">
+                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                                post.type === 'offer' ? 'bg-terra-100 text-terra-800 dark:bg-terra-900/40 dark:text-terra-400'
+                                : 'bg-nature-200 text-nature-700 dark:bg-nature-800 dark:text-nature-400'
+                            }`}>
+                                {post.type}
+                            </span>
+                            {post.repeatable && (
+                                <span className={`text-[9px] font-black tracking-wider px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400`}>
+                                    ↻ RECURRING
+                                </span>
+                            )}
+                        </div>
+                        
+                        {/* Compact Price Header */}
+                        <div className="flex items-center">
+                            <span className="font-bold text-base text-nature-950 dark:text-white" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap' }}>
+                                {post.credits !== undefined ? post.credits : '?'}
+                                <img src="/assets/bean.png" className="mx-0.5" style={{ width: '14px', height: '14px', flexShrink: 0 }} alt="B" />
+                                <span className="text-[10px] text-nature-500 ml-0.5">
+                                    {{ fixed: '', hourly: '/hr', daily: '/day', weekly: '/wk', monthly: '/mo' }[post.priceType] || ''}
+                                </span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <h3 className="font-bold text-md text-nature-950 dark:text-white truncate mb-1">
+                        {post.title}
+                    </h3>
+
+                    <div className="flex items-center gap-1.5">
+                        <div className="w-4 h-4 rounded-full bg-terra-100 dark:bg-nature-800 flex items-center justify-center text-[8px] text-terra-700 dark:text-terra-400 font-bold">
+                            {(post.authorCallsign || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-[10px] text-nature-500 font-semibold truncate">
+                            {post.authorCallsign || 'Anonymous'}
+                        </span>
+                        {authorRating && authorRating.average > 0 && (
+                            <span className="text-[9px] text-nature-400 flex items-center ml-1">
+                                ★ {authorRating.average.toFixed(1)}
+                            </span>
+                        )}
+                    </div>
+                </div>
+                
+                {/* Node Overlays - Top Right floating if remote */}
+                {nodeBadge && (
+                    <div className="absolute top-2 right-2 font-bold bg-indigo-500/90 text-white backdrop-blur-sm rounded-lg shadow-sm text-[0.6rem] px-1.5 py-0.5">
+                        🌐 {nodeBadge}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // Grid View Return (Condensed tiles)
+    return (
+        <div
+            className={`bg-white dark:bg-nature-950 overflow-hidden cursor-pointer transition-all duration-300 shadow-md hover:shadow-xl dark:shadow-2xl dark:shadow-black/40 border border-nature-100/50 dark:border-nature-800 flex flex-col h-full rounded-[20px] p-3`}
+        >
+            {/* Top Handle: Author + Title + Rating */}
+            <div className={`flex justify-between items-start mb-2`}>
+                <div className={`flex items-center overflow-hidden gap-2`}>
+                    <div className={`w-8 h-8 text-xs rounded-full bg-terra-100 dark:bg-nature-800 shrink-0 flex items-center justify-center text-terra-700 dark:text-terra-400 font-bold shadow-inner`}>
+                        {(post.authorCallsign || '?').charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex flex-col truncate">
+                        <span className={`font-black uppercase text-nature-500 dark:text-nature-400 tracking-wider truncate text-[9px]`}>
+                            {post.authorCallsign || 'Anonymous'}
+                        </span>
+                        <span className={`font-bold text-nature-950 dark:text-white truncate text-xs`}>
+                            {post.title}
+                        </span>
+                    </div>
+                </div>
+
+                <div className={`flex items-center shrink-0 bg-oat-50 dark:bg-nature-900 rounded-lg gap-0.5 px-1.5 py-0.5`}>
+                    <span className={'text-xs my-0.5'}>{emoji}</span>
+                </div>
+            </div>
+
+            {/* Image Area */}
+            {hasPhoto ? (
+                <div className={`relative w-full rounded-[20px] overflow-hidden shadow-sm h-[110px] mb-3`}>
+                    <img src={post.photos![0]} alt={post.title} className="w-full h-full object-cover" />
+
+                    {/* Status Overlays */}
+                    <div className={`absolute left-2 flex flex-col gap-1 items-start top-1.5`}>
+                        {post.status === 'pending' && (
+                            <span className={`font-bold bg-amber-400 text-amber-950 rounded-lg shadow-sm text-[0.6rem] px-1.5 py-0.5`}>
+                                ⏳ PENDING
+                            </span>
+                        )}
+                        {nodeBadge && (
+                            <span className={`font-bold bg-indigo-500/90 text-white backdrop-blur-sm rounded-lg shadow-sm text-[0.6rem] px-1.5 py-0.5`}>
+                                🌐 {nodeBadge}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Price Overlay */}
+                    <div className={`absolute right-2 bg-nature-900/90 backdrop-blur-md text-white font-bold tracking-tight shadow-md bottom-2 px-2.5 py-1 rounded-lg text-sm`}>
+                        <span style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap' }}>
+                            <span>{post.credits !== undefined ? post.credits : '?'}</span>
+                            <span className="text-[10px] font-normal opacity-80 pl-0.5 flex items-center" style={{ flexShrink: 0 }}>
+                                <img src="/assets/bean.png" style={{ width: '12px', height: '12px', marginLeft: '2px', marginRight: '2px', flexShrink: 0 }} alt="B" />
+                                {{ fixed: '', hourly: '/hr', daily: '/day', weekly: '/wk', monthly: '/mo' }[post.priceType] || ''}
+                            </span>
+                        </span>
+                    </div>
+
+                    {/* Recurring Overlay */}
+                    {post.repeatable && (
+                        <div className={`absolute left-2 bg-terra-500/90 backdrop-blur-md text-white font-bold tracking-tight shadow-md bottom-2 px-2 py-1 rounded-lg text-[10px]`}>
+                            ↻ RECURRING
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <div className={`relative w-full rounded-[20px] bg-oat-50 dark:bg-nature-900 flex items-center justify-center shadow-inner h-[80px] mb-3`}>
+                    <span className={`text-3xl opacity-20`}>{emoji}</span>
+                    <div className={`absolute right-2 bg-nature-900/90 backdrop-blur-md text-white font-bold tracking-tight shadow-md bottom-2 px-2.5 py-1 rounded-lg text-sm`}>
+                        <span style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap' }}>
+                            <span>{post.credits !== undefined ? post.credits : '?'}</span>
+                            <span className="text-[10px] font-normal opacity-80 pl-0.5 flex items-center" style={{ flexShrink: 0 }}>
+                                <img src="/assets/bean.png" style={{ width: '12px', height: '12px', marginLeft: '2px', marginRight: '2px', flexShrink: 0 }} alt="B" />
+                                {{ fixed: '', hourly: '/hr', daily: '/day', weekly: '/wk', monthly: '/mo' }[post.priceType] || ''}
+                            </span>
+                        </span>
+                    </div>
+
+                    {/* Recurring Overlay */}
+                    {post.repeatable && (
+                        <div className={`absolute left-2 bg-terra-500/90 backdrop-blur-md text-white font-bold tracking-tight shadow-md bottom-2 px-2 py-1 rounded-lg text-[10px]`}>
+                            ↻ RECURRING
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Body Text */}
+            <p className={`text-nature-600 dark:text-nature-400 leading-relaxed px-1 flex-1 text-[11px] line-clamp-1 mb-3`}>
+                {post.description || "No description provided."}
+            </p>
+
+            {/* Action Button */}
+            <div
+                className={`w-full rounded-full font-bold tracking-widest text-center transition-colors shadow-sm py-2 text-[10px] mt-auto ${post.type === 'offer'
+                        ? 'bg-terra-500 text-white hover:bg-terra-600'
+                        : 'bg-nature-700 text-white dark:bg-nature-800 hover:bg-nature-800'
+                    }`}
+            >
+                VIEW
+            </div>
+        </div>
+    );
+}

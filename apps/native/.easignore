@@ -1,0 +1,8 @@
+android/
+ios/
+**/*.aab
+**/*.apk
+**/*.ipa
+node_modules/
+.expo/
+dist/
