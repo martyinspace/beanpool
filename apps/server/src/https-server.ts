@@ -1758,6 +1758,14 @@ export async function startHttpsServer(port: number): Promise<void> {
     });
 
     router.get('/api/admin/thresholds', async (ctx) => {
+        const config = getLocalConfig();
+        const password = ctx.query.password as string;
+        if (!password || !config.adminHash || !config.salt ||
+            !verifyPassword(password, config.adminHash, config.salt)) {
+            ctx.status = 401;
+            ctx.body = { error: 'Unauthorized' };
+            return;
+        }
         ctx.body = { thresholds: getThresholds(), defaults: DEFAULT_THRESHOLDS };
     });
 
