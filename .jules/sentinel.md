@@ -1,0 +1,4 @@
+## 2026-04-23 - [Remove admin token from query parameter]
+**Vulnerability:** The /api/admin/reports endpoint passed the admin password/token in the URL query string (`?password=...`), which was also matched by the frontend code in settings.html. This is a CWE-598 vulnerability, as URL parameters are often logged in server access logs or browser histories, exposing sensitive credentials.
+**Learning:** Legacy endpoints or static HTML clients in the codebase may still rely on query parameters for authentication instead of proper headers. This project's frontend vanilla JS makes it easy to accidentally include secrets in URLs.
+**Prevention:** Always use the `Authorization` header (e.g., `Bearer <token>`) or POST body for passing credentials and authentication tokens, and verify that frontend requests match this secure pattern.

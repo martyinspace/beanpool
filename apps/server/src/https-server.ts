@@ -1692,7 +1692,7 @@ export async function startHttpsServer(port: number): Promise<void> {
 
     router.get('/api/admin/reports', async (ctx) => {
         const config = getLocalConfig();
-        const password = ctx.query.password as string;
+        const password = (ctx.query.password as string) || (ctx.headers.authorization?.startsWith('Bearer ') ? ctx.headers.authorization.substring(7) : '');
         if (!password || !config.adminHash || !config.salt ||
             !verifyPassword(password, config.adminHash, config.salt)) {
             ctx.status = 401;
