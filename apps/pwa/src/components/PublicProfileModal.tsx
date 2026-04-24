@@ -42,6 +42,7 @@ export function PublicProfileModal({
                 <button 
                     onClick={onClose}
                     className="w-10 h-10 flex items-center justify-center rounded-full bg-nature-100 dark:bg-nature-900 text-nature-600 dark:text-nature-400 font-bold hover:bg-nature-200 transition-colors"
+                    aria-label="Close"
                 >
                     ✕
                 </button>
