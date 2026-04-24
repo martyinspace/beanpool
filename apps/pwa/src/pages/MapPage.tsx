@@ -520,6 +520,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     onClick={toggleDarkMode} 
                     className="w-12 h-12 rounded-2xl bg-white/90 dark:bg-nature-900/90 border border-nature-200 dark:border-nature-700 text-nature-700 dark:text-oat-50 text-xl flex items-center justify-center backdrop-blur-md shadow-soft hover:bg-white dark:hover:bg-nature-800 transition-all transform hover:scale-105"
                     title="Toggle map style"
+                    aria-label="Toggle map style"
                 >
                     {isDark ? '☀️' : '🌙'}
                 </button>
@@ -533,6 +534,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                             : 'bg-white/90 dark:bg-nature-900/90 border border-nature-200 dark:border-nature-700 text-nature-700 dark:text-oat-50 hover:bg-white dark:hover:bg-nature-800'
                     }`}
                     title="My location"
+                    aria-label="My location"
                 >
                     {locating ? '⏳' : (
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -552,6 +554,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     onClick={() => setShowNewPost(true)}
                     className="fixed bottom-[5.5rem] right-3 w-14 h-14 rounded-full bg-terra-500 hover:bg-terra-600 text-white text-3xl font-light z-[101] shadow-[0_8px_30px_rgb(226,114,91,0.4)] flex items-center justify-center transition-transform transform hover:scale-105 border-2 border-white/20"
                     title="New Post"
+                    aria-label="New Post"
                 >
                     +
                 </button>
@@ -563,16 +566,20 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             <div className="fixed bottom-[4.5rem] left-3 right-3 max-h-[60vh] overflow-y-auto bg-white/95 dark:bg-nature-900/95 backdrop-blur-xl rounded-3xl p-5 z-[1000] shadow-soft border border-nature-200 dark:border-nature-800 overscroll-contain">
                 <div className="flex justify-between items-center mb-4">
                     <span className="font-bold text-lg text-nature-950 dark:text-white tracking-tight">New Post</span>
-                    <button onClick={() => {
-                        setShowNewPost(false);
-                        setPinDropMode(false);
-                        setPostLat(null);
-                        setPostLng(null);
-                        if (pinDropMarkerRef.current) {
-                            pinDropMarkerRef.current.remove();
-                            pinDropMarkerRef.current = null;
-                        }
-                    }} className="bg-transparent border-none text-nature-400 hover:text-nature-600 text-2xl cursor-pointer transition-colors leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-nature-50">
+                    <button
+                        onClick={() => {
+                            setShowNewPost(false);
+                            setPinDropMode(false);
+                            setPostLat(null);
+                            setPostLng(null);
+                            if (pinDropMarkerRef.current) {
+                                pinDropMarkerRef.current.remove();
+                                pinDropMarkerRef.current = null;
+                            }
+                        }}
+                        className="bg-transparent border-none text-nature-400 hover:text-nature-600 text-2xl cursor-pointer transition-colors leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-nature-50"
+                        aria-label="Close"
+                    >
                         ✕
                     </button>
                 </div>
