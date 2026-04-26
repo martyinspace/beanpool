@@ -1317,6 +1317,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                     <button
                         onClick={() => setShowFilters(!showFilters)}
                         title="Toggle Filters"
+                        aria-label="Toggle Filters"
                         className={`w-10 h-10 rounded-full flex-shrink-0 border flex items-center justify-center transition-colors hover:shadow-md ${
                             showFilters ? 'bg-nature-800 dark:bg-white text-white dark:text-nature-950 border-nature-900 dark:border-white shadow-inner' : 'bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 hover:bg-oat-50 shadow-sm'
                         }`}
@@ -1330,6 +1331,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                         onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
                         className="w-10 h-10 rounded-full flex-shrink-0 border bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 hover:bg-oat-50 dark:hover:bg-nature-800 transition-colors shadow-sm flex items-center justify-center text-md hover:shadow-md"
                         title={viewMode === 'grid' ? "Switch to List View" : "Switch to Grid View"}
+                        aria-label={viewMode === 'grid' ? "Switch to List View" : "Switch to Grid View"}
                     >
                         {viewMode === 'grid' ? '☰' : '⊞'}
                     </button>
@@ -1345,6 +1347,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                 <button
                                     onClick={() => setShowRadiusPicker(true)}
                                     title={radiusSettings ? `${radiusSettings.radiusKm}km radius` : 'Set radius'}
+                                    aria-label={radiusSettings ? `${radiusSettings.radiusKm}km radius` : 'Set radius'}
                                     className={`flex-1 py-2.5 px-3 flex items-center justify-center gap-2 text-sm font-bold rounded-l-xl ${!radiusSettings ? 'rounded-r-xl px-4' : ''}`}
                                 >
                                     <span>📍</span> {radiusSettings ? `${radiusSettings.radiusKm}km Radius` : 'Location Radius'}
@@ -1358,6 +1361,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                         }}
                                         className="px-3 flex items-center justify-center border-l bg-amber-100 dark:bg-transparent border-amber-300 dark:border-amber-700 hover:bg-amber-200 dark:hover:bg-amber-800 rounded-r-xl transition-colors font-bold text-amber-700 dark:text-amber-400"
                                         title="Clear Radius"
+                                        aria-label="Clear Radius"
                                     >
                                         ✕
                                     </button>

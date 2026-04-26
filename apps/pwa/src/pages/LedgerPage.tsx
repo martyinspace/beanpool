@@ -308,7 +308,7 @@ export function LedgerPage({ identity }: Props) {
                                                                 setEditPropAmount(project.requestedAmount.toString());
                                                                 setEditingProjectId(project.id);
                                                             }}
-                                                            className="text-nature-400 hover:text-amber-500 p-1 bg-transparent border-none cursor-pointer text-[12px]" title="Edit">
+                                                            className="text-nature-400 hover:text-amber-500 p-1 bg-transparent border-none cursor-pointer text-[12px]" title="Edit" aria-label="Edit project">
                                                             ✏️
                                                         </button>
                                                         <button 
@@ -320,7 +320,7 @@ export function LedgerPage({ identity }: Props) {
                                                                     } catch { setError('Failed to delete project'); }
                                                                 }
                                                             }}
-                                                            className="text-nature-400 hover:text-red-500 p-1 bg-transparent border-none cursor-pointer text-[12px]" title="Delete">
+                                                            className="text-nature-400 hover:text-red-500 p-1 bg-transparent border-none cursor-pointer text-[12px]" title="Delete" aria-label="Delete project">
                                                             🗑️
                                                         </button>
                                                     </div>
