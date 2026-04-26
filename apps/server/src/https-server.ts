@@ -428,7 +428,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             ctx.body = { success: true };
         } catch (e: any) {
             ctx.status = 500;
-            ctx.body = { error: e.message, stack: e.stack };
+            ctx.body = { error: e.message };
         }
     });
 
@@ -1692,7 +1692,9 @@ export async function startHttpsServer(port: number): Promise<void> {
 
     router.get('/api/admin/reports', async (ctx) => {
         const config = getLocalConfig();
-        const password = ctx.query.password as string;
+        // Use Authorization header instead of query string parameter to avoid CWE-598 vulnerabilities
+        const authHeader = ctx.request.headers['authorization'] || '';
+        const password = authHeader.replace(/^Bearer\s+/i, '').trim();
         if (!password || !config.adminHash || !config.salt ||
             !verifyPassword(password, config.adminHash, config.salt)) {
             ctx.status = 401;
