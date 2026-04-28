@@ -428,7 +428,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             ctx.body = { success: true };
         } catch (e: any) {
             ctx.status = 500;
-            ctx.body = { error: e.message, stack: e.stack };
+            ctx.body = { error: 'Internal server error' };
         }
     });
 
