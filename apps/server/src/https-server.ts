@@ -427,8 +427,9 @@ export async function startHttpsServer(port: number): Promise<void> {
             adminDeletePost(ctx.params.id);
             ctx.body = { success: true };
         } catch (e: any) {
+            console.error('[Admin] Error deleting post:', e);
             ctx.status = 500;
-            ctx.body = { error: e.message, stack: e.stack };
+            ctx.body = { error: e.message };
         }
     });
 
