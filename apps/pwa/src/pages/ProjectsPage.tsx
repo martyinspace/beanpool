@@ -326,7 +326,7 @@ export function ProjectsPage({ identity }: Props) {
                 <div className="fixed inset-0 z-50 bg-bg-primary flex flex-col" style={{ overflowY: 'auto' }}>
                     <header className="sticky top-0 bg-nature-900 border-b border-nature-800 p-4 shadow-sm flex items-center justify-between z-10">
                         <h2 className="text-white font-bold text-lg">Propose Project</h2>
-                        <button onClick={() => setShowNewProject(false)} className="p-2 text-nature-400 hover:text-white bg-nature-800 hover:bg-nature-700 rounded-full">
+                        <button aria-label="Close" onClick={() => setShowNewProject(false)} className="p-2 text-nature-400 hover:text-white bg-nature-800 hover:bg-nature-700 rounded-full">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -383,6 +383,7 @@ export function ProjectsPage({ identity }: Props) {
                                     <div key={i} className="relative w-24 h-24 shrink-0 rounded-lg overflow-hidden border border-border-secondary">
                                         <img src={photo} className="w-full h-full object-cover" alt={`Upload ${i}`} />
                                         <button 
+                                            aria-label="Remove photo"
                                             onClick={() => setNewPhotos(prev => prev.filter((_, idx) => idx !== i))}
                                             className="absolute top-1 right-1 bg-black/50 p-1 rounded-full text-white"
                                         >
@@ -424,7 +425,7 @@ export function ProjectsPage({ identity }: Props) {
             {selectedProject && (
                 <div className="fixed inset-0 z-50 flex flex-col" style={{ backgroundColor: 'var(--bg-primary)', overflowY: 'auto' }}>
                     <header className="sticky top-0 bg-nature-900 border-b border-nature-800 p-3 shadow-md flex items-center gap-3 z-10 transition-colors">
-                        <button onClick={() => { setSelectedProject(null); setIsEditingProject(false); }} className="p-2 text-nature-400 hover:text-white bg-nature-800 hover:bg-nature-700 rounded-full transition-colors">
+                        <button aria-label="Go back" onClick={() => { setSelectedProject(null); setIsEditingProject(false); }} className="p-2 text-nature-400 hover:text-white bg-nature-800 hover:bg-nature-700 rounded-full transition-colors">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                             </svg>
@@ -505,6 +506,7 @@ export function ProjectsPage({ identity }: Props) {
                                             <div key={i} className="relative w-24 h-24 shrink-0 rounded-xl overflow-hidden border border-border-secondary shadow-sm">
                                                 <img src={photo} className="w-full h-full object-cover" alt={`Edit ${i}`} />
                                                 <button 
+                                                    aria-label="Remove photo"
                                                     onClick={() => setEditPhotos(prev => prev.filter((_, idx) => idx !== i))}
                                                     className="absolute top-1.5 right-1.5 bg-black/60 backdrop-blur-sm p-1.5 rounded-full text-white hover:bg-red-500/80 transition-colors"
                                                 >

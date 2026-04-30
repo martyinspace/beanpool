@@ -40,6 +40,7 @@ export function PublicProfileModal({
             {/* Header */}
             <div className="bg-white dark:bg-nature-950 p-4 shadow-sm flex items-center justify-between border-b border-nature-200 dark:border-nature-800 shrink-0">
                 <button 
+                    aria-label="Close profile"
                     onClick={onClose}
                     className="w-10 h-10 flex items-center justify-center rounded-full bg-nature-100 dark:bg-nature-900 text-nature-600 dark:text-nature-400 font-bold hover:bg-nature-200 transition-colors"
                 >
