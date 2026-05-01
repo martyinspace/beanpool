@@ -427,8 +427,9 @@ export async function startHttpsServer(port: number): Promise<void> {
             adminDeletePost(ctx.params.id);
             ctx.body = { success: true };
         } catch (e: any) {
+            console.error('Failed to delete post:', e);
             ctx.status = 500;
-            ctx.body = { error: e.message, stack: e.stack };
+            ctx.body = { error: 'An error occurred while deleting the post' };
         }
     });
 
@@ -1692,7 +1693,10 @@ export async function startHttpsServer(port: number): Promise<void> {
 
     router.get('/api/admin/reports', async (ctx) => {
         const config = getLocalConfig();
-        const password = ctx.query.password as string;
+        // Fallback to query for backwards compatibility, but prefer Authorization header
+        const authHeader = ctx.headers.authorization;
+        const password = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : (ctx.query.password as string);
+
         if (!password || !config.adminHash || !config.salt ||
             !verifyPassword(password, config.adminHash, config.salt)) {
             ctx.status = 401;
