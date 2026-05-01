@@ -510,7 +510,10 @@ export function WelcomePage({ onComplete }: Props) {
                             </div>
 
                             <button
-                                onClick={() => setIsTrampoline(false)}
+                                onClick={() => {
+                                    setIsTrampoline(false);
+                                    setShowNewUser(true);
+                                }}
                                 style={{
                                     background: 'none', border: 'none',
                                     color: '#64748b', fontSize: '0.85rem',

@@ -1,6 +1,7 @@
 import 'fast-text-encoding';
 import { useEffect, useState, useRef } from 'react';
 import { Stack, useRouter, useSegments, useGlobalSearchParams } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
 import { Alert, LogBox, AppState, AppStateStatus } from 'react-native';
 import { registerPillarSync } from '../services/background-task';
@@ -15,8 +16,44 @@ function RootLayoutNav() {
     const { identity, isLoading } = useIdentity();
     const segments = useSegments();
     const router = useRouter();
+    const incomingUrl = Linking.useURL();
 
     const params = useGlobalSearchParams();
+
+    // Handle incoming deep links for logged-in users (multi-node support)
+    useEffect(() => {
+        if (!identity || !incomingUrl) return;
+        const parsed = Linking.parse(incomingUrl);
+        if (parsed.queryParams?.invite) {
+            if (incomingUrl.startsWith('http')) {
+                const originMatch = incomingUrl.match(/^https?:\/\/[^\/?#]+/);
+                if (originMatch) {
+                    let extracted = originMatch[0];
+                    AsyncStorage.getItem('beanpool_anchor_url').then(current => {
+                        if (current !== extracted) {
+                            Alert.alert(
+                                'Switch Nodes?',
+                                `You have been invited to a community node at ${extracted}. Would you like to switch your active connection to this node?`,
+                                [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    { 
+                                        text: 'Switch', 
+                                        onPress: () => {
+                                            AsyncStorage.setItem('beanpool_anchor_url', extracted)
+                                            .then(() => {
+                                                Alert.alert('Success', 'Node switched. Synchronizing...');
+                                                performSync();
+                                            });
+                                        }
+                                    }
+                                ]
+                            );
+                        }
+                    });
+                }
+            }
+        }
+    }, [incomingUrl, identity]);
 
     useEffect(() => {
         if (isLoading) return;

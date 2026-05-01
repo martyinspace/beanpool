@@ -459,29 +459,7 @@ export function redeemOfflineTicket(ticketB64: string, joinerPublicKey: string, 
     }
 }
 
-// ===================== SHORTLINKS =====================
 
-export function createShortlink(payload: string): string {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let code = '';
-    for (let i = 0; i < 4; i++) code += chars[crypto.randomInt(chars.length)];
-    
-    db.prepare(`INSERT INTO invite_links (hash_id, payload) VALUES (?, ?)`).run(code, payload);
-    return code;
-}
-
-export function getShortlink(hash: string): string | null {
-    const link = db.prepare("SELECT payload FROM invite_links WHERE hash_id = ?").get(hash) as any;
-    return link ? link.payload : null;
-}
-
-export function cleanShortlinks() {
-    // Delete links older than 48 hours to prevent database bloat
-    const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-    db.prepare("DELETE FROM invite_links WHERE created_at < ?").run(cutoff);
-}
-
-// ======================================================
 
 export function getInvitesByMember(pubkey: string): InviteCode[] {
     const rows = db.prepare("SELECT * FROM invite_codes WHERE created_by = ?").all(pubkey) as any[];

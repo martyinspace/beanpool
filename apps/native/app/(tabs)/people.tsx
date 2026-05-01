@@ -50,6 +50,53 @@ export default function PeopleScreen() {
         if (!identity) return;
         setGenerating(true);
         try {
+            // First attempt Online generation via API
+            try {
+                const apiPayload = {
+                    publicKey: identity.publicKey,
+                    intendedFor: intendedFor || undefined
+                };
+                const apiPayloadStr = JSON.stringify(apiPayload);
+                const apiMsgBytes = encodeUtf8(apiPayloadStr);
+                const apiSigBytes = await sign(apiMsgBytes, hexToBytes(identity.privateKey));
+                const apiSigB64 = encodeBase64(apiSigBytes);
+
+                const res = await fetch(`${anchorUrl}/api/invite/generate`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Public-Key': identity.publicKey,
+                        'X-Signature': apiSigB64
+                    },
+                    body: apiPayloadStr
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success && data.invite) {
+                        const code = data.invite.code;
+                        setNewCode(code);
+                        setIntendedFor('');
+                        
+                        const inviteObj = {
+                            code,
+                            createdBy: identity.publicKey,
+                            createdAt: new Date().toISOString(),
+                            intendedFor: intendedFor || undefined
+                        };
+                        
+                        const updated = [inviteObj, ...invites];
+                        setInvites(updated);
+                        await AsyncStorage.setItem(`bp_offline_invites_${identity.publicKey}`, JSON.stringify(updated));
+                        setGenerating(false);
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.log('Online invite generation failed. Falling back to offline ticket...', err);
+            }
+
+            // Offline Fallback
             const payloadObj = {
                 i: identity.publicKey,
                 t: Date.now(),
@@ -90,30 +137,11 @@ export default function PeopleScreen() {
     };
 
     const shareInvite = async (codeToShare: string) => {
-        let shortHash = null;
-        try {
-            const res = await fetch(`${anchorUrl}/api/links/shorten`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ payload: codeToShare })
-            }); // Using standard fetch without AbortSignal.timeout for React Native compatibility
-            if (res.ok) {
-                const data = await res.json();
-                if (data.hash) shortHash = data.hash;
-            }
-        } catch (e) {
-            console.log('Shortener unreachable, falling back to offline code');
-        }
-
-        const magicLink = shortHash ? `${anchorUrl}/i/${shortHash}` : null;
+        const magicLink = `${anchorUrl}/?invite=${codeToShare}`;
         
-        let message = `Join my private BeanPool Node!\n\n`;
-        if (magicLink) {
-            message += `Option A (1-Tap Magic):\nClick this link to join automatically:\n${magicLink}\n\n`;
-            message += `Option B (Manual):\nDownload the BeanPool app and paste this exact Invite Code:\n${codeToShare}`;
-        } else {
-            message += `1. Download the BeanPool App:\nhttps://beanpool.org\n\n2. Copy and paste this exact Invite Code:\n${codeToShare}`;
-        }
+        let message = `Join my private BeanPool Node! ✨\n\n`;
+        message += `Click this secure link to join automatically:\n${magicLink}\n\n`;
+        message += `Or if you prefer, you can download the BeanPool App at https://beanpool.org and enter this Invite Code manually:\n${codeToShare}`;
 
         await Share.share({ message });
     };

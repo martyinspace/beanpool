@@ -19,6 +19,7 @@ export default function WelcomeScreen() {
     const [recoveryWords, setRecoveryWords] = useState<string[]>(Array(12).fill(''));
     const [recoveryCallsign, setRecoveryCallsign] = useState('');
     const [recoveryAnchorUrl, setRecoveryAnchorUrl] = useState('');
+    const [createAnchorUrl, setCreateAnchorUrl] = useState('');
     const [importData, setImportData] = useState('');
     const [importPin, setImportPin] = useState('');
     const [loading, setLoading] = useState(false);
@@ -109,7 +110,12 @@ export default function WelcomeScreen() {
                     parsedCode = decodeURIComponent(inviteMatch[1]);
                 }
             } else {
-                await AsyncStorage.setItem('beanpool_anchor_url', __DEV__ ? 'https://127.0.0.1:8443' : 'https://review.beanpool.org:8443');
+                let nodeUrl = createAnchorUrl.trim() || (__DEV__ ? 'https://127.0.0.1:8443' : 'https://review.beanpool.org:8443');
+                if (nodeUrl && !nodeUrl.startsWith('http')) {
+                    const isIpOrLocal = /^(?:\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(nodeUrl) || nodeUrl.startsWith('localhost');
+                    nodeUrl = (isIpOrLocal ? 'http://' : 'https://') + nodeUrl;
+                }
+                await AsyncStorage.setItem('beanpool_anchor_url', nodeUrl);
             }
 
             const identity = await createIdentity(callsign.trim());
@@ -155,9 +161,11 @@ export default function WelcomeScreen() {
         setLoading(true);
         setError(null);
         try {
-            let finalAnchorUrl = recoveryAnchorUrl.trim() && recoveryAnchorUrl.startsWith('http') 
-                ? recoveryAnchorUrl.trim() 
-                : (__DEV__ ? 'https://127.0.0.1:8443' : 'https://review.beanpool.org:8443');
+            let finalAnchorUrl = recoveryAnchorUrl.trim() || (__DEV__ ? 'https://127.0.0.1:8443' : 'https://review.beanpool.org:8443');
+            if (finalAnchorUrl && !finalAnchorUrl.startsWith('http')) {
+                const isIpOrLocal = /^(?:\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(finalAnchorUrl) || finalAnchorUrl.startsWith('localhost');
+                finalAnchorUrl = (isIpOrLocal ? 'http://' : 'https://') + finalAnchorUrl;
+            }
             await AsyncStorage.setItem('beanpool_anchor_url', finalAnchorUrl);
 
             const identity = await createIdentityFromMnemonic(words, recoveryCallsign.trim());
@@ -266,6 +274,19 @@ export default function WelcomeScreen() {
                         autoCapitalize="none"
                         autoCorrect={false}
                     />
+
+                    {inviteCode && !inviteCode.startsWith('http') && (
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Community Node URL (Optional)"
+                            placeholderTextColor="#64748b"
+                            value={createAnchorUrl}
+                            onChangeText={setCreateAnchorUrl}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            keyboardType="url"
+                        />
+                    )}
 
                     <TextInput
                         style={styles.input}

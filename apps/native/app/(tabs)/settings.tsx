@@ -177,10 +177,15 @@ export default function SettingsScreen() {
 
         setAdvancedLoading(true);
         try {
-            await AsyncStorage.setItem('beanpool_anchor_url', newAnchorInput.trim());
+            let finalAnchorUrl = newAnchorInput.trim();
+            if (finalAnchorUrl && !finalAnchorUrl.startsWith('http')) {
+                const isIpOrLocal = /^(?:\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(finalAnchorUrl) || finalAnchorUrl.startsWith('localhost');
+                finalAnchorUrl = (isIpOrLocal ? 'http://' : 'https://') + finalAnchorUrl;
+            }
+            await AsyncStorage.setItem('beanpool_anchor_url', finalAnchorUrl);
             // Inject alias to native node matrix
             const { addSavedNode } = await import('../../utils/nodes');
-            await addSavedNode(newAnchorInput.trim(), newNodeAlias.trim() || undefined);
+            await addSavedNode(finalAnchorUrl, newNodeAlias.trim() || undefined);
 
             // Nuclear purge the native cache databases
             await AsyncStorage.removeItem('pillar:last-sync');
@@ -195,7 +200,7 @@ export default function SettingsScreen() {
                 .catch((err: any) => console.error("Sync caught an error:", err));
 
             Alert.alert("Network Migrated", "Your Node IP has been successfully updated. The app is downloading the new network's state in the background.");
-            setAnchorUrl(newAnchorInput.trim());
+            setAnchorUrl(finalAnchorUrl);
             setChangeConfirm('');
         } catch (e: any) {
             Alert.alert("Update Failed", String(e.message || e));

@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "BeanPool Pillar",
+    "name": "Bean Pool",
     "slug": "beanpool-pillar",
-    "version": "1.0.15",
+    "version": "1.0.18",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "scheme": "beanpool",
@@ -16,10 +16,8 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "org.beanpool.pillar",
-      "buildNumber": "7",
+      "buildNumber": "9",
       "associatedDomains": [
-        "applinks:beanpool.org",
-        "applinks:*.beanpool.org",
         "applinks:beanpool.org",
         "applinks:*.beanpool.org"
       ],
@@ -33,7 +31,7 @@
       }
     },
     "android": {
-      "versionCode": 18,
+      "versionCode": 23,
       "package": "org.beanpool.pillar",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/app-icon.png",
@@ -73,6 +71,14 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "BeanPool requires photo library access so you can select and upload photos of items or services you are offering on the community marketplace.",
+          "cameraPermission": "BeanPool requires camera access so you can take and upload photos of items or services you are offering on the community marketplace.",
+          "microphonePermission": "BeanPool requires microphone access to record audio when capturing video of items or services you are offering on the community marketplace."
+        }
+      ],
       [
         "expo-build-properties",
         {

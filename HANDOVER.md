@@ -186,6 +186,7 @@ gh run list --limit 3
 4. **`packages/beanpool-core/README.md`** — Core Protocol concepts: mutual credit, identity, CRDT scaling
 5. **`apps/pwa/README.md`** — Progressive Web App shell and component structure
 6. **`apps/native/README.md`** — Native Expo companion app architecture
+7. **`docs/invite-architecture.md`** — Architecture of the hybrid online/offline invitation system
 
 ---
 

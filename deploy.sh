@@ -73,6 +73,7 @@ for NODE in "${TARGETS[@]}"; do
   if [ -z "$DIR" ]; then DIR="BeanPool"; fi
   HOME_DIR="/home/$USER"
   PROJECT_DIR="$HOME_DIR/$DIR"
+  PROJ_NAME=$(echo "beanpool-$DIR" | tr '[:upper:]' '[:lower:]')
 
   # Azure nodes use the lattice SSH key; others use default
   if [ "$USER" = "azureuser" ]; then
@@ -90,25 +91,36 @@ for NODE in "${TARGETS[@]}"; do
 
   # Stop, preserve data, extract, pull image, start
   ssh $SSH_OPTS $USER@$IP "
-    cd $PROJECT_DIR 2>/dev/null && sudo docker compose -p beanpool-\$DIR down 2>/dev/null
-    sudo mv $PROJECT_DIR/data $HOME_DIR/beanpool-data-backup-\$DIR 2>/dev/null || true
+    cd $PROJECT_DIR 2>/dev/null && sudo docker compose -p $PROJ_NAME down 2>/dev/null
+    sudo mv $PROJECT_DIR/data $HOME_DIR/beanpool-data-backup-$DIR 2>/dev/null || true
     sudo rm -rf $PROJECT_DIR
     mkdir -p $PROJECT_DIR
     tar -xzf $HOME_DIR/beanpool-deploy.tar.gz -C $PROJECT_DIR
-    sudo mv $HOME_DIR/beanpool-data-backup-\$DIR $PROJECT_DIR/data 2>/dev/null || true
+    sudo mv $HOME_DIR/beanpool-data-backup-$DIR $PROJECT_DIR/data 2>/dev/null || true
     cd $PROJECT_DIR
     export PUBLIC_IP=\$(curl -s ifconfig.me)
     export CF_API_TOKEN='${CF_API_TOKEN}'
     export CF_ZONE_ID='${CF_ZONE_ID}'
     export CF_RECORD_NAME='${DNS}'
     export ADMIN_PASSWORD='${ADMIN_PASSWORD}'
+    if [ "$DIR" = "BeanPool-Review" ]; then
+      cat <<EOF > docker-compose.override.yml
+services:
+  beanpool-node:
+    ports: !reset
+      - "8081:8080"
+      - "8445:8443"
+      - "4004:4001"
+      - "4005:4002"
+EOF
+    fi
     echo \"Public IP: \$PUBLIC_IP\"
     echo \"DNS Record: \$CF_RECORD_NAME\"
     # Temporarily building directly on server instead of GHCR pull
-    # sudo -E docker compose -p beanpool-\$DIR pull
+    # sudo -E docker compose -p $PROJ_NAME pull
     sudo docker image prune -f 2>/dev/null || true
-    sudo -E docker compose -p beanpool-\$DIR build
-    sudo -E docker compose -p beanpool-\$DIR up -d
+    sudo -E docker compose -p $PROJ_NAME build
+    sudo -E docker compose -p $PROJ_NAME up -d
   " 2>&1
 
   echo "✅ $NAME deployed!"

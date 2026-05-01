@@ -1395,7 +1395,11 @@
 
         async function loadThresholds() {
             try {
-                const res = await fetch('/api/admin/thresholds');
+                const res = await fetch('/api/admin/thresholds/get', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken })
+                });
                 if (!res.ok) return;
                 const data = await res.json();
                 for (const key of THRESHOLD_KEYS) {
@@ -1431,7 +1435,11 @@
 
         async function resetThresholds() {
             try {
-                const res = await fetch('/api/admin/thresholds');
+                const res = await fetch('/api/admin/thresholds/get', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken })
+                });
                 if (!res.ok) return;
                 const data = await res.json();
                 // Fill with defaults
@@ -1454,7 +1462,11 @@
             if (!authToken) { el.innerHTML = '<p style="color:#ef4444;text-align:center;font-size:0.85rem;">Login first</p>'; return; }
             el.innerHTML = '<p style="color:#64748b;text-align:center;font-size:0.85rem;">Loading...</p>';
             try {
-                const res = await fetch(`/api/admin/reports?password=${encodeURIComponent(authToken)}`);
+                const res = await fetch('/api/admin/reports', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken })
+                });
                 if (!res.ok) { el.innerHTML = '<p style="color:#ef4444;text-align:center;">Auth failed</p>'; return; }
                 const { reports } = await res.json();
                 if (!reports || reports.length === 0) {
