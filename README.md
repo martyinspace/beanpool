@@ -101,7 +101,7 @@ Port 80 serves a community welcome hub:
 ### 📊 Ledger
 Mutual credit balance and transaction history:
 - **Send credits** to other members with member picker
-- **Balance gauge** with −100Ʀ floor
+- **Balance gauge** with dynamic credit floor (see [Protocol Rules](docs/protocol-rules.md))
 - **Commons Pool** display (funds from demurrage decay)
 - **Transaction history** with sent/received indicators
 
@@ -254,10 +254,17 @@ All endpoints are served on port 8443 (HTTPS):
 
 ## The Protocol
 
-- **Mutual Credit** — participants can go negative (up to −100Ʀ) backed by community trust
-- **Demurrage (Decay)** — positive balances decay at 0.5% per month, returning to the Commons Fund
+> 📖 Full specification: **[Protocol Rules](docs/protocol-rules.md)** — the complete rule book for the BeanPool Social Capital Ledger.
+
+- **Mutual Credit** — participants can go negative, backed by community trust. No money supply — the network sum is always zero.
+- **Dynamic Credit Floor** — borrowing limit grows with trade history: `floor = -80 - min(1920, trades×8 + partners×40 + age×2)`. New members start at −80 Ʀ, veterans cap at −2000 Ʀ.
+- **Asymmetric Ceiling** — positive balance ceiling = 2× |floor|. Exceeding it triggers accelerated demurrage (2.5%/month) to encourage spending.
+- **Reference Rate** — 40 Ʀ = 1 hour of community time. Hour equivalents shown throughout the app for value intuition.
+- **Identity Tiers** — Ghost 👻 → Resident 🏠 → Citizen 🏛️ → Elder 👑. Ghosts can only trade via marketplace escrow; no direct transfers, no invitations.
+- **Anti-Sybil (KYH)** — Know Your History, not KYC. Three layers: Ghosts can't gift (friction), Ghosts can't invite (chain-break), diverse partner requirement (no wash-trading).
+- **Demurrage (Decay)** — positive balances decay at 0.5% per month, returning to the Commons Pool
 - **Gossip Mesh** — nodes connect via libp2p over TCP/WebSockets
-- **Federation Protocol** — peer nodes enable cross-community marketplace browsing and trading via CORS + API
+- **Federation Protocol** — peer nodes share protocol constants; cross-community trading via CORS + API
 - **Mirror Sync** — Merkle hash comparison + delta exchange every 15 minutes (backup nodes only)
 - **Sovereign Identity** — Ed25519 keypairs from 12-word BIP-39 mnemonic (deterministic, recoverable)
 - **Invite Tree** — hierarchical membership: node genesis → seed codes → admin identity → organic invites
@@ -272,6 +279,7 @@ All endpoints are served on port 8443 (HTTPS):
 | Document | Description |
 |----------|-------------|
 | [README.md](README.md) | Project overview, features, API table |
+| [Protocol Rules](docs/protocol-rules.md) | **The Social Capital Ledger rule book** — credit formula, tiers, anti-Sybil, demurrage, reference rate |
 | [HANDOVER.md](HANDOVER.md) | Agent handover: current state, LE rate limits, architecture |
 | [ROADMAP.md](ROADMAP.md) | Planned features and future work |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines, code of conduct, governance model |
