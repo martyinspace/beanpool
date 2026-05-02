@@ -47,3 +47,4 @@ pc-api-key.json
 # Ignore Expo generated native directories
 apps/native/ios/
 apps/native/android/
+apps/native/prod.keystore

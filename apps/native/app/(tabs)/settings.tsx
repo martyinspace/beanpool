@@ -154,9 +154,36 @@ export default function SettingsScreen() {
 
     async function handleForgetNode(targetUrl: string) {
         if (targetUrl === anchorUrl) {
-            Alert.alert("Action Denied", "You cannot forget the Active Node without wiping your physical identity entirely.");
+            const remainingNodes = savedNodes.filter(n => n.url !== targetUrl);
+            if (remainingNodes.length === 0) {
+                Alert.alert("Action Denied", "You cannot forget your only saved node. If you want to leave BeanPool completely, please use 'Delete Account' to destroy your identity.");
+                return;
+            }
+            
+            Alert.alert(
+                "Forget Active Node",
+                "You are currently connected to this node. To forget it, you will automatically be switched to your next saved node.",
+                [
+                    { text: "Cancel", style: "cancel" },
+                    { 
+                        text: "Forget & Switch", 
+                        style: "destructive",
+                        onPress: async () => {
+                            await removeSavedNode(targetUrl);
+                            setSavedNodes(remainingNodes);
+                            try {
+                                await FileSystem.deleteAsync((FileSystem as any).documentDirectory + 'SQLite/' + getDatabaseFilenameForNode(targetUrl), { idempotent: true });
+                            } catch(e) {}
+                            
+                            // Automatically pivot to the next available node
+                            await handleSwitchNode(remainingNodes[0].url);
+                        }
+                    }
+                ]
+            );
             return;
         }
+
         await removeSavedNode(targetUrl);
         setSavedNodes(prev => prev.filter(n => n.url !== targetUrl));
         // Optional: Physically delete the dormant .db file from the OS folder
@@ -227,15 +254,23 @@ export default function SettingsScreen() {
                         const { clearDB } = await import('../../utils/db');
                         await clearDB();
                         
-                        // Purge sync engine cursors to force a full historical sweep from the new community
+                        // Purge sync engine cursors and the saved node matrix to force a clean slate
                         await AsyncStorage.multiRemove([
                             'beanpool_anchor_url',
+                            'beanpool_saved_nodes',
                             'pillar:last-sync',
                             'pillar:merkle-root',
                             'pillar:accounts',
                             'pillar:transactions',
                             'pillar:checkpoint'
                         ]);
+
+                        // Physically delete dormant DB files for all saved nodes to reclaim disk space
+                        for (const node of savedNodes) {
+                            try {
+                                await FileSystem.deleteAsync((FileSystem as any).documentDirectory + 'SQLite/' + getDatabaseFilenameForNode(node.url), { idempotent: true });
+                            } catch (e) {}
+                        }
                         
                         await wipeIdentity();
                         setIdentity(null);

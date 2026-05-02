@@ -455,7 +455,7 @@ export function WelcomePage({ onComplete }: Props) {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
                                 {/* Apple App Store */}
                                 <a 
-                                    onClick={async () => { try { if (inviteCode) await navigator.clipboard.writeText(inviteCode); } catch (e) {} }}
+                                    onClick={async () => { try { if (inviteCode) await navigator.clipboard.writeText(`${window.location.origin}/?invite=${inviteCode}`); } catch (e) {} }}
                                     href="https://apps.apple.com/app/id6761870086" 
                                     target="_blank" rel="noopener noreferrer"
                                     style={{
@@ -475,7 +475,7 @@ export function WelcomePage({ onComplete }: Props) {
 
                                 {/* Google Play Store */}
                                 <a 
-                                    onClick={async () => { try { if (inviteCode) await navigator.clipboard.writeText(inviteCode); } catch (e) {} }}
+                                    onClick={async () => { try { if (inviteCode) await navigator.clipboard.writeText(`${window.location.origin}/?invite=${inviteCode}`); } catch (e) {} }}
                                     href="https://play.google.com/store/apps/details?id=org.beanpool.pillar" 
                                     target="_blank" rel="noopener noreferrer"
                                     style={{
@@ -497,7 +497,7 @@ export function WelcomePage({ onComplete }: Props) {
                             {/* OPEN IN NATIVE APP ESCAPE HATCH */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1.5rem' }}>
                                 <a
-                                    href={`beanpool://welcome?invite=${inviteCode || new URLSearchParams(window.location.search).get('invite')}`}
+                                    href={`beanpool://welcome?invite=${inviteCode || new URLSearchParams(window.location.search).get('invite')}&server=${encodeURIComponent(window.location.origin)}`}
                                     style={{
                                         display: 'block', width: '100%', padding: '1rem', borderRadius: '12px',
                                         border: '1px solid #3b82f6', background: 'transparent', textDecoration: 'none',

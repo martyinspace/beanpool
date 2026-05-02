@@ -16,7 +16,7 @@
 5. [Dynamic Credit Floor (Borrowing Limit)](#5-dynamic-credit-floor-borrowing-limit)
 6. [Dynamic Credit Ceiling (Saving Limit)](#6-dynamic-credit-ceiling-saving-limit)
 7. [Identity Tiers](#7-identity-tiers)
-8. [Demurrage (Value Decay)](#8-demurrage-value-decay)
+8. [Community Circulation (Value Decay)](#8-community-circulation-value-decay)
 9. [Invitations](#9-invitations)
 10. [Anti-Sybil Defences](#10-anti-sybil-defences)
 11. [Marketplace & Escrow](#11-marketplace--escrow)
@@ -192,30 +192,33 @@ These restrictions lift automatically when the member's organic trade history gr
 
 ---
 
-## 8. Demurrage (Value Decay)
+## 8. Community Circulation (Value Decay)
 
-Demurrage is a small periodic reduction applied to **positive balances**. It prevents hoarding and returns idle beans to the community Commons Pool.
+Community Circulation is a small periodic reduction applied to **positive balances**. It prevents hoarding and returns idle beans to the community Commons Pool — keeping the local economy flowing like healthy blood circulation.
 
-### Standard Demurrage
+> **Why "Community Circulation"?** Positive balances represent value you've earned but haven't yet spent locally. Circulation gently encourages that stored value to flow back into the community — funding projects, rewarding neighbours, and keeping the economy alive.
+
+### Standard Circulation
 
 - **Rate:** 0.5% per month
 - **Epoch:** Applied every 30 days
-- **Applies to:** Positive balances only (you don't pay demurrage on debt)
-- **Destination:** Decayed beans flow to the community Commons Pool
+- **Applies to:** Positive balances only (you don't pay circulation on debt)
+- **Destination:** Circulated beans flow to the community Commons Pool
 
-### Accelerated Demurrage (Above Ceiling)
+### Accelerated Circulation (Above Ceiling)
 
 Balances that exceed the member's dynamic ceiling are subject to **5× the standard rate**:
 
 - **Rate:** 2.5% per month (on the portion above the ceiling)
 - **Purpose:** Soft pressure to circulate excess beans — donate to projects, tip community members, or invest in community infrastructure
+- **UI Display:** "You are 160 Ʀ above your soft cap. In 4 days, ≈4 Ʀ will flow to the Community Fund to encourage local trade."
 
 ### Example
 
 A Citizen with a ceiling of +840 Ʀ holds a balance of +1000 Ʀ:
-- First 840 Ʀ decays at 0.5%/month = −4.20 Ʀ
-- Remaining 160 Ʀ (above ceiling) decays at 2.5%/month = −4.00 Ʀ
-- Total monthly demurrage: −8.20 Ʀ → Commons Pool
+- First 840 Ʀ circulates at 0.5%/month = −4.20 Ʀ
+- Remaining 160 Ʀ (above ceiling) circulates at 2.5%/month = −4.00 Ʀ
+- Total monthly circulation: −8.20 Ʀ → Commons Pool
 
 ---
 
@@ -229,13 +232,29 @@ BeanPool is an invite-only network. Membership requires an invitation code from 
 - **Resident** 🏠 → Can invite. No hard limit on number.
 - **Citizen** 🏛️ → Can invite. No hard limit.
 - **Elder** 👑 → Can invite. No hard limit.
-- **Node Admin** → Can generate seed codes (bootstrap the initial network).
+- **Node Admin** → Can generate standard and elevated invites (see below).
 
 ### Why Ghosts can't invite
 
 This single rule breaks **puppet chain attacks**. If a bad actor creates a puppet account, that puppet is a Ghost. Ghosts can't invite. So the puppet can't create more puppets. The attack terminates at generation one.
 
 To earn invitation privileges, a member needs real trades with real, unique partners — proving they are an engaged participant, not a bot.
+
+### Admin Genesis Invites (Tiered Bootstrap)
+
+The node admin has access to **tiered invite codes** from the `/settings` panel. These allow the admin to bootstrap trusted, known community members at an elevated starting tier — bypassing the Ghost restrictions.
+
+| Invite Type | Starting Tier | Starting Floor | Use Case |
+| :--- | :--- | :--- | :--- |
+| **Standard** | Ghost 👻 | −80 Ʀ | Default for all regular invites |
+| **Trusted** | Resident 🏠 | −200 Ʀ | Known community members. Can invite + gift immediately. |
+| **Ambassador** | Citizen 🏛️ | −600 Ʀ | Market promoters, community organisers. Full capabilities from day one. |
+
+**Rules:**
+- Only the **node admin** can generate Trusted and Ambassador invites. Regular members always generate Standard (Ghost-level) invites.
+- The elevated tier is a **starting position**, not a permanent grant. The member's floor still follows the dynamic formula — but their `earnedCredit` is pre-seeded to place them at the correct tier threshold.
+- Elevated invites are **visible in the Invitation Tree** with a special badge, providing full transparency.
+- This mechanism exists because the admin is the root of trust for the node. If the admin vouches for someone as a known community pillar, forcing them through 3 months of Ghost-tier restrictions is counterproductive.
 
 ### Invitation Tree
 
@@ -422,7 +441,7 @@ All values are defined in `beanpool-core/src/protocol.ts` and are identical acro
 │  Credit Ceiling:           2× |floor|                │
 │    Max Ceiling:            +4000 Ʀ (≈ 100 hours)    │
 │                                                      │
-│  Demurrage:                                          │
+│  Community Circulation:                              │
 │    Standard:               0.5% / month              │
 │    Accelerated (>ceiling): 2.5% / month              │
 │    Epoch:                  30 days                    │
@@ -430,6 +449,11 @@ All values are defined in `beanpool-core/src/protocol.ts` and are identical acro
 │  Anti-Sybil:                                         │
 │    Ghost threshold:        floor > −200 Ʀ            │
 │    Ghost restrictions:     No gifts, no invitations  │
+│                                                      │
+│  Admin Genesis Invites:                              │
+│    Standard:               Ghost (−80 Ʀ)             │
+│    Trusted:                Resident (−200 Ʀ)         │
+│    Ambassador:             Citizen (−600 Ʀ)          │
 │                                                      │
 │  Guardrails:                                         │
 │    Spend warning:          >50% of credit line       │
@@ -446,7 +470,7 @@ All values are defined in `beanpool-core/src/protocol.ts` and are identical acro
 | **Bean (Ʀ)** | The unit of account in BeanPool. |
 | **Ceiling** | The soft upper limit on positive balances. Exceeding it triggers accelerated demurrage. |
 | **Commons Pool** | A community fund filled by demurrage decay. Used for community projects. |
-| **Demurrage** | Periodic decay of positive balances, preventing hoarding. |
+| **Community Circulation** | Periodic decay of positive balances, preventing hoarding. Formerly called "demurrage." |
 | **Dynamic Floor** | The borrowing limit, calculated from trade history. Grows with trust. |
 | **Escrow** | A system-managed wallet that holds beans during a marketplace trade until both parties confirm completion. |
 | **Federation** | The network of connected BeanPool nodes that can trade across communities. |

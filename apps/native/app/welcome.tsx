@@ -32,14 +32,40 @@ export default function WelcomeScreen() {
 
     React.useEffect(() => {
         let mounted = true;
+
+        const processFullUrl = async (fullUrl: string) => {
+            if (fullUrl.startsWith('http')) {
+                const originMatch = fullUrl.match(/^https?:\/\/[^\/?#]+/);
+                if (originMatch) {
+                    setCreateAnchorUrl(originMatch[0]);
+                }
+            }
+            const inviteMatch = fullUrl.match(/[?&]invite=([^&]+)/);
+            if (inviteMatch) {
+                setInviteCode(decodeURIComponent(inviteMatch[1]));
+            } else if (!fullUrl.startsWith('http') && (fullUrl.startsWith('BP-') || fullUrl.startsWith('INV-'))) {
+                setInviteCode(fullUrl);
+            }
+            setMode('create');
+        };
+
         const checkAutoIntercept = async () => {
             // Priority 1: Raw Expo Linking Intent (bypasses router segment hydration issues)
             if (incomingUrl) {
                 const parsed = Linking.parse(incomingUrl);
                 if (parsed.queryParams?.invite) {
                     if (mounted) {
-                        setInviteCode(parsed.queryParams.invite as string);
-                        setMode('create');
+                        if (incomingUrl.startsWith('http')) {
+                            // Universal link - process fully
+                            await processFullUrl(incomingUrl);
+                        } else {
+                            // Deep link (beanpool://)
+                            setInviteCode(parsed.queryParams.invite as string);
+                            if (parsed.queryParams.server) {
+                                setCreateAnchorUrl(parsed.queryParams.server as string);
+                            }
+                            setMode('create');
+                        }
                     }
                     return;
                 }
@@ -64,11 +90,13 @@ export default function WelcomeScreen() {
                     if (hasCode) {
                         const content = await Clipboard.getStringAsync();
                         const cleanContent = content?.trim() || '';
-                        if (cleanContent.startsWith('BP-') || cleanContent.startsWith('INV-')) {
+                        
+                        // Intercept if it's an invite token OR an invite URL
+                        if (cleanContent.startsWith('BP-') || cleanContent.startsWith('INV-') || 
+                           (cleanContent.startsWith('http') && cleanContent.includes('invite='))) {
                             if (mounted) {
                                 setProcessingMagicLink(true);
-                                setInviteCode(cleanContent);
-                                setMode('create');
+                                await processFullUrl(cleanContent);
                                 setTimeout(() => setProcessingMagicLink(false), 1500); // UI breathing room
                             }
                         }
