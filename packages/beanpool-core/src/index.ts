@@ -12,3 +12,4 @@ export * from './simulator.js';
 export * from './config.js';
 export * from './merkle.js';
 export * from './crypto.js';
+export * from './protocol.js';

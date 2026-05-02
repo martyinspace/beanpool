@@ -45,6 +45,7 @@ import {
     requestPost, approvePostRequest, rejectPostRequest, cancelPostRequest,
     getCommunityInfo, addWsClient, removeWsClient,
     generateInvite, redeemInvite, redeemOfflineTicket, getInviteTree, getInvitesByMember,
+    adminGenerateInvite, getMemberTrustProfile,
     updateProfile, getProfile,
     createConversation, sendMessage, getConversationsByMember,
     getConversationMessages, getConversation,
@@ -309,11 +310,11 @@ export async function startHttpsServer(port: number): Promise<void> {
         ctx.body = { success: true };
     });
 
-    // Admin: Generate seed invite for fresh nodes (0 members)
+    // Admin: Generate invite codes — supports tiered genesis invites
     router.post('/api/admin/seed-invite', async (ctx) => {
         if (!rateLimit(ctx)) return;
         const config = getLocalConfig();
-        const { password } = (ctx as any).requestBody || {};
+        const { password, type: inviteType } = (ctx as any).requestBody || {};
 
         if (!password || !config.adminHash || !config.salt ||
             !verifyPassword(password, config.adminHash, config.salt)) {
@@ -322,16 +323,20 @@ export async function startHttpsServer(port: number): Promise<void> {
             return;
         }
 
+        // Validate invite type
+        const genesisType = (['standard', 'trusted', 'ambassador'].includes(inviteType) ? inviteType : 'standard') as 'standard' | 'trusted' | 'ambassador';
+
         // Check if there are already members
         const info = getCommunityInfo();
         if (info.memberCount > 0) {
-            // Already have members — just generate an invite from the genesis member
+            // Already have members — generate a tiered invite from the genesis member
             const members = getAllMembers();
             const genesisMember = members.find(m => m.invitedBy === 'genesis');
             if (genesisMember) {
-                const invite = generateInvite(genesisMember.publicKey);
+                const invite = adminGenerateInvite(genesisMember.publicKey, genesisType);
                 if (invite) {
-                    ctx.body = { success: true, code: invite.code, message: 'Invite generated from genesis member' };
+                    const tierLabels: Record<string, string> = { standard: '👻 Ghost', trusted: '🏠 Resident', ambassador: '🏛️ Citizen' };
+                    ctx.body = { success: true, code: invite.code, type: genesisType, tierLabel: tierLabels[genesisType], message: `${tierLabels[genesisType]} invite generated` };
                     return;
                 }
             }
@@ -351,15 +356,15 @@ export async function startHttpsServer(port: number): Promise<void> {
         const pubKeyHex = pubKeyDer.subarray(-32).toString('hex');
 
         seedGenesisMember(pubKeyHex, 'Admin');
-        const invite = generateInvite(pubKeyHex);
+        const invite = adminGenerateInvite(pubKeyHex, genesisType);
         if (!invite) {
             ctx.status = 500;
             ctx.body = { error: 'Failed to generate seed invite' };
             return;
         }
 
-        console.log(`🌱 Seed invite generated: ${invite.code}`);
-        ctx.body = { success: true, code: invite.code, message: 'Genesis member created + seed invite generated' };
+        console.log(`🌱 Seed invite generated: ${invite.code} [${genesisType}]`);
+        ctx.body = { success: true, code: invite.code, type: genesisType, message: 'Genesis member created + seed invite generated' };
     });
 
     // ===================== IDENTITY API =====================

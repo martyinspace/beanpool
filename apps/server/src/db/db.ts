@@ -46,6 +46,10 @@ export function initSchema() {
         db.prepare(`ALTER TABLE posts ADD COLUMN updated_at DATETIME`).run(); 
         db.prepare(`UPDATE posts SET updated_at = created_at WHERE updated_at IS NULL`).run();
     } catch {}
+    // Protocol v1: Admin Genesis Invites — store invite tier type
+    try { db.prepare(`ALTER TABLE invite_codes ADD COLUMN genesis_type TEXT DEFAULT 'standard'`).run(); } catch {}
+    // Protocol v1: Track pre-seeded earned credit for dynamic floor formula
+    try { db.prepare(`ALTER TABLE members ADD COLUMN earned_credit REAL DEFAULT 0`).run(); } catch {}
 }
 
 // Function to migrate from legacy JSON state

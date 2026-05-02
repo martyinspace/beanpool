@@ -9,7 +9,7 @@ export let COMMONS_BALANCE = 0;
 
 export class LedgerManager {
     private accounts: Map<string, LedgerAccount>;
-    private readonly MAX_CREDIT_LIMIT = -100; // Mutual credit floor
+    private readonly DEFAULT_CREDIT_LIMIT = -100; // Legacy fallback — callers should pass dynamic floor
     private readonly EPOCH_MS = 24 * 60 * 60 * 1000; // 24 hours
 
     constructor(initialAccounts?: LedgerAccount[]) {
@@ -102,9 +102,10 @@ export class LedgerManager {
 
     /**
      * Transfers funds between nodes using Mutual Credit logic.
-     * Participants can go into debt down to `MAX_CREDIT_LIMIT` to bootstrap trade.
+     * Participants can go into debt down to the dynamic credit floor.
+     * @param floorOverride - The sender's dynamic credit floor (e.g. -420). If omitted, uses legacy default (-100).
      */
-    transfer(fromId: string, toId: string, amount: number): boolean {
+    transfer(fromId: string, toId: string, amount: number, floorOverride?: number): boolean {
         if (amount <= 0) return false;
         if (fromId === toId) return false;
 
@@ -114,8 +115,10 @@ export class LedgerManager {
         const fromAccount = this.getAccount(fromId);
         const toAccount = this.getAccount(toId);
 
-        // Mutual Credit: ensure the fromAccount doesn't exceed the credit limit (-100)
-        if (fromAccount.balance - amount < this.MAX_CREDIT_LIMIT) {
+        const floor = floorOverride ?? this.DEFAULT_CREDIT_LIMIT;
+
+        // Mutual Credit: ensure the fromAccount doesn't exceed the credit floor
+        if (fromAccount.balance - amount < floor) {
             // Insufficient credit
             return false;
         }

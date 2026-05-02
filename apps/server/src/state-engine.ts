@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
-import { LedgerManager, COMMONS_BALANCE } from '@beanpool/core';
+import { LedgerManager, COMMONS_BALANCE, calculateDynamicFloor, calculateDynamicCeiling, getTier, getGenesisEarnedCredit, PROTOCOL_CONSTANTS } from '@beanpool/core';
+import type { TrustStats, TierInfo, GenesisInviteType } from '@beanpool/core';
 import { getThresholds, getLocalConfig } from './local-config.js';
 import { db, initSchema, migrateLegacyState } from './db/db.js';
 
@@ -365,6 +366,14 @@ function generateShortCode(): string {
 
 export function generateInvite(inviterPubkey: string, intendedFor?: string): InviteCode | null {
     if (!getMember(inviterPubkey)) return null;
+
+    // Ghost invitation gate: only Resident+ can invite
+    const { tier } = getMemberTrustProfile(inviterPubkey);
+    if (!tier.canInvite) {
+        console.log(`🚫 Ghost invite blocked: ${inviterPubkey.substring(0, 12)} (${tier.name}) attempted to generate invite`);
+        return null;
+    }
+
     recordActivity(inviterPubkey);
 
     const code = generateShortCode();
@@ -373,6 +382,23 @@ export function generateInvite(inviterPubkey: string, intendedFor?: string): Inv
     const invite: InviteCode = { code, createdBy: inviterPubkey, createdAt, usedBy: null, usedAt: null, intendedFor };
     const inviter = getMember(inviterPubkey);
     console.log(`🎟️  Invite generated: ${code} by ${inviter?.callsign || inviterPubkey.substring(0, 12)}`);
+    return invite;
+}
+
+/**
+ * Admin-only invite generation — bypasses Ghost tier gate and supports tiered genesis invites.
+ * The genesis type is stored on the invite code and applied during redemption.
+ */
+export function adminGenerateInvite(adminPubkey: string, genesisType: GenesisInviteType = 'standard', intendedFor?: string): InviteCode | null {
+    if (!getMember(adminPubkey)) return null;
+    recordActivity(adminPubkey);
+
+    const code = generateShortCode();
+    const createdAt = new Date().toISOString();
+    db.prepare(`INSERT INTO invite_codes (code, created_by, created_at, intended_for, genesis_type) VALUES (?, ?, ?, ?, ?)`).run(code, adminPubkey, createdAt, intendedFor || null, genesisType);
+    const invite: InviteCode = { code, createdBy: adminPubkey, createdAt, usedBy: null, usedAt: null, intendedFor };
+    const tierLabel = genesisType === 'standard' ? '👻' : genesisType === 'trusted' ? '🏠' : '🏛️';
+    console.log(`🎟️  Admin Genesis Invite generated: ${code} [${genesisType} ${tierLabel}] by ${getMember(adminPubkey)?.callsign || adminPubkey.substring(0, 12)}`);
     return invite;
 }
 
@@ -388,6 +414,17 @@ export function redeemInvite(code: string, publicKey: string, callsign: string):
     if (!member) return { success: false, error: 'Registration failed' };
 
     db.prepare("UPDATE invite_codes SET used_by = ?, used_at = ? WHERE code COLLATE NOCASE = ?").run(publicKey, new Date().toISOString(), code);
+
+    // Pre-seed earned credit for tiered genesis invites
+    const genesisType = (invite.genesis_type || 'standard') as GenesisInviteType;
+    if (genesisType !== 'standard') {
+        const earnedCredit = getGenesisEarnedCredit(genesisType);
+        if (earnedCredit > 0) {
+            db.prepare("UPDATE members SET earned_credit = ? WHERE public_key = ?").run(earnedCredit, publicKey);
+            const tier = getTier(PROTOCOL_CONSTANTS.CREDIT_BASE_FLOOR - earnedCredit);
+            console.log(`🌟 Genesis invite redeemed: ${callsign} starts as ${tier.emoji} ${tier.name} (earned_credit: ${earnedCredit})`);
+        }
+    }
 
     return { success: true, member };
 }
@@ -554,24 +591,119 @@ export function getProfiles(): Record<string, MemberProfile> {
     return map;
 }
 
+// ===================== TRUST STATS =====================
+
+/**
+ * Calculates trust metrics for a member used by the dynamic credit formula.
+ * Excludes escrow system wallets and self-transactions.
+ */
+export function getMemberTrustStats(publicKey: string): TrustStats {
+    const member = getMember(publicKey);
+    if (!member) return { tradeCount: 0, uniquePartners: 0, ageDays: 0 };
+
+    // Trade count: completed transactions excluding escrow system wallets and self-trades
+    const tradeCountRow = db.prepare(`
+        SELECT COUNT(*) as count FROM transactions 
+        WHERE (from_pubkey = ? OR to_pubkey = ?) 
+        AND from_pubkey != to_pubkey
+        AND from_pubkey NOT LIKE 'escrow_%' 
+        AND to_pubkey NOT LIKE 'escrow_%'
+        AND from_pubkey != 'SYSTEM'
+        AND to_pubkey != 'SYSTEM'
+    `).get(publicKey, publicKey) as any;
+
+    // Unique trade partners: distinct counterparties excluding escrow and system
+    const uniquePartnersRow = db.prepare(`
+        SELECT COUNT(DISTINCT partner) as count FROM (
+            SELECT to_pubkey as partner FROM transactions 
+            WHERE from_pubkey = ? 
+            AND to_pubkey NOT LIKE 'escrow_%' 
+            AND to_pubkey != 'SYSTEM'
+            AND to_pubkey != ?
+            UNION
+            SELECT from_pubkey as partner FROM transactions 
+            WHERE to_pubkey = ? 
+            AND from_pubkey NOT LIKE 'escrow_%' 
+            AND from_pubkey != 'SYSTEM'
+            AND from_pubkey != ?
+        )
+    `).get(publicKey, publicKey, publicKey, publicKey) as any;
+
+    // Account age in days
+    const joinedAt = member.joinedAt ? new Date(member.joinedAt) : new Date();
+    const ageDays = Math.floor((Date.now() - joinedAt.getTime()) / (1000 * 60 * 60 * 24));
+
+    return {
+        tradeCount: tradeCountRow?.count || 0,
+        uniquePartners: uniquePartnersRow?.count || 0,
+        ageDays: Math.max(0, ageDays),
+    };
+}
+
+/**
+ * Returns the full trust profile for a member: stats, floor, ceiling, and tier.
+ * Incorporates any pre-seeded earned_credit from admin genesis invites.
+ */
+export function getMemberTrustProfile(publicKey: string): {
+    stats: TrustStats;
+    floor: number;
+    ceiling: number;
+    tier: TierInfo;
+    earnedCredit: number;
+} {
+    const stats = getMemberTrustStats(publicKey);
+
+    // Query pre-seeded earned credit from genesis invites
+    const memberRow = db.prepare("SELECT earned_credit FROM members WHERE public_key = ?").get(publicKey) as any;
+    const preSeeded = memberRow?.earned_credit || 0;
+
+    // Build augmented stats: add pre-seeded credit as equivalent trade activity
+    // This is done by calculating the raw floor first, then subtracting the pre-seeded bonus
+    const organicFloor = calculateDynamicFloor(stats);
+    const floor = organicFloor - preSeeded; // Pre-seeded credit deepens the floor
+
+    const ceiling = Math.abs(floor) * PROTOCOL_CONSTANTS.CEILING_MULTIPLIER;
+    const tier = getTier(floor);
+    const c = PROTOCOL_CONSTANTS;
+    const organicEarned = (stats.tradeCount * c.CREDIT_WEIGHT_TRADES)
+                        + (stats.uniquePartners * c.CREDIT_WEIGHT_PARTNERS)
+                        + (stats.ageDays * c.CREDIT_WEIGHT_AGE_DAYS);
+
+    return { stats, floor, ceiling, tier, earnedCredit: organicEarned + preSeeded };
+}
+
 // ===================== LEDGER =====================
 
-export function getBalance(publicKey: string): { balance: number; floor: number; commonsBalance: number } {
+export function getBalance(publicKey: string): { balance: number; floor: number; ceiling: number; tier: TierInfo; commonsBalance: number } {
     const account = ledger.getAccount(publicKey);
-    const t = getThresholds();
+    const { floor, ceiling, tier } = getMemberTrustProfile(publicKey);
     return {
         balance: Math.round(account.balance * 100) / 100,
-        floor: t.creditFloor,
+        floor,
+        ceiling,
+        tier,
         commonsBalance: Math.round(COMMONS_BALANCE * 100) / 100,
     };
 }
 
-export function transfer(from: string, to: string, amount: number, memo: string): Transaction | null {
+export function transfer(from: string, to: string, amount: number, memo: string, method?: 'direct' | 'escrow'): Transaction | null {
     if (amount <= 0) return null;
     if (!getMember(from)) registerVisitor(from);
     if (!getMember(to)) registerVisitor(to);
 
-    const success = ledger.transfer(from, to, amount);
+    // Ghost gift restriction: Ghosts can only transact via marketplace escrow
+    const isEscrow = method === 'escrow' || from.startsWith('escrow_') || to.startsWith('escrow_');
+    if (!isEscrow) {
+        const { tier } = getMemberTrustProfile(from);
+        if (!tier.canGift) {
+            console.log(`🚫 Ghost gift blocked: ${from.substring(0, 12)} attempted direct transfer`);
+            return null;
+        }
+    }
+
+    // Calculate dynamic floor for the sender (escrow wallets are exempt)
+    const senderFloor = from.startsWith('escrow_') ? -Infinity : calculateDynamicFloor(getMemberTrustStats(from));
+    const success = ledger.transfer(from, to, amount, senderFloor);
     if (!success) return null;
 
     recordActivity(from);
@@ -810,7 +942,7 @@ export function approvePostRequest(transactionId: string, authorPublicKey: strin
 
     db.transaction(() => {
         // 1. Lock the funds in Escrow — abort if transfer fails
-        const escrowResult = transfer(row.buyer_pubkey, `escrow_${row.post_id}`, row.credits, `Escrow hold for post ${row.post_id}`);
+        const escrowResult = transfer(row.buyer_pubkey, `escrow_${row.post_id}`, row.credits, `Escrow hold for post ${row.post_id}`, 'escrow');
         if (!escrowResult) throw new Error('Failed to lock funds in escrow — insufficient balance or ledger error');
         
         // 2. Mark this transaction as pending
@@ -898,7 +1030,7 @@ export function acceptPost(postId: string, buyerPublicKey: string, hours?: numbe
 
     db.transaction(() => {
         // 1. Lock funds — abort if transfer fails
-        const escrowResult = transfer(buyerPublicKey, `escrow_${post.id}`, finalCredits, `Escrow hold for offer ${post.id}`);
+        const escrowResult = transfer(buyerPublicKey, `escrow_${post.id}`, finalCredits, `Escrow hold for offer ${post.id}`, 'escrow');
         if (!escrowResult) throw new Error('Failed to lock funds in escrow — insufficient balance or ledger error');
 
         // 2. Insert pending tx
@@ -940,7 +1072,7 @@ export function completePostTransaction(transactionId: string, confirmerPublicKe
         if (row.credits > 0 && post) {
             // Funds are stored in escrow_${post.id} since the transaction went 'pending'
             // We just need to transfer from the synthetic escrow wallet to the Payee (seller_pubkey)
-            const releaseResult = transfer(`escrow_${row.post_id}`, row.seller_pubkey, row.credits, `Completed: ${post.title}`);
+            const releaseResult = transfer(`escrow_${row.post_id}`, row.seller_pubkey, row.credits, `Completed: ${post.title}`, 'escrow');
             if (!releaseResult) {
                 console.error(`[Escrow] CRITICAL: Failed to release ${row.credits} beans from escrow_${row.post_id} to ${row.seller_pubkey}`);
             }
@@ -972,7 +1104,7 @@ export function cancelPostTransaction(transactionId: string, cancellerPublicKey:
 
     db.transaction(() => {
         // Reverse Escrow Funds -> Refund Buyer
-        transfer(`escrow_${row.post_id}`, row.buyer_pubkey, row.credits, `Escrow refund for cancelled post ${row.post_id}`);
+        transfer(`escrow_${row.post_id}`, row.buyer_pubkey, row.credits, `Escrow refund for cancelled post ${row.post_id}`, 'escrow');
 
         db.prepare(`UPDATE marketplace_transactions SET status='cancelled', completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`).run(transactionId);
         const post = db.prepare(`SELECT * FROM posts WHERE id=?`).get(row.post_id) as any;
@@ -1364,7 +1496,7 @@ export function adminDeletePost(postId: string) {
         const pending = db.prepare("SELECT * FROM marketplace_transactions WHERE post_id=? AND status='pending'").all(postId) as any[];
         for (const tx of pending) {
             // Escrow refund automatically handles balance updates and transaction records
-            transfer(`escrow_${postId}`, tx.buyer_pubkey, tx.credits, `Escrow refund for removed post`);
+            transfer(`escrow_${postId}`, tx.buyer_pubkey, tx.credits, `Escrow refund for removed post`, 'escrow');
             db.prepare("UPDATE marketplace_transactions SET status='cancelled', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?").run(tx.id);
         }
         
