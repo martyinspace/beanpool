@@ -239,9 +239,19 @@ export async function getConversationMessages(conversationId: string, limit = 50
 
 // ===================== LEDGER =====================
 
+export interface TierInfo {
+    name: string;
+    emoji: string;
+    canGift: boolean;
+    canInvite: boolean;
+}
+
 export interface BalanceInfo {
     balance: number;
     floor: number;
+
+    tier: TierInfo;
+    earnedCredit?: number;
     commonsBalance: number;
     callsign: string;
 }

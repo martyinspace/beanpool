@@ -24,12 +24,9 @@ export const PROTOCOL_CONSTANTS = {
     CREDIT_WEIGHT_PARTNERS: 40,        // Each unique partner adds 40 Ʀ (1 hour of credit)
     CREDIT_WEIGHT_AGE_DAYS: 2,         // Each day of account age adds 2 Ʀ
 
-    // === Positive Ceiling (Asymmetric) ===
-    CEILING_MULTIPLIER: 2,             // Ceiling = 2 × |floor|
 
     // === Community Circulation (formerly Demurrage) ===
-    CIRCULATION_RATE: 0.005,           // 0.5% per month (below ceiling)
-    CIRCULATION_ACCELERATED_MULTIPLIER: 5, // 5× rate above ceiling = 2.5%/mo
+    CIRCULATION_RATE: 0.005,           // 0.5% per month (base rate)
     CIRCULATION_EPOCH_DAYS: 30,
 
     // === Tier Thresholds ===
@@ -86,16 +83,6 @@ export function calculateDynamicFloor(stats: TrustStats): number {
                  + (stats.uniquePartners * c.CREDIT_WEIGHT_PARTNERS)
                  + (stats.ageDays * c.CREDIT_WEIGHT_AGE_DAYS);
     return c.CREDIT_BASE_FLOOR - Math.min(c.CREDIT_MAX_EARNED, earned);
-}
-
-/**
- * Calculates the dynamic credit ceiling (positive soft cap).
- * Ceiling = 2 × |floor|
- * 
- * @returns A positive number representing the soft cap (e.g. +840)
- */
-export function calculateDynamicCeiling(stats: TrustStats): number {
-    return Math.abs(calculateDynamicFloor(stats)) * PROTOCOL_CONSTANTS.CEILING_MULTIPLIER;
 }
 
 /**

@@ -444,6 +444,12 @@ export async function getBalance(pubkey: string) {
     const row = await database.getFirstAsync<any>('SELECT balance, last_demurrage_epoch FROM accounts WHERE public_key = ?', [pubkey]);
     const commons = await database.getFirstAsync<any>('SELECT balance FROM accounts WHERE public_key = "COMMONS" OR public_key = "commons"');
     
+    // Store enriched data from server response
+    let tier = { name: 'Ghost', emoji: '👻', canGift: false, canInvite: false };
+
+    let floor = -100;
+    let earnedCredit = 0;
+
     // Background fetch to ensure parity
     AsyncStorage.getItem('beanpool_anchor_url').then((anchorUrl: string | null) => {
         if (!anchorUrl) return;
@@ -466,15 +472,40 @@ export async function getBalance(pubkey: string) {
                         ['COMMONS', balData.commonsBalance, 0]
                     );
                 }
+                // Store protocol fields in AsyncStorage for UI access
+                if (balData.tier || balData.floor !== undefined) {
+                    await AsyncStorage.setItem(`bp_tier_${pubkey}`, JSON.stringify({
+                        tier: balData.tier || tier,
+
+                        floor: balData.floor ?? floor,
+                        earnedCredit: balData.earnedCredit ?? 0,
+                    }));
+                    changed = true;
+                }
                 if (changed) {
                     DeviceEventEmitter.emit('sync_data_updated');
                 }
             }).catch(() => null);
     });
 
+    // Try to load cached tier data
+    try {
+        const cached = await AsyncStorage.getItem(`bp_tier_${pubkey}`);
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            tier = parsed.tier || tier;
+
+            floor = parsed.floor ?? floor;
+            earnedCredit = parsed.earnedCredit ?? 0;
+        }
+    } catch { /* ignore */ }
+
     return {
         balance: row?.balance || 0,
-        floor: 0,
+        floor,
+
+        tier,
+        earnedCredit,
         commons: commons?.balance || 0
     };
 }

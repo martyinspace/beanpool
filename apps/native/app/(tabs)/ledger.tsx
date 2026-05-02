@@ -12,7 +12,7 @@ export default function LedgerScreen() {
     const { identity } = useIdentity();
     const [txns, setTxns] = useState<any[]>([]);
     const [projects, setProjects] = useState<any[]>([]);
-    const [balanceState, setBalanceState] = useState({ balance: 0, floor: 0, commons: 0 });
+    const [balanceState, setBalanceState] = useState({ balance: 0, floor: -100, tier: { name: 'Ghost', emoji: '👻', canGift: false, canInvite: false }, earnedCredit: 0, commons: 0 });
     const [showSend, setShowSend] = useState(false);
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
@@ -106,9 +106,14 @@ export default function LedgerScreen() {
                 <Text style={styles.callsign}>{identity?.callsign || 'GUEST'}</Text>
                 <Text style={styles.pubkey}>{identity?.publicKey?.substring(0, 16) || '...'}...</Text>
                 
-                {/* Reputation Badge */}
-                <View style={styles.reputationBadge}>
-                    <Text style={styles.reputationText}>Rating: 4.8 ★  •  Trust Level 2</Text>
+                {/* Tier Badge */}
+                <View style={[styles.reputationBadge, {
+                    backgroundColor: balanceState.tier.name === 'Ghost' ? '#374151' : balanceState.tier.name === 'Resident' ? '#1e3a5f' : '#312e81',
+                    borderColor: balanceState.tier.name === 'Ghost' ? '#4b5563' : balanceState.tier.name === 'Resident' ? '#3b82f6' : '#7c3aed',
+                }]}>
+                    <Text style={[styles.reputationText, {
+                        color: balanceState.tier.name === 'Ghost' ? '#9ca3af' : balanceState.tier.name === 'Resident' ? '#93c5fd' : '#c4b5fd',
+                    }]}>{balanceState.tier.emoji} {balanceState.tier.name}</Text>
                 </View>
             </View>
 
@@ -117,7 +122,8 @@ export default function LedgerScreen() {
                 <View style={styles.balanceCard}>
                     <Text style={styles.balanceLabel}>Balance</Text>
                     <CurrencyDisplay style={[styles.balanceAmount, balanceState.balance >= 0 ? styles.positiveText : styles.negativeText]} amount={`${balanceState.balance >= 0 ? '+' : ''}${balanceState.balance.toFixed(2)}`} />
-                    <CurrencyDisplay style={styles.balanceFloor} amount={`Floor: ${balanceState.floor}`} />
+                    <Text style={styles.hoursEquivalent}>≈ {(Math.abs(balanceState.balance) / 40).toFixed(1)} hrs</Text>
+                    <Text style={styles.balanceFloor}>Floor: {balanceState.floor}</Text>
                 </View>
                 <View style={styles.balanceCard}>
                     <Text style={styles.balanceLabel}>Commons</Text>
@@ -126,18 +132,65 @@ export default function LedgerScreen() {
                 </View>
             </View>
 
+            {/* Community Circulation Info */}
+            {balanceState.balance > 0 && (() => {
+                const brackets = [
+                    { maxInBracket: 200, rate: 0.005 },
+                    { maxInBracket: 300, rate: 0.010 },
+                    { maxInBracket: 500, rate: 0.015 },
+                    { maxInBracket: 1000, rate: 0.020 },
+                    { maxInBracket: Infinity, rate: 0.025 }
+                ];
+                let remaining = balanceState.balance;
+                let totalCirculation = 0;
+                for (const b of brackets) {
+                    if (remaining <= 0) break;
+                    const amountInBracket = Math.min(remaining, b.maxInBracket);
+                    totalCirculation += amountInBracket * b.rate;
+                    remaining -= amountInBracket;
+                }
+                const effectiveRate = ((totalCirculation / balanceState.balance) * 100).toFixed(2);
+                const showAmber = balanceState.balance > 1000;
+
+                return (
+                    <View style={[styles.circulationBox, showAmber && styles.circulationBoxAbove]}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text style={[styles.circulationLabel, showAmber && { color: '#92400e' }]}>🌿 Community Circulation</Text>
+                            <CurrencyDisplay 
+                                style={[styles.circulationRate, showAmber && { color: '#92400e' }]} 
+                                amount={`−${totalCirculation.toFixed(3)} /mo`} 
+                            />
+                        </View>
+                        <Text style={[styles.circulationWarning, !showAmber && { color: '#059669' }]}>
+                            ≈ {effectiveRate}% /mo effective • Funds community projects
+                        </Text>
+                    </View>
+                );
+            })()}
+
+            {/* Ghost Gift Warning */}
+            {!balanceState.tier.canGift && !showSend && (
+                <View style={styles.ghostWarning}>
+                    <Text style={styles.ghostWarningText}>
+                        👻 Direct gifting unlocks at Resident tier. Trade on the Marketplace to build trust.
+                    </Text>
+                </View>
+            )}
+
             {/* Send Button */}
             <Pressable 
-                style={[styles.sendBtn, showSend && styles.sendBtnActive]} 
+                style={[styles.sendBtn, showSend && styles.sendBtnActive, !balanceState.tier.canGift && styles.sendBtnDisabled]} 
                 onPress={() => {
+                    if (!balanceState.tier.canGift) return;
                     setShowSend(!showSend);
                     setSendError(null);
                     setSendSuccess(false);
                     if (!showSend) loadMembers();
                 }}
+                disabled={!balanceState.tier.canGift}
             >
                 <Text style={styles.sendBtnText}>
-                    {showSend ? '✕ Cancel' : '💸 Send Credits'}
+                    {!balanceState.tier.canGift ? '🔒 Send Credits (Locked)' : showSend ? '✕ Cancel' : '💸 Send Credits'}
                 </Text>
             </Pressable>
 
@@ -316,8 +369,8 @@ const styles = StyleSheet.create({
     avatarEmoji: { fontSize: 32 },
     callsign: { fontSize: 20, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
     pubkey: { fontSize: 12, color: '#6b7280', fontFamily: 'Courier', marginBottom: 12 },
-    reputationBadge: { backgroundColor: '#fef3c7', paddingVertical: 6, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1, borderColor: '#fde68a' },
-    reputationText: { color: '#b45309', fontSize: 12, fontWeight: '800' },
+    reputationBadge: { paddingVertical: 6, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1 },
+    reputationText: { fontSize: 12, fontWeight: '800' },
     balanceRow: { flexDirection: 'row', gap: 16, marginBottom: 24 },
     balanceCard: { flex: 1, backgroundColor: '#ffffff', borderRadius: 20, padding: 20, alignItems: 'center', borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
     balanceLabel: { fontSize: 13, fontWeight: '600', color: '#6b7280', marginBottom: 8 },
@@ -328,7 +381,16 @@ const styles = StyleSheet.create({
     negativeText: { color: '#ef4444' },
     sendBtn: { width: '100%', paddingVertical: 16, borderRadius: 16, backgroundColor: '#d97757', alignItems: 'center', marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
     sendBtnActive: { backgroundColor: '#374151' },
+    sendBtnDisabled: { backgroundColor: '#9ca3af', opacity: 0.6 },
     sendBtnText: { color: '#ffffff', fontSize: 15, fontWeight: 'bold', letterSpacing: 0.5 },
+    hoursEquivalent: { fontSize: 12, fontWeight: '600', color: '#9ca3af', marginTop: 2, fontFamily: 'Courier' } as any,
+    circulationBox: { backgroundColor: '#ecfdf5', borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#a7f3d0' },
+    circulationBoxAbove: { backgroundColor: '#fef3c7', borderColor: '#fbbf24' },
+    circulationLabel: { fontSize: 13, fontWeight: '700', color: '#065f46' } as any,
+    circulationRate: { fontSize: 13, fontWeight: '700', color: '#047857', fontFamily: 'Courier' } as any,
+    circulationWarning: { fontSize: 11, fontWeight: '500', color: '#92400e', marginTop: 6 } as any,
+    ghostWarning: { backgroundColor: '#f3f4f6', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#e5e7eb' },
+    ghostWarningText: { fontSize: 12, fontWeight: '500', color: '#6b7280', textAlign: 'center' } as any,
     
     // Send form styles
     sendForm: { backgroundColor: '#f3f4f6', padding: 16, borderRadius: 16, marginBottom: 24, borderWidth: 1, borderColor: '#e5e7eb' },

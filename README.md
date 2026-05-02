@@ -9,7 +9,7 @@
 
 ## What is BeanPool?
 
-BeanPool is an open protocol for building a **post-extraction economy**. It connects communities through a decentralized mutual credit system where value is created through cooperation, not extraction. Nodes gossip state over a libp2p mesh, automatically applying demurrage (value decay) to prevent hoarding and fund a community Commons pool.
+BeanPool is an open protocol for building a **post-extraction economy**. It connects communities through a decentralized mutual credit system where value is created through cooperation, not extraction. Nodes gossip state over a libp2p mesh, automatically applying progressive circulation (value decay) to prevent hoarding and fund a community Commons pool.
 
 **Live network:** [review.beanpool.org](https://review.beanpool.org) · [mullum.beanpool.org](https://mullum.beanpool.org:8443) — federated via peer connectors with cross-community marketplace browsing and cryptographically secure Libp2p mesh trading.
 
@@ -102,7 +102,7 @@ Port 80 serves a community welcome hub:
 Mutual credit balance and transaction history:
 - **Send credits** to other members with member picker
 - **Balance gauge** with dynamic credit floor (see [Protocol Rules](docs/protocol-rules.md))
-- **Commons Pool** display (funds from demurrage decay)
+- **Commons Pool** display (funds from progressive circulation)
 - **Transaction history** with sent/received indicators
 
 ### 💚 Community Health Dashboard
@@ -258,11 +258,11 @@ All endpoints are served on port 8443 (HTTPS):
 
 - **Mutual Credit** — participants can go negative, backed by community trust. No money supply — the network sum is always zero.
 - **Dynamic Credit Floor** — borrowing limit grows with trade history: `floor = -80 - min(1920, trades×8 + partners×40 + age×2)`. New members start at −80 Ʀ, veterans cap at −2000 Ʀ.
-- **Asymmetric Ceiling** — positive balance ceiling = 2× |floor|. Exceeding it triggers accelerated demurrage (2.5%/month) to encourage spending.
+
 - **Reference Rate** — 40 Ʀ = 1 hour of community time. Hour equivalents shown throughout the app for value intuition.
 - **Identity Tiers** — Ghost 👻 → Resident 🏠 → Citizen 🏛️ → Elder 👑. Ghosts can only trade via marketplace escrow; no direct transfers, no invitations.
 - **Anti-Sybil (KYH)** — Know Your History, not KYC. Three layers: Ghosts can't gift (friction), Ghosts can't invite (chain-break), diverse partner requirement (no wash-trading).
-- **Demurrage (Decay)** — positive balances decay at 0.5% per month, returning to the Commons Pool
+- **Community Circulation (Progressive Brackets)** — positive balances decay progressively based on abundance (0.5% up to 2.5% per month), returning to the Commons Pool
 - **Gossip Mesh** — nodes connect via libp2p over TCP/WebSockets
 - **Federation Protocol** — peer nodes share protocol constants; cross-community trading via CORS + API
 - **Mirror Sync** — Merkle hash comparison + delta exchange every 15 minutes (backup nodes only)
@@ -279,7 +279,7 @@ All endpoints are served on port 8443 (HTTPS):
 | Document | Description |
 |----------|-------------|
 | [README.md](README.md) | Project overview, features, API table |
-| [Protocol Rules](docs/protocol-rules.md) | **The Social Capital Ledger rule book** — credit formula, tiers, anti-Sybil, demurrage, reference rate |
+| [Protocol Rules](docs/protocol-rules.md) | **The Social Capital Ledger rule book** — credit formula, tiers, anti-Sybil, progressive circulation, reference rate |
 | [HANDOVER.md](HANDOVER.md) | Agent handover: current state, LE rate limits, architecture |
 | [ROADMAP.md](ROADMAP.md) | Planned features and future work |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution guidelines, code of conduct, governance model |

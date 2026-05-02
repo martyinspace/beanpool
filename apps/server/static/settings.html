@@ -657,12 +657,12 @@
                     <input type="number" id="th-creditFloor" step="10">
                 </div>
                 <div class="field">
-                    <label>Demurrage Rate (per month, e.g. 0.005 = 0.5%)</label>
-                    <input type="number" id="th-demurrageRate" step="0.001">
+                    <label>Base Circulation Rate (progressive 0.5% - 2.5% applies automatically)</label>
+                    <input type="number" id="th-circulationRate" step="0.001">
                 </div>
                 <div class="field">
-                    <label>Demurrage Epoch (days per month)</label>
-                    <input type="number" id="th-demurrageEpochDays" step="1">
+                    <label>Circulation Epoch (days per month)</label>
+                    <input type="number" id="th-circulationEpochDays" step="1">
                 </div>
 
                 <!-- Network -->
@@ -762,7 +762,7 @@
             <!-- Commons & Voting -->
             <div class="glass" data-tab="commons" style="display:none;">
                 <h3>🏛️ Community Commons</h3>
-                <p style="font-size:0.8rem;color:#64748b;margin-bottom:1rem;">Manage the demurrage pool, voting rounds, and community projects.</p>
+                <p style="font-size:0.8rem;color:#64748b;margin-bottom:1rem;">Manage the circulation pool, voting rounds, and community projects.</p>
 
                 <!-- Pool Balance -->
                 <div style="display:flex;gap:1rem;margin-bottom:1rem;">
@@ -1434,7 +1434,7 @@
         // ===================== THRESHOLDS =====================
 
         const THRESHOLD_KEYS = [
-            'creditFloor', 'demurrageRate', 'demurrageEpochDays',
+            'creditFloor', 'circulationRate', 'circulationEpochDays',
             'syncIntervalMin', 'initialSyncDelaySec', 'handshakeIntervalSec',
             'retryIntervalSec', 'maxRetryBackoffMin',
             'washTradingWindowHours', 'washTradingMinTxns', 'inactiveMemberDays', 'isolatedBranchMinTxns',

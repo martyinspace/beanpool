@@ -27,6 +27,8 @@ export default function PeopleScreen() {
     const [intendedFor, setIntendedFor] = useState('');
     const [invites, setInvites] = useState<any[]>([]);
     const [anchorUrl, setAnchorUrl] = useState('https://review.beanpool.org:8443');
+    const [canInvite, setCanInvite] = useState(true);
+    const [tierName, setTierName] = useState('');
 
     useEffect(() => {
         if (view === 'community') loadMembers();
@@ -34,6 +36,16 @@ export default function PeopleScreen() {
         AsyncStorage.getItem('beanpool_anchor_url').then(val => {
             if (val) setAnchorUrl(val);
         }).catch(() => {});
+        // Load tier data for invite gating
+        if (identity?.publicKey) {
+            AsyncStorage.getItem(`bp_tier_${identity.publicKey}`).then(cached => {
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    setCanInvite(parsed.tier?.canInvite ?? true);
+                    setTierName(parsed.tier?.name ?? '');
+                }
+            }).catch(() => {});
+        }
     }, [view]);
 
     const loadOfflineInvites = async () => {
@@ -234,20 +246,30 @@ export default function PeopleScreen() {
                     <Text style={styles.sectionHeader}>🎟️ Invite Someone</Text>
                     <Text style={styles.sectionDesc}>Each offline ticket can only be used once. Generate a cryptographic payload directly on this device.</Text>
 
+                    {!canInvite && (
+                        <View style={{ backgroundColor: '#374151', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#4b5563' }}>
+                            <Text style={{ color: '#9ca3af', fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
+                                👻 Invite generation unlocks at <Text style={{ color: '#c4b5fd', fontWeight: '800' }}>Resident</Text> tier.
+                                Trade on the Marketplace to build trust.
+                            </Text>
+                        </View>
+                    )}
+
                     <TextInput
                         placeholder="Who is this invite for? (Optional)"
                         value={intendedFor}
                         onChangeText={setIntendedFor}
                         style={styles.input}
                         placeholderTextColor="#9ca3af"
+                        editable={canInvite}
                     />
 
                     <Pressable
-                        style={[styles.btnGenerate, generating && { opacity: 0.6 }]}
+                        style={[styles.btnGenerate, (generating || !canInvite) && { opacity: 0.6 }]}
                         onPress={handleGenerate}
-                        disabled={generating}
+                        disabled={generating || !canInvite}
                     >
-                        <Text style={styles.btnGenerateText}>{generating ? 'Generating...' : '✨ Generate Offline Ticket'}</Text>
+                        <Text style={styles.btnGenerateText}>{!canInvite ? '🔒 Invites Locked' : generating ? 'Generating...' : '✨ Generate Offline Ticket'}</Text>
                     </Pressable>
 
                     {newCode ? (

@@ -10,7 +10,7 @@ import {
     getBalance, getTransactions, sendTransfer, getMembers,
     getCommonsProjects, proposeProject, voteForProject, getMemberProfile,
     updateCommunityProject, deleteCommunityProject,
-    type BalanceInfo, type Transaction, type Member,
+    type BalanceInfo, type TierInfo, type Transaction, type Member,
     type CommunityProject, type VotingRound, type MemberProfile,
 } from '../lib/api';
 
@@ -97,6 +97,12 @@ export function LedgerPage({ identity }: Props) {
     }
 
     const balance = balanceInfo?.balance ?? 0;
+    const tier = balanceInfo?.tier;
+    const floor = balanceInfo?.floor ?? -100;
+
+    const canGift = tier?.canGift ?? true;
+    const canInvite = tier?.canInvite ?? true;
+    const hoursEquivalent = Math.abs(balance) / 40;
 
     return (
         <div className="p-4 max-w-[600px] mx-auto min-h-full">
@@ -115,6 +121,16 @@ export function LedgerPage({ identity }: Props) {
                 <p className="text-nature-500 text-xs font-mono">
                     {identity.publicKey.substring(0, 16)}...
                 </p>
+                {tier && (
+                    <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold" style={{
+                        background: tier.name === 'Ghost' ? '#374151' : tier.name === 'Resident' ? '#1e3a5f' : '#312e81',
+                        color: tier.name === 'Ghost' ? '#9ca3af' : tier.name === 'Resident' ? '#93c5fd' : '#c4b5fd',
+                        border: `1px solid ${tier.name === 'Ghost' ? '#4b5563' : tier.name === 'Resident' ? '#3b82f6' : '#7c3aed'}40`,
+                    }}>
+                        <span>{tier.emoji}</span>
+                        <span>{tier.name}</span>
+                    </div>
+                )}
             </div>
 
             {/* Balance */}
@@ -124,8 +140,13 @@ export function LedgerPage({ identity }: Props) {
                     <p className={`text-3xl font-bold font-mono ${loading ? 'text-nature-400' : balance >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                         {loading ? '...' : <span style={{ whiteSpace: 'nowrap', display: 'inline-block' }}>{balance >= 0 ? '+' : ''}{balance.toFixed(2)}&nbsp;<img src="/assets/bean.png" style={{ display: 'inline-block', width: '22px', height: '22px', verticalAlign: 'middle', marginTop: '-4px' }} alt="B" /></span>}
                     </p>
+                    {!loading && (
+                        <p className="text-nature-400 text-xs mt-1 font-mono">
+                            ≈ {hoursEquivalent.toFixed(1)} hrs
+                        </p>
+                    )}
                     <p className="text-nature-400 text-xs mt-1 font-medium">
-                        Floor: <span style={{ whiteSpace: 'nowrap', display: 'inline-block' }}>{balanceInfo?.floor ?? -100}&nbsp;<img src="/assets/bean.png" style={{ display: 'inline-block', width: '12px', height: '12px', verticalAlign: 'middle', marginTop: '-2px' }} alt="B" /></span>
+                        Floor: <span style={{ whiteSpace: 'nowrap', display: 'inline-block' }}>{floor}&nbsp;<img src="/assets/bean.png" style={{ display: 'inline-block', width: '12px', height: '12px', verticalAlign: 'middle', marginTop: '-2px' }} alt="B" /></span>
                     </p>
                 </div>
 
@@ -141,13 +162,22 @@ export function LedgerPage({ identity }: Props) {
             </div>
 
             {/* Send Credits Button */}
+            {!canGift && !showSend && (
+                <div className="bg-nature-100 dark:bg-nature-800/50 border border-nature-200 dark:border-nature-700 rounded-xl p-3 mb-2 text-center">
+                    <p className="text-[12px] text-nature-500 dark:text-nature-400 font-medium">
+                        👻 Direct gifting unlocks at <strong>Resident</strong> tier. Trade on the Marketplace to build trust.
+                    </p>
+                </div>
+            )}
             <button
-                onClick={() => setShowSend(!showSend)}
+                onClick={() => canGift && setShowSend(!showSend)}
+                disabled={!canGift}
                 className={`w-full p-4 rounded-xl text-[15px] font-bold border-none cursor-pointer mb-4 transition-all shadow-md ${
+                    !canGift ? 'bg-nature-300 dark:bg-nature-700 text-nature-500 cursor-not-allowed opacity-60' :
                     showSend ? 'bg-nature-800 text-white hover:bg-nature-900' : 'bg-[#d97757] text-white hover:bg-[#c26749] hover:shadow-lg'
                 }`}
             >
-                {showSend ? '✕ Cancel' : '💸 Send Credits'}
+                {!canGift ? '🔒 Send Credits (Locked)' : showSend ? '✕ Cancel' : '💸 Send Credits'}
             </button>
 
             {/* Send Form */}
@@ -202,17 +232,42 @@ export function LedgerPage({ identity }: Props) {
                 </div>
             )}
 
-            {/* Decay info */}
-            {balance > 0 && (
-                <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-6 flex justify-between items-center shadow-sm">
-                    <span className="text-[13px] font-bold text-red-600">
-                        🔥 Monthly Decay (0.5%)
-                    </span>
-                    <span className="text-[13px] font-bold text-red-700 font-mono" style={{ whiteSpace: 'nowrap', display: 'inline-block' }}>
-                        −{(balance * 0.005).toFixed(3)}&nbsp;<img src="/assets/bean.png" style={{ display: 'inline-block', width: '13px', height: '13px', verticalAlign: 'middle', marginTop: '-2px' }} alt="B" /> /mo → Commons
-                    </span>
-                </div>
-            )}
+            {/* Community Circulation info */}
+            {balance > 0 && (() => {
+                const brackets = [
+                    { maxInBracket: 200, rate: 0.005 },
+                    { maxInBracket: 300, rate: 0.010 },
+                    { maxInBracket: 500, rate: 0.015 },
+                    { maxInBracket: 1000, rate: 0.020 },
+                    { maxInBracket: Infinity, rate: 0.025 }
+                ];
+                let remaining = balance;
+                let totalCirculation = 0;
+                for (const b of brackets) {
+                    if (remaining <= 0) break;
+                    const amountInBracket = Math.min(remaining, b.maxInBracket);
+                    totalCirculation += amountInBracket * b.rate;
+                    remaining -= amountInBracket;
+                }
+                const effectiveRate = ((totalCirculation / balance) * 100).toFixed(2);
+                const showAmber = balance > 1000;
+
+                return (
+                    <div className="rounded-xl p-4 mb-6 shadow-sm" style={{ background: showAmber ? 'linear-gradient(135deg, #fef3c7, #fde68a)' : '#ecfdf5', border: `1px solid ${showAmber ? '#fbbf24' : '#a7f3d0'}` }}>
+                        <div className="flex justify-between items-center">
+                            <span className="text-[13px] font-bold" style={{ color: showAmber ? '#92400e' : '#065f46' }}>
+                                🌿 Community Circulation
+                            </span>
+                            <span className="text-[13px] font-bold font-mono" style={{ color: showAmber ? '#92400e' : '#047857', whiteSpace: 'nowrap', display: 'inline-block' }}>
+                                −{totalCirculation.toFixed(3)}&nbsp;<img src="/assets/bean.png" style={{ display: 'inline-block', width: '13px', height: '13px', verticalAlign: 'middle', marginTop: '-2px' }} alt="B" /> /mo → Commons
+                            </span>
+                        </div>
+                        <p className="text-[11px] mt-2 font-medium" style={{ color: showAmber ? '#92400e' : '#059669' }}>
+                            ≈ {effectiveRate}% /mo effective • Funds community projects
+                        </p>
+                    </div>
+                );
+            })()}
 
             {/* Community Projects */}
             <div className="bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-2xl p-5 mb-6 shadow-sm">

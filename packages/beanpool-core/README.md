@@ -13,10 +13,10 @@ Each participant generates an **Ed25519 keypair** locally on their device. There
 *   **Profiles**: Avatar, editable callsign, bio, and contact details with 3-tier visibility (hidden / trade partners / community).
 *   **Signatures**: Every action (creating a pin, sending mutual credit) is mathematically signed by the mobile app's Ed25519 private key.
 
-### 1.2 Economics (Mutual Credit + Demurrage)
+### 1.2 Economics (Mutual Credit + Circulation)
 A peer-to-peer economic layer designed to encourage circulation rather than accumulation.
 *   **Mutual Credit**: Participants begin with 0.00 credits and a guaranteed credit floor of `−100Ʀ`. This enables immediate participation — you can contribute value before receiving it.
-*   **Demurrage (Decay)**: Positive balances decay at 0.5% per month. The decayed value is swept into a shared `COMMONS_BALANCE`, funding community projects via governance proposals.
+*   **Community Circulation (Decay)**: Positive balances decay progressively based on abundance (0.5% - 2.5% per month). The circulated value is swept into a shared `COMMONS_BALANCE`, funding community projects via governance proposals.
 *   **Escrow Settlement**: Marketplace deals utilize atomic `escrow_{id}` synthetic wallets to lock funds prior to service delivery, guaranteeing robust refunds on cancellation without double-charging base ledgers.
 
 ### 1.3 Governance (Quadratic Voting)

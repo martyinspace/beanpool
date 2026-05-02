@@ -62,7 +62,12 @@ export class LedgerManager {
     }
 
     /**
-     * Applies demurrage using discrete compounding: V = V0 * (1 - 0.005) ^ (months)
+     * Applies demurrage using progressive brackets:
+     * 1st Bracket (0–200 Ʀ): 0.5%/mo
+     * 2nd Bracket (200–500 Ʀ): 1.0%/mo
+     * 3rd Bracket (500–1000 Ʀ): 1.5%/mo
+     * 4th Bracket (1000–2000 Ʀ): 2.0%/mo
+     * 5th Bracket (2000+ Ʀ): 2.5%/mo
      * The decayed amount is transferred to the global COMMONS_BALANCE.
      */
     private applyDecay(account: LedgerAccount, currentEpoch: number): LedgerAccount {
@@ -74,14 +79,12 @@ export class LedgerManager {
             return account;
         }
 
-        // Discrete formula: Balance_new = Balance_old * (1 - 0.005) ^ (months passed)
-        // Assuming 30 Epochs (days) = 1 month
         const monthsPassed = epochsPassed / 30;
-        const decayedBalance = account.balance * Math.pow(1 - 0.005, monthsPassed);
-        const decayedAmount = account.balance - decayedBalance;
+        const newBalance = this._calculateProgressiveDecay(account.balance, monthsPassed);
+        const decayedAmount = account.balance - newBalance;
 
         COMMONS_BALANCE += decayedAmount;
-        account.balance = decayedBalance;
+        account.balance = newBalance;
         account.lastDemurrageEpoch = currentEpoch;
 
         return account;
@@ -97,7 +100,37 @@ export class LedgerManager {
         if (epochsPassed <= 0) return balance;
 
         const monthsPassed = epochsPassed / 30;
-        return balance * Math.pow(1 - 0.005, monthsPassed);
+        return this._calculateProgressiveDecay(balance, monthsPassed);
+    }
+
+    /**
+     * Internal helper to calculate progressive decay based on brackets
+     */
+    private _calculateProgressiveDecay(balance: number, monthsPassed: number): number {
+        if (balance <= 0) return balance;
+
+        const brackets = [
+            { maxInBracket: 200, rate: 0.005 }, // 0 - 200
+            { maxInBracket: 300, rate: 0.010 }, // 200 - 500
+            { maxInBracket: 500, rate: 0.015 }, // 500 - 1000
+            { maxInBracket: 1000, rate: 0.020 }, // 1000 - 2000
+            { maxInBracket: Infinity, rate: 0.025 } // 2000+
+        ];
+
+        let remainingBalance = balance;
+        let newBalance = 0;
+
+        for (const bracket of brackets) {
+            if (remainingBalance <= 0) break;
+
+            const amountInBracket = Math.min(remainingBalance, bracket.maxInBracket);
+            const decayedAmount = amountInBracket * Math.pow(1 - bracket.rate, monthsPassed);
+            
+            newBalance += decayedAmount;
+            remainingBalance -= amountInBracket;
+        }
+
+        return newBalance;
     }
 
     /**

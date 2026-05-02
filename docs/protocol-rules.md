@@ -14,7 +14,7 @@
 3. [Reference Rate](#3-reference-rate)
 4. [Mutual Credit](#4-mutual-credit)
 5. [Dynamic Credit Floor (Borrowing Limit)](#5-dynamic-credit-floor-borrowing-limit)
-6. [Dynamic Credit Ceiling (Saving Limit)](#6-dynamic-credit-ceiling-saving-limit)
+
 7. [Identity Tiers](#7-identity-tiers)
 8. [Community Circulation (Value Decay)](#8-community-circulation-value-decay)
 9. [Invitations](#9-invitations)
@@ -35,8 +35,7 @@ BeanPool operates a **mutual credit** system. There is no money supply. When Ali
 The rules in this document exist to answer three questions:
 
 1. **How much can someone borrow?** → The Dynamic Credit Floor.
-2. **How much can someone save?** → The Dynamic Credit Ceiling.
-3. **How do we stop cheating?** → Anti-Sybil Defences.
+2. **How do we stop cheating?** → Anti-Sybil Defences.
 
 ---
 
@@ -91,7 +90,6 @@ Every member has a **balance** that can be positive (they are owed value) or neg
 
 Balances are bounded by two limits:
 - The **floor** — how far negative you can go (your borrowing power).
-- The **ceiling** — how far positive you can go before soft penalties apply.
 
 ---
 
@@ -143,33 +141,6 @@ The credit floor represents **the community's trust in you**, measured by your h
 
 ---
 
-## 6. Dynamic Credit Ceiling (Saving Limit)
-
-The credit ceiling is **twice the absolute value of the floor**. This is an asymmetric design:
-
-```
-ceiling = |floor| × 2
-```
-
-| Floor | Ceiling |
-| :--- | :--- |
-| −80 Ʀ | +160 Ʀ |
-| −420 Ʀ | +840 Ʀ |
-| −2000 Ʀ | +4000 Ʀ |
-
-### Why asymmetric?
-
-- A **negative balance** is a liability to the community. If someone at −2000 disappears, the community absorbs that loss.
-- A **positive balance** is stored goodwill. If someone at +4000 disappears, *they* lost out — the community is unaffected.
-
-It is therefore safe (and fair) to let productive members accumulate more than they can borrow.
-
-### What happens above the ceiling?
-
-The ceiling is a **soft cap**, not a hard wall. Members can exceed the ceiling, but balances above the ceiling are subject to **accelerated demurrage** (see Section 8). This creates gentle economic pressure to spend, donate, or invest excess beans — without hard-blocking someone in the middle of a productive streak.
-
----
-
 ## 7. Identity Tiers
 
 Every member's tier is determined automatically by their dynamic credit floor. Tiers are cosmetic labels that communicate trust level at a glance. They also gate certain capabilities.
@@ -198,27 +169,37 @@ Community Circulation is a small periodic reduction applied to **positive balanc
 
 > **Why "Community Circulation"?** Positive balances represent value you've earned but haven't yet spent locally. Circulation gently encourages that stored value to flow back into the community — funding projects, rewarding neighbours, and keeping the economy alive.
 
-### Standard Circulation
+### Progressive Circulation Brackets
 
-- **Rate:** 0.5% per month
-- **Epoch:** Applied every 30 days
-- **Applies to:** Positive balances only (you don't pay circulation on debt)
-- **Destination:** Circulated beans flow to the community Commons Pool
+Circulation works like progressive tax brackets. The rate is determined by the size of the holding, regardless of the member's tier. 
 
-### Accelerated Circulation (Above Ceiling)
+| Bracket | Balance Range | Rate | Hours Equivalent |
+|---|---|---|---|
+| 1st | 0 – 200 Ʀ | **0.5%**/mo | 0–5 hrs |
+| 2nd | 200 – 500 Ʀ | **1.0%**/mo | 5–12.5 hrs |
+| 3rd | 500 – 1000 Ʀ | **1.5%**/mo | 12.5–25 hrs |
+| 4th | 1000 – 2000 Ʀ | **2.0%**/mo | 25–50 hrs |
+| 5th | 2000+ Ʀ | **2.5%**/mo | 50+ hrs |
 
-Balances that exceed the member's dynamic ceiling are subject to **5× the standard rate**:
+- **Epoch:** Applied lazily upon account access (synced based on the last access timestamp).
+- **Applies to:** Positive balances only (you don't pay circulation on debt).
+- **Destination:** Circulated beans flow directly to the community Commons Pool.
 
-- **Rate:** 2.5% per month (on the portion above the ceiling)
-- **Purpose:** Soft pressure to circulate excess beans — donate to projects, tip community members, or invest in community infrastructure
-- **UI Display:** "You are 160 Ʀ above your soft cap. In 4 days, ≈4 Ʀ will flow to the Community Fund to encourage local trade."
+### Why Progressive Brackets?
+
+This structure replaces the previous "accelerated ceiling" model with a more equitable system:
+- **Fair:** A Ghost holding 100 Ʀ and an Ambassador holding 100 Ʀ pay exactly the same circulation rate.
+- **Anti-hoarding:** The more you stockpile, the steeper the marginal rate. It gently forces high-accumulation accounts to spend or donate.
+- **Gentle at the bottom:** Most active members sitting in the 50–200 Ʀ range barely notice the circulation (0.5%).
 
 ### Example
 
-A Citizen with a ceiling of +840 Ʀ holds a balance of +1000 Ʀ:
-- First 840 Ʀ circulates at 0.5%/month = −4.20 Ʀ
-- Remaining 160 Ʀ (above ceiling) circulates at 2.5%/month = −4.00 Ʀ
-- Total monthly circulation: −8.20 Ʀ → Commons Pool
+A member holds a balance of +800 Ʀ:
+- First 200 at 0.5% → −1.00 Ʀ
+- Next 200 at 1.0% → −2.00 Ʀ
+- Next 200 at 1.5% → −3.00 Ʀ
+- Final 200 at 2.0% → −4.00 Ʀ
+- **Total monthly circulation:** −10.00 Ʀ → Commons Pool
 
 ---
 
@@ -317,7 +298,7 @@ The system is designed so that **being a good community member is always more pr
 
 | Path | Outcome |
 | :--- | :--- |
-| Trade honestly for 3 months | −900 Ʀ credit line, +1800 Ʀ ceiling, Citizen status, invitation privileges, community reputation |
+| Trade honestly for 3 months | −900 Ʀ credit line, Citizen status, invitation privileges, community reputation |
 | Create 5 puppets | 400 Ʀ extracted (one-time), Ghost status on puppets (can't chain), visible on invitation tree, no more puppets possible |
 
 ---
@@ -337,8 +318,7 @@ The marketplace is the primary venue for economic activity. All trades between m
 
 Escrow wallets (`escrow_*`) are **system-managed accounts**, not human credit lines. They are exempt from:
 - Dynamic credit floor
-- Dynamic credit ceiling
-- Demurrage
+- Community Circulation
 
 ---
 
@@ -401,7 +381,7 @@ When BeanPool nodes connect as **peers**, they form a federated network. The pro
 ### What is shared across nodes
 
 - Credit formula and weights
-- Demurrage rate and epoch
+- Circulation rate and epoch
 - Tier thresholds
 - Reference rate
 
@@ -438,12 +418,9 @@ All values are defined in `beanpool-core/src/protocol.ts` and are identical acro
 │    Per unique partner:     +40 Ʀ                     │
 │    Per day of age:         +2 Ʀ                      │
 │                                                      │
-│  Credit Ceiling:           2× |floor|                │
-│    Max Ceiling:            +4000 Ʀ (≈ 100 hours)    │
-│                                                      │
 │  Community Circulation:                              │
-│    Standard:               0.5% / month              │
-│    Accelerated (>ceiling): 2.5% / month              │
+│    Base rate:              0.5% / month              │
+│    Max rate:               2.5% / month (2000+ Ʀ)    │
 │    Epoch:                  30 days                    │
 │                                                      │
 │  Anti-Sybil:                                         │
@@ -468,8 +445,8 @@ All values are defined in `beanpool-core/src/protocol.ts` and are identical acro
 | :--- | :--- |
 | **Balance** | A member's current credit position. Positive = owed by community. Negative = owes the community. |
 | **Bean (Ʀ)** | The unit of account in BeanPool. |
-| **Ceiling** | The soft upper limit on positive balances. Exceeding it triggers accelerated demurrage. |
-| **Commons Pool** | A community fund filled by demurrage decay. Used for community projects. |
+
+| **Commons Pool** | A community fund filled by community circulation. Used for community projects. |
 | **Community Circulation** | Periodic decay of positive balances, preventing hoarding. Formerly called "demurrage." |
 | **Dynamic Floor** | The borrowing limit, calculated from trade history. Grows with trust. |
 | **Escrow** | A system-managed wallet that holds beans during a marketplace trade until both parties confirm completion. |

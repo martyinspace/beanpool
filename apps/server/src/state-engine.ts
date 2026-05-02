@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { LedgerManager, COMMONS_BALANCE, calculateDynamicFloor, calculateDynamicCeiling, getTier, getGenesisEarnedCredit, PROTOCOL_CONSTANTS } from '@beanpool/core';
+import { LedgerManager, COMMONS_BALANCE, calculateDynamicFloor, getTier, getGenesisEarnedCredit, PROTOCOL_CONSTANTS } from '@beanpool/core';
 import type { TrustStats, TierInfo, GenesisInviteType } from '@beanpool/core';
 import { getThresholds, getLocalConfig } from './local-config.js';
 import { db, initSchema, migrateLegacyState } from './db/db.js';
@@ -647,7 +647,7 @@ export function getMemberTrustStats(publicKey: string): TrustStats {
 export function getMemberTrustProfile(publicKey: string): {
     stats: TrustStats;
     floor: number;
-    ceiling: number;
+
     tier: TierInfo;
     earnedCredit: number;
 } {
@@ -662,25 +662,25 @@ export function getMemberTrustProfile(publicKey: string): {
     const organicFloor = calculateDynamicFloor(stats);
     const floor = organicFloor - preSeeded; // Pre-seeded credit deepens the floor
 
-    const ceiling = Math.abs(floor) * PROTOCOL_CONSTANTS.CEILING_MULTIPLIER;
+
     const tier = getTier(floor);
     const c = PROTOCOL_CONSTANTS;
     const organicEarned = (stats.tradeCount * c.CREDIT_WEIGHT_TRADES)
                         + (stats.uniquePartners * c.CREDIT_WEIGHT_PARTNERS)
                         + (stats.ageDays * c.CREDIT_WEIGHT_AGE_DAYS);
 
-    return { stats, floor, ceiling, tier, earnedCredit: organicEarned + preSeeded };
+    return { stats, floor, tier, earnedCredit: organicEarned + preSeeded };
 }
 
 // ===================== LEDGER =====================
 
-export function getBalance(publicKey: string): { balance: number; floor: number; ceiling: number; tier: TierInfo; commonsBalance: number } {
+export function getBalance(publicKey: string): { balance: number; floor: number; tier: TierInfo; commonsBalance: number } {
     const account = ledger.getAccount(publicKey);
-    const { floor, ceiling, tier } = getMemberTrustProfile(publicKey);
+    const { floor, tier } = getMemberTrustProfile(publicKey);
     return {
         balance: Math.round(account.balance * 100) / 100,
         floor,
-        ceiling,
+
         tier,
         commonsBalance: Math.round(COMMONS_BALANCE * 100) / 100,
     };

@@ -37,8 +37,13 @@ export interface LocalConfig {
 export interface Thresholds {
     // Credit
     creditFloor: number;        // Max debt allowed (default: -100)
-    demurrageRate: number;      // Monthly decay rate (default: 0.005 = 0.5%)
-    demurrageEpochDays: number; // Days per epoch month (default: 30)
+    circulationRate: number;    // Base monthly decay rate (unused with brackets, kept for legacy UI)
+    circulationEpochDays: number; // Days per epoch month (default: 30)
+    
+    // Legacy mapping support
+    demurrageRate?: number;
+    demurrageEpochDays?: number;
+
     // Network
     syncIntervalMin: number;    // Minutes between syncs (default: 15)
     initialSyncDelaySec: number;// Seconds after boot to first sync (default: 30)
@@ -70,7 +75,18 @@ const DEFAULT_CONFIG: LocalConfig = {
 export function getLocalConfig(): LocalConfig {
     try {
         if (fs.existsSync(CONFIG_PATH)) {
-            return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+            const raw = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')) as LocalConfig;
+            
+            // Backward compatibility for demurrage -> circulation renaming
+            if (raw.thresholds) {
+                if (raw.thresholds.demurrageRate !== undefined && raw.thresholds.circulationRate === undefined) {
+                    raw.thresholds.circulationRate = raw.thresholds.demurrageRate;
+                }
+                if (raw.thresholds.demurrageEpochDays !== undefined && raw.thresholds.circulationEpochDays === undefined) {
+                    raw.thresholds.circulationEpochDays = raw.thresholds.demurrageEpochDays;
+                }
+            }
+            return raw;
         }
     } catch (e) {
         console.warn('[Config] Failed to read local config:', e);
@@ -150,8 +166,8 @@ export function initAdminPassword(): void {
 
 export const DEFAULT_THRESHOLDS: Thresholds = {
     creditFloor: -100,
-    demurrageRate: 0.005,
-    demurrageEpochDays: 30,
+    circulationRate: 0.005,
+    circulationEpochDays: 30,
     syncIntervalMin: 15,
     initialSyncDelaySec: 30,
     handshakeIntervalSec: 10,
@@ -172,6 +188,11 @@ export function getThresholds(): Thresholds {
 export function updateThresholds(updates: Partial<Thresholds>): Thresholds {
     const config = getLocalConfig();
     const current = { ...DEFAULT_THRESHOLDS, ...(config.thresholds || {}) };
+    
+    // Support saving old keys by mapping them to new ones if passed
+    if (updates.demurrageRate !== undefined) updates.circulationRate = updates.demurrageRate;
+    if (updates.demurrageEpochDays !== undefined) updates.circulationEpochDays = updates.demurrageEpochDays;
+    
     const merged = { ...current, ...updates };
     config.thresholds = merged;
     saveLocalConfig(config);

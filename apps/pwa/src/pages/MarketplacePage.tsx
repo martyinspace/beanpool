@@ -415,6 +415,11 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                     {{ fixed: '', hourly: '/Hr', daily: '/Dy', weekly: '/Wk', monthly: '/Mo' }[selectedPost.priceType] || ''}
                                 </span>
                             </div>
+                            {selectedPost.credits > 0 && (
+                                <p className="text-nature-400 text-xs mt-1 font-mono">
+                                    ≈ {(selectedPost.credits / 40).toFixed(1)} hrs
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>
