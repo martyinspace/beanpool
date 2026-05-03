@@ -48,6 +48,7 @@ export interface MarketplacePost {
     lng?: number;
     photos?: string[];
     originNode?: string;
+    authorEnergyCycled?: number;
 }
 
 export interface MarketplaceTransaction {
@@ -197,6 +198,8 @@ export function initStateEngine(): void {
     db.pragma('foreign_keys = OFF');
     try {
         db.prepare("INSERT OR IGNORE INTO members (public_key, callsign, invited_by, invite_code) VALUES ('SYSTEM', 'System', 'genesis', 'genesis')").run();
+        // Cleanup legacy escrow users that were accidentally registered as visitors
+        db.prepare("DELETE FROM members WHERE public_key LIKE 'escrow_%'").run();
     } finally {
         db.pragma('foreign_keys = ON');
     }
@@ -529,7 +532,7 @@ export function getInviteTree(rootPubkey?: string): InviteTreeNode[] {
     }
 
     return allMembers
-        .filter(m => m.invitedBy === 'genesis' || m.publicKey === 'genesis')
+        .filter(m => (m.invitedBy === 'genesis' || m.publicKey === 'genesis') && m.publicKey !== 'SYSTEM' && !m.publicKey.startsWith('escrow_'))
         .map(m => ({
             publicKey: m.publicKey, callsign: m.callsign, joinedAt: m.joinedAt, inviteCode: m.inviteCode,
             children: buildSubtree(m.publicKey),
@@ -688,8 +691,8 @@ export function getBalance(publicKey: string): { balance: number; floor: number;
 
 export function transfer(from: string, to: string, amount: number, memo: string, method?: 'direct' | 'escrow'): Transaction | null {
     if (amount <= 0) return null;
-    if (!getMember(from)) registerVisitor(from);
-    if (!getMember(to)) registerVisitor(to);
+    if (!from.startsWith('escrow_') && !getMember(from)) registerVisitor(from);
+    if (!to.startsWith('escrow_') && !getMember(to)) registerVisitor(to);
 
     // Ghost gift restriction: Ghosts can only transact via marketplace escrow
     const isEscrow = method === 'escrow' || from.startsWith('escrow_') || to.startsWith('escrow_');
@@ -766,7 +769,8 @@ function rowToPost(row: any, photos: any[]): MarketplacePost {
         lat: row.lat,
         lng: row.lng,
         photos: photos.filter((p: any) => p.post_id === row.id).sort((a: any, b: any) => a.order_num - b.order_num).map((p: any) => p.photo_data),
-        originNode: row.origin_node
+        originNode: row.origin_node,
+        authorEnergyCycled: row.author_energy_cycled ?? 0
     };
 }
 
@@ -799,7 +803,8 @@ export function createPost(
 
 export function getPosts(filter?: { id?: string; type?: string; category?: string; status?: string; offset?: number; limit?: number; updatedAfter?: string }): MarketplacePost[] {
     let query = `
-        SELECT p.*, m.callsign as author_callsign, a.callsign as accepted_callsign
+        SELECT p.*, m.callsign as author_callsign, a.callsign as accepted_callsign,
+               COALESCE((SELECT SUM(amount) FROM transactions WHERE from_pubkey = m.public_key), 0) as author_energy_cycled
         FROM posts p
         LEFT JOIN members m ON p.author_pubkey = m.public_key
         LEFT JOIN members a ON p.accepted_by = a.public_key

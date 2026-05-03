@@ -75,13 +75,7 @@ export default function TabLayout() {
                     tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>🤝</Text> 
                 }} 
             />
-            <Tabs.Screen 
-                name="projects" 
-                options={{ 
-                    title: 'Projects',
-                    tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>🌱</Text> 
-                }} 
-            />
+
             <Tabs.Screen 
                 name="chats" 
                 options={{ 
@@ -95,6 +89,13 @@ export default function TabLayout() {
                 options={{ 
                     title: 'People',
                     tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>👥</Text> 
+                }} 
+            />
+            <Tabs.Screen 
+                name="projects" 
+                options={{ 
+                    title: 'Projects',
+                    tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>🌱</Text> 
                 }} 
             />
             <Tabs.Screen 

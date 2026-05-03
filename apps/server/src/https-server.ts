@@ -66,6 +66,7 @@ import {
 import { getCrowdfundProjects, getCrowdfundProject, createCrowdfundProject, updateCrowdfundProject, pledgeToProject, deleteCrowdfundProject } from './db/db.js';
 
 const PUBLIC_DIR = path.resolve('public');
+import { PROTOCOL_CONSTANTS } from '@beanpool/core';
 import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -810,7 +811,7 @@ export async function startHttpsServer(port: number): Promise<void> {
                     if (targetConnector && targetConnector.peerId) {
                         const verifyResult = await federatedVerifyMember(p2pNode, targetConnector.peerId, from);
                         const homeBalance = verifyResult?.homeBalance ?? 0;
-                        const floor = -100; // hardcoded BeanPool credit floor
+                        const floor = PROTOCOL_CONSTANTS.CREDIT_BASE_FLOOR; // use base floor for conservative federation check
                         if (!verifyResult || !verifyResult.isMember || (homeBalance - parsedAmount < floor)) {
                             ctx.status = 400;
                             ctx.body = { error: 'Federation check failed: Insufficient funds on home node or member not recognized.' };
@@ -1385,7 +1386,7 @@ export async function startHttpsServer(port: number): Promise<void> {
                     if (targetConnector && targetConnector.peerId) {
                         const verifyResult = await federatedVerifyMember(p2pNode, targetConnector.peerId, fromPubkey);
                         const homeBalance = verifyResult?.homeBalance ?? 0;
-                        const floor = -100; // hardcoded BeanPool credit floor
+                        const floor = PROTOCOL_CONSTANTS.CREDIT_BASE_FLOOR; // use base floor for conservative federation check
                         if (!verifyResult || !verifyResult.isMember || (homeBalance - parsedAmount < floor)) {
                             ctx.status = 400;
                             ctx.body = { error: 'Federation check failed: Insufficient funds on home node or member not recognized.' };

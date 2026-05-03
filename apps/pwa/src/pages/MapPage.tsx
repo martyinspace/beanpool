@@ -13,6 +13,9 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { BeanPoolIdentity } from '../lib/identity';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { getMarketplacePosts, createMarketplacePost, getNodeInfo, getRemotePosts, getNodeConfig, type MarketplacePost } from '../lib/api';
 import { haversineDistance } from '../lib/geo';
 import { MARKETPLACE_CATEGORIES, POST_TYPE_COLORS } from '../lib/marketplace';
@@ -64,6 +67,18 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
     const [pinDropMode, setPinDropMode] = useState(false);
     const pinDropMarkerRef = useRef<L.Marker | null>(null);
     const [nodeRadius, setNodeRadius] = useState<{lat: number, lng: number, radiusKm: number} | null>(null);
+    const [previewPost, setPreviewPost] = useState<MarketplacePost | null>(null);
+    const [useModernMarkers, setUseModernMarkers] = useState(() => {
+        return localStorage.getItem('beanpool_modern_markers') !== 'false';
+    });
+
+    useEffect(() => {
+        const handleStorage = () => {
+            setUseModernMarkers(localStorage.getItem('beanpool_modern_markers') !== 'false');
+        };
+        window.addEventListener('storage', handleStorage);
+        return () => window.removeEventListener('storage', handleStorage);
+    }, []);
 
     // Auto-open post form when navigated from marketplace
     useEffect(() => {
@@ -97,8 +112,23 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             .addAttribution('© <a href="https://openstreetmap.org">OSM</a>')
             .addTo(map);
 
+        // Map click to dismiss preview
+        map.on('click', () => {
+            setPreviewPost(null);
+        });
+
         // Markers layer
-        markersRef.current = L.layerGroup().addTo(map);
+        markersRef.current = L.markerClusterGroup({
+            showCoverageOnHover: false,
+            maxClusterRadius: 40,
+            iconCreateFunction: (cluster) => {
+                return L.divIcon({
+                    html: `<div style="background-color: #1f2937; color: white; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 18px; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">${cluster.getChildCount()}</div>`,
+                    className: 'custom-cluster-icon',
+                    iconSize: [36, 36],
+                });
+            }
+        }).addTo(map);
 
         mapRef.current = map;
 
@@ -110,15 +140,11 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
         //     setUserMarker(map, e.latlng);
         // });
 
-        // Event delegation for popup "View in Market" buttons
-        const container = mapContainer.current;
-        const handlePopupClick = (e: MouseEvent) => {
-            const btn = (e.target as HTMLElement).closest('[data-navigate]') as HTMLElement | null;
-            if (btn && onNavigate) {
-                onNavigate(btn.dataset.navigate!, btn.dataset.contextid);
-            }
-        };
-        container.addEventListener('click', handlePopupClick);
+        // We specifically DO NOT request location on init here anymore
+        // map.locate({ setView: false });
+        // map.on('locationfound', (e) => {
+        //     setUserMarker(map, e.latlng);
+        // });
 
         // Draw service radius circle from node config
         getNodeConfig().then(config => {
@@ -144,7 +170,6 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
         }).catch(() => {});
 
         return () => {
-            container.removeEventListener('click', handlePopupClick);
             map.remove();
             mapRef.current = null;
         };
@@ -407,9 +432,18 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             }
 
             const typeLabel = post.type === 'offer' ? 'Offer' : 'Need';
-            const icon = L.divIcon({
-                className: 'custom-map-pin hover:scale-110 transition-transform origin-bottom',
-                html: `
+            // Elder Glow: highlight established community members
+            const hasElderGlow = (post.authorEnergyCycled ?? 0) >= 10000;
+            
+            let html = '';
+            if (useModernMarkers) {
+                html = `
+                <div style="position: relative; width: 40px; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: ${borderColor}; border-radius: 20px; box-shadow: 0 3px 4px rgba(0,0,0,0.3); ${hasElderGlow ? 'border: 2px solid #fbbf24; box-shadow: 0 0 6px rgba(251,191,36,0.8);' : ''}">
+                    <span style="font-size: 22px; line-height: 1; padding-bottom: 2px;">${emoji}</span>
+                    <div style="position: absolute; bottom: -8px; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 10px solid ${borderColor};"></div>
+                </div>`;
+            } else {
+                html = `
                 <div style="position: relative; width: 44px; height: 56px; display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.15));">
                     <div style="
                         width: 44px; height: 44px; border-radius: 50%;
@@ -427,36 +461,29 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                         border-top: 12px solid ${borderColor};
                         margin-top: -3px; z-index: 1; position: relative;
                     "></div>
-                </div>`,
-                iconSize: [44, 56],
-                iconAnchor: [22, 56],
-                popupAnchor: [0, -50]
+                </div>`;
+            }
+            
+            const iconSize = useModernMarkers ? [40, 48] as [number, number] : [44, 56] as [number, number];
+            const iconAnchor = useModernMarkers ? [20, 48] as [number, number] : [22, 56] as [number, number];
+            
+            const icon = L.divIcon({
+                className: 'custom-map-pin hover:scale-110 transition-transform origin-bottom',
+                html,
+                iconSize,
+                iconAnchor
             });
-            const nodeBadge = isRemote
-                ? `<span style="display:inline-block;font-size:0.65em;background:rgba(99,102,241,0.2);color:#818cf8;padding:1px 5px;border-radius:9px;margin-left:4px;">🌐 ${remoteCallsign}</span>`
-                : '';
 
             const marker = L.marker([lat, lng], { icon });
-            marker.bindPopup(`
-                <div style="font-family: -apple-system, sans-serif; min-width: 160px;">
-                    <p style="font-weight: 700; margin: 0 0 4px;">${emoji} ${post.title}${nodeBadge}</p>
-                    <p style="margin: 0 0 4px; color: #666; font-size: 0.85em;">${post.description || ''}</p>
-                    <p style="margin: 0; font-weight: 600; color: ${typeColor};">
-                        ${post.type === 'offer' ? '🔵 Offer' : '🟠 Need'} · ${post.credits}B
-                    </p>
-                    <p style="margin: 4px 0 0; color: #888; font-size: 0.8em;">by ${post.authorCallsign}</p>
-                    <button data-navigate="marketplace" data-contextid="${post.id}" style="
-                        margin-top: 8px; width: 100%; padding: 6px 10px;
-                        border-radius: 6px; border: none;
-                        background: #2563eb; color: #fff;
-                        font-size: 0.85em; font-weight: 600;
-                        cursor: pointer; font-family: inherit;
-                    ">View in Market →</button>
-                </div>
-            `);
+            marker.on('click', () => {
+                setPreviewPost(post);
+                if (mapRef.current) {
+                    mapRef.current.setView([lat, lng], mapRef.current.getZoom(), { animate: true });
+                }
+            });
             marker.addTo(markersRef.current!);
         });
-    }, [posts]);
+    }, [posts, useModernMarkers]);
 
     return (
         <>
@@ -513,24 +540,22 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             {/* Map container */}
             <div ref={mapContainer} className="w-full h-full" />
 
-            {/* Bottom-left controls: dark mode + GPS */}
-            <div className="fixed bottom-[5.5rem] left-3 flex flex-col gap-2 z-[101]">
-                {/* Dark/Light map toggle */}
+            {/* FAB Pill - Top Right */}
+            <div className="absolute top-[80px] right-3 flex flex-col items-center bg-white/90 dark:bg-nature-900/90 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-nature-200 dark:border-nature-700 rounded-full z-[100] overflow-hidden">
                 <button 
                     onClick={toggleDarkMode} 
-                    className="w-12 h-12 rounded-2xl bg-white/90 dark:bg-nature-900/90 border border-nature-200 dark:border-nature-700 text-nature-700 dark:text-oat-50 text-xl flex items-center justify-center backdrop-blur-md shadow-soft hover:bg-white dark:hover:bg-nature-800 transition-all transform hover:scale-105"
+                    className="w-12 h-12 flex items-center justify-center text-nature-700 dark:text-oat-50 text-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                     title="Toggle map style"
                 >
                     {isDark ? '☀️' : '🌙'}
                 </button>
-
-                {/* GPS locate */}
+                <div className="w-8 h-[1px] bg-nature-200 dark:bg-nature-700" />
                 <button
                     onClick={handleLocate}
-                    className={`w-12 h-12 rounded-2xl text-xl flex items-center justify-center backdrop-blur-md shadow-soft transition-all transform hover:scale-105 ${
+                    className={`w-12 h-12 flex items-center justify-center text-xl transition-colors ${
                         locating 
-                            ? 'bg-emerald-100/90 border-2 border-emerald-500 text-emerald-600' 
-                            : 'bg-white/90 dark:bg-nature-900/90 border border-nature-200 dark:border-nature-700 text-nature-700 dark:text-oat-50 hover:bg-white dark:hover:bg-nature-800'
+                            ? 'text-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/20' 
+                            : 'text-nature-700 dark:text-oat-50 hover:bg-black/5 dark:hover:bg-white/10'
                     }`}
                     title="My location"
                 >
@@ -557,6 +582,51 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                 </button>
             )}
         </div>
+
+        {/* Map Preview Card */}
+        {previewPost && (
+            <div className="absolute bottom-0 left-0 right-0 z-[150] flex flex-col justify-end pointer-events-none pb-[4.5rem]">
+                <div className="bg-white dark:bg-nature-900 m-4 rounded-[24px] p-4 flex flex-row shadow-[0_10px_20px_rgba(0,0,0,0.15)] pointer-events-auto relative border border-nature-200 dark:border-nature-800 transition-colors">
+                    <button 
+                        onClick={() => setPreviewPost(null)}
+                        className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center border-none text-xs font-extrabold text-gray-500 dark:text-gray-400 cursor-pointer hover:bg-black/10 dark:hover:bg-white/20 transition-colors"
+                    >
+                        ✕
+                    </button>
+                    {previewPost.photos && previewPost.photos.length > 0 ? (
+                        <img src={previewPost.photos[0]} alt="thumb" className="w-[90px] h-[90px] rounded-2xl object-cover bg-gray-100 dark:bg-nature-800" />
+                    ) : (
+                        <div className="w-[90px] h-[90px] rounded-2xl bg-gray-100 dark:bg-nature-800 flex items-center justify-center transition-colors">
+                            <span className="text-4xl">{MARKETPLACE_CATEGORIES.find(c => c.id === previewPost.category)?.emoji || '📦'}</span>
+                        </div>
+                    )}
+                    <div className="flex-1 ml-4 flex flex-col justify-center">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider truncate mr-2 flex-1">
+                                {MARKETPLACE_CATEGORIES.find(c => c.id === previewPost.category)?.label || previewPost.category}
+                            </span>
+                            <span className="text-sm font-extrabold text-emerald-500 dark:text-emerald-400 mr-6">
+                                {previewPost.credits}B
+                            </span>
+                        </div>
+                        <span className="text-lg font-extrabold text-gray-900 dark:text-white mb-1 leading-tight line-clamp-1 transition-colors">
+                            {previewPost.title}
+                        </span>
+                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3 truncate transition-colors">
+                            {previewPost.authorCallsign} {(previewPost as any)._remoteNode ? '🌐' : ''}{(previewPost.authorEnergyCycled ?? 0) >= 10000 ? ' ✨ Elder' : ''}
+                        </span>
+                        <button
+                            onClick={() => onNavigate && onNavigate('marketplace', previewPost.id)}
+                            className={`py-2 px-4 rounded-xl border-none font-bold text-white text-sm cursor-pointer shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98] ${
+                                previewPost.type === 'offer' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-600 hover:bg-orange-700'
+                            }`}
+                        >
+                            View Details
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
 
         {/* Quick Post Panel — rendered OUTSIDE the map div so Leaflet touch handlers don't interfere */}
         {showNewPost && (

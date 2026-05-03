@@ -304,6 +304,7 @@ export interface MarketplacePost {
     lat?: number;
     lng?: number;
     photos?: string[];
+    authorEnergyCycled?: number;
 }
 
 export interface MarketplaceTransaction {

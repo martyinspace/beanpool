@@ -336,7 +336,8 @@ export async function clearDB() {
 export async function getPosts(filter?: { type?: string; category?: string }) {
     const database = await waitForInit();
     let query = `
-        SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar
+        SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar,
+               COALESCE((SELECT SUM(amount) FROM transactions WHERE from_pubkey = m.public_key), 0) as author_energy_cycled
         FROM posts p
         LEFT JOIN members m ON p.author_pubkey = m.public_key
         WHERE p.status IN ('active', 'pending', 'completed')

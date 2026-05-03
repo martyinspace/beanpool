@@ -36,7 +36,6 @@ export interface LocalConfig {
 
 export interface Thresholds {
     // Credit
-    creditFloor: number;        // Max debt allowed (default: -100)
     circulationRate: number;    // Base monthly decay rate (unused with brackets, kept for legacy UI)
     circulationEpochDays: number; // Days per epoch month (default: 30)
     
@@ -165,7 +164,6 @@ export function initAdminPassword(): void {
 // ===================== THRESHOLDS =====================
 
 export const DEFAULT_THRESHOLDS: Thresholds = {
-    creditFloor: -100,
     circulationRate: 0.005,
     circulationEpochDays: 30,
     syncIntervalMin: 15,

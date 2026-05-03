@@ -421,7 +421,7 @@
         <!-- Header -->
         <div class="page-header">
             <div>
-                <h1>🫘 Node <span>Settings</span></h1>
+                <h1>🫘 Node <span>Settings</span><span id="top-version-display" style="color: gold; font-size: 0.55em; margin-left: 10px; vertical-align: middle; font-weight: normal; font-family: monospace;"></span></h1>
                 <div class="peer-id" id="hdr-peer-id"></div>
             </div>
             <a href="/" class="btn btn-outline btn-sm">← Back</a>
@@ -652,10 +652,6 @@
 
                 <!-- Credit -->
                 <div style="font-size:0.7rem;color:#10b981;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin-bottom:0.5rem;">💰 Credit</div>
-                <div class="field">
-                    <label>Credit Floor (max debt, e.g. -100)</label>
-                    <input type="number" id="th-creditFloor" step="10">
-                </div>
                 <div class="field">
                     <label>Base Circulation Rate (progressive 0.5% - 2.5% applies automatically)</label>
                     <input type="number" id="th-circulationRate" step="0.001">
@@ -1375,6 +1371,8 @@
                 if (res.ok) {
                     const data = await res.json();
                     document.getElementById('current-version').textContent = `v${data.version}`;
+                    const topDisplay = document.getElementById('top-version-display');
+                    if (topDisplay) topDisplay.textContent = `V${data.version}`;
                 }
             } catch { /* offline */ }
         }
@@ -1434,7 +1432,7 @@
         // ===================== THRESHOLDS =====================
 
         const THRESHOLD_KEYS = [
-            'creditFloor', 'circulationRate', 'circulationEpochDays',
+            'circulationRate', 'circulationEpochDays',
             'syncIntervalMin', 'initialSyncDelaySec', 'handshakeIntervalSec',
             'retryIntervalSec', 'maxRetryBackoffMin',
             'washTradingWindowHours', 'washTradingMinTxns', 'inactiveMemberDays', 'isolatedBranchMinTxns',

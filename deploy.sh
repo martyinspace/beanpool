@@ -104,15 +104,12 @@ for NODE in "${TARGETS[@]}"; do
     export CF_RECORD_NAME='${DNS}'
     export ADMIN_PASSWORD='${ADMIN_PASSWORD}'
     if [ "$DIR" = "BeanPool-Review" ]; then
-      cat <<EOF > docker-compose.override.yml
-services:
-  beanpool-node:
-    ports: !reset
-      - "8081:8080"
-      - "8445:8443"
-      - "4004:4001"
-      - "4005:4002"
-EOF
+      sed -i 's/\"80:8080\"/\"8081:8080\"/g' docker-compose.yml
+      sed -i 's/\"443:8443\"/\"8445:8443\"/g' docker-compose.yml
+      sed -i 's/\"8080:8080\"/\"8082:8080\"/g' docker-compose.yml
+      sed -i 's/\"8443:8443\"/\"8446:8443\"/g' docker-compose.yml
+      sed -i 's/\"4001:4001\"/\"4004:4001\"/g' docker-compose.yml
+      sed -i 's/\"4002:4002\"/\"4005:4002\"/g' docker-compose.yml
     fi
     echo \"Public IP: \$PUBLIC_IP\"
     echo \"DNS Record: \$CF_RECORD_NAME\"

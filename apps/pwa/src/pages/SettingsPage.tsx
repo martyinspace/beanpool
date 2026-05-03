@@ -20,6 +20,15 @@ interface Props {
 }
 
 export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onToggleTheme }: Props) {
+    const [useModernMarkers, setUseModernMarkers] = useState(() => {
+        return localStorage.getItem('beanpool_modern_markers') !== 'false';
+    });
+
+    const handleToggleModernMarkers = () => {
+        const next = !useModernMarkers;
+        setUseModernMarkers(next);
+        localStorage.setItem('beanpool_modern_markers', String(next));
+    };
     const [mode, setMode] = useState<'menu' | 'export' | 'import' | 'profile'>('menu');
     const [pin, setPin] = useState('');
     const [exportUri, setExportUri] = useState('');
@@ -120,6 +129,25 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                     >
                         <span className={`block w-[22px] h-[22px] rounded-full bg-white absolute top-[2px] shadow-sm transform transition-transform duration-300 ease-in-out ${
                             theme === 'dark' ? 'translate-x-[26px]' : 'translate-x-[2px] drop-shadow-[0_2px_4px_rgba(226,114,91,0.4)]'
+                        }`} />
+                    </button>
+                </div>
+
+                {/* Modern Markers Toggle */}
+                <div className="bg-white dark:bg-nature-900 rounded-2xl px-6 py-5 mb-6 shadow-soft border border-nature-200 dark:border-nature-800 flex justify-between items-center transition-colors">
+                    <div>
+                        <span className="block text-[15px] font-bold text-nature-900 dark:text-white transition-colors">🗺️ Modern Map Pins</span>
+                        <span className="block text-xs text-nature-500 dark:text-nature-400 mt-0.5">Toggle standard vs custom styles</span>
+                    </div>
+                    <button
+                        onClick={handleToggleModernMarkers}
+                        className={`w-14 h-[30px] rounded-full relative cursor-pointer outline-none transition-colors duration-300 ease-in-out border-2 shadow-inner ${
+                            useModernMarkers ? 'bg-emerald-500 border-emerald-600' : 'bg-nature-200 dark:bg-nature-700 border-nature-300 dark:border-nature-600'
+                        }`}
+                        aria-label="Toggle Modern Markers"
+                    >
+                        <span className={`block w-[22px] h-[22px] rounded-full bg-white absolute top-[2px] shadow-sm transform transition-transform duration-300 ease-in-out ${
+                            useModernMarkers ? 'translate-x-[26px]' : 'translate-x-[2px]'
                         }`} />
                     </button>
                 </div>

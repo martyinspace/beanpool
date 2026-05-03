@@ -22,6 +22,13 @@ export default function SettingsScreen() {
     const [contact, setContact] = useState('');
     const [loading, setLoading] = useState(false);
     const [anchorUrl, setAnchorUrl] = useState<string>('Detecting...');
+    const [useModernMarkers, setUseModernMarkers] = useState(true);
+    
+    React.useEffect(() => {
+        AsyncStorage.getItem('beanpool_modern_markers').then(val => {
+            if (val !== null) setUseModernMarkers(val === 'true');
+        });
+    }, []);
     
     // Advanced subsystem state
     const [newAnchorInput, setNewAnchorInput] = useState('');
@@ -409,6 +416,22 @@ export default function SettingsScreen() {
                         <Text style={styles.menuText}>🚸 Child Safety Standards</Text>
                         <Text style={styles.menuArrow}>→</Text>
                     </Pressable>
+                    <View style={styles.menuBtn}>
+                        <View>
+                            <Text style={styles.menuText}>🗺️ Modern Map Pins</Text>
+                            <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Toggle standard vs custom pin styles</Text>
+                        </View>
+                        <Pressable 
+                            style={{ width: 50, height: 28, borderRadius: 14, backgroundColor: useModernMarkers ? '#10b981' : '#e5e7eb', justifyContent: 'center', paddingHorizontal: 2 }}
+                            onPress={async () => {
+                                const next = !useModernMarkers;
+                                setUseModernMarkers(next);
+                                await AsyncStorage.setItem('beanpool_modern_markers', next ? 'true' : 'false');
+                            }}
+                        >
+                            <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', transform: [{ translateX: useModernMarkers ? 22 : 0 }] }} />
+                        </Pressable>
+                    </View>
                     <Pressable style={styles.menuBtn} onPress={() => setMode('advanced')}>
                         <Text style={styles.menuText}>⚙️ Advanced / Subsystem</Text>
                         <Text style={styles.menuArrow}>→</Text>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { StyleSheet, View, Text, Platform, Alert, TouchableOpacity, ScrollView, TextInput, Pressable, Switch, KeyboardAvoidingView, Dimensions, Image as RNImage, Keyboard, Linking, DeviceEventEmitter } from 'react-native';
+import { StyleSheet, View, Text, Platform, Alert, TouchableOpacity, ScrollView, TextInput, Pressable, Switch, KeyboardAvoidingView, Dimensions, Image as RNImage, Keyboard, Linking, DeviceEventEmitter, Animated } from 'react-native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -11,20 +11,24 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { getPosts, createPost } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
 import { useCurrencyString } from '../../components/CurrencyDisplay';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const CATEGORIES = [
-    { id: 'food', emoji: '🥕', label: 'Food' },
+    { id: 'food', emoji: '🥕', label: 'Food & Produce' },
     { id: 'services', emoji: '🤝', label: 'Services' },
     { id: 'labour', emoji: '👷', label: 'Labour' },
     { id: 'tools', emoji: '🛠️', label: 'Tools' },
     { id: 'goods', emoji: '📦', label: 'Goods' },
+    { id: 'garden', emoji: '🌻', label: 'Garden' },
     { id: 'housing', emoji: '🏠', label: 'Housing' },
-    { id: 'transport', emoji: '🚲', label: 'Transport' },
+    { id: 'transport', emoji: '🚗', label: 'Transport' },
     { id: 'education', emoji: '📚', label: 'Education' },
     { id: 'arts', emoji: '🎨', label: 'Arts' },
-    { id: 'health', emoji: '🌿', label: 'Health' },
-    { id: 'care', emoji: '❤️', label: 'Care' },
+    { id: 'health', emoji: '🌿', label: 'Health & Wellness' },
+    { id: 'care', emoji: '❤️', label: 'Care & Support' },
     { id: 'animals', emoji: '🐾', label: 'Animals' },
+    { id: 'tech', emoji: '💻', label: 'Tech & Digital' },
     { id: 'energy', emoji: '☀️', label: 'Energy' },
     { id: 'general', emoji: '🌱', label: 'General' },
 ];
@@ -56,31 +60,49 @@ const darkMapStyle = [
   { featureType: "water", elementType: "labels.text.stroke", stylers: [{ color: "#17263c" }] }
 ];
 
-const MapPin = ({ post, author, catObj, currencyStr }: { post: any, author: string, catObj: any, currencyStr: string }) => {
+const MapPin = ({ post, catObj, useModernMarkers, isSelected, onPress }: { post: any, catObj: any, useModernMarkers: boolean, isSelected: boolean, onPress: (p: any) => void }) => {
     const [track, setTrack] = useState(true);
     useEffect(() => { const t = setTimeout(() => setTrack(false), 500); return () => clearTimeout(t); }, []);
 
     const isOffer = post.type === 'offer';
-    const markerColor = isOffer ? '#10b981' : '#d97757';
+    const bgColor = isOffer ? '#10b981' : '#ea580c';
     const markerEmoji = catObj?.emoji || (isOffer ? '📦' : '❤️');
+    
+    // Elder Glow (Energy Cycled > 10000)
+    const isElder = post.author_energy_cycled && post.author_energy_cycled >= 10000;
+    const elderStyle = isElder ? { borderColor: '#fbbf24', borderWidth: 2, shadowColor: '#fbbf24', shadowOpacity: 0.8, shadowRadius: 6, shadowOffset: { width: 0, height: 0 } } : {};
+
+    if (useModernMarkers) {
+        return (
+            <Marker
+                coordinate={{ latitude: post.lat, longitude: post.lng }}
+                tracksViewChanges={track}
+                anchor={{ x: 0.5, y: 1 }}
+                onPress={(e) => { e.stopPropagation(); onPress(post); }}
+            >
+                <View style={styles.pinContainer}>
+                    <View style={[styles.modernPin, { backgroundColor: bgColor }, isElder && { borderColor: '#fbbf24', borderWidth: 2 }, isSelected && { transform: [{ scale: 1.15 }] }]}>
+                        {isElder && <View style={[StyleSheet.absoluteFill, styles.elderGlow]} />}
+                        <Text style={styles.modernPinEmoji}>{markerEmoji}</Text>
+                    </View>
+                    <View style={[styles.modernPinTail, { borderTopColor: isElder ? '#fbbf24' : bgColor }]} />
+                </View>
+            </Marker>
+        );
+    }
 
     return (
         <Marker
             coordinate={{ latitude: post.lat, longitude: post.lng }}
             tracksViewChanges={track}
-            title={(post.title || '').trim() || 'Marketplace Post'}
-            description={`${author} • ${post.credits || 0} ${currencyStr}`}
             anchor={{ x: 0.5, y: 1 }}
-            onCalloutPress={() => {
-                console.log(`[MAP] Callout pressed! Routing to post -> ${post.id}`);
-                router.push(`/post/${post.id}`);
-            }}
+            onPress={(e) => { e.stopPropagation(); onPress(post); }}
         >
             <View style={styles.pinContainer}>
-                <View style={[styles.pinCircle, { borderColor: markerColor }]}>
+                <View style={[styles.pinCircle, { borderColor: bgColor }, elderStyle, isSelected && { transform: [{ scale: 1.15 }] }]}>
                     <Text style={styles.pinEmoji}>{markerEmoji}</Text>
                 </View>
-                <View style={[styles.pinArrow, { borderTopColor: markerColor }]} />
+                <View style={[styles.pinArrow, { borderTopColor: isElder ? '#fbbf24' : bgColor }]} />
             </View>
         </Marker>
     );
@@ -101,7 +123,7 @@ export default function MapScreen() {
     // New Post state
     const [showNewPost, setShowNewPost] = useState(false);
     const [postType, setPostType] = useState<'offer' | 'need'>('offer');
-    const [postCategory, setPostCategory] = useState('general');
+    const [postCategory, setPostCategory] = useState('');
     const [postTitle, setPostTitle] = useState('');
     const [postDescription, setPostDescription] = useState('');
     const [postCredits, setPostCredits] = useState('');
@@ -114,6 +136,17 @@ export default function MapScreen() {
     const [posting, setPosting] = useState(false);
     const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
     const [keyboardHeight, setKeyboardHeight] = useState(0);
+    const [validationToast, setValidationToast] = useState('');
+
+    // Map UI State
+    const [useModernMarkers, setUseModernMarkers] = useState(true);
+    const [selectedPostPreview, setSelectedPostPreview] = useState<any>(null);
+
+    useEffect(() => {
+        AsyncStorage.getItem('beanpool_modern_markers').then(val => {
+            if (val !== null) setUseModernMarkers(val === 'true');
+        });
+    }, []);
 
     useEffect(() => {
         const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
@@ -168,9 +201,10 @@ export default function MapScreen() {
 
     // --- New Post Functions ---
     const resetNewPost = () => {
-        setPostType('offer'); setPostCategory('general'); setPostTitle(''); setPostDescription('');
+        setPostType('offer'); setPostCategory(''); setPostTitle(''); setPostDescription('');
         setPostCredits(''); setPostPriceType('fixed'); setPostRepeatable(false); setPostPhotos([]);
         setPostLat(null); setPostLng(null); setPinDropMode(false); setValidationErrors(new Set());
+        setValidationToast('');
     };
 
     const useMyLocation = async () => {
@@ -252,6 +286,18 @@ export default function MapScreen() {
         ]);
     };
 
+    const showPricingGuide = () => {
+        Alert.alert(
+            "💡 Pricing Guide",
+            "Free (0 Ʀ) — Gifts, community contributions\n\n" +
+            "1–10 Ʀ — Small favours, home produce, quick tasks\n\n" +
+            "10–40 Ʀ — Skilled labour (per hour), substantial goods\n\n" +
+            "40–100 Ʀ — Professional services, large items\n\n" +
+            "100+ Ʀ — Major projects, housing, vehicles",
+            [{ text: "Got it" }]
+        );
+    };
+
     const handleSubmit = async () => {
         Keyboard.dismiss();
         
@@ -260,8 +306,14 @@ export default function MapScreen() {
         if (postCredits.trim() === '' || isNaN(Number(postCredits))) errors.add('credits');
         if (!postDescription.trim()) errors.add('description');
         if (postLat == null || postLng == null) errors.add('location');
+        if (!postCategory) errors.add('category');
+        if (postPhotos.length < 1) errors.add('photos');
         setValidationErrors(errors);
-        if (errors.size > 0) return;
+        if (errors.size > 0) {
+            setValidationToast('⚠️ Please complete all required fields');
+            setTimeout(() => setValidationToast(''), 3000);
+            return;
+        }
 
         if (!identity) { Alert.alert("Auth", "You must be authenticated."); return; }
 
@@ -300,10 +352,13 @@ export default function MapScreen() {
 
     // Smart button label
     const submitLabel = posting ? 'Posting...'
+        : (!postCategory) ? '📂 Select a category'
         : (postLat == null) ? '📍 Set a location'
-        : (!postTitle.trim() || !postDescription.trim() || postCredits === '') ? '✏️ Fill required fields'
+        : (postPhotos.length < 1) ? '📷 Add a photo'
+        : (postCredits === '') ? '💰 Set a price'
+        : (!postTitle.trim() || !postDescription.trim()) ? '✏️ Fill required fields'
         : `Post ${postType === 'offer' ? 'Offer' : 'Need'}`;
-    const submitDisabled = posting || postLat == null || !postTitle.trim() || !postDescription.trim() || postCredits === '';
+    const submitDisabled = posting || postLat == null || !postTitle.trim() || !postDescription.trim() || postCredits === '' || !postCategory || postPhotos.length < 1;
 
     return (
         <View style={styles.container}>
@@ -315,7 +370,10 @@ export default function MapScreen() {
                 userInterfaceStyle={isDarkMap ? "dark" : "light"}
                 showsUserLocation={true}
                 onRegionChangeComplete={(r) => setCurrentRegion(r)}
-                onPress={handleMapPress}
+                onPress={(e) => {
+                    handleMapPress(e);
+                    if (selectedPostPreview) setSelectedPostPreview(null);
+                }}
                 onLongPress={handleMapPress}
                 initialRegion={currentRegion}
             >
@@ -326,56 +384,98 @@ export default function MapScreen() {
                     const l2 = Number(p.lng);
                     return !isNaN(l1) && !isNaN(l2);
                 }).map(post => {
-                    const author = post.author_callsign || post.author_pubkey?.slice(0, 6) || 'Unknown';
                     const catObj = CATEGORIES.find(c => c.id === post.category);
                     const safePost = { ...post, lat: Number(post.lat), lng: Number(post.lng) };
-                    return <MapPin key={post.id} post={safePost} author={author} catObj={catObj} currencyStr={currencyStr} />;
+                    const isSelected = selectedPostPreview?.id === post.id;
+                    return (
+                        <MapPin 
+                            key={post.id} 
+                            post={safePost} 
+                            catObj={catObj} 
+                            useModernMarkers={useModernMarkers}
+                            isSelected={isSelected}
+                            onPress={setSelectedPostPreview} 
+                        />
+                    );
                 })}
 
                 {/* Pin drop preview marker */}
                 {showNewPost && postLat != null && postLng != null && (
-                    <Marker coordinate={{ latitude: postLat, longitude: postLng }} pinColor={postType === 'offer' ? '#10b981' : '#f59e0b'} />
+                    <Marker coordinate={{ latitude: postLat, longitude: postLng }} pinColor={postType === 'offer' ? '#10b981' : '#ea580c'} />
                 )}
             </MapView>
 
-            {/* Bottom-Left Controls */}
-            <View style={styles.bottomLeftControls} pointerEvents="box-none">
-                <TouchableOpacity style={[styles.mapActionBtn, isDarkMap && styles.mapActionBtnDark]} onPress={() => setIsDarkMap(!isDarkMap)} activeOpacity={0.8}>
-                    <Text style={{ fontSize: 22 }}>{isDarkMap ? '☀️' : '🌙'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.mapActionBtn, isDarkMap && styles.mapActionBtnDark]} onPress={centerOnUser} activeOpacity={0.8}>
-                    <Text style={[{ fontSize: 20, fontWeight: '300' }, isDarkMap && { color: '#e5e7eb' }]}>⌖</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.zoomBtn, isDarkMap && styles.zoomBtnDark]}
-                    onPress={() => {
-                        mapRef.current?.animateToRegion({
-                            ...currentRegion,
-                            latitudeDelta: currentRegion.latitudeDelta / 2,
-                            longitudeDelta: currentRegion.longitudeDelta / 2,
-                        }, 300);
-                    }}
-                    activeOpacity={0.7}
-                >
-                    <Text style={[styles.zoomBtnText, isDarkMap && styles.zoomBtnTextDark]}>+</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.zoomBtn, isDarkMap && styles.zoomBtnDark]}
-                    onPress={() => {
-                        mapRef.current?.animateToRegion({
-                            ...currentRegion,
-                            latitudeDelta: currentRegion.latitudeDelta * 2,
-                            longitudeDelta: currentRegion.longitudeDelta * 2,
-                        }, 300);
-                    }}
-                    activeOpacity={0.7}
-                >
-                    <Text style={[styles.zoomBtnText, isDarkMap && styles.zoomBtnTextDark]}>−</Text>
-                </TouchableOpacity>
-            </View>
+            {/* Top Gradient Overlay for Edge-to-Edge immersion */}
+            <LinearGradient colors={['rgba(0,0,0,0.4)', 'transparent']} style={styles.topGradient} pointerEvents="none" />
+
+            {/* Map Action FABs - Right Pill */}
+            {!showNewPost && !selectedPostPreview && (
+                <View style={[styles.fabPill, { top: Math.max(insets.top + 10, 50) }]} pointerEvents="box-none">
+                    <TouchableOpacity style={styles.pillBtn} onPress={() => setIsDarkMap(!isDarkMap)}>
+                        <Text style={styles.pillBtnEmoji}>{isDarkMap ? '☀️' : '🌙'}</Text>
+                    </TouchableOpacity>
+                    <View style={styles.pillDivider} />
+                    <TouchableOpacity style={styles.pillBtn} onPress={centerOnUser}>
+                        <Text style={[styles.pillBtnIcon, isDarkMap && { color: '#e5e7eb' }]}>⌖</Text>
+                    </TouchableOpacity>
+                    <View style={styles.pillDivider} />
+                    <TouchableOpacity style={styles.pillBtn} onPress={() => mapRef.current?.animateToRegion({ ...currentRegion, latitudeDelta: currentRegion.latitudeDelta / 2, longitudeDelta: currentRegion.longitudeDelta / 2 }, 300)}>
+                        <Text style={[styles.pillBtnIcon, isDarkMap && { color: '#e5e7eb' }]}>+</Text>
+                    </TouchableOpacity>
+                    <View style={styles.pillDivider} />
+                    <TouchableOpacity style={styles.pillBtn} onPress={() => mapRef.current?.animateToRegion({ ...currentRegion, latitudeDelta: currentRegion.latitudeDelta * 2, longitudeDelta: currentRegion.longitudeDelta * 2 }, 300)}>
+                        <Text style={[styles.pillBtnIcon, isDarkMap && { color: '#e5e7eb' }]}>−</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
+            {/* Map Preview Card (Bottom Sheet style) */}
+            {selectedPostPreview && !showNewPost && (
+                <SafeAreaView style={styles.previewCardWrapper} pointerEvents="box-none">
+                    <Pressable style={styles.previewCardOverlay} onPress={() => setSelectedPostPreview(null)} />
+                    <Animated.View style={styles.previewCard}>
+                        {selectedPostPreview.photos && selectedPostPreview.photos.length > 0 ? (
+                            <RNImage source={{ uri: selectedPostPreview.photos[0] }} style={styles.previewThumb} />
+                        ) : (
+                            <View style={[styles.previewThumbPlaceholder, { backgroundColor: selectedPostPreview.type === 'offer' ? '#10b98120' : '#ea580c20' }]}>
+                                <Text style={{ fontSize: 32 }}>{CATEGORIES.find(c => c.id === selectedPostPreview.category)?.emoji || '📌'}</Text>
+                            </View>
+                        )}
+                        <View style={styles.previewInfo}>
+                            <View style={styles.previewHeader}>
+                                <Text style={styles.previewCategory} numberOfLines={1}>
+                                    {CATEGORIES.find(c => c.id === selectedPostPreview.category)?.label || 'General'}
+                                </Text>
+                                <Text style={styles.previewCredits}>
+                                    {selectedPostPreview.credits} {currencyStr}
+                                </Text>
+                            </View>
+                            <Text style={styles.previewTitle} numberOfLines={1}>
+                                {selectedPostPreview.title}
+                            </Text>
+                            <Text style={styles.previewAuthor} numberOfLines={1}>
+                                {selectedPostPreview.author_callsign || selectedPostPreview.author_pubkey?.slice(0, 6) || 'Unknown'}
+                                {selectedPostPreview.author_energy_cycled && selectedPostPreview.author_energy_cycled >= 10000 ? ' ✨ Elder' : ''}
+                            </Text>
+                            <Pressable 
+                                style={[styles.previewActionBtn, { backgroundColor: selectedPostPreview.type === 'offer' ? '#10b981' : '#ea580c' }]}
+                                onPress={() => {
+                                    setSelectedPostPreview(null);
+                                    router.push(`/post/${selectedPostPreview.id}`);
+                                }}
+                            >
+                                <Text style={styles.previewActionText}>View Details</Text>
+                            </Pressable>
+                        </View>
+                        <Pressable style={styles.previewClose} onPress={() => setSelectedPostPreview(null)} hitSlop={15}>
+                            <Text style={styles.previewCloseText}>✕</Text>
+                        </Pressable>
+                    </Animated.View>
+                </SafeAreaView>
+            )}
 
             {/* FAB — New Post Button */}
-            {!showNewPost && (
+            {!showNewPost && !selectedPostPreview && (
                 <SafeAreaView style={StyleSheet.absoluteFill} pointerEvents="box-none">
                     <TouchableOpacity
                         style={styles.fab}
@@ -415,13 +515,21 @@ export default function MapScreen() {
                 </SafeAreaView>
             )}
 
-            {/* New Post Bottom Sheet */}
+            {/* New Post Full-Screen Overlay */}
             {showNewPost && !pinDropMode && (
-                <View 
-                    style={[StyleSheet.absoluteFill, { zIndex: 500, justifyContent: 'flex-end', paddingBottom: keyboardHeight }]} 
-                    pointerEvents="box-none"
+                <KeyboardAvoidingView
+                    style={[StyleSheet.absoluteFill, { zIndex: 500, justifyContent: 'flex-end' }]}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    keyboardVerticalOffset={0}
                 >
                     <View style={styles.sheet}>
+                        {/* Validation Toast */}
+                        {validationToast !== '' && (
+                            <View style={styles.toastBanner}>
+                                <Text style={styles.toastText}>{validationToast}</Text>
+                            </View>
+                        )}
+
                         {/* Header */}
                         <View style={styles.sheetHeader}>
                             <Text style={styles.sheetTitle}>New Post</Text>
@@ -430,7 +538,7 @@ export default function MapScreen() {
                             </Pressable>
                         </View>
 
-                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 16 }}>
                             {/* Type Toggle */}
                             <View style={styles.typeRow}>
                                 <Pressable style={[styles.typeBtn, postType === 'offer' && styles.typeBtnOffer]} onPress={() => setPostType('offer')}>
@@ -442,80 +550,87 @@ export default function MapScreen() {
                             </View>
 
                             {/* Category Dropdown */}
+                            <Text style={styles.sectionLabel}>Category <Text style={styles.requiredStar}>*</Text></Text>
                             <View style={[styles.pickerWrap, fieldBorder('category')]}>
                                 <Picker
                                     selectedValue={postCategory}
-                                    onValueChange={v => setPostCategory(v)}
+                                    onValueChange={v => { setPostCategory(v); setValidationErrors(prev => { const n = new Set(prev); n.delete('category'); return n; }); }}
                                     style={styles.picker}
                                     dropdownIconColor="#6b7280"
                                 >
+                                    <Picker.Item label="Select a category..." value="" enabled={false} color="#9ca3af" />
                                     {CATEGORIES.map(c => (
                                         <Picker.Item key={c.id} label={`${c.emoji} ${c.label}`} value={c.id} />
                                     ))}
                                 </Picker>
                             </View>
 
-                            {/* Location Buttons */}
-                            <View style={styles.locationRow}>
-                                <Pressable
-                                    style={[styles.locationBtn, postLat != null && !pinDropMode && styles.locationBtnActive, fieldBorder('location')]}
-                                    onPress={useMyLocation}
-                                >
-                                    <Text style={styles.locationBtnIcon}>📍</Text>
-                                    <Text style={styles.locationBtnLabel}>My location</Text>
-                                </Pressable>
-                                <Pressable
-                                    style={[styles.locationBtn, pinDropMode && styles.locationBtnPinDrop, fieldBorder('location')]}
-                                    onPress={enterPinDrop}
-                                >
-                                    <Text style={styles.locationBtnIcon}>📌</Text>
-                                    <Text style={styles.locationBtnLabel}>Drop a pin</Text>
-                                </Pressable>
-                            </View>
-                            {postLat != null && postLng != null && (
-                                <Text style={styles.locationConfirm}>✓ Location set</Text>
-                            )}
+                            {/* Title */}
+                            <Text style={styles.sectionLabel}>Title <Text style={styles.requiredStar}>*</Text></Text>
+                            <TextInput
+                                style={[styles.titleInputFull, fieldBorder('title')]}
+                                placeholder="What do you need/offer?"
+                                placeholderTextColor="#9ca3af"
+                                value={postTitle}
+                                onChangeText={v => { setPostTitle(v); setValidationErrors(prev => { const n = new Set(prev); n.delete('title'); return n; }); }}
+                                maxLength={50}
+                            />
 
-                            {/* Title + Credits Row */}
-                            <View style={styles.titleCreditsRow}>
+                            {/* Price Row */}
+                            <Text style={styles.sectionLabel}>Price <Text style={styles.requiredStar}>*</Text></Text>
+                            <View style={styles.priceRow}>
                                 <TextInput
-                                    style={[styles.titleInput, fieldBorder('title')]}
-                                    placeholder="What do you need/offer?"
-                                    placeholderTextColor="#9ca3af"
-                                    value={postTitle}
-                                    onChangeText={v => { setPostTitle(v); setValidationErrors(prev => { const n = new Set(prev); n.delete('title'); return n; }); }}
-                                    maxLength={50}
-                                />
-                                <TextInput
-                                    style={[styles.creditsInput, fieldBorder('credits')]}
-                                    placeholder="B"
+                                    style={[styles.creditsInputWide, fieldBorder('credits')]}
+                                    placeholder="Beans"
                                     placeholderTextColor="#9ca3af"
                                     keyboardType="numeric"
                                     value={postCredits}
                                     onChangeText={v => { setPostCredits(v); setValidationErrors(prev => { const n = new Set(prev); n.delete('credits'); return n; }); }}
                                     maxLength={5}
                                 />
-                                <View style={styles.priceTypeWrap}>
-                                    <Pressable onPress={() => {
-                                        const types = ['fixed', 'hourly', 'daily', 'weekly', 'monthly'];
-                                        setPostPriceType(types[(types.indexOf(postPriceType) + 1) % types.length]);
-                                    }} style={styles.priceTypeBtn}>
-                                        <Text style={styles.priceTypeBtnText}>{
-                                            { fixed: 'Total', hourly: '/ Hr', daily: '/ Dy', weekly: '/ Wk', monthly: '/ Mo' }[postPriceType] || 'Total'
-                                        }</Text>
-                                    </Pressable>
-                                </View>
+                                <Pressable onPress={() => {
+                                    const types = ['fixed', 'hourly', 'daily', 'weekly', 'monthly'];
+                                    setPostPriceType(types[(types.indexOf(postPriceType) + 1) % types.length]);
+                                }} style={styles.priceTypeBtn}>
+                                    <Text style={styles.priceTypeBtnText}>{
+                                        { fixed: 'Total', hourly: '/ Hr', daily: '/ Dy', weekly: '/ Wk', monthly: '/ Mo' }[postPriceType] || 'Total'
+                                    }</Text>
+                                </Pressable>
+                                <Pressable
+                                    style={[styles.freeChip, postCredits === '0' && styles.freeChipActive]}
+                                    onPress={() => { setPostCredits('0'); setValidationErrors(prev => { const n = new Set(prev); n.delete('credits'); return n; }); }}
+                                >
+                                    <Text style={[styles.freeChipText, postCredits === '0' && styles.freeChipTextActive]}>FREE</Text>
+                                </Pressable>
                             </View>
-
-                            {/* Repeatable Toggle */}
-                            <Pressable style={styles.repeatableRow} onPress={() => setPostRepeatable(!postRepeatable)}>
-                                <View style={[styles.checkbox, postRepeatable && styles.checkboxActive]}>
-                                    {postRepeatable && <Text style={styles.checkboxTick}>✓</Text>}
-                                </View>
-                                <Text style={styles.repeatableText}>🔁 Repeatable — keep listing active for ongoing bookings</Text>
+                            <Pressable onPress={showPricingGuide} style={styles.pricingGuideLink}>
+                                <Text style={styles.pricingGuideLinkText}>💡 How should I price this?</Text>
                             </Pressable>
 
+                            {/* Location */}
+                            <Text style={styles.sectionLabel}>Location <Text style={styles.requiredStar}>*</Text></Text>
+                            <View style={styles.locationRow}>
+                                <Pressable
+                                    style={[styles.locationChip, postLat != null && !pinDropMode && styles.locationChipActive, fieldBorder('location')]}
+                                    onPress={useMyLocation}
+                                >
+                                    <Text style={styles.locationChipIcon}>📍</Text>
+                                    <Text style={styles.locationChipLabel}>My location</Text>
+                                </Pressable>
+                                <Pressable
+                                    style={[styles.locationChip, fieldBorder('location')]}
+                                    onPress={enterPinDrop}
+                                >
+                                    <Text style={styles.locationChipIcon}>📌</Text>
+                                    <Text style={styles.locationChipLabel}>Drop a pin</Text>
+                                </Pressable>
+                                {postLat != null && postLng != null && (
+                                    <Text style={styles.locationConfirmInline}>✓ Set</Text>
+                                )}
+                            </View>
+
                             {/* Description */}
+                            <Text style={styles.sectionLabel}>Description <Text style={styles.requiredStar}>*</Text></Text>
                             <TextInput
                                 style={[styles.descriptionInput, fieldBorder('description')]}
                                 placeholder="Describe what you need/offer..."
@@ -526,8 +641,17 @@ export default function MapScreen() {
                                 textAlignVertical="top"
                             />
 
+                            {/* Repeatable Toggle */}
+                            <Pressable style={styles.repeatableRow} onPress={() => setPostRepeatable(!postRepeatable)}>
+                                <View style={[styles.checkbox, postRepeatable && styles.checkboxActive]}>
+                                    {postRepeatable && <Text style={styles.checkboxTick}>✓</Text>}
+                                </View>
+                                <Text style={styles.repeatableText}>🔁 Repeatable — keep listing active for ongoing bookings</Text>
+                            </Pressable>
+
                             {/* Photos */}
-                            <View style={styles.photosRow}>
+                            <Text style={styles.sectionLabel}>Photos <Text style={styles.requiredStar}>*</Text> <Text style={styles.sectionLabelHint}>(min 1)</Text></Text>
+                            <View style={[styles.photosRow, fieldBorder('photos')]}>
                                 {postPhotos.map((uri, i) => (
                                     <View key={i} style={styles.photoThumb}>
                                         <RNImage source={{ uri }} style={styles.photoImg} />
@@ -537,24 +661,24 @@ export default function MapScreen() {
                                     </View>
                                 ))}
                                 {postPhotos.length < 3 && (
-                                    <Pressable style={styles.photoAdd} onPress={pickPhoto}>
+                                    <Pressable style={styles.photoAdd} onPress={() => { pickPhoto(); setValidationErrors(prev => { const n = new Set(prev); n.delete('photos'); return n; }); }}>
                                         <Text style={styles.photoAddIcon}>📷</Text>
                                     </Pressable>
                                 )}
                             </View>
-                            <Text style={styles.photoCount}>{postPhotos.length}/3 photos {postPhotos.length === 0 ? '(optional)' : ''}</Text>
-
-                            {/* Submit */}
-                            <Pressable
-                                style={[styles.submitBtn, submitDisabled ? styles.submitBtnDisabled : (postType === 'offer' ? styles.submitBtnOffer : styles.submitBtnNeed)]}
-                                onPress={handleSubmit}
-                                disabled={submitDisabled}
-                            >
-                                <Text style={[styles.submitBtnText, submitDisabled && styles.submitBtnTextDisabled]}>{submitLabel}</Text>
-                            </Pressable>
+                            <Text style={styles.photoCount}>{postPhotos.length}/3 photos</Text>
                         </ScrollView>
+
+                        {/* Sticky Submit */}
+                        <Pressable
+                            style={[styles.submitBtn, submitDisabled ? styles.submitBtnDisabled : (postType === 'offer' ? styles.submitBtnOffer : styles.submitBtnNeed)]}
+                            onPress={handleSubmit}
+                            disabled={posting}
+                        >
+                            <Text style={[styles.submitBtnText, submitDisabled && styles.submitBtnTextDisabled]}>{submitLabel}</Text>
+                        </Pressable>
                     </View>
-                </View>
+                </KeyboardAvoidingView>
             )}
         </View>
     );
@@ -565,39 +689,71 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#f9fafb' },
     map: { width: '100%', height: '100%' },
-    bottomLeftControls: { position: 'absolute', bottom: 120, left: 16, gap: 12, zIndex: 100 },
-    mapActionBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.95)', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 5 },
-    mapActionBtnDark: { backgroundColor: '#1f2937' },
+    // Top Gradient Overlay
+    topGradient: { position: 'absolute', top: 0, left: 0, right: 0, height: 120, zIndex: 10 },
 
-    // Zoom Controls
-    zoomBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.95)', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 3, elevation: 4 },
-    zoomBtnDark: { backgroundColor: '#1f2937' },
-    zoomBtnText: { fontSize: 22, fontWeight: '300', color: '#374151', lineHeight: 26 },
-    zoomBtnTextDark: { color: '#e5e7eb' },
+    // FAB Pill (Right side)
+    fabPill: { position: 'absolute', right: 16, width: 48, backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 24, paddingVertical: 8, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 8, zIndex: 100 },
+    pillBtn: { width: 48, height: 44, justifyContent: 'center', alignItems: 'center' },
+    pillDivider: { width: 32, height: 1, backgroundColor: 'rgba(0,0,0,0.06)', marginVertical: 2 },
+    pillBtnEmoji: { fontSize: 20 },
+    pillBtnIcon: { fontSize: 22, fontWeight: '300', color: '#374151' },
 
-    // Map Pins
-    pinContainer: { width: 40, height: 48, alignItems: 'center', justifyContent: 'flex-start' },
+    // Map Pins (Classic)
+    pinContainer: { width: 44, height: 52, alignItems: 'center', justifyContent: 'flex-start' },
     pinCircle: { width: 34, height: 34, borderRadius: 17, borderWidth: 3, backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
     pinEmoji: { fontSize: 18 },
     pinArrow: { width: 0, height: 0, borderLeftWidth: 4, borderRightWidth: 4, borderTopWidth: 9, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
 
+    // Map Pins (Modern Bean)
+    modernPin: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 5 },
+    modernPinEmoji: { fontSize: 22 },
+    modernPinTail: { width: 0, height: 0, borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -2 },
+    elderGlow: { borderRadius: 20, borderWidth: 2, borderColor: '#fbbf24', shadowColor: '#fbbf24', shadowOpacity: 0.8, shadowRadius: 6, shadowOffset: { width: 0, height: 0 } },
+
+    // Map Preview Card
+    previewCardWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 150, justifyContent: 'flex-end' },
+    previewCardOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent' },
+    previewCard: { backgroundColor: '#fff', margin: 16, borderRadius: 24, padding: 16, flexDirection: 'row', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 20 },
+    previewThumb: { width: 90, height: 90, borderRadius: 16, backgroundColor: '#f3f4f6' },
+    previewThumbPlaceholder: { width: 90, height: 90, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+    previewInfo: { flex: 1, marginLeft: 16, justifyContent: 'center' },
+    previewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+    previewCategory: { fontSize: 12, fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 },
+    previewCredits: { fontSize: 14, fontWeight: '800', color: '#10b981' },
+    previewTitle: { fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 4 },
+    previewAuthor: { fontSize: 14, fontWeight: '500', color: '#6b7280', marginBottom: 12 },
+    previewActionBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center' },
+    previewActionText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+    previewClose: { position: 'absolute', top: 12, right: 12, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.05)', justifyContent: 'center', alignItems: 'center' },
+    previewCloseText: { fontSize: 12, fontWeight: '800', color: '#6b7280' },
+
     // FAB
-    fab: { position: 'absolute', bottom: 24, right: 24, width: 60, height: 60, borderRadius: 30, backgroundColor: '#d97757', justifyContent: 'center', alignItems: 'center', shadowColor: '#d97757', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8, zIndex: 100 },
-    fabText: { color: '#fff', fontSize: 30, fontWeight: '300', marginTop: -2 },
+    fab: { position: 'absolute', bottom: 32, right: 24, width: 64, height: 64, borderRadius: 32, backgroundColor: '#111827', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 10, zIndex: 100 },
+    fabText: { color: '#fff', fontSize: 32, fontWeight: '300', marginTop: -2 },
 
     // Pin drop banner
     pinDropBanner: { position: 'absolute', top: 60, left: 20, right: 20, backgroundColor: '#3b82f6', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16, alignItems: 'center', zIndex: 200 },
     pinDropBannerText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
-    // Bottom Sheet
-    sheetWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: SCREEN_HEIGHT * 0.58, zIndex: 500 },
-    sheet: { backgroundColor: 'rgba(42, 50, 42, 0.95)', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, maxHeight: SCREEN_HEIGHT * 0.58 },
+    // Full-Screen Sheet
+    sheetWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: SCREEN_HEIGHT * 0.95, zIndex: 500 },
+    sheet: { backgroundColor: 'rgba(24, 30, 24, 0.98)', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, maxHeight: SCREEN_HEIGHT * 0.95, flex: 1 },
     sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
     sheetTitle: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: 0.5 },
     sheetClose: { color: 'rgba(255,255,255,0.5)', fontSize: 24, fontWeight: '300', width: 32, height: 32, textAlign: 'center', lineHeight: 32 },
 
+    // Toast
+    toastBanner: { backgroundColor: '#ef4444', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, marginBottom: 10, alignItems: 'center' },
+    toastText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+
+    // Section labels
+    sectionLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, marginTop: 4 },
+    requiredStar: { color: '#ef4444', fontSize: 12 },
+    sectionLabelHint: { color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: '500', textTransform: 'none', letterSpacing: 0 },
+
     // Type toggle
-    typeRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+    typeRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
     typeBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 2, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center' },
     typeBtnOffer: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
     typeBtnNeed: { backgroundColor: '#ea580c', borderColor: '#ea580c' },
@@ -608,22 +764,28 @@ const styles = StyleSheet.create({
     pickerWrap: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', marginBottom: 12, overflow: 'hidden' },
     picker: { color: '#fff', height: 50 },
 
-    // Location
-    locationRow: { flexDirection: 'row', gap: 10, marginBottom: 6 },
-    locationBtn: { flex: 1, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.08)' },
-    locationBtnActive: { borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.15)' },
-    locationBtnPinDrop: { borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.15)' },
-    locationBtnIcon: { fontSize: 22, marginBottom: 2 },
-    locationBtnLabel: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.8)' },
-    locationConfirm: { textAlign: 'center', color: '#10b981', fontSize: 13, fontWeight: '700', marginBottom: 8 },
+    // Title (full-width)
+    titleInputFull: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 12, color: '#fff', fontSize: 15, marginBottom: 12 },
 
-    // Title + Credits
-    titleCreditsRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-    titleInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 12, color: '#fff', fontSize: 15 },
-    creditsInput: { width: 60, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 12, color: '#fff', fontSize: 16, fontWeight: '800', textAlign: 'center' },
-    priceTypeWrap: {},
+    // Price row
+    priceRow: { flexDirection: 'row', gap: 8, marginBottom: 4, alignItems: 'center' },
+    creditsInputWide: { flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 12, color: '#fff', fontSize: 16, fontWeight: '800' },
     priceTypeBtn: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 14, justifyContent: 'center' },
     priceTypeBtnText: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '700' },
+    freeChip: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 2, borderColor: 'rgba(16,185,129,0.4)', backgroundColor: 'rgba(16,185,129,0.08)' },
+    freeChipActive: { backgroundColor: '#10b981', borderColor: '#10b981' },
+    freeChipText: { color: 'rgba(16,185,129,0.8)', fontSize: 13, fontWeight: '800' },
+    freeChipTextActive: { color: '#fff' },
+    pricingGuideLink: { marginBottom: 12, paddingVertical: 4 },
+    pricingGuideLinkText: { color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: '600' },
+
+    // Location (compact chips)
+    locationRow: { flexDirection: 'row', gap: 8, marginBottom: 12, alignItems: 'center' },
+    locationChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.08)' },
+    locationChipActive: { borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.15)' },
+    locationChipIcon: { fontSize: 16 },
+    locationChipLabel: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.8)' },
+    locationConfirmInline: { color: '#10b981', fontSize: 13, fontWeight: '800' },
 
     // Repeatable
     repeatableRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, marginBottom: 10 },
@@ -636,7 +798,7 @@ const styles = StyleSheet.create({
     descriptionInput: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 12, color: '#fff', fontSize: 15, minHeight: 80, marginBottom: 12 },
 
     // Photos
-    photosRow: { flexDirection: 'row', gap: 10, marginBottom: 4, flexWrap: 'wrap' },
+    photosRow: { flexDirection: 'row', gap: 10, marginBottom: 4, flexWrap: 'wrap', padding: 4, borderRadius: 14 },
     photoThumb: { width: 60, height: 60, borderRadius: 12, overflow: 'hidden', position: 'relative' },
     photoImg: { width: 60, height: 60, borderRadius: 12 },
     photoRemove: { position: 'absolute', top: -2, right: -2, width: 22, height: 22, borderRadius: 11, backgroundColor: '#ef4444', justifyContent: 'center', alignItems: 'center' },
@@ -646,7 +808,7 @@ const styles = StyleSheet.create({
     photoCount: { color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 },
 
     // Submit
-    submitBtn: { paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginBottom: 8 },
+    submitBtn: { paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginBottom: 8, marginTop: 4 },
     submitBtnOffer: { backgroundColor: '#10b981' },
     submitBtnNeed: { backgroundColor: '#ea580c' },
     submitBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.1)' },
