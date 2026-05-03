@@ -25,7 +25,9 @@ db.pragma('foreign_keys = OFF');
 
 // Function to initialize schema
 export function initSchema() {
+    let needsFkMigration = false;
     const userVersion = db.pragma('user_version', { simple: true }) as number;
+    
     if (userVersion < 3) {
         console.log("🧨 Nuking messages and conversations for Version 3 Typed Messaging overhaul...");
         db.exec(`
@@ -36,12 +38,68 @@ export function initSchema() {
         db.pragma('user_version = 3');
     }
 
+    if (userVersion < 4) {
+        console.log("🧨 Rebuilding transactions tables to remove strict foreign keys...");
+        try {
+            db.exec(`
+                ALTER TABLE transactions RENAME TO transactions_old;
+                ALTER TABLE marketplace_transactions RENAME TO marketplace_transactions_old;
+            `);
+            needsFkMigration = true;
+            db.pragma('user_version = 4');
+        } catch (err: any) {
+            console.error("Migration rename failed (maybe tables don't exist yet):", err.message);
+        }
+    }
+
+    let needsAccountsMigration = false;
+    if (userVersion < 5) {
+        console.log("🧨 Rebuilding accounts table to remove strict foreign keys...");
+        try {
+            db.exec(`
+                ALTER TABLE accounts RENAME TO accounts_old;
+            `);
+            needsAccountsMigration = true;
+            db.pragma('user_version = 5');
+        } catch (err: any) {
+            console.error("Migration rename failed (maybe tables don't exist yet):", err.message);
+        }
+    }
+
     const schemaSql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
     db.exec(schemaSql);
 
     try { db.prepare(`ALTER TABLE posts ADD COLUMN price_type TEXT DEFAULT 'fixed'`).run(); } catch { }
     try { db.prepare(`ALTER TABLE marketplace_transactions ADD COLUMN hours REAL`).run(); } catch { }
     try { db.prepare(`ALTER TABLE transactions ADD COLUMN project_id TEXT REFERENCES projects(id)`).run(); } catch { }
+
+    if (needsFkMigration) {
+        try {
+            console.log("📦 Copying data to new transaction tables...");
+            const txCols = (db.prepare('PRAGMA table_info(transactions_old)').all() as any[]).map(c => c.name).join(', ');
+            db.exec(`INSERT INTO transactions (${txCols}) SELECT ${txCols} FROM transactions_old;`);
+            db.exec(`DROP TABLE transactions_old;`);
+
+            const mtxCols = (db.prepare('PRAGMA table_info(marketplace_transactions_old)').all() as any[]).map(c => c.name).join(', ');
+            db.exec(`INSERT INTO marketplace_transactions (${mtxCols}) SELECT ${mtxCols} FROM marketplace_transactions_old;`);
+            db.exec(`DROP TABLE marketplace_transactions_old;`);
+            console.log("✅ FK Migration complete.");
+        } catch (err: any) {
+            console.error("❌ Data copy failed:", err.message);
+        }
+    }
+
+    if (needsAccountsMigration) {
+        try {
+            console.log("📦 Copying data to new accounts table...");
+            const accCols = (db.prepare('PRAGMA table_info(accounts_old)').all() as any[]).map(c => c.name).join(', ');
+            db.exec(`INSERT INTO accounts (${accCols}) SELECT ${accCols} FROM accounts_old;`);
+            db.exec(`DROP TABLE accounts_old;`);
+            console.log("✅ Accounts Migration complete.");
+        } catch (err: any) {
+            console.error("❌ Data copy failed:", err.message);
+        }
+    }
     try {
         db.prepare(`ALTER TABLE posts ADD COLUMN updated_at DATETIME`).run();
         db.prepare(`UPDATE posts SET updated_at = created_at WHERE updated_at IS NULL`).run();

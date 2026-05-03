@@ -61,6 +61,31 @@ const darkMapStyle = [
   { featureType: "water", elementType: "labels.text.stroke", stylers: [{ color: "#17263c" }] }
 ];
 
+const ClusterMarker = ({ cluster }: any) => {
+    const [track, setTrack] = useState(true);
+    const { id, geometry, onPress, properties } = cluster;
+    const points = properties.point_count;
+
+    useEffect(() => {
+        setTrack(true);
+        const t = setTimeout(() => setTrack(false), 500);
+        return () => clearTimeout(t);
+    }, [points]);
+
+    return (
+        <Marker
+            coordinate={{ longitude: geometry.coordinates[0], latitude: geometry.coordinates[1] }}
+            onPress={onPress}
+            tracksViewChanges={track}
+            style={{ zIndex: points + 1 }}
+        >
+            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', borderColor: '#ffffff', borderWidth: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 8 }}>
+                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 16 }}>{points}</Text>
+            </View>
+        </Marker>
+    );
+};
+
 const CustomMapMarker = ({ coordinate, post, catObj, useModernMarkers, isSelected, onPress }: any) => {
     const [track, setTrack] = useState(true);
 
@@ -75,7 +100,7 @@ const CustomMapMarker = ({ coordinate, post, catObj, useModernMarkers, isSelecte
     const markerEmoji = catObj?.emoji || (isOffer ? '📦' : '❤️');
     
     // Elder Glow (Energy Cycled > 10000)
-    const isElder = post.author_energy_cycled && post.author_energy_cycled >= 10000;
+    const isElder = (post.author_energy_cycled || 0) >= 10000;
     const elderStyle = isElder ? { borderColor: '#fbbf24', borderWidth: 2, shadowColor: '#fbbf24', shadowOpacity: 0.8, shadowRadius: 6, shadowOffset: { width: 0, height: 0 } } : {};
 
     return (
@@ -113,7 +138,7 @@ export default function MapScreen() {
     const currencyStr = useCurrencyString();
     const [isDarkMap, setIsDarkMap] = useState(false);
     const [posts, setPosts] = useState<any[]>([]);
-    const mapRef = useRef<MapView>(null);
+    const mapRef = useRef<any>(null);
     const [currentRegion, setCurrentRegion] = useState({
         latitude: -28.5398, longitude: 153.4996,
         latitudeDelta: 0.0922, longitudeDelta: 0.0421,
@@ -361,21 +386,7 @@ export default function MapScreen() {
     const submitDisabled = posting || postLat == null || !postTitle.trim() || !postDescription.trim() || postCredits === '' || !postCategory || postPhotos.length < 1;
 
     const renderCluster = (cluster: any) => {
-        const { id, geometry, onPress, properties } = cluster;
-        const points = properties.point_count;
-        return (
-            <Marker
-                key={`cluster-${id}`}
-                coordinate={{ longitude: geometry.coordinates[0], latitude: geometry.coordinates[1] }}
-                onPress={onPress}
-                tracksViewChanges={false}
-                style={{ zIndex: points + 1 }}
-            >
-                <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', borderColor: '#ffffff', borderWidth: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 8 }}>
-                    <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 16 }}>{points}</Text>
-                </View>
-            </Marker>
-        );
+        return <ClusterMarker key={`cluster-${cluster.id}`} cluster={cluster} />;
     };
 
     return (
