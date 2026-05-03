@@ -195,17 +195,6 @@ export default function MarketScreen() {
                     />
                 </View>
                 <Pressable 
-                    onPress={() => setShowDealsSheet(true)} 
-                    style={styles.iconBtn}
-                >
-                    <MaterialCommunityIcons name="handshake-outline" size={20} color="#6b7280" />
-                    {pendingCount > 0 && (
-                        <View style={styles.dealBadge}>
-                            <Text style={styles.dealBadgeText}>{pendingCount}</Text>
-                        </View>
-                    )}
-                </Pressable>
-                <Pressable 
                     onPress={() => setViewMode(v => v === 'list' ? 'grid' : 'list')} 
                     style={styles.iconBtn}
                 >
@@ -214,12 +203,19 @@ export default function MarketScreen() {
             </View>
 
             {/* Horizontal Filter Chips */}
-            <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false} 
-                contentContainerStyle={styles.chipScrollContainer}
-                style={{ marginTop: 10, marginBottom: 4 }}
-            >
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10, marginBottom: 4 }}>
+                {/* My Deals chip */}
+                <Pressable 
+                    onPress={() => setShowDealsSheet(true)} 
+                    style={[styles.chip, { backgroundColor: '#fef3c7', borderColor: '#fcd34d' }]}
+                >
+                    <Text style={[styles.chipText, { color: '#b45309' }]}>🤝 My Deals</Text>
+                    {pendingCount > 0 && (
+                        <View style={{ backgroundColor: '#ef4444', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 8, marginLeft: 6 }}>
+                            <Text style={{ color: '#ffffff', fontSize: 9, fontWeight: '900' }}>{pendingCount}</Text>
+                        </View>
+                    )}
+                </Pressable>
                 {/* Type chips */}
                 <Pressable 
                     onPress={() => setFilter('all')} 
@@ -272,7 +268,7 @@ export default function MarketScreen() {
                         </Pressable>
                     )}
                 </Pressable>
-            </ScrollView>
+            </View>
         </View>
     );
 
@@ -420,7 +416,7 @@ export default function MarketScreen() {
                             </Pressable>
                         )}
                         <Pressable 
-                            style={{ backgroundColor: '#8b5cf6', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 }}
+                            style={{ backgroundColor: '#111827', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 }}
                             onPress={() => router.push('/')}
                         >
                             <Text style={{ fontWeight: '700', color: '#fff', fontSize: 14 }}>+ Post a Deal</Text>
@@ -551,10 +547,10 @@ const styles = StyleSheet.create({
         width: 60,
         height: 60,
         borderRadius: 30,
-        backgroundColor: '#8b5cf6',
+        backgroundColor: '#111827',
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#8b5cf6',
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.4,
         shadowRadius: 8,
