@@ -9,6 +9,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { MARKETPLACE_CATEGORIES, POST_TYPE_COLORS, type PostType } from '../lib/marketplace';
 import { MarketplaceCard } from '../components/MarketplaceCard';
+import { CategoryPickerModal } from '../components/CategoryPickerModal';
+import { MyDealsModal } from '../components/MyDealsModal';
 import { lazy, Suspense } from 'react';
 const RadiusPickerPage = lazy(() => import('../components/RadiusPickerPage').then(m => ({ default: m.RadiusPickerPage })));
 import { haversineDistance, loadRadiusSettings, saveRadiusSettings, clearRadiusSettings, type RadiusSettings } from '../lib/geo';
@@ -60,6 +62,9 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
     // Layout configuration
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [showFilters, setShowFilters] = useState(false);
+    const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+    const [showDealsModal, setShowDealsModal] = useState(false);
+    const [dealsInitialTab, setDealsInitialTab] = useState<'active' | 'pending' | 'history'>('active');
 
     // Detail view
     const [selectedPost, setSelectedPost] = useState<MarketplacePost | null>(null);
@@ -76,8 +81,8 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
     // Handle deep-link from Map pins or routes
     useEffect(() => {
         if (openPostId === 'deals_active') {
-             setActiveTab('deals');
-             setDealsTab('active');
+             setShowDealsModal(true);
+             setDealsInitialTab('active');
              onPostOpened?.();
         } else if (openPostId && posts.length > 0) {
             const found = posts.find(p => p.id === openPostId);
@@ -1275,39 +1280,9 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                 </Suspense>
             )}
 
-            {/* Top Segmented Control (Feed vs Deals) */}
-            <div className="flex bg-nature-100 dark:bg-nature-800 rounded-xl p-1 mb-3 shadow-inner">
-                <button
-                    onClick={() => setActiveTab('feed')}
-                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${
-                        activeTab === 'feed'
-                            ? 'bg-white dark:bg-nature-900 text-nature-900 dark:text-white shadow-sm'
-                            : 'text-nature-500 hover:text-nature-700 dark:hover:text-nature-300'
-                    }`}
-                >
-                    Global Feed
-                </button>
-                <button
-                    onClick={() => setActiveTab('deals')}
-                    className={`flex-1 flex gap-2 items-center justify-center py-2 text-sm font-bold rounded-lg transition-all ${
-                        activeTab === 'deals'
-                            ? 'bg-white dark:bg-nature-900 text-nature-900 dark:text-white shadow-sm'
-                            : 'text-nature-500 hover:text-nature-700 dark:hover:text-nature-300'
-                    }`}
-                >
-                    <span>My Market</span>
-                    {pendingDealsCount > 0 && (
-                        <span className="bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
-                            {pendingDealsCount}
-                        </span>
-                    )}
-                </button>
-            </div>
 
-            {/* ── Compact Top Header ── */}
-            {activeTab === 'feed' && (
+            {/* ── Search Row: Search + My Deals + View Toggle ── */}
             <div className="mb-2">
-                {/* Search + Primary Actions */}
                 <div className="flex gap-2 items-center">
                     <div className="flex-1 relative">
                         <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm opacity-40 pointer-events-none text-nature-500 dark:text-nature-400">🔍</span>
@@ -1318,19 +1293,21 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                             className="w-full py-2.5 pl-10 pr-4 rounded-full border border-nature-200 dark:border-nature-800 bg-white dark:bg-nature-900 text-nature-900 dark:text-white text-[14px] font-medium focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm transition-all hover:shadow-md"
                         />
                     </div>
-                    
+
+                    {/* My Deals Button */}
                     <button
-                        onClick={() => setShowFilters(!showFilters)}
-                        title="Toggle Filters"
-                        className={`w-10 h-10 rounded-full flex-shrink-0 border flex items-center justify-center transition-colors hover:shadow-md ${
-                            showFilters ? 'bg-nature-800 dark:bg-white text-white dark:text-nature-950 border-nature-900 dark:border-white shadow-inner' : 'bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 hover:bg-oat-50 shadow-sm'
-                        }`}
+                        onClick={() => setShowDealsModal(true)}
+                        title="My Deals"
+                        className="w-10 h-10 rounded-full flex-shrink-0 border bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 hover:bg-oat-50 dark:hover:bg-nature-800 transition-colors shadow-sm flex items-center justify-center text-lg hover:shadow-md relative"
                     >
-                        <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
-                        </svg>
+                        🤝
+                        {pendingDealsCount > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm min-w-[18px] text-center">
+                                {pendingDealsCount}
+                            </span>
+                        )}
                     </button>
-                    
+
                     <button
                         onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
                         className="w-10 h-10 rounded-full flex-shrink-0 border bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 hover:bg-oat-50 dark:hover:bg-nature-800 transition-colors shadow-sm flex items-center justify-center text-md hover:shadow-md"
@@ -1340,96 +1317,88 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                     </button>
                 </div>
 
-                {/* Collapsible Filters Panel */}
-                {showFilters && (
-                    <div className="mt-4 bg-oat-50/50 dark:bg-nature-900/40 rounded-[24px] border border-nature-200 dark:border-nature-800 p-4 shadow-inner animate-in slide-in-from-top-2 duration-200">
-                        <div className="flex gap-2 items-center mb-4">
-                            <div className={`flex-1 flex rounded-xl border shadow-sm transition-colors ${
-                                radiusSettings ? 'bg-amber-100 dark:bg-amber-900/60 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400' : 'bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400'
-                            }`}>
-                                <button
-                                    onClick={() => setShowRadiusPicker(true)}
-                                    title={radiusSettings ? `${radiusSettings.radiusKm}km radius` : 'Set radius'}
-                                    className={`flex-1 py-2.5 px-3 flex items-center justify-center gap-2 text-sm font-bold rounded-l-xl ${!radiusSettings ? 'rounded-r-xl px-4' : ''}`}
-                                >
-                                    <span>📍</span> {radiusSettings ? `${radiusSettings.radiusKm}km Radius` : 'Location Radius'}
-                                </button>
-                                {radiusSettings && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setRadiusSettings(null);
-                                            clearRadiusSettings();
-                                        }}
-                                        className="px-3 flex items-center justify-center border-l bg-amber-100 dark:bg-transparent border-amber-300 dark:border-amber-700 hover:bg-amber-200 dark:hover:bg-amber-800 rounded-r-xl transition-colors font-bold text-amber-700 dark:text-amber-400"
-                                        title="Clear Radius"
-                                    >
-                                        ✕
-                                    </button>
-                                )}
-                            </div>
-                            <select
-                                value={categoryFilter}
-                                onChange={(e) => setCategoryFilter(e.target.value)}
-                                className={`flex-1 py-2.5 px-4 rounded-xl appearance-auto cursor-pointer text-sm font-bold shadow-sm border transition-colors ${
-                                    categoryFilter !== 'all' ? 'bg-indigo-100 dark:bg-indigo-900/60 border-indigo-300 dark:border-indigo-700 text-indigo-800 dark:text-indigo-300' : 'bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400'
+                {/* Horizontal Filter Chips */}
+                <div className="flex gap-2 mt-2.5 overflow-x-auto pb-1 scrollbar-hide">
+                    {/* Type chips */}
+                    {(['all', 'offer', 'need'] as const).map((t) => {
+                        const isSelected = typeFilter === t;
+                        let activeStyles = 'bg-nature-800 dark:bg-white border-nature-900 dark:border-white text-white dark:text-nature-900';
+                        if (t === 'offer') activeStyles = 'bg-emerald-600 border-emerald-700 text-white';
+                        if (t === 'need') activeStyles = 'bg-terra-600 border-terra-700 text-white';
+
+                        return (
+                            <button
+                                key={t}
+                                onClick={() => setTypeFilter(t)}
+                                className={`px-3 py-1.5 rounded-full border text-xs font-bold whitespace-nowrap shadow-sm transition-colors ${
+                                    isSelected ? activeStyles : 'bg-white dark:bg-nature-950 border-nature-200 dark:border-nature-800 text-nature-500 dark:text-nature-400'
                                 }`}
                             >
-                                <option value="all">🏷️ All Categories</option>
-                                {MARKETPLACE_CATEGORIES.map((cat) => (
-                                    <option key={cat.id} value={cat.id}>{cat.emoji} {cat.label}</option>
-                                ))}
-                            </select>
-                        </div>
+                                {t === 'all' ? 'All' : t === 'offer' ? '🟢 Offers' : '🟠 Needs'}
+                            </button>
+                        );
+                    })}
 
-                        {/* Connected Communities — multi-toggle */}
-                        {peerNodes.length > 0 && (
-                            <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide">
-                                <span className="px-3 py-1.5 rounded-lg border-2 border-emerald-300 bg-emerald-50 text-emerald-700 text-xs font-black uppercase tracking-widest whitespace-nowrap inline-flex items-center shadow-sm">
-                                    🏠 Internal
-                                </span>
-                                {peerNodes.map(peer => {
-                                    const isOn = enabledPeers.has(peer.publicUrl);
-                                    return (
-                                        <button
-                                            key={peer.publicUrl}
-                                            onClick={() => { setEnabledPeers(togglePeer(enabledPeers, peer.publicUrl)); }}
-                                            className={`px-3 py-1.5 rounded-lg border-2 text-xs font-bold cursor-pointer whitespace-nowrap transition-all shadow-sm ${
-                                                isOn ? 'border-indigo-400 dark:border-indigo-600 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300' : 'border-nature-200 dark:border-nature-800 bg-white/50 dark:bg-nature-950/50 text-nature-500 dark:text-nature-400'
-                                            }`}
-                                        >
-                                            {isOn ? '🌐' : '○'} {peer.callsign}
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                    {/* Divider */}
+                    <div className="w-px bg-nature-200 dark:bg-nature-700 self-stretch mx-0.5 shrink-0" />
+
+                    {/* Category chip */}
+                    <button
+                        onClick={() => setShowCategoryPicker(true)}
+                        className={`px-3 py-1.5 rounded-full border text-xs font-bold whitespace-nowrap shadow-sm transition-colors flex items-center gap-1 ${
+                            categoryFilter !== 'all'
+                                ? 'bg-indigo-100 dark:bg-indigo-900/40 border-indigo-300 dark:border-indigo-600 text-indigo-800 dark:text-indigo-300'
+                                : 'bg-white dark:bg-nature-950 border-nature-200 dark:border-nature-800 text-nature-500 dark:text-nature-400'
+                        }`}
+                    >
+                        {(MARKETPLACE_CATEGORIES.find(c => c.id === categoryFilter)?.emoji) || '🏷️'} {categoryFilter !== 'all' ? MARKETPLACE_CATEGORIES.find(c => c.id === categoryFilter)?.label : 'Category'}
+                        <span className="text-[8px] text-nature-400 ml-0.5">▼</span>
+                    </button>
+
+                    {/* Distance chip */}
+                    <button
+                        onClick={() => setShowRadiusPicker(true)}
+                        className={`px-3 py-1.5 rounded-full border text-xs font-bold whitespace-nowrap shadow-sm transition-colors flex items-center gap-1 ${
+                            radiusSettings
+                                ? 'bg-amber-100 dark:bg-amber-900/40 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400'
+                                : 'bg-white dark:bg-nature-950 border-nature-200 dark:border-nature-800 text-nature-500 dark:text-nature-400'
+                        }`}
+                    >
+                        📍 {radiusSettings ? `${radiusSettings.radiusKm}km` : 'Distance'}
+                        {radiusSettings && (
+                            <span
+                                onClick={(e) => { e.stopPropagation(); setRadiusSettings(null); clearRadiusSettings(); }}
+                                className="ml-1 text-[10px] font-black cursor-pointer hover:text-amber-900"
+                            >
+                                ✕
+                            </span>
                         )}
+                    </button>
+                </div>
 
-                        {/* Type filter chips */}
-                        <div className="flex w-full gap-2 items-center pb-1">
-                            {(['all', 'offer', 'need'] as const).map((t) => {
-                                const isSelected = typeFilter === t;
-                                let activeStyles = 'bg-nature-800 border-nature-900 text-white';
-                                if (t === 'offer') activeStyles = 'bg-emerald-600 border-emerald-700 text-white';
-                                if (t === 'need') activeStyles = 'bg-terra-600 border-terra-700 text-white';
-
-                                return (
-                                    <button
-                                        key={t}
-                                        onClick={() => setTypeFilter(t)}
-                                        className={`${t === 'all' ? 'px-3' : 'flex-1'} py-2 rounded-xl border text-[11px] sm:text-xs font-bold text-center truncate shadow-sm transition-colors ${
-                                            isSelected ? activeStyles : 'bg-white dark:bg-nature-950 border-nature-200 dark:border-nature-800 text-nature-500 dark:text-nature-400'
-                                        }`}
-                                    >
-                                        {t === 'all' ? 'All' : t === 'offer' ? '🟢 Offers' : '🟠 Needs'}
-                                    </button>
-                                );
-                            })}
-                        </div>
+                {/* Connected Communities — multi-toggle (only if peer nodes exist) */}
+                {peerNodes.length > 0 && (
+                    <div className="flex gap-2 mt-2 overflow-x-auto pb-1 scrollbar-hide">
+                        <span className="px-3 py-1.5 rounded-lg border-2 border-emerald-300 bg-emerald-50 text-emerald-700 text-xs font-black uppercase tracking-widest whitespace-nowrap inline-flex items-center shadow-sm">
+                            🏠 Internal
+                        </span>
+                        {peerNodes.map(peer => {
+                            const isOn = enabledPeers.has(peer.publicUrl);
+                            return (
+                                <button
+                                    key={peer.publicUrl}
+                                    onClick={() => { setEnabledPeers(togglePeer(enabledPeers, peer.publicUrl)); }}
+                                    className={`px-3 py-1.5 rounded-lg border-2 text-xs font-bold cursor-pointer whitespace-nowrap transition-all shadow-sm ${
+                                        isOn ? 'border-indigo-400 dark:border-indigo-600 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300' : 'border-nature-200 dark:border-nature-800 bg-white/50 dark:bg-nature-950/50 text-nature-500 dark:text-nature-400'
+                                    }`}
+                                >
+                                    {isOn ? '🌐' : '○'} {peer.callsign}
+                                </button>
+                            );
+                        })}
                     </div>
                 )}
-            </div>
-            )}
+            </div>}
 
             {/* Error */}
             {error && (
@@ -1438,76 +1407,12 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                 </div>
             )}
 
-            {/* Deals Sub-Navigation */}
-            {activeTab === 'deals' && (
-                <div className="flex bg-white dark:bg-nature-950 border border-nature-200 dark:border-nature-800 rounded-xl p-1 mb-4 shadow-sm">
-                    <button
-                        onClick={() => setDealsTab('active')}
-                        className={`flex-1 py-1.5 text-xs sm:text-sm font-bold rounded-lg transition-all ${
-                            dealsTab === 'active' ? 'bg-oat-100 dark:bg-nature-800 text-nature-900 dark:text-white shadow-sm' : 'text-nature-500 hover:text-nature-700'
-                        }`}
-                    >
-                        Active
-                    </button>
-                    <button
-                        onClick={() => setDealsTab('pending')}
-                        className={`flex-1 flex gap-2 justify-center items-center py-1.5 text-xs sm:text-sm font-bold rounded-lg transition-all ${
-                            dealsTab === 'pending' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-50 shadow-sm' : 'text-nature-500 hover:text-nature-700'
-                        }`}
-                    >
-                        <span>In Progress</span>
-                        {pendingDealsCount > 0 && (
-                            <span className="bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
-                                {pendingDealsCount}
-                            </span>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setDealsTab('history')}
-                        className={`flex-1 py-1.5 text-xs sm:text-sm font-bold rounded-lg transition-all ${
-                            dealsTab === 'history' ? 'bg-oat-100 dark:bg-nature-800 text-nature-900 dark:text-white shadow-sm' : 'text-nature-500 hover:text-nature-700'
-                        }`}
-                    >
-                        History
-                    </button>
-                </div>
-            )}
 
-            {/* History Filter (Quick Filters) */}
-            {activeTab === 'deals' && dealsTab === 'history' && (
-                <div className="flex justify-center gap-2 mb-4">
-                    {[{id: 'all', label: 'All'}, {id: 'buying', label: 'Received'}, {id: 'selling', label: 'Given'}].map(filter => (
-                        <button
-                            key={filter.id}
-                            onClick={() => setHistoryFilter(filter.id as any)}
-                            className={`px-3 py-1 text-xs font-bold rounded-full border transition-colors ${
-                                historyFilter === filter.id 
-                                    ? 'bg-nature-800 dark:bg-nature-200 text-white dark:text-nature-900 border-nature-900 dark:border-nature-100' 
-                                    : 'bg-white dark:bg-nature-900 text-nature-600 dark:text-nature-400 border-nature-200 dark:border-nature-700 hover:bg-oat-50'
-                            }`}
-                        >
-                            {filter.label}
-                        </button>
-                    ))}
-                </div>
-            )}
-
-            {/* Posts & History */}
+            {/* Posts */}
             {loading ? (
                 <p className="text-nature-500 text-center py-8">Loading...</p>
             ) : (() => {
-                let filtered = posts;
-                
-                if (activeTab === 'deals') {
-                    if (dealsTab === 'active') {
-                        filtered = myMarketPosts.filter(p => p.status === 'active');
-                    } else if (dealsTab === 'pending' || dealsTab === 'history') {
-                        // Pending and History rendered via myTransactions separately.
-                        filtered = [];
-                    }
-                } else {
-                    filtered = posts.filter(p => p.status === 'active' && (!identity || p.authorPublicKey !== identity.publicKey));
-                }
+                let filtered = posts.filter(p => p.status === 'active' && (!identity || p.authorPublicKey !== identity.publicKey));
 
                 // Text search
                 if (searchQuery.trim()) {
@@ -1527,128 +1432,6 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                     });
                 }
 
-                if (activeTab === 'deals' && (dealsTab === 'history' || dealsTab === 'pending')) {
-                    // Render Transactions (History or Pending)
-                    let txs = myTransactions.filter(t => dealsTab === 'pending' ? t.status === 'pending' : (t.status === 'completed' || t.status === 'cancelled' || t.status === 'rejected'));
-                    
-                    if (historyFilter === 'buying') {
-                        txs = txs.filter(t => t.buyerPublicKey === identity?.publicKey);
-                    } else if (historyFilter === 'selling') {
-                        txs = txs.filter(t => t.sellerPublicKey === identity?.publicKey);
-                    }
-
-                    if (searchQuery.trim()) {
-                        const q = searchQuery.toLowerCase().trim();
-                        txs = txs.filter(t =>
-                            (t.postTitle || '').toLowerCase().includes(q)
-                        );
-                    }
-
-                    return txs.length === 0 ? (
-                        <div className="bg-white dark:bg-nature-950 border border-nature-200 dark:border-nature-800 rounded-3xl p-10 mt-6 text-center shadow-soft">
-                            <div className="text-5xl opacity-30 mb-4">📜</div>
-                            <h4 className="font-bold text-lg text-nature-900 dark:text-white mb-2">No history</h4>
-                            <p className="text-nature-500 dark:text-nature-400 text-sm">
-                                {dealsTab === 'pending' ? 'Zero active transactions in escrow.' : 'You have no completed or cancelled deals yet.'}
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col gap-3 pb-32">
-                            {txs.map(tx => {
-                                const isBuyer = tx.buyerPublicKey === identity?.publicKey;
-                                const isCompleted = tx.status === 'completed';
-                                const isPending = tx.status === 'pending';
-                                const needsReview = isCompleted && ((isBuyer && !tx.ratedByBuyer) || (!isBuyer && !tx.ratedBySeller));
-                                const partnerCallsign = isBuyer ? tx.sellerCallsign : tx.buyerCallsign;
-                                const partnerPubkey = isBuyer ? tx.sellerPublicKey : tx.buyerPublicKey;
-
-                                const coverImage = (tx as any).coverImage || null;
-
-                                return (
-                                    <div 
-                                        key={tx.id} 
-                                        className={`bg-white dark:bg-nature-900 border rounded-2xl p-4 shadow-sm relative overflow-hidden ${
-                                            isPending ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/10 dark:bg-emerald-950/20 cursor-pointer hover:border-emerald-400 focus:outline-emerald-400'
-                                            : isCompleted ? 'border-nature-200 dark:border-nature-800' 
-                                            : 'border-nature-200/50 dark:border-nature-800/50 opacity-60 grayscale-[50%]'
-                                        }`}
-                                        onClick={async () => {
-                                            if (isPending) {
-                                                try {
-                                                    const p = await getMarketplacePosts();
-                                                    const targetPost = p.find(po => po.id === tx.postId);
-                                                    if (targetPost) {
-                                                        setSelectedPost(targetPost);
-                                                        setSelectedTxId(tx.id);
-                                                    }
-                                                } catch(e) {}
-                                            }
-                                        }}
-                                    >
-                                        <div className="flex gap-3 mb-2">
-                                            {coverImage ? (
-                                                <img src={coverImage} alt="Cover" className="w-16 h-16 rounded-xl object-cover bg-nature-100 flex-shrink-0" />
-                                            ) : (
-                                                <div className="w-16 h-16 rounded-xl bg-nature-100 dark:bg-nature-800 flex items-center justify-center flex-shrink-0">
-                                                    <span className="text-2xl opacity-50">{isBuyer ? '🛒' : '🏷️'}</span>
-                                                </div>
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex justify-between items-start mb-1">
-                                                    <div className="flex gap-2 items-center">
-                                                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                                                            isPending ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400'
-                                                            : isCompleted ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' 
-                                                            : 'bg-nature-200 text-nature-700 dark:bg-nature-800 dark:text-nature-400'
-                                                        }`}>
-                                                            {tx.status}
-                                                        </span>
-                                                        <span className="text-xs text-nature-500 font-bold whitespace-nowrap">
-                                                            {new Date(tx.createdAt).toLocaleDateString()}
-                                                        </span>
-                                                    </div>
-                                                    <div className={`font-black tracking-tight text-right pl-2 ${isBuyer ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'nowrap', minWidth: 'fit-content' }}>
-                                                        <span>{isBuyer ? '-' : '+'}{tx.credits}</span>
-                                                        <img src="/assets/bean.png" style={{ width: '14px', height: '14px', marginLeft: '3px', flexShrink: 0 }} alt="B" />
-                                                    </div>
-                                                </div>
-                                                <h3 className="font-black text-nature-900 dark:text-white truncate">{tx.postTitle}</h3>
-                                            </div>
-                                        </div>
-                                        <div className="flex justify-between items-end mt-3">
-                                            <div className="text-xs text-nature-600 dark:text-nature-400 font-medium">
-                                                {isBuyer ? 'Bought from ' : 'Sold to '}
-                                                <span className="font-bold text-nature-900 dark:text-white">{partnerCallsign}</span>
-                                            </div>
-                                            {needsReview && (
-                                                <button 
-                                                    className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-500 text-xs font-bold rounded-lg border border-amber-300 dark:border-amber-800 transition-colors shadow-sm"
-                                                    onClick={(e) => { 
-                                                        e.stopPropagation();
-                                                        // History item review fallback
-                                                        const targetPubkey = isBuyer ? tx.sellerPublicKey : tx.buyerPublicKey;
-                                                        const targetCallsign = isBuyer ? tx.sellerCallsign : tx.buyerCallsign;
-                                                        setReviewStars(5);
-                                                        setReviewComment('');
-                                                        setPromptReviewForTx({ 
-                                                            txId: tx.id, 
-                                                            targetPubkey, 
-                                                            targetCallsign, 
-                                                            targetRole: isBuyer ? 'provider' : 'receiver' 
-                                                        });
-                                                    }}
-                                                >
-                                                    Leave Review
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    );
-                }
-
                 return filtered.length === 0 ? (
                     <div className="bg-white dark:bg-nature-950 border border-nature-200 dark:border-nature-800 rounded-3xl p-10 mt-6 text-center shadow-soft">
                         <div className="text-5xl opacity-30 mb-4">
@@ -1658,7 +1441,6 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                         <p className="text-nature-500 dark:text-nature-400 text-sm">
                             {searchQuery.trim() ? `No matches for "${searchQuery}".`
                                 : radiusSettings ? 'Expand your radius to see more posts.'
-                                : activeTab === 'deals' ? 'No active deals in this category.'
                                 : 'The market is quiet right now. Post an offer!'}
                         </p>
                     </div>
@@ -1669,6 +1451,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                 <MarketplaceCard
                                     post={post as any}
                                     authorRating={authorRatingsCache[post.authorPublicKey]}
+                                    authorEnergy={(post as any).authorEnergyCycled || 0}
                                     remoteNode={(post as any)._remoteNode}
                                     viewMode={viewMode}
                                 />
@@ -1758,7 +1541,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                     <span className="text-lg leading-none block group-hover:rotate-90 transition-transform duration-300">+</span> ADD POST
                 </button>
             )}
-            {/* Modals placed outside main scrolling content */}
+            {/* Modals */}
             {viewingProfileFor && (
                 <PublicProfileModal 
                     publicKey={viewingProfileFor.publicKey} 
@@ -1766,14 +1549,35 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                     onClose={() => setViewingProfileFor(null)} 
                 />
             )}
-            {/* Modals placed outside main scrolling content */}
-            {viewingProfileFor && (
-                <PublicProfileModal 
-                    publicKey={viewingProfileFor.publicKey} 
-                    callsign={viewingProfileFor.callsign} 
-                    onClose={() => setViewingProfileFor(null)} 
-                />
-            )}
+
+            <CategoryPickerModal
+                visible={showCategoryPicker}
+                selected={categoryFilter}
+                onSelect={(catId) => setCategoryFilter(catId)}
+                onClose={() => setShowCategoryPicker(false)}
+            />
+
+            <MyDealsModal
+                visible={showDealsModal}
+                identity={identity}
+                onClose={() => setShowDealsModal(false)}
+                posts={posts}
+                transactions={myTransactions}
+                initialTab={dealsInitialTab}
+                onNavigateToPost={async (postId, txId) => {
+                    const found = posts.find(p => p.id === postId);
+                    if (found) {
+                        setSelectedPost(found);
+                        if (txId) setSelectedTxId(txId);
+                    }
+                }}
+                onPromptReview={(review) => {
+                    setShowDealsModal(false);
+                    setReviewStars(5);
+                    setReviewComment('');
+                    setPromptReviewForTx(review);
+                }}
+            />
         </div>
     );
 }

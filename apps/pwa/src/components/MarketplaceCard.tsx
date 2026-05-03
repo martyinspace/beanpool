@@ -6,19 +6,22 @@
  *  - Price + title below in compact text
  *  - Category emoji badge overlaid on the image
  *  - Remote node badge if from a peer
+ *  - Elder treatment (gold border/shadow) for high-energy users
  */
 
 import { MARKETPLACE_CATEGORIES, POST_TYPE_COLORS, type MarketplacePost } from '../lib/marketplace';
+import { PostAuthorTrust, isElder } from './PostAuthorTrust';
 
 interface Props {
     post: MarketplacePost;
     authorRating?: { average: number; count: number };
+    authorEnergy?: number;
     remoteNode?: string;
     onTrade?: (post: MarketplacePost) => void;
     viewMode?: 'grid' | 'list';
 }
 
-export function MarketplaceCard({ post, authorRating, remoteNode, viewMode = 'grid' }: Props) {
+export function MarketplaceCard({ post, authorRating, authorEnergy = 0, remoteNode, viewMode = 'grid' }: Props) {
     const categoryConfig = MARKETPLACE_CATEGORIES.find((c) => c.id === post.category);
     const typeColor = POST_TYPE_COLORS[post.type];
     const emoji = categoryConfig?.emoji ?? '📦';
@@ -29,15 +32,17 @@ export function MarketplaceCard({ post, authorRating, remoteNode, viewMode = 'gr
 
     const hasPhoto = post.photos && post.photos.length > 0;
 
-    const isList = viewMode === 'list';
-
     const isGrid = viewMode === 'grid';
 
+    const elderCard = isElder(authorEnergy);
+    const elderStyleGrid = elderCard ? 'border-l-4 border-l-amber-400 shadow-[0_4px_15px_rgba(251,191,36,0.15)]' : '';
+    const elderStyleList = elderCard ? 'border-l-4 border-l-amber-400 shadow-[0_4px_15px_rgba(251,191,36,0.1)]' : '';
+
     if (!isGrid) {
-        // Horizontal List View (Matching 'In Progress')
+        // Horizontal List View
         return (
             <div 
-                className="bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-[20px] p-4 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md flex flex-row gap-4 h-full w-full relative overflow-hidden"
+                className={`bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-[20px] p-4 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md flex flex-row gap-4 h-full w-full relative overflow-hidden ${elderStyleList}`}
             >
                 {/* Left Thumbnail */}
                 <div className="w-16 h-16 rounded-xl overflow-hidden shadow-inner flex-shrink-0 relative">
@@ -83,19 +88,12 @@ export function MarketplaceCard({ post, authorRating, remoteNode, viewMode = 'gr
                         {post.title}
                     </h3>
 
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-4 h-4 rounded-full bg-terra-100 dark:bg-nature-800 flex items-center justify-center text-[8px] text-terra-700 dark:text-terra-400 font-bold">
-                            {(post.authorCallsign || '?').charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-[10px] text-nature-500 font-semibold truncate">
-                            {post.authorCallsign || 'Anonymous'}
-                        </span>
-                        {authorRating && authorRating.average > 0 && (
-                            <span className="text-[9px] text-nature-400 flex items-center ml-1">
-                                ★ {authorRating.average.toFixed(1)}
-                            </span>
-                        )}
-                    </div>
+                    <PostAuthorTrust
+                        callsign={post.authorCallsign || 'Anonymous'}
+                        energyCycled={authorEnergy}
+                        rating={authorRating}
+                        mode="full"
+                    />
                 </div>
                 
                 {/* Node Overlays - Top Right floating if remote */}
@@ -111,22 +109,21 @@ export function MarketplaceCard({ post, authorRating, remoteNode, viewMode = 'gr
     // Grid View Return (Condensed tiles)
     return (
         <div
-            className={`bg-white dark:bg-nature-950 overflow-hidden cursor-pointer transition-all duration-300 shadow-md hover:shadow-xl dark:shadow-2xl dark:shadow-black/40 border border-nature-100/50 dark:border-nature-800 flex flex-col h-full rounded-[20px] p-3`}
+            className={`bg-white dark:bg-nature-950 overflow-hidden cursor-pointer transition-all duration-300 shadow-md hover:shadow-xl dark:shadow-2xl dark:shadow-black/40 border border-nature-100/50 dark:border-nature-800 flex flex-col h-full rounded-[20px] p-3 ${elderStyleGrid}`}
         >
             {/* Top Handle: Author + Title + Rating */}
             <div className={`flex justify-between items-start mb-2`}>
-                <div className={`flex items-center overflow-hidden gap-2`}>
-                    <div className={`w-8 h-8 text-xs rounded-full bg-terra-100 dark:bg-nature-800 shrink-0 flex items-center justify-center text-terra-700 dark:text-terra-400 font-bold shadow-inner`}>
-                        {(post.authorCallsign || '?').charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex flex-col truncate">
-                        <span className={`font-black uppercase text-nature-500 dark:text-nature-400 tracking-wider truncate text-[9px]`}>
-                            {post.authorCallsign || 'Anonymous'}
-                        </span>
-                        <span className={`font-bold text-nature-950 dark:text-white truncate text-xs`}>
-                            {post.title}
-                        </span>
-                    </div>
+                <div className={`flex flex-col overflow-hidden`}>
+                    <PostAuthorTrust
+                        callsign={post.authorCallsign || 'Anonymous'}
+                        energyCycled={authorEnergy}
+                        rating={authorRating}
+                        mode="compact"
+                        className="mb-1"
+                    />
+                    <span className={`font-bold text-nature-950 dark:text-white truncate text-xs mt-0.5`}>
+                        {post.title}
+                    </span>
                 </div>
 
                 <div className={`flex items-center shrink-0 bg-oat-50 dark:bg-nature-900 rounded-lg gap-0.5 px-1.5 py-0.5`}>

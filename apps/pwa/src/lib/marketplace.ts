@@ -45,4 +45,7 @@ export interface MarketplacePost {
     status?: 'active' | 'pending' | 'paused' | 'completed' | 'cancelled';
     repeatable?: boolean;
     acceptedBy?: string;
+    authorEnergyCycled?: number;
+    lat?: number;
+    lng?: number;
 }

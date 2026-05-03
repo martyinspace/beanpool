@@ -10,6 +10,7 @@ import { type BeanPoolIdentity } from '../lib/identity';
 import { exportIdentity } from '../lib/identity-transfer';
 import { ProfilePage } from './ProfilePage';
 import { type Theme } from '../lib/useTheme';
+import pkg from '../../package.json';
 
 interface Props {
     identity: BeanPoolIdentity;
@@ -112,7 +113,9 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                     <div className="text-xs font-semibold uppercase tracking-wider text-nature-500 dark:text-nature-400 mb-1">Public Key</div>
                     <div className="text-sm font-mono text-terra-600 dark:text-terra-400 bg-terra-50 dark:bg-terra-900/30 px-3 py-2 rounded-lg border border-terra-100 dark:border-terra-800/50 transition-colors break-all mb-4">{fingerprint}</div>
                     <div className="text-xs font-semibold uppercase tracking-wider text-nature-500 dark:text-nature-400 mb-1">Community Node</div>
-                    <div className="text-sm font-mono text-nature-600 dark:text-nature-400 bg-nature-50 dark:bg-nature-900/30 px-3 py-2 rounded-lg border border-nature-100 dark:border-nature-800/50 transition-colors break-all">{window.location.origin}</div>
+                    <div className="text-sm font-mono text-nature-600 dark:text-nature-400 bg-nature-50 dark:bg-nature-900/30 px-3 py-2 rounded-lg border border-nature-100 dark:border-nature-800/50 transition-colors break-all mb-4">{window.location.origin}</div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-nature-500 dark:text-nature-400 mb-1">App Version</div>
+                    <div className="text-sm font-mono text-nature-600 dark:text-nature-400 bg-nature-50 dark:bg-nature-900/30 px-3 py-2 rounded-lg border border-nature-100 dark:border-nature-800/50 transition-colors break-all">v{pkg.version}</div>
                 </div>
 
                 {/* Theme Toggle */}
