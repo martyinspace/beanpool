@@ -48,3 +48,5 @@ pc-api-key.json
 apps/native/ios/
 apps/native/android/
 apps/native/prod.keystore
+*.aab
+*.ipa
