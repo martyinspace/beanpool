@@ -153,7 +153,7 @@ export default function PostDetailModal() {
 
     let photos: string[] = [];
     if (post.photos) {
-        try { photos = JSON.parse(post.photos); } catch {}
+        try { photos = Array.isArray(post.photos) ? post.photos : JSON.parse(post.photos); } catch {}
     }
 
     const startEdit = () => {
