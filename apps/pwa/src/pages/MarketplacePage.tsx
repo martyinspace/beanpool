@@ -1281,7 +1281,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
             )}
 
 
-            {/* ── Search Row: Search + My Deals + View Toggle ── */}
+            {/* ── Search Row ── */}
             <div className="mb-2">
                 <div className="flex gap-2 items-center">
                     <div className="flex-1 relative">
@@ -1289,24 +1289,10 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                         <input
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search..."
+                            placeholder="Search marketplace..."
                             className="w-full py-2.5 pl-10 pr-4 rounded-full border border-nature-200 dark:border-nature-800 bg-white dark:bg-nature-900 text-nature-900 dark:text-white text-[14px] font-medium focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm transition-all hover:shadow-md"
                         />
                     </div>
-
-                    {/* My Deals Button */}
-                    <button
-                        onClick={() => setShowDealsModal(true)}
-                        title="My Deals"
-                        className="w-10 h-10 rounded-full flex-shrink-0 border bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 hover:bg-oat-50 dark:hover:bg-nature-800 transition-colors shadow-sm flex items-center justify-center text-lg hover:shadow-md relative"
-                    >
-                        🤝
-                        {pendingDealsCount > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm min-w-[18px] text-center">
-                                {pendingDealsCount}
-                            </span>
-                        )}
-                    </button>
 
                     <button
                         onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
@@ -1317,8 +1303,22 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                     </button>
                 </div>
 
+                {/* My Deals Bar */}
+                <button
+                    onClick={() => setShowDealsModal(true)}
+                    className="w-full mt-2 py-2 px-4 rounded-xl border-2 border-dashed border-amber-300 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-900/20 hover:bg-amber-100/80 dark:hover:bg-amber-900/40 transition-all flex items-center justify-center gap-2 shadow-sm relative"
+                >
+                    <span className="text-lg">🤝</span>
+                    <span className="text-sm font-bold text-amber-800 dark:text-amber-300">My Deals</span>
+                    {pendingDealsCount > 0 && (
+                        <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm min-w-[20px] text-center animate-pulse">
+                            {pendingDealsCount}
+                        </span>
+                    )}
+                </button>
+
                 {/* Horizontal Filter Chips */}
-                <div className="flex gap-2 mt-2.5 overflow-x-auto pb-1 scrollbar-hide">
+                <div className="flex flex-wrap gap-1.5 mt-2.5">
                     {/* Type chips */}
                     {(['all', 'offer', 'need'] as const).map((t) => {
                         const isSelected = typeFilter === t;
@@ -1338,9 +1338,6 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                             </button>
                         );
                     })}
-
-                    {/* Divider */}
-                    <div className="w-px bg-nature-200 dark:bg-nature-700 self-stretch mx-0.5 shrink-0" />
 
                     {/* Category chip */}
                     <button
@@ -1398,7 +1395,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                         })}
                     </div>
                 )}
-            </div>}
+            </div>
 
             {/* Error */}
             {error && (

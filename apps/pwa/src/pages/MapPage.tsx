@@ -104,8 +104,8 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             maxZoom: 19,
         }).addTo(map);
 
-        // Zoom control top-right (avoids bottom nav bar & custom FABs)
-        L.control.zoom({ position: 'topright' }).addTo(map);
+        // We use custom controls instead of Leaflet's built-in zoom
+        // L.control.zoom removed — custom FAB pill provides zoom + dark + locate
 
         // Attribution bottom-right (small)
         L.control.attribution({ position: 'bottomright', prefix: false })
@@ -493,8 +493,8 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                 .leaflet-container {
                     z-index: 0 !important;
                 }
-                .leaflet-top {
-                    top: 70px !important;
+                .leaflet-top.leaflet-right {
+                    display: none !important;
                 }
                 .user-marker-pulse {
                     width: 18px; height: 18px;
@@ -540,34 +540,51 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             {/* Map container */}
             <div ref={mapContainer} className="w-full h-full" />
 
-            {/* FAB Pill - Top Right */}
-            <div className="absolute top-[80px] right-3 flex flex-col items-center bg-white/90 dark:bg-nature-900/90 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-nature-200 dark:border-nature-700 rounded-full z-[100] overflow-hidden">
-                <button 
-                    onClick={toggleDarkMode} 
-                    className="w-12 h-12 flex items-center justify-center text-nature-700 dark:text-oat-50 text-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                    title="Toggle map style"
-                >
-                    {isDark ? '☀️' : '🌙'}
-                </button>
-                <div className="w-8 h-[1px] bg-nature-200 dark:bg-nature-700" />
+            {/* FAB Pill - Bottom Left (avoids header overlap) */}
+            <div className="absolute bottom-[6.5rem] left-3 flex flex-col items-center bg-white/95 dark:bg-nature-900/95 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.15)] border border-nature-200 dark:border-nature-700 rounded-2xl z-[100] overflow-hidden">
                 <button
                     onClick={handleLocate}
-                    className={`w-12 h-12 flex items-center justify-center text-xl transition-colors ${
+                    className={`w-12 h-12 flex items-center justify-center transition-colors ${
                         locating 
-                            ? 'text-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/20' 
-                            : 'text-nature-700 dark:text-oat-50 hover:bg-black/5 dark:hover:bg-white/10'
+                            ? 'text-blue-600 bg-blue-50/80 dark:bg-blue-900/30' 
+                            : 'text-nature-800 dark:text-oat-50 hover:bg-black/5 dark:hover:bg-white/10'
                     }`}
                     title="My location"
                 >
                     {locating ? '⏳' : (
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                            <circle cx="12" cy="12" r="4" />
-                            <line x1="12" y1="2" x2="12" y2="6" />
-                            <line x1="12" y1="18" x2="12" y2="22" />
-                            <line x1="2" y1="12" x2="6" y2="12" />
-                            <line x1="18" y1="12" x2="22" y2="12" />
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <circle cx="12" cy="12" r="3" fill="currentColor" fillOpacity="0.15" />
+                            <circle cx="12" cy="12" r="7" strokeDasharray="2 2" />
+                            <line x1="12" y1="1" x2="12" y2="5" />
+                            <line x1="12" y1="19" x2="12" y2="23" />
+                            <line x1="1" y1="12" x2="5" y2="12" />
+                            <line x1="19" y1="12" x2="23" y2="12" />
                         </svg>
                     )}
+                </button>
+                <div className="w-8 h-[1px] bg-nature-200 dark:bg-nature-700" />
+                <button
+                    onClick={() => mapRef.current?.zoomIn()}
+                    className="w-12 h-10 flex items-center justify-center text-nature-800 dark:text-oat-50 text-xl font-bold hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                    title="Zoom in"
+                >
+                    +
+                </button>
+                <div className="w-8 h-[1px] bg-nature-200 dark:bg-nature-700" />
+                <button
+                    onClick={() => mapRef.current?.zoomOut()}
+                    className="w-12 h-10 flex items-center justify-center text-nature-800 dark:text-oat-50 text-xl font-bold hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                    title="Zoom out"
+                >
+                    −
+                </button>
+                <div className="w-8 h-[1px] bg-nature-200 dark:bg-nature-700" />
+                <button 
+                    onClick={toggleDarkMode} 
+                    className="w-12 h-10 flex items-center justify-center text-nature-700 dark:text-oat-50 text-lg hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                    title="Toggle map style"
+                >
+                    {isDark ? '☀️' : '🌙'}
                 </button>
             </div>
 
@@ -618,7 +635,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                         <button
                             onClick={() => onNavigate && onNavigate('marketplace', previewPost.id)}
                             className={`py-2 px-4 rounded-xl border-none font-bold text-white text-sm cursor-pointer shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98] ${
-                                previewPost.type === 'offer' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-600 hover:bg-orange-700'
+                                previewPost.type === 'offer' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-terra-600 hover:bg-terra-700'
                             }`}
                         >
                             View Details

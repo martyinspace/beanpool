@@ -9,7 +9,7 @@
  * History sub-filter: All | Received | Given
  */
 
-import type { MarketplacePost } from '../lib/marketplace';
+import type { MarketplacePost } from '../lib/api';
 
 interface MarketplaceTransaction {
     id: string;
