@@ -354,21 +354,33 @@ export async function getPosts(filter?: { type?: string; category?: string }) {
     }
     query += ' ORDER BY p.created_at DESC';
     
+    let rows: any[] = [];
     if (params.length > 0) {
-        return await database.getAllAsync(query, params);
+        rows = await database.getAllAsync(query, params);
     } else {
-        return await database.getAllAsync(query);
+        rows = await database.getAllAsync(query);
     }
+
+    return rows.map(r => {
+        if (typeof r.photos === 'string') {
+            try { r.photos = JSON.parse(r.photos); } catch (e) { r.photos = []; }
+        }
+        return r;
+    });
 }
 
 export async function getPost(id: string) {
     const database = await waitForInit();
-    return await database.getFirstAsync(`
+    const row = await database.getFirstAsync<any>(`
         SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar
         FROM posts p
         LEFT JOIN members m ON p.author_pubkey = m.public_key
         WHERE p.id = ?
     `, [id]);
+    if (row && typeof row.photos === 'string') {
+        try { row.photos = JSON.parse(row.photos); } catch (e) { row.photos = []; }
+    }
+    return row;
 }
 
 export async function getConversations(myPubkey: string) {
@@ -641,12 +653,19 @@ export async function getProjects() {
         LEFT JOIN members m ON p.creator_pubkey = m.public_key
         ORDER BY p.created_at DESC
     `);
-    return rows.map(row => ({
-        ...row,
-        goal: row.goal_amount,
-        current: row.current_amount,
-        type: 'community' // fallback mapping
-    }));
+    return rows.map(row => {
+        let parsedPhotos = row.photos;
+        if (typeof row.photos === 'string') {
+            try { parsedPhotos = JSON.parse(row.photos); } catch (e) { parsedPhotos = []; }
+        }
+        return {
+            ...row,
+            photos: parsedPhotos,
+            goal: row.goal_amount,
+            current: row.current_amount,
+            type: 'community' // fallback mapping
+        };
+    });
 }
 
 export async function getProjectById(id: string) {
@@ -658,8 +677,13 @@ export async function getProjectById(id: string) {
         WHERE p.id = ?;
     `, [id]);
     if (!row) return null;
+    let parsedPhotos = row.photos;
+    if (typeof row.photos === 'string') {
+        try { parsedPhotos = JSON.parse(row.photos); } catch (e) { parsedPhotos = []; }
+    }
     return {
         ...row,
+        photos: parsedPhotos,
         goal: row.goal_amount,
         current: row.current_amount,
         type: 'community'

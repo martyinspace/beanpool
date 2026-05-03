@@ -13,6 +13,7 @@ import { useIdentity } from '../IdentityContext';
 import { useCurrencyString } from '../../components/CurrencyDisplay';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const CATEGORIES = [
     { id: 'food', emoji: '🥕', label: 'Food & Produce' },
@@ -60,9 +61,14 @@ const darkMapStyle = [
   { featureType: "water", elementType: "labels.text.stroke", stylers: [{ color: "#17263c" }] }
 ];
 
-const MapPin = ({ post, catObj, useModernMarkers, isSelected, onPress }: { post: any, catObj: any, useModernMarkers: boolean, isSelected: boolean, onPress: (p: any) => void }) => {
+const CustomMapMarker = ({ coordinate, post, catObj, useModernMarkers, isSelected, onPress }: any) => {
     const [track, setTrack] = useState(true);
-    useEffect(() => { const t = setTimeout(() => setTrack(false), 500); return () => clearTimeout(t); }, []);
+
+    useEffect(() => {
+        setTrack(true);
+        const t = setTimeout(() => setTrack(false), 500);
+        return () => clearTimeout(t);
+    }, [isSelected, useModernMarkers]);
 
     const isOffer = post.type === 'offer';
     const bgColor = isOffer ? '#10b981' : '#ea580c';
@@ -72,37 +78,32 @@ const MapPin = ({ post, catObj, useModernMarkers, isSelected, onPress }: { post:
     const isElder = post.author_energy_cycled && post.author_energy_cycled >= 10000;
     const elderStyle = isElder ? { borderColor: '#fbbf24', borderWidth: 2, shadowColor: '#fbbf24', shadowOpacity: 0.8, shadowRadius: 6, shadowOffset: { width: 0, height: 0 } } : {};
 
-    if (useModernMarkers) {
-        return (
-            <Marker
-                coordinate={{ latitude: post.lat, longitude: post.lng }}
-                tracksViewChanges={track}
-                anchor={{ x: 0.5, y: 1 }}
-                onPress={(e) => { e.stopPropagation(); onPress(post); }}
-            >
-                <View style={styles.pinContainer}>
-                    <View style={[styles.modernPin, { backgroundColor: bgColor }, isElder && { borderColor: '#fbbf24', borderWidth: 2 }, isSelected && { transform: [{ scale: 1.15 }] }]}>
-                        {isElder && <View style={[StyleSheet.absoluteFill, styles.elderGlow]} />}
-                        <Text style={styles.modernPinEmoji}>{markerEmoji}</Text>
-                    </View>
-                    <View style={[styles.modernPinTail, { borderTopColor: isElder ? '#fbbf24' : bgColor }]} />
-                </View>
-            </Marker>
-        );
-    }
-
     return (
         <Marker
-            coordinate={{ latitude: post.lat, longitude: post.lng }}
+            coordinate={coordinate}
             tracksViewChanges={track}
             anchor={{ x: 0.5, y: 1 }}
             onPress={(e) => { e.stopPropagation(); onPress(post); }}
         >
             <View style={styles.pinContainer}>
-                <View style={[styles.pinCircle, { borderColor: bgColor }, elderStyle, isSelected && { transform: [{ scale: 1.15 }] }]}>
-                    <Text style={styles.pinEmoji}>{markerEmoji}</Text>
-                </View>
-                <View style={[styles.pinArrow, { borderTopColor: isElder ? '#fbbf24' : bgColor }]} />
+                {useModernMarkers ? (
+                    <>
+                        <View style={[styles.modernPin, { backgroundColor: bgColor }, isElder && { borderColor: '#fbbf24', borderWidth: 2 }, isSelected && { transform: [{ scale: 1.15 }] }]}>
+                            {isElder && <View style={[StyleSheet.absoluteFill, styles.elderGlow]} />}
+                            <View style={styles.modernPinEmojiBg}>
+                                <Text style={styles.modernPinEmoji}>{markerEmoji}</Text>
+                            </View>
+                        </View>
+                        <View style={[styles.modernPinTail, { borderTopColor: isElder ? '#fbbf24' : bgColor }]} />
+                    </>
+                ) : (
+                    <>
+                        <View style={[styles.pinCircle, { borderColor: bgColor }, elderStyle, isSelected && { transform: [{ scale: 1.15 }] }]}>
+                            <Text style={styles.pinEmoji}>{markerEmoji}</Text>
+                        </View>
+                        <View style={[styles.pinArrow, { borderTopColor: isElder ? '#fbbf24' : bgColor }]} />
+                    </>
+                )}
             </View>
         </Marker>
     );
@@ -142,21 +143,20 @@ export default function MapScreen() {
     const [useModernMarkers, setUseModernMarkers] = useState(true);
     const [selectedPostPreview, setSelectedPostPreview] = useState<any>(null);
 
-    useEffect(() => {
-        AsyncStorage.getItem('beanpool_modern_markers').then(val => {
-            if (val !== null) setUseModernMarkers(val === 'true');
-        });
-    }, []);
+    useFocusEffect(
+        React.useCallback(() => { 
+            loadPosts(); 
+            AsyncStorage.getItem('beanpool_modern_markers').then(val => {
+                if (val !== null) setUseModernMarkers(val === 'true');
+            });
+        }, [])
+    );
 
     useEffect(() => {
         const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
         const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
         return () => { showSub.remove(); hideSub.remove(); };
     }, []);
-
-    useFocusEffect(
-        React.useCallback(() => { loadPosts(); }, [])
-    );
 
     useEffect(() => {
         const sub = DeviceEventEmitter.addListener('sync_data_updated', () => loadPosts());
@@ -360,6 +360,24 @@ export default function MapScreen() {
         : `Post ${postType === 'offer' ? 'Offer' : 'Need'}`;
     const submitDisabled = posting || postLat == null || !postTitle.trim() || !postDescription.trim() || postCredits === '' || !postCategory || postPhotos.length < 1;
 
+    const renderCluster = (cluster: any) => {
+        const { id, geometry, onPress, properties } = cluster;
+        const points = properties.point_count;
+        return (
+            <Marker
+                key={`cluster-${id}`}
+                coordinate={{ longitude: geometry.coordinates[0], latitude: geometry.coordinates[1] }}
+                onPress={onPress}
+                tracksViewChanges={true}
+                style={{ zIndex: points + 1 }}
+            >
+                <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', borderColor: '#ffffff', borderWidth: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 8 }}>
+                    <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 16 }}>{points}</Text>
+                </View>
+            </Marker>
+        );
+    };
+
     return (
         <View style={styles.container}>
             <MapView
@@ -376,6 +394,7 @@ export default function MapScreen() {
                 }}
                 onLongPress={handleMapPress}
                 initialRegion={currentRegion}
+                renderCluster={renderCluster}
             >
                 {posts.filter(p => {
                     if (p.status && p.status !== 'active') return false;
@@ -388,13 +407,14 @@ export default function MapScreen() {
                     const safePost = { ...post, lat: Number(post.lat), lng: Number(post.lng) };
                     const isSelected = selectedPostPreview?.id === post.id;
                     return (
-                        <MapPin 
-                            key={post.id} 
-                            post={safePost} 
-                            catObj={catObj} 
+                        <CustomMapMarker
+                            key={post.id}
+                            coordinate={{ latitude: safePost.lat, longitude: safePost.lng }}
+                            post={safePost}
+                            catObj={catObj}
                             useModernMarkers={useModernMarkers}
                             isSelected={isSelected}
-                            onPress={setSelectedPostPreview} 
+                            onPress={setSelectedPostPreview}
                         />
                     );
                 })}
@@ -408,15 +428,15 @@ export default function MapScreen() {
             {/* Top Gradient Overlay for Edge-to-Edge immersion */}
             <LinearGradient colors={['rgba(0,0,0,0.4)', 'transparent']} style={styles.topGradient} pointerEvents="none" />
 
-            {/* Map Action FABs - Right Pill */}
+            {/* Map Action FABs - Left Pill */}
             {!showNewPost && !selectedPostPreview && (
-                <View style={[styles.fabPill, { top: Math.max(insets.top + 10, 50) }]} pointerEvents="box-none">
+                <View style={[styles.fabPill, { bottom: 120, left: 16 }]} pointerEvents="box-none">
                     <TouchableOpacity style={styles.pillBtn} onPress={() => setIsDarkMap(!isDarkMap)}>
                         <Text style={styles.pillBtnEmoji}>{isDarkMap ? '☀️' : '🌙'}</Text>
                     </TouchableOpacity>
                     <View style={styles.pillDivider} />
                     <TouchableOpacity style={styles.pillBtn} onPress={centerOnUser}>
-                        <Text style={[styles.pillBtnIcon, isDarkMap && { color: '#e5e7eb' }]}>⌖</Text>
+                        <MaterialCommunityIcons name="crosshairs-gps" size={24} color={isDarkMap ? '#e5e7eb' : '#374151'} />
                     </TouchableOpacity>
                     <View style={styles.pillDivider} />
                     <TouchableOpacity style={styles.pillBtn} onPress={() => mapRef.current?.animateToRegion({ ...currentRegion, latitudeDelta: currentRegion.latitudeDelta / 2, longitudeDelta: currentRegion.longitudeDelta / 2 }, 300)}>
@@ -434,11 +454,11 @@ export default function MapScreen() {
                 <SafeAreaView style={styles.previewCardWrapper} pointerEvents="box-none">
                     <Pressable style={styles.previewCardOverlay} onPress={() => setSelectedPostPreview(null)} />
                     <Animated.View style={styles.previewCard}>
-                        {selectedPostPreview.photos && selectedPostPreview.photos.length > 0 ? (
+                        {selectedPostPreview.photos && selectedPostPreview.photos.length > 0 && selectedPostPreview.photos[0] !== "" ? (
                             <RNImage source={{ uri: selectedPostPreview.photos[0] }} style={styles.previewThumb} />
                         ) : (
                             <View style={[styles.previewThumbPlaceholder, { backgroundColor: selectedPostPreview.type === 'offer' ? '#10b98120' : '#ea580c20' }]}>
-                                <Text style={{ fontSize: 32 }}>{CATEGORIES.find(c => c.id === selectedPostPreview.category)?.emoji || '📌'}</Text>
+                                <Text style={{ fontSize: 36, color: '#000', lineHeight: 44, textAlign: 'center' }}>{CATEGORIES.find(c => c.id === selectedPostPreview.category)?.emoji || '📌'}</Text>
                             </View>
                         )}
                         <View style={styles.previewInfo}>
@@ -693,7 +713,7 @@ const styles = StyleSheet.create({
     topGradient: { position: 'absolute', top: 0, left: 0, right: 0, height: 120, zIndex: 10 },
 
     // FAB Pill (Right side)
-    fabPill: { position: 'absolute', right: 16, width: 48, backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 24, paddingVertical: 8, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 8, zIndex: 100 },
+    fabPill: { position: 'absolute', width: 48, backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 24, paddingVertical: 8, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 8, zIndex: 100 },
     pillBtn: { width: 48, height: 44, justifyContent: 'center', alignItems: 'center' },
     pillDivider: { width: 32, height: 1, backgroundColor: 'rgba(0,0,0,0.06)', marginVertical: 2 },
     pillBtnEmoji: { fontSize: 20 },
@@ -707,7 +727,8 @@ const styles = StyleSheet.create({
 
     // Map Pins (Modern Bean)
     modernPin: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 5 },
-    modernPinEmoji: { fontSize: 22 },
+    modernPinEmojiBg: { backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 12, width: 26, height: 26, justifyContent: 'center', alignItems: 'center' },
+    modernPinEmoji: { fontSize: 16 },
     modernPinTail: { width: 0, height: 0, borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -2 },
     elderGlow: { borderRadius: 20, borderWidth: 2, borderColor: '#fbbf24', shadowColor: '#fbbf24', shadowOpacity: 0.8, shadowRadius: 6, shadowOffset: { width: 0, height: 0 } },
 
@@ -718,7 +739,7 @@ const styles = StyleSheet.create({
     previewThumb: { width: 90, height: 90, borderRadius: 16, backgroundColor: '#f3f4f6' },
     previewThumbPlaceholder: { width: 90, height: 90, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
     previewInfo: { flex: 1, marginLeft: 16, justifyContent: 'center' },
-    previewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+    previewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, paddingRight: 32 },
     previewCategory: { fontSize: 12, fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 },
     previewCredits: { fontSize: 14, fontWeight: '800', color: '#10b981' },
     previewTitle: { fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 4 },
