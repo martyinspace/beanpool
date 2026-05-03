@@ -542,7 +542,7 @@ export default function MapScreen() {
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     keyboardVerticalOffset={0}
                 >
-                    <View style={styles.sheet}>
+                    <View style={[styles.sheet, { paddingTop: Math.max(insets.top + 10, 20) }]}>
                         {/* Validation Toast */}
                         {validationToast !== '' && (
                             <View style={styles.toastBanner}>
