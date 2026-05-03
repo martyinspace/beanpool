@@ -36,8 +36,26 @@ export function initSchema() {
         db.pragma('user_version = 3');
     }
 
+    const ratingsSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='ratings'").get() as any;
+    if (ratingsSql && ratingsSql.sql.includes('marketplace_transactions_old')) {
+        console.log("🧨 Fixing corrupted ratings table schema...");
+        db.exec("ALTER TABLE ratings RENAME TO ratings_corrupted;");
+    }
+
     const schemaSql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
     db.exec(schemaSql);
+
+    if (ratingsSql && ratingsSql.sql.includes('marketplace_transactions_old')) {
+        try {
+            console.log("📦 Restoring ratings data...");
+            const cols = (db.prepare('PRAGMA table_info(ratings_corrupted)').all() as any[]).map(c => c.name).join(', ');
+            db.exec(`INSERT INTO ratings (${cols}) SELECT ${cols} FROM ratings_corrupted;`);
+            db.exec(`DROP TABLE ratings_corrupted;`);
+            console.log("✅ Ratings table fixed.");
+        } catch (err: any) {
+            console.error("❌ Ratings fix failed:", err.message);
+        }
+    }
 
     try { db.prepare(`ALTER TABLE posts ADD COLUMN price_type TEXT DEFAULT 'fixed'`).run(); } catch { }
     try { db.prepare(`ALTER TABLE marketplace_transactions ADD COLUMN hours REAL`).run(); } catch { }

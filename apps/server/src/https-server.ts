@@ -1193,6 +1193,7 @@ export async function startHttpsServer(port: number): Promise<void> {
     // ===================== RATINGS =====================
 
     router.post('/api/ratings', async (ctx) => {
+        try {
         const { raterPubkey, targetPubkey, stars, comment, transactionId } = (ctx as any).requestBody || {};
         if (!raterPubkey || !targetPubkey || !stars || !transactionId) {
             ctx.status = 400;
@@ -1206,6 +1207,11 @@ export async function startHttpsServer(port: number): Promise<void> {
             return;
         }
         ctx.body = { success: true, rating };
+        } catch (err: any) {
+            console.error('❌ Server Error adding rating:', err);
+            ctx.status = 500;
+            ctx.body = { error: err.message };
+        }
     });
 
     router.get('/api/ratings/:publicKey', async (ctx) => {

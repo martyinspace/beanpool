@@ -198,8 +198,6 @@ export function initStateEngine(): void {
     db.pragma('foreign_keys = OFF');
     try {
         db.prepare("INSERT OR IGNORE INTO members (public_key, callsign, invited_by, invite_code) VALUES ('SYSTEM', 'System', 'genesis', 'genesis')").run();
-        // Cleanup legacy escrow users that were accidentally registered as visitors
-        db.prepare("DELETE FROM members WHERE public_key LIKE 'escrow_%'").run();
     } finally {
         db.pragma('foreign_keys = ON');
     }
@@ -691,8 +689,8 @@ export function getBalance(publicKey: string): { balance: number; floor: number;
 
 export function transfer(from: string, to: string, amount: number, memo: string, method?: 'direct' | 'escrow'): Transaction | null {
     if (amount <= 0) return null;
-    if (!from.startsWith('escrow_') && !getMember(from)) registerVisitor(from);
-    if (!to.startsWith('escrow_') && !getMember(to)) registerVisitor(to);
+    if (!getMember(from)) registerVisitor(from);
+    if (!getMember(to)) registerVisitor(to);
 
     // Ghost gift restriction: Ghosts can only transact via marketplace escrow
     const isEscrow = method === 'escrow' || from.startsWith('escrow_') || to.startsWith('escrow_');
