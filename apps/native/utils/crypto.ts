@@ -1,9 +1,22 @@
-import { sha256, sha512 } from '@noble/hashes/sha2.js';
-import { getPublicKey, sign, verify, hashes } from '@noble/ed25519';
-
-hashes.sha512 = sha512;
+import { sha256 } from '@noble/hashes/sha2.js';
+import { sha512 } from '@noble/hashes/sha512.js';
+import { getPublicKey, sign, verify, etc } from '@noble/ed25519';
 import * as Crypto from 'expo-crypto';
 import { WORDLIST } from '../../pwa/src/lib/bip39-wordlist';
+
+if (typeof global.crypto !== 'object') {
+    (global as any).crypto = {};
+}
+if (typeof global.crypto.getRandomValues !== 'function') {
+    global.crypto.getRandomValues = (array: Uint8Array) => {
+        const randomBytes = Crypto.getRandomBytes(array.length);
+        array.set(randomBytes);
+        return array;
+    };
+}
+
+etc.sha512Sync = (...m) => sha512(etc.concatBytes(...m));
+etc.sha512Async = (...m) => Promise.resolve(etc.sha512Sync(...m));
 
 export function bytesToHex(bytes: Uint8Array): string {
     return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -70,22 +83,22 @@ export function encodeUtf8(str: string): Uint8Array {
         let charcode = str.charCodeAt(i);
         if (charcode < 0x80) utf8.push(charcode);
         else if (charcode < 0x800) {
-            utf8.push(0xc0 | (charcode >> 6), 
-                      0x80 | (charcode & 0x3f));
+            utf8.push(0xc0 | (charcode >> 6),
+                0x80 | (charcode & 0x3f));
         }
         else if (charcode < 0xd800 || charcode >= 0xe000) {
-            utf8.push(0xe0 | (charcode >> 12), 
-                      0x80 | ((charcode>>6) & 0x3f), 
-                      0x80 | (charcode & 0x3f));
+            utf8.push(0xe0 | (charcode >> 12),
+                0x80 | ((charcode >> 6) & 0x3f),
+                0x80 | (charcode & 0x3f));
         }
         else {
             i++;
-            charcode = 0x10000 + (((charcode & 0x3ff)<<10)
-                      | (str.charCodeAt(i) & 0x3ff));
-            utf8.push(0xf0 | (charcode >>18), 
-                      0x80 | ((charcode>>12) & 0x3f), 
-                      0x80 | ((charcode>>6) & 0x3f), 
-                      0x80 | (charcode & 0x3f));
+            charcode = 0x10000 + (((charcode & 0x3ff) << 10)
+                | (str.charCodeAt(i) & 0x3ff));
+            utf8.push(0xf0 | (charcode >> 18),
+                0x80 | ((charcode >> 12) & 0x3f),
+                0x80 | ((charcode >> 6) & 0x3f),
+                0x80 | (charcode & 0x3f));
         }
     }
     return new Uint8Array(utf8);
@@ -98,13 +111,13 @@ export function decodeUtf8(bytes: Uint8Array): string {
         if (b < 128) {
             str += String.fromCharCode(b);
         } else if (b > 191 && b < 224) {
-            str += String.fromCharCode(((b & 31) << 6) | (bytes[i+1] & 63));
+            str += String.fromCharCode(((b & 31) << 6) | (bytes[i + 1] & 63));
             i++;
         } else if (b > 223 && b < 240) {
-            str += String.fromCharCode(((b & 15) << 12) | ((bytes[i+1] & 63) << 6) | (bytes[i+2] & 63));
+            str += String.fromCharCode(((b & 15) << 12) | ((bytes[i + 1] & 63) << 6) | (bytes[i + 2] & 63));
             i += 2;
         } else {
-            let cp = ((b & 7) << 18) | ((bytes[i+1] & 63) << 12) | ((bytes[i+2] & 63) << 6) | (bytes[i+3] & 63);
+            let cp = ((b & 7) << 18) | ((bytes[i + 1] & 63) << 12) | ((bytes[i + 2] & 63) << 6) | (bytes[i + 3] & 63);
             cp -= 0x10000;
             str += String.fromCharCode(0xD800 | (cp >> 10), 0xDC00 | (cp & 0x3FF));
             i += 3;
@@ -147,7 +160,7 @@ export async function mnemonicToKeypair(words: string[]): Promise<{
 }> {
     const phrase = words.map(w => w.toLowerCase().trim()).join(' ');
     const phraseBytes = encodeUtf8(phrase);
-    
+
     // Double SHA256 -> 32 byte seed
     const hash1 = sha256(phraseBytes);
     const privateKey = sha256(hash1); // 32 bytes

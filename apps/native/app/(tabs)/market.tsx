@@ -425,7 +425,10 @@ export default function MarketScreen() {
                 }
             />
             <Pressable style={styles.fab} onPress={() => router.push('/')}>
-                <Text style={{ color: '#fff', fontSize: 30, fontWeight: '300', marginTop: -2 }}>+</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ color: '#fff', fontSize: 20, fontWeight: '400', marginTop: -2 }}>+</Text>
+                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 }}>ADD POST</Text>
+                </View>
             </Pressable>
 
             <RadiusPickerModal
@@ -544,16 +547,16 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 24,
         right: 24,
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: '#111827',
+        height: 48,
+        paddingHorizontal: 20,
+        borderRadius: 24,
+        backgroundColor: '#d87254', // Soft Terracotta
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 8,
+        shadowColor: '#c2583b',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 10,
         elevation: 8,
     }
 });

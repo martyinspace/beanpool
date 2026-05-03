@@ -1,24 +1,24 @@
 {
-    "name": "beanpool-monorepo",
-    "version": "0.2.11",
-    "private": true,
-    "scripts": {
-        "build": "dotenv -- turbo run build",
-        "dev": "dotenv -- turbo run dev",
-        "lint": "turbo run lint",
-        "clean": "turbo run clean"
+  "name": "beanpool-monorepo",
+  "version": "0.2.13",
+  "private": true,
+  "scripts": {
+    "build": "dotenv -- turbo run build",
+    "dev": "dotenv -- turbo run dev",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^11.0.0",
+    "turbo": "latest"
+  },
+  "pnpm": {
+    "overrides": {
+      "esbuild": "0.25.12"
     },
-    "devDependencies": {
-        "dotenv-cli": "^11.0.0",
-        "turbo": "latest"
-    },
-    "pnpm": {
-        "overrides": {
-            "esbuild": "0.25.12"
-        },
-        "patchedDependencies": {
-            "is-generator-function@1.1.2": "patches/is-generator-function@1.1.2.patch"
-        }
-    },
-    "packageManager": "pnpm@9.0.0"
+    "patchedDependencies": {
+      "is-generator-function@1.1.2": "patches/is-generator-function@1.1.2.patch"
+    }
+  },
+  "packageManager": "pnpm@9.0.0"
 }

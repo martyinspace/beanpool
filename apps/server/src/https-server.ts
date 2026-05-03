@@ -221,11 +221,20 @@ export async function startHttpsServer(port: number): Promise<void> {
         ctx.type = 'application/json';
         ctx.body = {
             applinks: {
-                apps: [],
                 details: [
                     {
-                        appID: `${teamId}.${bundleId}`,
-                        paths: ['/i/*', '/?invite=*', '/app*']
+                        appIDs: [`${teamId}.${bundleId}`],
+                        components: [
+                            {
+                                "/": "/",
+                                "?": { "invite": "*" },
+                                "comment": "Match invite links with query parameters"
+                            },
+                            {
+                                "/": "/app*",
+                                "comment": "Match legacy app paths"
+                            }
+                        ]
                     }
                 ]
             }

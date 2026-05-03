@@ -368,7 +368,7 @@ export default function MapScreen() {
                 key={`cluster-${id}`}
                 coordinate={{ longitude: geometry.coordinates[0], latitude: geometry.coordinates[1] }}
                 onPress={onPress}
-                tracksViewChanges={true}
+                tracksViewChanges={false}
                 style={{ zIndex: points + 1 }}
             >
                 <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', borderColor: '#ffffff', borderWidth: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 8 }}>
@@ -395,6 +395,7 @@ export default function MapScreen() {
                 onLongPress={handleMapPress}
                 initialRegion={currentRegion}
                 renderCluster={renderCluster}
+                spiralEnabled={true}
             >
                 {posts.filter(p => {
                     if (p.status && p.status !== 'active') return false;

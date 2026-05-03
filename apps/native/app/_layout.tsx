@@ -36,14 +36,14 @@ function RootLayoutNav() {
                                 `You have been invited to a community node at ${extracted}. Would you like to switch your active connection to this node?`,
                                 [
                                     { text: 'Cancel', style: 'cancel' },
-                                    { 
-                                        text: 'Switch', 
+                                    {
+                                        text: 'Switch',
                                         onPress: () => {
                                             AsyncStorage.setItem('beanpool_anchor_url', extracted)
-                                            .then(() => {
-                                                Alert.alert('Success', 'Node switched. Synchronizing...');
-                                                performSync();
-                                            });
+                                                .then(() => {
+                                                    Alert.alert('Success', 'Node switched. Synchronizing...');
+                                                    performSync();
+                                                });
                                         }
                                     }
                                 ]
@@ -61,7 +61,7 @@ function RootLayoutNav() {
         // If we have no identity and we aren't already on the welcome screen, kick us out
         if (!identity && segments[0] !== 'welcome') {
             router.replace({ pathname: '/welcome', params });
-        } 
+        }
         // If we DO have an identity and we are stuck on the welcome screen or root, push us into the secure area
         else if (identity && ((segments as string[]).length === 0 || (segments as string[])[0] === 'welcome')) {
             router.replace('/(tabs)');
@@ -88,8 +88,8 @@ export default function RootLayout() {
     useEffect(() => {
         // Force reset the sync cursors so we pull the whole DB since we wiped SQLite earlier.
         AsyncStorage.removeItem('pillar:last-sync')
-        .then(() => AsyncStorage.removeItem('pillar:checkpoint'))
-        .then(() => initDB())
+            .then(() => AsyncStorage.removeItem('pillar:checkpoint'))
+            .then(() => initDB())
             .then(() => registerPillarSync())
             // Trigger Immediate foreground sync
             .then(() => performSync())

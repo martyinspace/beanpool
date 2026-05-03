@@ -21,7 +21,7 @@ export const db: Database.Database = new Database(DB_PATH);
 // Enable WAL mode for better concurrency and performance
 db.pragma('journal_mode = WAL');
 db.pragma('synchronous = NORMAL');
-db.pragma('foreign_keys = ON');
+db.pragma('foreign_keys = OFF');
 
 // Function to initialize schema
 export function initSchema() {
@@ -39,17 +39,17 @@ export function initSchema() {
     const schemaSql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
     db.exec(schemaSql);
 
-    try { db.prepare(`ALTER TABLE posts ADD COLUMN price_type TEXT DEFAULT 'fixed'`).run(); } catch {}
-    try { db.prepare(`ALTER TABLE marketplace_transactions ADD COLUMN hours REAL`).run(); } catch {}
-    try { db.prepare(`ALTER TABLE transactions ADD COLUMN project_id TEXT REFERENCES projects(id)`).run(); } catch {}
-    try { 
-        db.prepare(`ALTER TABLE posts ADD COLUMN updated_at DATETIME`).run(); 
+    try { db.prepare(`ALTER TABLE posts ADD COLUMN price_type TEXT DEFAULT 'fixed'`).run(); } catch { }
+    try { db.prepare(`ALTER TABLE marketplace_transactions ADD COLUMN hours REAL`).run(); } catch { }
+    try { db.prepare(`ALTER TABLE transactions ADD COLUMN project_id TEXT REFERENCES projects(id)`).run(); } catch { }
+    try {
+        db.prepare(`ALTER TABLE posts ADD COLUMN updated_at DATETIME`).run();
         db.prepare(`UPDATE posts SET updated_at = created_at WHERE updated_at IS NULL`).run();
-    } catch {}
+    } catch { }
     // Protocol v1: Admin Genesis Invites — store invite tier type
-    try { db.prepare(`ALTER TABLE invite_codes ADD COLUMN genesis_type TEXT DEFAULT 'standard'`).run(); } catch {}
+    try { db.prepare(`ALTER TABLE invite_codes ADD COLUMN genesis_type TEXT DEFAULT 'standard'`).run(); } catch { }
     // Protocol v1: Track pre-seeded earned credit for dynamic floor formula
-    try { db.prepare(`ALTER TABLE members ADD COLUMN earned_credit REAL DEFAULT 0`).run(); } catch {}
+    try { db.prepare(`ALTER TABLE members ADD COLUMN earned_credit REAL DEFAULT 0`).run(); } catch { }
 }
 
 // Function to migrate from legacy JSON state
@@ -230,7 +230,7 @@ export function migrateLegacyState() {
         if (state.conversations) {
             for (const conv of state.conversations) {
                 insertConversation.run(conv.id, conv.type, conv.postId || null, conv.name || null, conv.createdBy || null, conv.createdAt);
-                
+
                 if (conv.participants) {
                     const uniqueParticipants = Array.from(new Set(conv.participants));
                     for (const pubkey of uniqueParticipants) {
@@ -322,12 +322,12 @@ export function getCrowdfundProject(id: string): ProjectRow | undefined {
 }
 
 export function createCrowdfundProject(
-    id: string, 
-    creator_pubkey: string, 
-    title: string, 
-    description: string, 
-    photos: string[], 
-    goal_amount: number, 
+    id: string,
+    creator_pubkey: string,
+    title: string,
+    description: string,
+    photos: string[],
+    goal_amount: number,
     deadline_at: string | null
 ) {
     db.prepare(`
@@ -385,10 +385,10 @@ export function pledgeToProject(txId: string, projectId: string, fromPubkey: str
 
         // Debit backer
         db.prepare(`UPDATE accounts SET balance = balance - ?, last_updated_at = CURRENT_TIMESTAMP WHERE public_key = ?`).run(amount, fromPubkey);
-        
+
         // Credit Escrow instead of Creator
         db.prepare(`UPDATE accounts SET balance = balance + ?, last_updated_at = CURRENT_TIMESTAMP WHERE public_key = ?`).run(amount, escrowPubkey);
-        
+
         // Record tx
         db.prepare(`
             INSERT INTO transactions (id, from_pubkey, to_pubkey, amount, memo, project_id)
@@ -401,17 +401,17 @@ export function pledgeToProject(txId: string, projectId: string, fromPubkey: str
         const updatedProject = db.prepare(`SELECT current_amount, goal_amount FROM projects WHERE id = ?`).get(projectId) as ProjectRow;
         if (updatedProject.current_amount >= updatedProject.goal_amount && project.status === 'ACTIVE') {
             db.prepare(`UPDATE projects SET status = 'FUNDED' WHERE id = ?`).run(projectId);
-            
+
             // Auto-Sweep Escrow to Creator sequentially
             const escrowBalanceRow = db.prepare(`SELECT balance FROM accounts WHERE public_key = ?`).get(escrowPubkey) as { balance: number };
             const escrowBalance = escrowBalanceRow ? escrowBalanceRow.balance : Math.max(0, updatedProject.current_amount);
-            
+
             if (escrowBalance > 0) {
                 // Drain Escrow
                 db.prepare(`UPDATE accounts SET balance = 0, last_updated_at = CURRENT_TIMESTAMP WHERE public_key = ?`).run(escrowPubkey);
                 // Credit actual Creator
                 db.prepare(`UPDATE accounts SET balance = balance + ?, last_updated_at = CURRENT_TIMESTAMP WHERE public_key = ?`).run(escrowBalance, project.creator_pubkey);
-                
+
                 // Record atomic Sweep Transaction
                 db.prepare(`
                     INSERT INTO transactions (id, from_pubkey, to_pubkey, amount, memo, project_id)
@@ -437,21 +437,21 @@ export function deleteCrowdfundProject(projectId: string, requesterPubkey: strin
                 SELECT from_pubkey, amount, id FROM transactions 
                 WHERE to_pubkey = ? AND project_id = ?
             `).all(escrowPubkey, projectId) as { from_pubkey: string, amount: number, id: string }[];
-            
+
             let totalRefunded = 0;
             for (const pledge of pledges) {
                 // Return Beans to Backer
                 db.prepare(`UPDATE accounts SET balance = balance + ?, last_updated_at = CURRENT_TIMESTAMP WHERE public_key = ?`).run(pledge.amount, pledge.from_pubkey);
-                
+
                 // Record the localized Refund Transaction
                 db.prepare(`
                     INSERT INTO transactions (id, from_pubkey, to_pubkey, amount, memo, project_id)
                     VALUES (?, ?, ?, ?, ?, ?)
                 `).run(`refund_${pledge.id}`, escrowPubkey, pledge.from_pubkey, pledge.amount, 'Escrow Refund: Project Deleted', projectId);
-                
+
                 totalRefunded += pledge.amount;
             }
-            
+
             // Drain the escrow account to reconcile the economy symmetrically
             db.prepare(`UPDATE accounts SET balance = balance - ?, last_updated_at = CURRENT_TIMESTAMP WHERE public_key = ?`).run(totalRefunded, escrowPubkey);
         }

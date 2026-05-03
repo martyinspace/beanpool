@@ -1303,22 +1303,21 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                     </button>
                 </div>
 
-                {/* My Deals Bar */}
-                <button
-                    onClick={() => setShowDealsModal(true)}
-                    className="w-full mt-2 py-2 px-4 rounded-xl border-2 border-dashed border-amber-300 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-900/20 hover:bg-amber-100/80 dark:hover:bg-amber-900/40 transition-all flex items-center justify-center gap-2 shadow-sm relative"
-                >
-                    <span className="text-lg">🤝</span>
-                    <span className="text-sm font-bold text-amber-800 dark:text-amber-300">My Deals</span>
-                    {pendingDealsCount > 0 && (
-                        <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm min-w-[20px] text-center animate-pulse">
-                            {pendingDealsCount}
-                        </span>
-                    )}
-                </button>
-
                 {/* Horizontal Filter Chips */}
                 <div className="flex flex-wrap gap-1.5 mt-2.5">
+                    {/* My Deals Chip */}
+                    <button
+                        onClick={() => setShowDealsModal(true)}
+                        className="px-3 py-1.5 rounded-full border border-amber-300 dark:border-amber-700 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-400 text-xs font-bold whitespace-nowrap shadow-sm transition-colors flex items-center gap-1.5 hover:bg-amber-200 dark:hover:bg-amber-900/60"
+                    >
+                        🤝 My Deals
+                        {pendingDealsCount > 0 && (
+                            <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
+                                {pendingDealsCount}
+                            </span>
+                        )}
+                    </button>
+
                     {/* Type chips */}
                     {(['all', 'offer', 'need'] as const).map((t) => {
                         const isSelected = typeFilter === t;

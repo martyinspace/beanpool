@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS invite_codes (
 
 -- 3. Ledger Accounts & Transactions
 CREATE TABLE IF NOT EXISTS accounts (
-    public_key TEXT PRIMARY KEY REFERENCES members(public_key),
+    public_key TEXT PRIMARY KEY,
     balance REAL DEFAULT 0.0,
     last_updated_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     last_demurrage_epoch INTEGER DEFAULT 0
@@ -35,8 +35,8 @@ CREATE TABLE IF NOT EXISTS accounts (
 
 CREATE TABLE IF NOT EXISTS transactions (
     id TEXT PRIMARY KEY,
-    from_pubkey TEXT NOT NULL REFERENCES members(public_key),
-    to_pubkey TEXT NOT NULL REFERENCES members(public_key),
+    from_pubkey TEXT NOT NULL,
+    to_pubkey TEXT NOT NULL,
     amount REAL NOT NULL CHECK (amount > 0),
     memo TEXT,
     timestamp DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
@@ -85,8 +85,8 @@ CREATE TABLE IF NOT EXISTS post_photos (
 CREATE TABLE IF NOT EXISTS marketplace_transactions (
     id TEXT PRIMARY KEY,
     post_id TEXT NOT NULL REFERENCES posts(id),
-    buyer_pubkey TEXT NOT NULL REFERENCES members(public_key),
-    seller_pubkey TEXT NOT NULL REFERENCES members(public_key),
+    buyer_pubkey TEXT NOT NULL,
+    seller_pubkey TEXT NOT NULL,
     credits REAL NOT NULL,
     hours REAL,
     status TEXT DEFAULT 'pending',

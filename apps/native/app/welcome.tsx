@@ -10,6 +10,66 @@ import { useGlobalSearchParams } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 
+function extractNodeOrigin(raw: string): string | null {
+    const trimmed = raw.trim();
+    if (trimmed.includes('http')) {
+        const originMatch = trimmed.match(/^.*?https?:\/\/[^\/?#\s]+/);
+        if (originMatch) {
+            let extracted = originMatch[0];
+            const whitespaceIndex = extracted.indexOf('http');
+            if (whitespaceIndex > 0) {
+                extracted = extracted.substring(whitespaceIndex);
+            }
+            return extracted;
+        }
+    }
+    return null;
+}
+
+function extractInviteToken(raw: string): string {
+    const trimmed = raw.trim();
+    
+    // 1. Explicit invite= param takes highest precedence
+    const inviteMatch = trimmed.match(/[?&]invite=([^&\s]+)/);
+    if (inviteMatch) return decodeURIComponent(inviteMatch[1]);
+    
+    // 2. Look for expected pattern anywhere in the string
+    const patternMatch = trimmed.match(/(?:INV|BP)-[A-Z0-9]{4}-[A-Z0-9]{4}/i);
+    if (patternMatch) return patternMatch[0];
+    
+    // 3. Fallback: URL path tail parsing
+    if (trimmed.includes('http')) {
+        const urlParts = trimmed.split('?')[0].split('/');
+        const lastPart = urlParts[urlParts.length - 1];
+        if (lastPart.length >= 8 && /^[A-Z0-9-]+$/i.test(lastPart)) return lastPart;
+    }
+    
+    return trimmed; // Give up, return raw
+}
+
+function normaliseInviteCode(raw: string): string {
+    const extracted = extractInviteToken(raw);
+    const trimmed = extracted.trim();
+    
+    // If it's a long offline ticket, leave it alone
+    if (trimmed.length > 20 && trimmed.startsWith('BP-')) return trimmed;
+    
+    // Remove formatting characters
+    const clean = extracted.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    
+    if (clean.startsWith('INV')) {
+        const body = clean.slice(3);
+        if (body.length < 8) return extracted.trim().toUpperCase();
+        return `INV-${body.slice(0, 4)}-${body.slice(4, 8)}`;
+    }
+    
+    if (clean.length === 8) {
+        return `INV-${clean.slice(0, 4)}-${clean.slice(4, 8)}`;
+    }
+    
+    return trimmed.toUpperCase();
+}
+
 export default function WelcomeScreen() {
     const params = useGlobalSearchParams();
     const incomingUrl = Linking.useURL();
@@ -85,15 +145,15 @@ export default function WelcomeScreen() {
                 const hasLaunched = await AsyncStorage.getItem('bp_has_launched_before');
                 if (!hasLaunched) {
                     await AsyncStorage.setItem('bp_has_launched_before', 'true');
-                    
+
                     const hasCode = await Clipboard.hasStringAsync();
                     if (hasCode) {
                         const content = await Clipboard.getStringAsync();
                         const cleanContent = content?.trim() || '';
-                        
+
                         // Intercept if it's an invite token OR an invite URL
-                        if (cleanContent.startsWith('BP-') || cleanContent.startsWith('INV-') || 
-                           (cleanContent.startsWith('http') && cleanContent.includes('invite='))) {
+                        if (cleanContent.startsWith('BP-') || cleanContent.startsWith('INV-') ||
+                            (cleanContent.startsWith('http') && cleanContent.includes('invite='))) {
                             if (mounted) {
                                 setProcessingMagicLink(true);
                                 await processFullUrl(cleanContent);
@@ -106,9 +166,9 @@ export default function WelcomeScreen() {
                 console.log("Clipboard read intercepted by OS or failed", e);
             }
         };
-        
+
         checkAutoIntercept();
-        
+
         return () => { mounted = false; };
     }, [params?.invite, incomingUrl]);
 
@@ -124,19 +184,11 @@ export default function WelcomeScreen() {
         setLoading(true);
         setError(null);
         try {
-            let parsedCode = inviteCode.trim();
-            if (parsedCode.startsWith('http')) {
-                // Extract Anchor Origin
-                const originMatch = parsedCode.match(/^https?:\/\/[^\/?#]+/);
-                if (originMatch) {
-                    let extracted = originMatch[0];
-                    await AsyncStorage.setItem('beanpool_anchor_url', extracted);
-                }
-                // Extract Invite Token
-                const inviteMatch = parsedCode.match(/[?&]invite=([^&]+)/);
-                if (inviteMatch) {
-                    parsedCode = decodeURIComponent(inviteMatch[1]);
-                }
+            const rawInvite = inviteCode.trim();
+            const extractedOrigin = extractNodeOrigin(rawInvite);
+            
+            if (extractedOrigin) {
+                await AsyncStorage.setItem('beanpool_anchor_url', extractedOrigin);
             } else {
                 let nodeUrl = createAnchorUrl.trim() || (__DEV__ ? 'https://127.0.0.1:8443' : 'https://review.beanpool.org:8443');
                 if (nodeUrl && !nodeUrl.startsWith('http')) {
@@ -146,6 +198,7 @@ export default function WelcomeScreen() {
                 await AsyncStorage.setItem('beanpool_anchor_url', nodeUrl);
             }
 
+            const parsedCode = normaliseInviteCode(rawInvite);
             const identity = await createIdentity(callsign.trim());
             setPendingIdentity(identity);
             setPendingInviteCode(parsedCode);
@@ -251,8 +304,8 @@ export default function WelcomeScreen() {
                                 </View>
                             ))}
                         </View>
-                        
-                        <Pressable 
+
+                        <Pressable
                             style={[styles.checkbox, seedConfirmed && styles.checkboxActive]}
                             onPress={() => setSeedConfirmed(!seedConfirmed)}
                         >
@@ -263,16 +316,16 @@ export default function WelcomeScreen() {
 
                         {error && <Text style={styles.error}>{error}</Text>}
 
-                        <Pressable 
-                            style={[styles.primaryBtn, !seedConfirmed && styles.disabledBtn]} 
+                        <Pressable
+                            style={[styles.primaryBtn, !seedConfirmed && styles.disabledBtn]}
                             disabled={!seedConfirmed || loading}
                             onPress={handleConfirmSeed}
                         >
                             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Continue →</Text>}
                         </Pressable>
 
-                        <Pressable 
-                            style={styles.backBtn} 
+                        <Pressable
+                            style={styles.backBtn}
                             onPress={() => { setPendingIdentity(null); setError(null); }}
                             disabled={loading}
                         >
@@ -292,7 +345,7 @@ export default function WelcomeScreen() {
                 <View style={styles.card}>
                     <Text style={styles.title}>🎟️ Join BeanPool</Text>
                     <Text style={styles.subtitle}>Enter an Invite Code and choose your Call Sign.</Text>
-                    
+
                     <TextInput
                         style={styles.input}
                         placeholder="Invite URL or token"
@@ -324,9 +377,9 @@ export default function WelcomeScreen() {
                         onChangeText={setCallsign}
                         maxLength={32}
                     />
-                    
+
                     {error && <Text style={styles.error}>{error}</Text>}
-                    
+
                     <Pressable style={styles.primaryBtn} onPress={handleCreate} disabled={loading}>
                         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Create Sovereign Identity</Text>}
                     </Pressable>
@@ -375,7 +428,7 @@ export default function WelcomeScreen() {
                     <View style={styles.card}>
                         <Text style={styles.title}>📥 Import Identity</Text>
                         <Text style={styles.subtitle}>Paste the transfer code from your other device and enter the PIN.</Text>
-                        
+
                         <TextInput
                             style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
                             value={importData}
@@ -420,7 +473,7 @@ export default function WelcomeScreen() {
                     <View style={styles.card}>
                         <Text style={styles.title}>🔑 Recover Identity</Text>
                         <Text style={styles.subtitle}>Enter the 12 recovery words you wrote down.</Text>
-                        
+
                         <View style={styles.recoveryGrid}>
                             {recoveryWords.map((word, i) => (
                                 <TextInput
@@ -503,13 +556,13 @@ const styles = StyleSheet.create({
     title: { fontSize: 20, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
     subtitle: { fontSize: 14, color: '#94a3b8', marginBottom: 24, lineHeight: 20 },
     input: { backgroundColor: '#262626', borderWidth: 1, borderColor: '#404040', borderRadius: 10, padding: 14, color: '#fff', fontSize: 16, marginBottom: 16 },
-    
+
     // Main welcome buttons
     memberBtn: { backgroundColor: '#2563eb', padding: 18, borderRadius: 14, alignItems: 'center', width: '100%', marginBottom: 12, shadowColor: '#2563eb', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 14, elevation: 6 },
     memberBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
     secondaryBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#404040', padding: 16, borderRadius: 14, alignItems: 'center', width: '100%' },
     secondaryBtnText: { color: '#94a3b8', fontSize: 16, fontWeight: '600' },
-    
+
     // Member sub-options
     transferBtn: { width: '100%', padding: 16, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.15)', alignItems: 'center', marginBottom: 10 },
     transferBtnText: { color: '#93bbfc', fontSize: 16, fontWeight: '700' },
