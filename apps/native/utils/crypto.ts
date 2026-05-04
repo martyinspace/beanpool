@@ -1,5 +1,4 @@
-import { sha256 } from '@noble/hashes/sha2.js';
-import { sha512 } from '@noble/hashes/sha512.js';
+import { sha256, sha512 } from '@noble/hashes/sha2.js';
 import { getPublicKey, sign, verify, etc } from '@noble/ed25519';
 import * as Crypto from 'expo-crypto';
 import { WORDLIST } from '../../pwa/src/lib/bip39-wordlist';
