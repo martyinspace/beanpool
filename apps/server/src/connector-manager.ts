@@ -327,7 +327,7 @@ export async function connectToAddress(address: string): Promise<boolean> {
             console.log(`[Connectors] 🤝 Handshake with ${address}: mutual=${result.mutualTrust} latency=${result.latencyMs}ms`);
         } catch (e: any) {
             console.warn(`[Connectors] ⚠️  Handshake failed with ${address} — peer may not support protocol yet`);
-            console.warn(`    ${e.stack || e.message || e}`);
+            console.warn(`    ${e.message || e || 'Unknown error'}`);
             status.mutualTrust = false;
         }
 

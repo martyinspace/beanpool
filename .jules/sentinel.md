@@ -2,3 +2,7 @@
 **Vulnerability:** A password to access admin reports was sent in the query parameter (CWE-598).
 **Learning:** Query parameters are frequently logged by web servers, proxies, and browser history, exposing sensitive authentication tokens. The frontend was constructed to use a simple URL string interpolation rather than securely transmitting credentials.
 **Prevention:** Avoid putting credentials or sensitive tokens in the query string or URL path for any HTTP method. For sensitive endpoints, consider migrating to POST requests using JSON body authentication, or use standard Authorization headers for GET requests.
+## 2024-06-13 - [Information Disclosure] Prevent Leaking Stack Traces to Console
+**Vulnerability:** A `catch` block in `apps/server/src/connector-manager.ts` was writing the complete `e.stack` internal stack trace to the console via `console.warn` upon handshake failure with a peer.
+**Learning:** This exposes sensitive stack trace details containing internal system execution paths to server logs which may be ingested in log aggregators or surfaced unintentionally.
+**Prevention:** Remove `e.stack` and replace it with `e.message` or a generic `'Unknown error'` to ensure error logging fails securely and does not over-report internal state.
