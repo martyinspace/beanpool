@@ -56,14 +56,11 @@ export function GlobalHeader() {
                 const url = `${active}/api/community/membership/${identity.publicKey}`;
                 const r = await fetchWithTimeout(url, { timeout: 8000 });
                 const text = await r.text();
-                // DEBUG ALERT
-                Alert.alert('Debug Probe', `URL: ${url}\n\nStatus: ${r.status}\nBody: ${text}`);
                 
                 const data = JSON.parse(text);
                 membershipCache.current[active] = !!data.isMember;
                 setIsGuestOnActive(!data.isMember);
             } catch (err: any) {
-                Alert.alert('Debug Probe Error', String(err));
                 // Network error — don't change state
             }
         })();
@@ -242,7 +239,7 @@ export function GlobalHeader() {
                                     style={{ width: 280, height: 76, marginTop: -8, marginBottom: -12 }} 
                                     resizeMode="contain" 
                                 />
-                                <Text style={{ position: 'absolute', right: 40, bottom: -2, fontSize: 9, fontWeight: 'bold', color: '#f59e0b', letterSpacing: 1 }}>
+                                <Text style={{ position: 'absolute', left: 80, bottom: -8, fontSize: 10, fontWeight: '900', color: '#fbbf24', letterSpacing: 1, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
                                     v{Constants.expoConfig?.version}
                                 </Text>
                                 <MaterialCommunityIcons 

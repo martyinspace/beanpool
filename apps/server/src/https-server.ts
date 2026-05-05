@@ -1161,13 +1161,18 @@ export async function startHttpsServer(port: number): Promise<void> {
             return;
         }
         const parsedFinalHours = finalHours != null ? Number(finalHours) : undefined;
-        const tx = completePostTransaction(transactionId, confirmerPublicKey, parsedFinalHours);
-        if (!tx) {
+        try {
+            const tx = completePostTransaction(transactionId, confirmerPublicKey, parsedFinalHours);
+            if (!tx) {
+                ctx.status = 400;
+                ctx.body = { error: 'Cannot complete — transaction not found or not authorized' };
+                return;
+            }
+            ctx.body = { success: true, transaction: tx, alreadyCompleted: !!(tx as any).alreadyCompleted };
+        } catch (e: any) {
             ctx.status = 400;
-            ctx.body = { error: 'Cannot complete — transaction not found, not pending, or credit transfer failed' };
-            return;
+            ctx.body = { error: e.message || 'Escrow release failed' };
         }
-        ctx.body = { success: true, transaction: tx };
     });
 
     router.post('/api/marketplace/transactions/cancel', async (ctx) => {

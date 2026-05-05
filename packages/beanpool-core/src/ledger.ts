@@ -73,8 +73,11 @@ export class LedgerManager {
     private applyDecay(account: LedgerAccount, currentEpoch: number): LedgerAccount {
         const epochsPassed = currentEpoch - account.lastDemurrageEpoch;
 
-        if (epochsPassed <= 0 || account.balance <= 0) {
-            // Only positive balances decay
+        // Exempt synthetic wallets (escrow, project) from demurrage decay
+        const isExempt = account.id.startsWith('escrow_') || account.id.startsWith('project_');
+
+        if (epochsPassed <= 0 || account.balance <= 0 || isExempt) {
+            // Only positive, non-exempt balances decay
             account.lastDemurrageEpoch = currentEpoch;
             return account;
         }

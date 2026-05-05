@@ -207,9 +207,59 @@ export function initStateEngine(): void {
     if (accounts.length > 0) {
         ledger.loadState(accounts);
     }
+
+    // One-time migration: move escrow funds from old post-keyed wallets to transaction-keyed wallets
+    migrateEscrowWalletKeys();
+
     const memberCount = db.prepare("SELECT COUNT(*) as c FROM members").get() as any;
     const postCount = db.prepare("SELECT COUNT(*) as c FROM posts").get() as any;
     console.log(`📒 SQLite DB initialized: ${memberCount.c} members, ${postCount.c} posts`);
+}
+
+/**
+ * One-time migration: Existing pending transactions have funds in escrow_<post_id>.
+ * New code expects escrow_<transaction_id>. Move funds from old to new wallet key.
+ * Safe to re-run: it checks if the old wallet has a balance before attempting.
+ */
+function migrateEscrowWalletKeys(): void {
+    const pending = db.prepare("SELECT id, post_id, credits FROM marketplace_transactions WHERE status='pending'").all() as any[];
+    if (pending.length === 0) return;
+
+    let migrated = 0;
+    for (const tx of pending) {
+        const oldKey = `escrow_${tx.post_id}`;
+        const newKey = `escrow_${tx.id}`;
+
+        // Check if funds are already in the new wallet (already migrated)
+        const newAcc = ledger.getAccount(newKey);
+        if (newAcc && newAcc.balance > 0) continue;
+
+        // Check if old wallet has funds to migrate
+        const oldAcc = ledger.getAccount(oldKey);
+        if (!oldAcc || oldAcc.balance <= 0) {
+            console.warn(`[Migration] Cannot migrate escrow for tx ${tx.id}: old wallet ${oldKey} has no balance`);
+            continue;
+        }
+
+        // Transfer whatever the old wallet actually has (may be slightly less than tx.credits due to demurrage).
+        // For recurring posts, the old wallet may serve multiple transactions, so take only this tx's share.
+        const amountToMove = Math.min(oldAcc.balance, tx.credits);
+
+        // Ensure the new escrow wallet has a row in the accounts table
+        db.prepare(`INSERT OR IGNORE INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, 0, 0)`).run(newKey);
+
+        // Move funds: old wallet -> new wallet
+        const result = transfer(oldKey, newKey, amountToMove, `Escrow wallet key migration: ${oldKey} -> ${newKey}`, 'escrow');
+        if (result) {
+            migrated++;
+            console.log(`[Migration] ✅ Migrated ${amountToMove} beans from ${oldKey} to ${newKey} (original: ${tx.credits})`);
+        } else {
+            console.error(`[Migration] ❌ Failed to migrate escrow for tx ${tx.id}`);
+        }
+    }
+    if (migrated > 0) {
+        console.log(`[Migration] Escrow wallet key migration complete: ${migrated}/${pending.length} transactions migrated`);
+    }
 }
 
 // ===================== WEBSOCKET =====================
@@ -689,8 +739,9 @@ export function getBalance(publicKey: string): { balance: number; floor: number;
 
 export function transfer(from: string, to: string, amount: number, memo: string, method?: 'direct' | 'escrow'): Transaction | null {
     if (amount <= 0) return null;
-    if (!getMember(from)) registerVisitor(from);
-    if (!getMember(to)) registerVisitor(to);
+    // Only register real members — skip synthetic wallets (escrow_*, project_*, etc.)
+    if (!from.startsWith('escrow_') && !from.startsWith('project_') && !getMember(from)) registerVisitor(from);
+    if (!to.startsWith('escrow_') && !to.startsWith('project_') && !getMember(to)) registerVisitor(to);
 
     // Ghost gift restriction: Ghosts can only transact via marketplace escrow
     const isEscrow = method === 'escrow' || from.startsWith('escrow_') || to.startsWith('escrow_');
@@ -944,8 +995,12 @@ export function approvePostRequest(transactionId: string, authorPublicKey: strin
     if (balance - row.credits < floor) throw new Error('Payer has insufficient funds in their wallet');
 
     db.transaction(() => {
+        // Ensure synthetic escrow account exists natively
+        db.prepare(`INSERT OR IGNORE INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, 0, 0)`).run(`escrow_${transactionId}`);
+
         // 1. Lock the funds in Escrow — abort if transfer fails
-        const escrowResult = transfer(row.buyer_pubkey, `escrow_${row.post_id}`, row.credits, `Escrow hold for post ${row.post_id}`, 'escrow');
+        // Wallet keyed by transaction ID to isolate concurrent recurring-post transactions
+        const escrowResult = transfer(row.buyer_pubkey, `escrow_${transactionId}`, row.credits, `Escrow hold for post ${row.post_id}`, 'escrow');
         if (!escrowResult) throw new Error('Failed to lock funds in escrow — insufficient balance or ledger error');
         
         // 2. Mark this transaction as pending
@@ -974,7 +1029,7 @@ export function approvePostRequest(transactionId: string, authorPublicKey: strin
         amount: row.credits,
         postId: row.post_id,
         actorPubkey: authorPublicKey
-    });
+    }, row.buyer_pubkey, row.seller_pubkey);
     return tx;
 }
 
@@ -1042,8 +1097,12 @@ export function acceptPost(postId: string, buyerPublicKey: string, hours?: numbe
     };
 
     db.transaction(() => {
+        // Ensure synthetic escrow account exists natively
+        db.prepare(`INSERT OR IGNORE INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, 0, 0)`).run(`escrow_${tx.id}`);
+
         // 1. Lock funds — abort if transfer fails
-        const escrowResult = transfer(buyerPublicKey, `escrow_${post.id}`, finalCredits, `Escrow hold for offer ${post.id}`, 'escrow');
+        // Wallet keyed by transaction ID to isolate concurrent recurring-post transactions
+        const escrowResult = transfer(buyerPublicKey, `escrow_${tx.id}`, finalCredits, `Escrow hold for offer ${post.id}`, 'escrow');
         if (!escrowResult) throw new Error('Failed to lock funds in escrow — insufficient balance or ledger error');
 
         // 2. Insert pending tx
@@ -1064,15 +1123,25 @@ export function acceptPost(postId: string, buyerPublicKey: string, hours?: numbe
         amount: finalCredits,
         postId: post.id,
         actorPubkey: buyerPublicKey
-    });
+    }, buyerPublicKey, post.authorPublicKey);
     return tx;
 }
 
-export function completePostTransaction(transactionId: string, confirmerPublicKey: string, finalHours?: number): MarketplaceTransaction | null {
+export function completePostTransaction(transactionId: string, confirmerPublicKey: string, finalHours?: number): MarketplaceTransaction & { alreadyCompleted?: boolean } | null {
     const row = db.prepare("SELECT * FROM marketplace_transactions WHERE id=? AND status='pending'").get(transactionId) as any;
     
+    // Idempotency: If already completed by the same buyer, return success instead of an error
+    if (!row) {
+        const completedRow = db.prepare("SELECT * FROM marketplace_transactions WHERE id=? AND status='completed'").get(transactionId) as any;
+        if (completedRow && completedRow.buyer_pubkey === confirmerPublicKey) {
+            const existing = getMarketplaceTransactions(confirmerPublicKey).find(t => t.id === transactionId);
+            if (existing) return { ...existing, alreadyCompleted: true };
+        }
+        return null;
+    }
+    
     // Security Fix: IN Escrow, the Payer (buyer) is the ONLY one authorized to release funds to the Payee (seller).
-    if (!row || row.buyer_pubkey !== confirmerPublicKey) return null;
+    if (row.buyer_pubkey !== confirmerPublicKey) return null;
 
     const post = db.prepare("SELECT * FROM posts WHERE id=?").get(row.post_id) as any;
     const completedAt = new Date().toISOString();
@@ -1087,11 +1156,14 @@ export function completePostTransaction(transactionId: string, confirmerPublicKe
         }
 
         if (row.credits > 0 && post) {
-            // Funds are stored in escrow_${post.id} since the transaction went 'pending'
-            // We just need to transfer from the synthetic escrow wallet to the Payee (seller_pubkey)
-            const releaseResult = transfer(`escrow_${row.post_id}`, row.seller_pubkey, row.credits, `Completed: ${post.title}`, 'escrow');
+            // Funds are stored in escrow_${tx_id} since the transaction went 'pending'
+            // Transfer whatever the escrow wallet actually holds (may be slightly less than row.credits due to demurrage decay)
+            const escrowKey = `escrow_${transactionId}`;
+            const escrowAcc = ledger.getAccount(escrowKey);
+            const releaseAmount = escrowAcc ? Math.min(escrowAcc.balance, row.credits) : row.credits;
+            const releaseResult = transfer(escrowKey, row.seller_pubkey, releaseAmount, `Completed: ${post.title}`, 'escrow');
             if (!releaseResult) {
-                console.error(`[Escrow] CRITICAL: Failed to release ${row.credits} beans from escrow_${row.post_id} to ${row.seller_pubkey}`);
+                throw new Error(`Failed to release ${releaseAmount} beans from ${escrowKey} to ${row.seller_pubkey}`);
             }
         }
 
@@ -1111,7 +1183,7 @@ export function completePostTransaction(transactionId: string, confirmerPublicKe
         amount: row.credits,
         postId: row.post_id,
         actorPubkey: confirmerPublicKey
-    });
+    }, row.buyer_pubkey, row.seller_pubkey);
     return tx;
 }
 
@@ -1120,8 +1192,12 @@ export function cancelPostTransaction(transactionId: string, cancellerPublicKey:
     if (!row || (row.buyer_pubkey !== cancellerPublicKey && row.seller_pubkey !== cancellerPublicKey)) return null;
 
     db.transaction(() => {
-        // Reverse Escrow Funds -> Refund Buyer
-        transfer(`escrow_${row.post_id}`, row.buyer_pubkey, row.credits, `Escrow refund for cancelled post ${row.post_id}`, 'escrow');
+        // Reverse Escrow Funds -> Refund Buyer (wallet keyed by transaction ID)
+        // Transfer whatever the escrow wallet actually holds (may be slightly less due to demurrage)
+        const escrowKey = `escrow_${transactionId}`;
+        const escrowAcc = ledger.getAccount(escrowKey);
+        const refundAmount = escrowAcc ? Math.min(escrowAcc.balance, row.credits) : row.credits;
+        transfer(escrowKey, row.buyer_pubkey, refundAmount, `Escrow refund for cancelled post ${row.post_id}`, 'escrow');
 
         db.prepare(`UPDATE marketplace_transactions SET status='cancelled', completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`).run(transactionId);
         const post = db.prepare(`SELECT * FROM posts WHERE id=?`).get(row.post_id) as any;
@@ -1136,7 +1212,7 @@ export function cancelPostTransaction(transactionId: string, cancellerPublicKey:
         amount: row.credits,
         postId: row.post_id,
         actorPubkey: cancellerPublicKey
-    });
+    }, row.buyer_pubkey, row.seller_pubkey);
     return tx;
 }
 
@@ -1275,8 +1351,20 @@ export function ensureTransactionConversation(postId: string, buyerPubkey: strin
     return conv.id;
 }
 
-export function injectSystemMessage(postId: string, type: SystemMessageType, meta: SystemMessageMetadata) {
-    const convRows = db.prepare("SELECT id FROM conversations WHERE post_id = ?").all(postId) as any[];
+export function injectSystemMessage(postId: string, type: SystemMessageType, meta: SystemMessageMetadata, buyerPubkey?: string, sellerPubkey?: string) {
+    let convRows: any[];
+    
+    // For recurring posts, scope the message to only the conversation between the specific buyer and seller
+    if (buyerPubkey && sellerPubkey) {
+        convRows = db.prepare(`
+            SELECT c.id FROM conversations c
+            JOIN conversation_participants cp1 ON c.id = cp1.conversation_id AND cp1.public_key = ?
+            JOIN conversation_participants cp2 ON c.id = cp2.conversation_id AND cp2.public_key = ?
+            WHERE c.post_id = ?
+        `).all(buyerPubkey, sellerPubkey, postId) as any[];
+    } else {
+        convRows = db.prepare("SELECT id FROM conversations WHERE post_id = ?").all(postId) as any[];
+    }
     
     if (convRows.length === 0) {
         console.warn(`[Comms] WARNING: No conversations found for post ${postId}. System event ${type} was NOT delivered to any inbox.`);
@@ -1546,7 +1634,8 @@ export function adminDeletePost(postId: string) {
         const pending = db.prepare("SELECT * FROM marketplace_transactions WHERE post_id=? AND status='pending'").all(postId) as any[];
         for (const tx of pending) {
             // Escrow refund automatically handles balance updates and transaction records
-            transfer(`escrow_${postId}`, tx.buyer_pubkey, tx.credits, `Escrow refund for removed post`, 'escrow');
+            // Wallet keyed by transaction ID to match the deposit
+            transfer(`escrow_${tx.id}`, tx.buyer_pubkey, tx.credits, `Escrow refund for removed post`, 'escrow');
             db.prepare("UPDATE marketplace_transactions SET status='cancelled', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?").run(tx.id);
         }
         
@@ -1676,7 +1765,7 @@ export function exportLedgerAudit(): { balancesCsv: string; transactionsCsv: str
     const pendingTxs = db.prepare("SELECT * FROM marketplace_transactions WHERE status='pending'").all() as any[];
     for (const tx of pendingTxs) {
         const buyer = members.find(m => m.publicKey === tx.buyer_pubkey);
-        balancesCsv += `escrow_${tx.post_id},Escrow (Payer: ${buyer?.callsign || 'Unknown'}),Pending_Trade,${tx.credits}\n`;
+        balancesCsv += `escrow_${tx.id},Escrow (Payer: ${buyer?.callsign || 'Unknown'}),Pending_Trade,${tx.credits}\n`;
     }
     
     let transactionsCsv = 'Timestamp,Transaction_ID,From_Account,To_Account,Amount,Memo\n';

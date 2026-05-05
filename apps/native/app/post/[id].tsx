@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Picker } from '@react-native-picker/picker';
 import * as Crypto from 'expo-crypto';
@@ -72,42 +72,44 @@ export default function PostDetailModal() {
     const [authorAvgRating, setAuthorAvgRating] = useState<number | null>(null);
     const [authorRatingCount, setAuthorRatingCount] = useState<number>(0);
 
-    useEffect(() => {
-        if (id) { 
-            const singleId = Array.isArray(id) ? id[0] : id;
-            const singleTxId = Array.isArray(txId) ? txId[0] : txId;
-            const reload = () => {
-                getPost(singleId).then(setPost);
-                getDb().then(database => {
-                    if (singleTxId) {
-                        database.getFirstAsync('SELECT * FROM marketplace_transactions WHERE id = ?', [singleTxId]).then(setActiveTx);
-                    } else if (identity) {
-                        database.getFirstAsync("SELECT * FROM marketplace_transactions WHERE post_id=? AND status='pending' AND (buyer_pubkey=? OR seller_pubkey=?) ORDER BY created_at DESC LIMIT 1", [singleId, identity.publicKey, identity.publicKey]).then(setActiveTx);
-                    }
-                    database.getAllAsync(`
-                        SELECT t.*, m.callsign as buyer_callsign 
-                        FROM marketplace_transactions t 
-                        LEFT JOIN members m ON t.buyer_pubkey = m.public_key 
-                        WHERE t.post_id=? AND t.status='requested'
-                    `, [singleId])
-                        .then(async (res: any[]) => {
-                            const enriched = await Promise.all(res.map(async req => {
-                                try {
-                                    const r = await getMemberRatings(req.buyer_pubkey);
-                                    return { ...req, avgRating: r.average, count: r.count };
-                                } catch(e) { return { ...req, avgRating: 0, count: 0 }; }
-                            }));
-                            setRequests(enriched);
-                        });
-                });
-            };
-            reload();
-            
-            const { DeviceEventEmitter } = require('react-native');
-            const sub = DeviceEventEmitter.addListener('sync_data_updated', reload);
-            return () => sub.remove();
-        }
-    }, [id, txId, identity]);
+    useFocusEffect(
+        useCallback(() => {
+            if (id) { 
+                const singleId = Array.isArray(id) ? id[0] : id;
+                const singleTxId = Array.isArray(txId) ? txId[0] : txId;
+                const reload = () => {
+                    getPost(singleId).then(setPost);
+                    getDb().then(database => {
+                        if (singleTxId) {
+                            database.getFirstAsync('SELECT * FROM marketplace_transactions WHERE id = ?', [singleTxId]).then(setActiveTx);
+                        } else if (identity) {
+                            database.getFirstAsync("SELECT * FROM marketplace_transactions WHERE post_id=? AND status='pending' AND (buyer_pubkey=? OR seller_pubkey=?) ORDER BY created_at DESC LIMIT 1", [singleId, identity.publicKey, identity.publicKey]).then(setActiveTx);
+                        }
+                        database.getAllAsync(`
+                            SELECT t.*, m.callsign as buyer_callsign 
+                            FROM marketplace_transactions t 
+                            LEFT JOIN members m ON t.buyer_pubkey = m.public_key 
+                            WHERE t.post_id=? AND t.status='requested'
+                        `, [singleId])
+                            .then(async (res: any[]) => {
+                                const enriched = await Promise.all(res.map(async req => {
+                                    try {
+                                        const r = await getMemberRatings(req.buyer_pubkey);
+                                        return { ...req, avgRating: r.average, count: r.count };
+                                    } catch(e) { return { ...req, avgRating: 0, count: 0 }; }
+                                }));
+                                setRequests(enriched);
+                            });
+                    });
+                };
+                reload();
+                
+                const { DeviceEventEmitter } = require('react-native');
+                const sub = DeviceEventEmitter.addListener('sync_data_updated', reload);
+                return () => sub.remove();
+            }
+        }, [id, txId, identity])
+    );
 
     useEffect(() => {
         if (post?.author_pubkey) {

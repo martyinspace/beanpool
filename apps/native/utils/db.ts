@@ -1152,6 +1152,20 @@ export async function applyDelta(delta: any) {
         if (delta.marketplaceTransactions !== undefined) {
             console.log(`[DB] applying ${delta.marketplaceTransactions.length} marketplace_transactions...`);
             for (const tx of delta.marketplaceTransactions) {
+                const incomingStatus = tx.status ?? 'pending';
+                
+                // Guard: Never downgrade a terminal status (completed/cancelled) back to pending/requested.
+                // This prevents a stale sync payload from reverting a transaction the user just completed locally.
+                const localRow = await database.getFirstAsync<{ status: string }>('SELECT status FROM marketplace_transactions WHERE id = ?', [tx.id]);
+                if (localRow) {
+                    const terminalStates = ['completed', 'cancelled'];
+                    const nonTerminalStates = ['pending', 'requested'];
+                    if (terminalStates.includes(localRow.status) && nonTerminalStates.includes(incomingStatus)) {
+                        console.log(`[DB] Skipping downgrade of tx ${tx.id}: local=${localRow.status}, incoming=${incomingStatus}`);
+                        continue;
+                    }
+                }
+
                 await database.runAsync(
                     'INSERT OR REPLACE INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, completed_at, cover_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
@@ -1161,7 +1175,7 @@ export async function applyDelta(delta: any) {
                         tx.sellerPublicKey ?? tx.seller_pubkey ?? null,
                         tx.credits ?? 0,
                         tx.hours ?? null,
-                        tx.status ?? 'pending',
+                        incomingStatus,
                         tx.createdAt ?? tx.created_at ?? new Date().toISOString(),
                         tx.completedAt ?? tx.completed_at ?? null,
                         tx.coverImage ?? tx.cover_image ?? null
@@ -1314,6 +1328,8 @@ export async function getConversation(id: string, myPubkey?: string) {
             FROM conversations c 
             LEFT JOIN posts p ON c.post_id = p.id
             LEFT JOIN marketplace_transactions mt ON mt.post_id = c.post_id AND mt.status = 'pending'
+                AND (mt.buyer_pubkey IN (SELECT public_key FROM conversation_participants WHERE conversation_id = c.id)
+                     AND mt.seller_pubkey IN (SELECT public_key FROM conversation_participants WHERE conversation_id = c.id))
             WHERE c.id = ?`, [myPubkey, id]);
     }
     return await database.getFirstAsync<any>('SELECT name, post_id as postId FROM conversations WHERE id = ?', [id]);
