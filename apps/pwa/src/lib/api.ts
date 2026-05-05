@@ -129,6 +129,10 @@ export async function getCommunityHealth(): Promise<any> {
     return request('GET', '/api/community/health');
 }
 
+export async function checkMembership(publicKey: string): Promise<{ isMember: boolean; callsign: string | null }> {
+    return request('GET', `/api/community/membership/${encodeURIComponent(publicKey)}`);
+}
+
 export async function getMyInvites(publicKey: string): Promise<{ invites: InviteCode[] }> {
     return request('GET', `/api/invite/mine/${encodeURIComponent(publicKey)}`);
 }

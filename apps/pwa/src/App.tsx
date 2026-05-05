@@ -10,7 +10,7 @@
 import { useState, useEffect } from 'react';
 import { loadIdentity, type BeanPoolIdentity } from './lib/identity';
 import { connectToAnchor, onSystemAnnouncement } from './lib/sync';
-import { getConversations, getMarketplacePosts, getMyMarketplaceTransactions } from './lib/api';
+import { getConversations, getMarketplacePosts, getMyMarketplaceTransactions, checkMembership } from './lib/api';
 import { useTheme } from './lib/useTheme';
 import { SyncStatus } from './components/SyncStatus';
 import { WelcomePage } from './pages/WelcomePage';
@@ -110,6 +110,7 @@ export function App() {
     const [totalUnread, setTotalUnread] = useState(0);
     const [pendingDealsCount, setPendingDealsCount] = useState(0);
     const [marketClickCount, setMarketClickCount] = useState(0);
+    const [isGuest, setIsGuest] = useState(false);
 
     function navigateToTab(tab: string, contextId?: string) {
         if (tab === 'map-post') {
@@ -141,6 +142,10 @@ export function App() {
             import('./lib/api').then(({ registerMember }) =>
                 registerMember(identity.publicKey, identity.callsign).catch(() => { })
             );
+            // Check membership status for guest/member UI
+            checkMembership(identity.publicKey)
+                .then(r => setIsGuest(!r.isMember))
+                .catch(() => {});
         }
         return unsub;
     }, [identity]);
@@ -256,10 +261,20 @@ export function App() {
                 <div className="relative z-10" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '12px' }}>
                     <button
                         onClick={() => { setActiveTab('people'); setPeopleSubView('invites'); setShowSettings(false); }}
-                        className="flex items-center justify-center px-3 bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-700 rounded-full shadow-sm cursor-pointer transition-transform hover:scale-105"
+                        className={`flex items-center justify-center px-3 border rounded-full shadow-sm cursor-pointer transition-transform hover:scale-105 ${
+                            isGuest 
+                                ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700' 
+                                : 'bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-700'
+                        }`}
                         style={{ height: '26px' }}
                     >
-                        <span className="text-nature-900 dark:text-white font-semibold text-[11px] tracking-wide uppercase">Invite</span>
+                        <span className={`font-semibold text-[11px] tracking-wide uppercase ${
+                            isGuest 
+                                ? 'text-amber-600 dark:text-amber-400' 
+                                : 'text-nature-900 dark:text-white'
+                        }`}>
+                            {isGuest ? 'Join' : 'Invite'}
+                        </span>
                     </button>
                     <HeaderControls showSettings={showSettings} setShowSettings={setShowSettings} />
                 </div>
