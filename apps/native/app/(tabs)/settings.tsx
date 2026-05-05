@@ -445,7 +445,7 @@ export default function SettingsScreen() {
                 <View style={styles.identityInner}>
                     {/* Edit button — top-right corner */}
                     <Pressable style={styles.editBadge} onPress={() => setMode('profile')}>
-                        <Text style={{ fontSize: 13, color: '#fff' }}>✏️ Edit</Text>
+                        <Text style={styles.editBadgeText}>✏️ Edit</Text>
                     </Pressable>
 
                     {/* Avatar */}
@@ -943,18 +943,19 @@ const styles = StyleSheet.create({
     // ─── Identity Dashboard ───
     identityCard: {
         borderRadius: 20, marginBottom: 28, overflow: 'hidden',
-        backgroundColor: '#1a1f2e',
+        backgroundColor: '#022c22', // Premium very dark green
         shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 16, elevation: 6,
+        borderWidth: 1, borderColor: '#065f46',
     },
     identityInner: {
         alignItems: 'center', paddingVertical: 28, paddingHorizontal: 20,
-        backgroundColor: 'rgba(16, 185, 129, 0.06)',
     },
     editBadge: {
         position: 'absolute', top: 16, right: 16,
-        backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, paddingVertical: 5,
-        borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: '#065f46', paddingHorizontal: 12, paddingVertical: 6,
+        borderRadius: 20, borderWidth: 1, borderColor: '#10b981',
     },
+    editBadgeText: { fontSize: 13, color: '#a7f3d0', fontWeight: 'bold' },
     avatarWrap: {
         width: 96, height: 96, borderRadius: 48,
         marginBottom: 16, position: 'relative',
@@ -962,31 +963,31 @@ const styles = StyleSheet.create({
     avatarImg: { width: 96, height: 96, borderRadius: 48 },
     avatarPlaceholder: {
         width: 96, height: 96, borderRadius: 48,
-        backgroundColor: '#2d3348', justifyContent: 'center', alignItems: 'center',
+        backgroundColor: '#064e3b', justifyContent: 'center', alignItems: 'center',
     },
     avatarRing: {
         position: 'absolute', top: -3, left: -3, right: -3, bottom: -3,
-        borderRadius: 51, borderWidth: 2.5, borderColor: '#10b981',
+        borderRadius: 51, borderWidth: 2.5, borderColor: '#34d399',
     },
     callsignText: {
-        fontSize: 24, fontWeight: '800', color: '#ffffff', letterSpacing: 0.5, marginBottom: 8,
+        fontSize: 24, fontWeight: '800', color: '#ffffff', letterSpacing: 0.5, marginBottom: 4,
     },
-    pubkeyRow: {
-        flexDirection: 'row', alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 14, paddingVertical: 7,
-        borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
-    },
-    pubkeyText: { fontSize: 13, color: '#94a3b8', fontFamily: 'Courier', letterSpacing: 1 },
     bioText: {
-        fontSize: 14, color: '#cbd5e1', lineHeight: 20, textAlign: 'center',
-        marginBottom: 8, paddingHorizontal: 12, fontStyle: 'italic',
+        fontSize: 14, color: '#a7f3d0', lineHeight: 20, textAlign: 'center',
+        marginBottom: 12, paddingHorizontal: 12, fontStyle: 'italic',
     },
     contactRow: {
-        flexDirection: 'row', alignItems: 'center', marginBottom: 10,
-        backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 12, paddingVertical: 5,
-        borderRadius: 16,
+        flexDirection: 'row', alignItems: 'center', marginBottom: 16,
+        backgroundColor: '#064e3b', paddingHorizontal: 12, paddingVertical: 6,
+        borderRadius: 16, borderWidth: 1, borderColor: '#065f46',
     },
-    contactText: { fontSize: 13, color: '#a5b4c8', marginLeft: 6 },
+    contactText: { fontSize: 13, color: '#d1fae5', marginLeft: 6, fontWeight: '600' },
+    pubkeyRow: {
+        flexDirection: 'row', alignItems: 'center',
+        backgroundColor: '#022c22', paddingHorizontal: 14, paddingVertical: 8,
+        borderRadius: 20, borderWidth: 1, borderColor: '#065f46',
+    },
+    pubkeyText: { fontSize: 13, color: '#6ee7b7', fontFamily: 'Courier', letterSpacing: 1 },
 
     // ─── Section Headers ───
     sectionHeader: {
