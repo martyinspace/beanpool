@@ -31,8 +31,20 @@ export default function PeopleScreen() {
     const [canInvite, setCanInvite] = useState(true);
     const [tierName, setTierName] = useState('');
 
+    const [searchQuery, setSearchQuery] = useState('');
+    const [page, setPage] = useState(0);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const PAGE_SIZE = 20;
+
     useEffect(() => {
-        if (view === 'community') loadMembers();
+        // Reset and reload when switching back to community view
+        if (view === 'community') {
+            setSearchQuery('');
+            setPage(0);
+            setHasMore(true);
+            loadMembers(0, '', true);
+        }
         if (view === 'invites') loadOfflineInvites();
         AsyncStorage.getItem('beanpool_anchor_url').then(val => {
             if (val) setAnchorUrl(val);
@@ -180,13 +192,52 @@ export default function PeopleScreen() {
     };
 
 
-    const loadMembers = async () => {
+    // Debounced Search Effect
+    useEffect(() => {
+        if (view !== 'community') return;
+        const timeout = setTimeout(() => {
+            setPage(0);
+            setHasMore(true);
+            loadMembers(0, searchQuery, true);
+        }, 400);
+        return () => clearTimeout(timeout);
+    }, [searchQuery]);
+
+    const loadMembers = async (pageIndex = 0, query = '', reset = false) => {
+        if (loadingMore || (!hasMore && !reset)) return;
+        
         try {
+            if (!reset) setLoadingMore(true);
             const database = await getDb();
-            const rows = await database.getAllAsync('SELECT * FROM members ORDER BY joined_at DESC');
-            setMembers(rows);
+            
+            let sql = 'SELECT * FROM members';
+            let params: any[] = [];
+            
+            if (query.trim()) {
+                sql += ' WHERE callsign LIKE ? OR public_key LIKE ?';
+                const likeTerm = `%${query.trim()}%`;
+                params.push(likeTerm, likeTerm);
+            }
+            
+            sql += ' ORDER BY joined_at DESC LIMIT ? OFFSET ?';
+            params.push(PAGE_SIZE, pageIndex * PAGE_SIZE);
+            
+            const rows = await database.getAllAsync<any>(sql, params);
+            
+            if (rows.length < PAGE_SIZE) setHasMore(false);
+            
+            setMembers(prev => reset ? rows : [...prev, ...rows]);
+            setPage(pageIndex + 1);
         } catch (e) {
-            console.error(e);
+            console.error('Error loading members:', e);
+        } finally {
+            setLoadingMore(false);
+        }
+    };
+
+    const handleLoadMore = () => {
+        if (hasMore && !loadingMore && view === 'community') {
+            loadMembers(page, searchQuery);
         }
     };
 
@@ -223,23 +274,44 @@ export default function PeopleScreen() {
             )}
 
             {view === 'community' && (
-                <FlatList
-                    data={members}
-                    keyExtractor={item => item.public_key}
-                    contentContainerStyle={styles.list}
-                    ListHeaderComponent={
-                        <View style={styles.infoBanner}>
-                            <Text style={styles.infoText}>
-                                All members on this node. Tap <Text style={styles.boldGreen}>+ Add</Text> to add someone as a friend.
-                            </Text>
-                        </View>
-                    }
-                    ListEmptyComponent={
-                        <View style={{ padding: 40, alignItems: 'center' }}>
-                            <Text style={{ color: '#9ca3af' }}>Loading community...</Text>
-                        </View>
-                    }
-                    renderItem={({ item }) => (
+                <>
+                    <View style={styles.searchWrap}>
+                        <TextInput
+                            style={styles.searchInput}
+                            placeholder="🔍 Search callsign or public key..."
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            placeholderTextColor="#9ca3af"
+                        />
+                    </View>
+                    <FlatList
+                        data={members}
+                        keyExtractor={item => item.public_key}
+                        contentContainerStyle={styles.list}
+                        onEndReached={handleLoadMore}
+                        onEndReachedThreshold={0.5}
+                        ListHeaderComponent={
+                            <View style={styles.infoBanner}>
+                                <Text style={styles.infoText}>
+                                    All members on this node. Tap <Text style={styles.boldGreen}>+ Add</Text> to add someone as a friend.
+                                </Text>
+                            </View>
+                        }
+                        ListEmptyComponent={
+                            <View style={{ padding: 40, alignItems: 'center' }}>
+                                <Text style={{ color: '#9ca3af' }}>
+                                    {searchQuery ? 'No members found matching search.' : 'Loading community...'}
+                                </Text>
+                            </View>
+                        }
+                        ListFooterComponent={
+                            loadingMore ? (
+                                <View style={{ padding: 20, alignItems: 'center' }}>
+                                    <Text style={{ color: '#9ca3af' }}>Loading more...</Text>
+                                </View>
+                            ) : null
+                        }
+                        renderItem={({ item }) => (
                         <View style={styles.card}>
                             <View style={styles.cardHeader}>
                                 <View style={styles.avatar}>
@@ -403,6 +475,9 @@ const styles = StyleSheet.create({
     dateText: { fontSize: 12, color: '#9ca3af', marginTop: 2, fontWeight: '500' },
     addBtn: { backgroundColor: '#059669', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
     addBtnText: { color: '#ffffff', fontWeight: 'bold', fontSize: 13 },
+
+    searchWrap: { paddingHorizontal: 16, paddingTop: 16, backgroundColor: '#f9fafb' },
+    searchInput: { backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 12, fontSize: 15, color: '#111827', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
 
     sectionHeader: { fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 6 },
     sectionDesc: { fontSize: 13, color: '#6b7280', marginBottom: 20, lineHeight: 18 },
