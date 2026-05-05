@@ -10,8 +10,9 @@
 import { useState, useEffect } from 'react';
 import { loadIdentity, type BeanPoolIdentity } from './lib/identity';
 import { connectToAnchor, onSystemAnnouncement } from './lib/sync';
-import { getConversations, getMarketplacePosts, getMyMarketplaceTransactions, checkMembership } from './lib/api';
+import { checkMembership, getConversations, getMarketplacePosts, getMyMarketplaceTransactions } from './lib/api';
 import { useTheme } from './lib/useTheme';
+import pkg from '../package.json';
 import { SyncStatus } from './components/SyncStatus';
 import { WelcomePage } from './pages/WelcomePage';
 import { MarketplacePage } from './pages/MarketplacePage';
@@ -249,11 +250,9 @@ export function App() {
                             {TABS.find(t => t.id === activeTab)?.label === 'Market' ? 'Marketplace' : TABS.find(t => t.id === activeTab)?.label}
                         </span>
                     ) : (
-                        <div className="relative flex flex-col items-center pointer-events-auto" style={{ transform: 'translateX(-12px) translateY(-8px)' }}>
+                        <div className="relative flex items-center pointer-events-auto" style={{ transform: 'translateX(-12px) translateY(-8px)' }}>
                             <img src="/logo.png" alt="BeanPool" style={{ width: '280px', height: '76px', marginTop: '-8px', marginBottom: '-12px', objectFit: 'contain' }} className="drop-shadow-sm" />
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" style={{ position: 'absolute', bottom: '-10px', right: '90px', width: '20px', height: '20px', opacity: 0.9, color: 'white' }}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                            </svg>
+                            <span className="absolute -right-4 bottom-2 text-[10px] font-bold text-amber-500 tracking-wider">v{pkg.version}</span>
                         </div>
                     )}
                 </div>

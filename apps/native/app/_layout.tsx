@@ -101,20 +101,17 @@ export default function RootLayout() {
     const appState = useRef(AppState.currentState);
 
     useEffect(() => {
-        // Force reset the sync cursors so we pull the whole DB since we wiped SQLite earlier.
-        AsyncStorage.removeItem('pillar:last-sync')
-            .then(() => AsyncStorage.removeItem('pillar:checkpoint'))
-            .then(() => initDB())
+        initDB()
             .then(() => registerPillarSync())
             // Trigger Immediate foreground sync
             .then(() => performSync())
             .then((result) => {
                 if (!result.success) {
-                    Alert.alert('Sync Failed', result.errorMessage || 'Could not reach BeanPool node or sync data.');
+                    console.log('[Init Sync] Soft failure on initial sync:', result.errorMessage);
                 }
             })
             .catch(err => {
-                console.error(err);
+                console.error('[Init DB] Error:', err);
                 Alert.alert('DB Error', String(err));
             });
 

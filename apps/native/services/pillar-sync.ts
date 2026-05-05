@@ -50,7 +50,11 @@ async function discoverAnchor(): Promise<string | null> {
     
     // Explicit saved anchor takes absolute priority
     try {
-        const savedAnchor = await AsyncStorage.getItem('beanpool_anchor_url');
+        let savedAnchor = await AsyncStorage.getItem('beanpool_anchor_url');
+        if (savedAnchor === 'https://review.beanpool.org:8443' || savedAnchor === 'https://beanpool.org:8443') {
+            await AsyncStorage.removeItem('beanpool_anchor_url');
+            savedAnchor = null;
+        }
         if (savedAnchor) {
             // NEVER fallback to a different community if an explicit anchor has been set via Invite.
             return savedAnchor;
@@ -71,8 +75,6 @@ async function discoverAnchor(): Promise<string | null> {
         'http://localhost:8080',
         'http://127.0.0.1:8080',
         'http://10.0.2.2:8080',
-        // Remote staging node (accessible from both emulator and physical devices - Fallback)
-        'https://review.beanpool.org:8443',
     );
 
     // Attempt to derive Expo LAN IP for physical dev devices

@@ -5,9 +5,25 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, usePathname } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getSavedNodes, SavedNode } from '../utils/nodes';
+import { getSavedNodes, SavedNode, removeSavedNode } from '../utils/nodes';
 import { getLastSyncTime } from '../services/pillar-sync';
 import { useIdentity } from '../app/IdentityContext';
+import Constants from 'expo-constants';
+
+// React Native's fetch doesn't support AbortSignal.timeout natively
+const fetchWithTimeout = async (resource: RequestInfo, options: RequestInit & { timeout?: number } = {}) => {
+    const { timeout = 3000, ...fetchOptions } = options;
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(resource, { ...fetchOptions, signal: controller.signal });
+        clearTimeout(id);
+        return response;
+    } catch (error) {
+        clearTimeout(id);
+        throw error;
+    }
+};
 
 export function GlobalHeader() {
     const insets = useSafeAreaInsets();
@@ -37,11 +53,17 @@ export function GlobalHeader() {
             const active = await AsyncStorage.getItem('beanpool_anchor_url');
             if (!active) return;
             try {
-                const r = await fetch(`${active}/api/community/membership/${identity.publicKey}`, { signal: AbortSignal.timeout(3000) });
-                const data = await r.json();
+                const url = `${active}/api/community/membership/${identity.publicKey}`;
+                const r = await fetchWithTimeout(url, { timeout: 8000 });
+                const text = await r.text();
+                // DEBUG ALERT
+                Alert.alert('Debug Probe', `URL: ${url}\n\nStatus: ${r.status}\nBody: ${text}`);
+                
+                const data = JSON.parse(text);
                 membershipCache.current[active] = !!data.isMember;
                 setIsGuestOnActive(!data.isMember);
-            } catch {
+            } catch (err: any) {
+                Alert.alert('Debug Probe Error', String(err));
                 // Network error — don't change state
             }
         })();
@@ -85,11 +107,11 @@ export function GlobalHeader() {
                     let isMember = false;
                     if (identity?.publicKey) {
                         try {
-                            const mr = await fetch(`${node.url}/api/community/membership/${identity.publicKey}`, { signal: AbortSignal.timeout(3000) });
+                            const mr = await fetchWithTimeout(`${node.url}/api/community/membership/${identity.publicKey}`, { timeout: 8000 });
                             const md = await mr.json();
                             isMember = !!md.isMember;
                             membershipCache.current[node.url] = isMember;
-                        } catch {
+                        } catch (e: any) {
                             // Fallback: use cached value if available
                             isMember = membershipCache.current[node.url] ?? false;
                         }
@@ -133,7 +155,7 @@ export function GlobalHeader() {
             const cached = membershipCache.current[targetUrl];
             setIsGuestOnActive(cached === undefined ? true : !cached);
             if (identity?.publicKey) {
-                fetch(`${targetUrl}/api/community/membership/${identity.publicKey}`, { signal: AbortSignal.timeout(3000) })
+                fetchWithTimeout(`${targetUrl}/api/community/membership/${identity.publicKey}`, { timeout: 3000 })
                     .then(r => r.json())
                     .then(d => {
                         membershipCache.current[targetUrl] = !!d.isMember;
@@ -220,6 +242,9 @@ export function GlobalHeader() {
                                     style={{ width: 280, height: 76, marginTop: -8, marginBottom: -12 }} 
                                     resizeMode="contain" 
                                 />
+                                <Text style={{ position: 'absolute', right: 40, bottom: -2, fontSize: 9, fontWeight: 'bold', color: '#f59e0b', letterSpacing: 1 }}>
+                                    v{Constants.expoConfig?.version}
+                                </Text>
                                 <MaterialCommunityIcons 
                                     name="chevron-down" 
                                     size={20} 
@@ -295,6 +320,20 @@ export function GlobalHeader() {
                                     key={i} 
                                     style={[styles.nodeBtn, isCurrent && styles.activeNodeBtn]}
                                     onPress={() => handleQuickSwitch(n.url)}
+                                    onLongPress={() => {
+                                        Alert.alert(
+                                            "Remove Community?",
+                                            "Do you want to remove this community from your saved list?",
+                                            [
+                                                { text: "Cancel", style: "cancel" },
+                                                { text: "Remove", style: "destructive", onPress: async () => {
+                                                    await removeSavedNode(n.url);
+                                                    setSavedNodes(prev => prev.filter(node => node.url !== n.url));
+                                                }}
+                                            ]
+                                        );
+                                    }}
+                                    delayLongPress={500}
                                     disabled={switching}
                                 >
                                     <View style={{ flex: 1 }}>

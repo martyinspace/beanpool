@@ -227,13 +227,46 @@ export default function SettingsScreen() {
         } catch(e) {}
     }
 
+    async function handleForceResync(targetUrl: string) {
+        Alert.alert(
+            "Force Resync",
+            "This will delete your local database for this community and redownload everything from scratch.",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Clear & Resync",
+                    style: "destructive",
+                    onPress: async () => {
+                        setAdvancedLoading(true);
+                        try {
+                            const dbFilename = getDatabaseFilenameForNode(targetUrl);
+                            await AsyncStorage.multiRemove([
+                                `pillar_sync_${dbFilename}_last-sync`,
+                                `pillar_sync_${dbFilename}_checkpoint`
+                            ]);
+                            const { clearDB, initDB } = await import('../../utils/db');
+                            await clearDB();
+                            await initDB();
+                            
+                            const { performSync } = await import('../../services/pillar-sync');
+                            performSync().then((res: any) => {
+                                if (res?.success) Alert.alert("Success", "Local database rebuilt.");
+                                else Alert.alert("Sync Error", res?.errorMessage || "Failed to fetch data.");
+                            });
+                        } catch (e: any) {
+                            Alert.alert("Error", String(e.message || e));
+                        } finally {
+                            setAdvancedLoading(false);
+                        }
+                    }
+                }
+            ]
+        );
+    }
+
     async function handleUpdateAnchor() {
         if (!newAnchorInput.trim()) {
             Alert.alert("Invalid URL", "Please enter a valid BeanPool Node IP address.");
-            return;
-        }
-        if (changeConfirm !== 'CHANGE') {
-            Alert.alert("Warning", "You must type exactly 'CHANGE' to verify this destructive action.");
             return;
         }
 
@@ -249,11 +282,8 @@ export default function SettingsScreen() {
             const { addSavedNode } = await import('../../utils/nodes');
             await addSavedNode(finalAnchorUrl, newNodeAlias.trim() || undefined);
 
-            // Nuclear purge the native cache databases
-            await AsyncStorage.removeItem('pillar:last-sync');
-            await AsyncStorage.removeItem('pillar:checkpoint');
-            const { clearDB, initDB } = await import('../../utils/db');
-            await clearDB();
+            const { closeDB, initDB } = await import('../../utils/db');
+            await closeDB();
             await initDB();
 
             const { performSync } = await import('../../services/pillar-sync');
@@ -261,9 +291,8 @@ export default function SettingsScreen() {
                 .then((res: any) => { if (!res?.success) console.warn("Sync failed after URL update:", res?.errorMessage); })
                 .catch((err: any) => console.error("Sync caught an error:", err));
 
-            Alert.alert("Network Migrated", "Your Node IP has been successfully updated. The app is downloading the new network's state in the background.");
+            Alert.alert("Node Added", "You have successfully connected to the new community.");
             setAnchorUrl(finalAnchorUrl);
-            setChangeConfirm('');
         } catch (e: any) {
             Alert.alert("Update Failed", String(e.message || e));
         } finally {
@@ -290,14 +319,12 @@ export default function SettingsScreen() {
                         await clearDB();
                         
                         // Purge sync engine cursors and the saved node matrix to force a clean slate
+                        const allKeys = await AsyncStorage.getAllKeys();
+                        const pillarKeys = allKeys.filter(k => k.startsWith('pillar_sync_') || k.startsWith('pillar:'));
                         await AsyncStorage.multiRemove([
                             'beanpool_anchor_url',
                             'beanpool_saved_nodes',
-                            'pillar:last-sync',
-                            'pillar:merkle-root',
-                            'pillar:accounts',
-                            'pillar:transactions',
-                            'pillar:checkpoint'
+                            ...pillarKeys
                         ]);
 
                         // Physically delete dormant DB files for all saved nodes to reclaim disk space
@@ -670,6 +697,11 @@ export default function SettingsScreen() {
                                                 {redeemLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13 }}>Redeem</Text>}
                                             </Pressable>
                                         </View>
+                                        <View style={{ marginTop: 16, flexDirection: 'row', justifyContent: 'flex-start', paddingTop: 12, borderTopWidth: 1, borderTopColor: '#e5e7eb' }}>
+                                            <Pressable style={{ backgroundColor: '#fef2f2', padding: 8, borderRadius: 6, borderWidth: 1, borderColor: '#fca5a5' }} onPress={() => handleForceResync(node.url)}>
+                                                <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#b91c1c' }}>Clear Cache & Resync</Text>
+                                            </Pressable>
+                                        </View>
                                     </View>
                                 )}
                             </View>
@@ -701,18 +733,8 @@ export default function SettingsScreen() {
                         autoCorrect={false}
                     />
                     
-                    <Text style={styles.label}>TYPE 'CHANGE' TO VERIFY</Text>
-                    <TextInput 
-                        style={[styles.input, { textAlign: 'center', fontWeight: 'bold', color: '#f59e0b', borderColor: '#fcd34d' }]}
-                        value={changeConfirm}
-                        onChangeText={setChangeConfirm}
-                        placeholder="CHANGE"
-                        autoCapitalize="characters"
-                        autoCorrect={false}
-                    />
-
-                    <Pressable style={[styles.primaryBtn, { backgroundColor: '#f59e0b' }, (advancedLoading || changeConfirm !== 'CHANGE') && { opacity: 0.5 }]} onPress={handleUpdateAnchor} disabled={advancedLoading || changeConfirm !== 'CHANGE'}>
-                        {advancedLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Wipe Cache & Migrate</Text>}
+                    <Pressable style={[styles.primaryBtn, { backgroundColor: '#10b981' }, advancedLoading && { opacity: 0.5 }]} onPress={handleUpdateAnchor} disabled={advancedLoading}>
+                        {advancedLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Add & Connect</Text>}
                     </Pressable>
 
                     <Pressable style={styles.backBtn} onPress={() => setMode('menu')}>

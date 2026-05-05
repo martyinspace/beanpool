@@ -26,7 +26,11 @@ function releaseSyncLock() {
 
 let currentDbName: string | null = null;
 export async function getDb(): Promise<SQLite.SQLiteDatabase> {
-    const url = await AsyncStorage.getItem('beanpool_anchor_url');
+    let url = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (url === 'https://review.beanpool.org:8443' || url === 'https://beanpool.org:8443') {
+        await AsyncStorage.removeItem('beanpool_anchor_url');
+        url = null;
+    }
     const expectedDbName = getDatabaseFilenameForNode(url);
 
     if (db && currentDbName === expectedDbName) {
@@ -1454,7 +1458,7 @@ export async function createConversationApi(type: 'dm' | 'group', participants: 
 
 export async function redeemInvite(code: string, callsign: string, identityToRegister?: any): Promise<boolean> {
     try {
-        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || (__DEV__ ? 'https://127.0.0.1:8443' : 'https://review.beanpool.org:8443');
+        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || (__DEV__ ? 'https://127.0.0.1:8443' : '');
 
         const identity = identityToRegister || await loadIdentity();
         if (!identity) throw new Error('No identity to register');

@@ -25,7 +25,9 @@ export default function PeopleScreen() {
     const [newCode, setNewCode] = useState('');
     const [intendedFor, setIntendedFor] = useState('');
     const [invites, setInvites] = useState<any[]>([]);
-    const [anchorUrl, setAnchorUrl] = useState('https://review.beanpool.org:8443');
+    const [redeemCode, setRedeemCode] = useState('');
+    const [redeeming, setRedeeming] = useState(false);
+    const [anchorUrl, setAnchorUrl] = useState('');
     const [canInvite, setCanInvite] = useState(true);
     const [tierName, setTierName] = useState('');
 
@@ -157,6 +159,26 @@ export default function PeopleScreen() {
         await Share.share({ message });
     };
 
+    const handleRedeem = async () => {
+        if (!redeemCode.trim()) return;
+        setRedeeming(true);
+        try {
+            const { redeemInvite } = await import('../../utils/db');
+            await redeemInvite(redeemCode.trim(), identity?.callsign || 'Unknown', identity);
+            
+            const { performSync } = await import('../../services/pillar-sync');
+            performSync().catch(console.error);
+
+            Alert.alert('Success', 'Invite redeemed! You are now a member of this community.');
+            setRedeemCode('');
+            router.replace('/');
+        } catch (e: any) {
+            Alert.alert('Redemption Failed', e.message);
+        } finally {
+            setRedeeming(false);
+        }
+    };
+
 
     const loadMembers = async () => {
         try {
@@ -242,7 +264,31 @@ export default function PeopleScreen() {
 
             {view === 'invites' && (
                 <ScrollView contentContainerStyle={styles.list}>
-                    <Text style={styles.sectionHeader}>🎟️ Invite Someone</Text>
+                    {/* REDEEM INVITE SECTION */}
+                    <Text style={styles.sectionHeader}>🎟️ Join Community</Text>
+                    <Text style={styles.sectionDesc}>Enter an invite code from an existing member to register your identity on this node.</Text>
+                    
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 32 }}>
+                        <TextInput 
+                            style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                            placeholder="Invite Code (e.g. INV-...)"
+                            value={redeemCode}
+                            onChangeText={setRedeemCode}
+                            autoCapitalize="characters"
+                        />
+                        <Pressable 
+                            style={{ backgroundColor: '#10b981', paddingHorizontal: 16, borderRadius: 12, justifyContent: 'center' }}
+                            onPress={handleRedeem}
+                            disabled={redeeming || !redeemCode.trim()}
+                        >
+                            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 15 }}>{redeeming ? '...' : 'Redeem'}</Text>
+                        </Pressable>
+                    </View>
+
+                    <View style={{ height: 1, backgroundColor: '#e5e7eb', marginBottom: 24 }} />
+
+                    {/* GENERATE INVITE SECTION */}
+                    <Text style={styles.sectionHeader}>📤 Invite Someone</Text>
                     <Text style={styles.sectionDesc}>Each offline ticket can only be used once. Generate a cryptographic payload directly on this device.</Text>
 
                     {!canInvite && (

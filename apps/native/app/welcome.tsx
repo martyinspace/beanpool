@@ -197,7 +197,7 @@ export default function WelcomeScreen() {
             if (extractedOrigin) {
                 await AsyncStorage.setItem('beanpool_anchor_url', extractedOrigin);
             } else {
-                let nodeUrl = createAnchorUrl.trim() || (__DEV__ ? 'https://127.0.0.1:8443' : 'https://review.beanpool.org:8443');
+                let nodeUrl = createAnchorUrl.trim() || (__DEV__ ? 'https://127.0.0.1:8443' : '');
                 if (nodeUrl && !nodeUrl.startsWith('http')) {
                     const isIpOrLocal = /^(?:\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(nodeUrl) || nodeUrl.startsWith('localhost');
                     nodeUrl = (isIpOrLocal ? 'http://' : 'https://') + nodeUrl;
@@ -249,7 +249,7 @@ export default function WelcomeScreen() {
         setLoading(true);
         setError(null);
         try {
-            let finalAnchorUrl = recoveryAnchorUrl.trim() || (__DEV__ ? 'https://127.0.0.1:8443' : 'https://review.beanpool.org:8443');
+            let finalAnchorUrl = recoveryAnchorUrl.trim() || (__DEV__ ? 'https://127.0.0.1:8443' : '');
             if (finalAnchorUrl && !finalAnchorUrl.startsWith('http')) {
                 const isIpOrLocal = /^(?:\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(finalAnchorUrl) || finalAnchorUrl.startsWith('localhost');
                 finalAnchorUrl = (isIpOrLocal ? 'http://' : 'https://') + finalAnchorUrl;
