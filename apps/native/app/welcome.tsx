@@ -91,6 +91,13 @@ export default function WelcomeScreen() {
     const [processingMagicLink, setProcessingMagicLink] = useState(false);
 
     React.useEffect(() => {
+        AsyncStorage.getItem('beanpool_anchor_url').then(val => {
+            if (val) {
+                setCreateAnchorUrl(val);
+                setRecoveryAnchorUrl(val);
+            }
+        });
+        
         let mounted = true;
 
         const processFullUrl = async (fullUrl: string) => {
@@ -202,8 +209,8 @@ export default function WelcomeScreen() {
             const identity = await createIdentity(callsign.trim());
             setPendingIdentity(identity);
             setPendingInviteCode(parsedCode);
-        } catch (err) {
-            setError('Failed to generate identity.');
+        } catch (err: any) {
+            setError(`Failed to generate identity: ${err?.message || err}`);
             console.error(err);
         } finally {
             setLoading(false);

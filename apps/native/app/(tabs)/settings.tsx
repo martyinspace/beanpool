@@ -37,6 +37,8 @@ export default function SettingsScreen() {
     const [advancedLoading, setAdvancedLoading] = useState(false);
     const [savedNodes, setSavedNodes] = useState<(SavedNode & { status: 'pinging' | 'online' | 'offline', sizeBytes: number })[]>([]);
     const [newNodeAlias, setNewNodeAlias] = useState('');
+    const [redeemInviteCode, setRedeemInviteCode] = useState('');
+    const [redeemLoading, setRedeemLoading] = useState(false);
     
     React.useEffect(() => {
         if (mode === 'advanced') {
@@ -83,7 +85,13 @@ export default function SettingsScreen() {
     const [importUri, setImportUri] = useState('');
     const [importPin, setImportPin] = useState('');
 
-    if (!identity) return null;
+    if (!identity) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f9fafb' }}>
+                <Text style={{ fontSize: 18, color: 'red' }}>Debug: Identity is null.</Text>
+            </View>
+        );
+    }
 
     const fingerprint = identity.publicKey.slice(0, 16) + '...';
 
@@ -155,7 +163,27 @@ export default function SettingsScreen() {
             router.replace('/welcome');
         } catch (e: any) {
             Alert.alert("Pivot Failed", e.message);
-            setAdvancedLoading(false);
+        }
+    }
+
+    async function handleRedeemInvite() {
+        if (!redeemInviteCode.trim()) return;
+        setRedeemLoading(true);
+        try {
+            const { redeemInvite } = await import('../../utils/db');
+            // Re-fetch the callsign just to be sure it's current
+            await redeemInvite(redeemInviteCode.trim(), identity?.callsign || 'Unknown', identity);
+            
+            // Kick off a background sync immediately so they pull the node's ledger
+            const { performSync } = await import('../../services/pillar-sync');
+            performSync().catch(console.error);
+
+            Alert.alert('Success', 'Invite redeemed successfully on current node! Syncing data...');
+            setRedeemInviteCode('');
+        } catch (e: any) {
+            Alert.alert('Redemption Failed', e.message);
+        } finally {
+            setRedeemLoading(false);
         }
     }
 
@@ -622,6 +650,28 @@ export default function SettingsScreen() {
                                         </Pressable>
                                     )}
                                 </View>
+
+                                {isActive && (
+                                    <View style={{ marginTop: 12, padding: 12, backgroundColor: '#f3f4f6', borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb' }}>
+                                        <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#374151', marginBottom: 8 }}>Authenticate Identity on this Node</Text>
+                                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                                            <TextInput 
+                                                style={{ flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: '#d1d5db', borderRadius: 6, paddingHorizontal: 10, height: 36, fontSize: 13 }}
+                                                placeholder="Invite Code (e.g. INV-...)"
+                                                value={redeemInviteCode}
+                                                onChangeText={setRedeemInviteCode}
+                                                autoCapitalize="characters"
+                                            />
+                                            <Pressable 
+                                                style={{ backgroundColor: '#10b981', paddingHorizontal: 16, borderRadius: 6, justifyContent: 'center' }}
+                                                onPress={handleRedeemInvite}
+                                                disabled={redeemLoading || !redeemInviteCode.trim()}
+                                            >
+                                                {redeemLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13 }}>Redeem</Text>}
+                                            </Pressable>
+                                        </View>
+                                    </View>
+                                )}
                             </View>
                         );
                     })}

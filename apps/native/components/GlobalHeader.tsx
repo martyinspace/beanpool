@@ -190,7 +190,7 @@ export function GlobalHeader() {
                             if (pathname === '/settings') {
                                 router.back();
                             } else {
-                                router.push('/settings');
+                                router.push('/(tabs)/settings');
                             }
                         }}
                     >

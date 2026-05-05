@@ -965,6 +965,16 @@ export function approvePostRequest(transactionId: string, authorPublicKey: strin
     const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
     broadcast({ type: 'transaction_approved', transaction: tx });
     broadcast({ type: 'post_updated', post: getPosts({ id: row.post_id })[0] });
+
+    // Atomicity: Ensure conversation exists BEFORE injecting the system message.
+    // Both participants are guaranteed registered members at this point.
+    ensureTransactionConversation(row.post_id, row.buyer_pubkey, row.seller_pubkey);
+
+    injectSystemMessage(row.post_id, SystemMessageType.ESCROW_FUNDED, {
+        amount: row.credits,
+        postId: row.post_id,
+        actorPubkey: authorPublicKey
+    });
     return tx;
 }
 
@@ -1046,6 +1056,10 @@ export function acceptPost(postId: string, buyerPublicKey: string, hours?: numbe
     })();
     broadcast({ type: 'post_accepted', postId: post.id, transaction: tx });
     
+    // Atomicity: Ensure a conversation thread exists BEFORE injecting the system message.
+    // Both buyer and seller are guaranteed registered members at this point.
+    ensureTransactionConversation(post.id, buyerPublicKey, post.authorPublicKey);
+
     injectSystemMessage(post.id, SystemMessageType.ESCROW_FUNDED, {
         amount: finalCredits,
         postId: post.id,
@@ -1235,9 +1249,39 @@ export function sendMessage(conversationId: string, authorPubkey: string, cipher
     return msg;
 }
 
+/**
+ * Ensures a conversation thread exists between buyer and seller for a given post.
+ * Called atomically with escrow creation so injectSystemMessage() always has a target.
+ * Returns the conversation ID (existing or newly created).
+ */
+export function ensureTransactionConversation(postId: string, buyerPubkey: string, sellerPubkey: string): string {
+    // Check if a conversation already exists for this post between these two parties
+    const existing = db.prepare(`
+        SELECT c.id FROM conversations c
+        JOIN conversation_participants cp1 ON c.id = cp1.conversation_id AND cp1.public_key = ?
+        JOIN conversation_participants cp2 ON c.id = cp2.conversation_id AND cp2.public_key = ?
+        WHERE c.post_id = ?
+    `).get(buyerPubkey, sellerPubkey, postId) as any;
+    
+    if (existing) {
+        console.log(`[Comms] Conversation already exists for post ${postId}: ${existing.id}`);
+        return existing.id;
+    }
+    
+    // Create atomically — createConversation handles participant registration and broadcast
+    const conv = createConversation('dm', [buyerPubkey, sellerPubkey], buyerPubkey, undefined, postId);
+    if (!conv) throw new Error('Failed to create transaction conversation');
+    console.log(`[Comms] Created new conversation ${conv.id} for post ${postId} between ${buyerPubkey.slice(0,8)} and ${sellerPubkey.slice(0,8)}`);
+    return conv.id;
+}
+
 export function injectSystemMessage(postId: string, type: SystemMessageType, meta: SystemMessageMetadata) {
     const convRows = db.prepare("SELECT id FROM conversations WHERE post_id = ?").all(postId) as any[];
     
+    if (convRows.length === 0) {
+        console.warn(`[Comms] WARNING: No conversations found for post ${postId}. System event ${type} was NOT delivered to any inbox.`);
+    }
+
     const contentMap: Record<SystemMessageType, string> = {
         [SystemMessageType.ESCROW_CREATED]: `Escrow initialized.`,
         [SystemMessageType.ESCROW_FUNDED]: `Ʀ${meta.amount} has been placed in escrow.`,
@@ -1266,6 +1310,9 @@ export function injectSystemMessage(postId: string, type: SystemMessageType, met
         db.prepare(`INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, system_type, metadata, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(msg.id, msg.conversationId, msg.authorPubkey, msg.ciphertext, msg.nonce, msg.type, msg.systemType, msg.metadata, msg.timestamp);
 
         broadcast({ type: 'new_message', conversationId, message: msg, participants: participants.map(p => p.public_key) });
+        
+        // Dispatch push notification to all participants (except the actor)
+        sendPushNotification(postId, type, meta, participants.map(p => p.public_key));
     }
 }
 
@@ -1799,3 +1846,123 @@ export function getActiveRound(): VotingRound | null {
 export function getCommonsBalance(): number {
     return Math.round(COMMONS_BALANCE * 100) / 100;
 }
+
+// ===================== PUSH NOTIFICATIONS =====================
+
+export function registerPushToken(publicKey: string, token: string, platform: string = 'ios'): boolean {
+    try {
+        db.prepare(`INSERT OR REPLACE INTO push_tokens (public_key, token, platform) VALUES (?, ?, ?)`).run(publicKey, token, platform);
+        console.log(`[Push] Registered token for ${publicKey.slice(0, 8)}: ${token.slice(0, 20)}...`);
+        return true;
+    } catch (e) {
+        console.error('[Push] Failed to register token:', e);
+        return false;
+    }
+}
+
+export function removePushToken(publicKey: string, token?: string): boolean {
+    try {
+        if (token) {
+            db.prepare(`DELETE FROM push_tokens WHERE public_key = ? AND token = ?`).run(publicKey, token);
+        } else {
+            // Remove all tokens for this user (logout from all devices)
+            db.prepare(`DELETE FROM push_tokens WHERE public_key = ?`).run(publicKey);
+        }
+        console.log(`[Push] Removed token(s) for ${publicKey.slice(0, 8)}`);
+        return true;
+    } catch (e) {
+        console.error('[Push] Failed to remove token:', e);
+        return false;
+    }
+}
+
+export function getPushTokens(publicKey: string): { token: string; platform: string }[] {
+    return (db.prepare(`SELECT token, platform FROM push_tokens WHERE public_key = ?`).all(publicKey) as any[]);
+}
+
+/**
+ * Dispatches Expo Push Notifications to all participants of a conversation,
+ * excluding the actor who triggered the event. Fire-and-forget pattern.
+ */
+export function sendPushNotification(postId: string, type: SystemMessageType, meta: SystemMessageMetadata, participantPubkeys: string[]) {
+    // Build notification payload based on event type
+    const post = db.prepare("SELECT title FROM posts WHERE id = ?").get(postId) as any;
+    const postTitle = post?.title || 'a post';
+    const actorMember = meta.actorPubkey ? (getMember(meta.actorPubkey) as any) : null;
+    const actorName = actorMember?.callsign || meta.actorPubkey?.slice(0, 8) || 'Someone';
+
+    const notificationMap: Record<SystemMessageType, { title: string; body: string; data: any }> = {
+        [SystemMessageType.ESCROW_CREATED]: {
+            title: '🔒 Escrow Initialized',
+            body: `An escrow has been created for "${postTitle}"`,
+            data: { screen: 'post', postId }
+        },
+        [SystemMessageType.ESCROW_FUNDED]: {
+            title: '🔒 Credits Locked in Escrow',
+            body: `Ʀ${meta.amount} placed in escrow for "${postTitle}"`,
+            data: { screen: 'post', postId }
+        },
+        [SystemMessageType.ESCROW_RELEASED]: {
+            title: '✅ Credits Released!',
+            body: `Payment of Ʀ${meta.amount} released for "${postTitle}"`,
+            data: { screen: 'post', postId }
+        },
+        [SystemMessageType.ESCROW_CANCELLED]: {
+            title: '❌ Escrow Cancelled',
+            body: `Escrow cancelled for "${postTitle}". Funds refunded.`,
+            data: { screen: 'post', postId }
+        },
+        [SystemMessageType.DISPUTE_OPENED]: {
+            title: '⚠️ Dispute Opened',
+            body: `A dispute has been opened for "${postTitle}"`,
+            data: { screen: 'post', postId }
+        },
+        [SystemMessageType.REVIEW_LEFT]: {
+            title: '⭐ New Review',
+            body: `${actorName} left a review on "${postTitle}"`,
+            data: { screen: 'post', postId }
+        }
+    };
+
+    const notification = notificationMap[type];
+    if (!notification) return;
+
+    // Collect push tokens for all participants EXCEPT the actor
+    const targetPubkeys = participantPubkeys.filter(pk => pk !== meta.actorPubkey && pk !== 'SYSTEM');
+    const allTokens: string[] = [];
+    for (const pk of targetPubkeys) {
+        const tokens = getPushTokens(pk);
+        allTokens.push(...tokens.map(t => t.token));
+    }
+
+    if (allTokens.length === 0) return;
+
+    // Fire-and-forget: dispatch to Expo Push API
+    const messages = allTokens.map(token => ({
+        to: token,
+        sound: 'default',
+        title: notification.title,
+        body: notification.body,
+        data: notification.data,
+    }));
+
+    // Batch send to Expo (max 100 per request)
+    const batches: typeof messages[] = [];
+    for (let i = 0; i < messages.length; i += 100) {
+        batches.push(messages.slice(i, i + 100));
+    }
+
+    for (const batch of batches) {
+        fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(batch),
+        }).then(res => {
+            if (!res.ok) console.warn(`[Push] Expo API returned ${res.status}`);
+            else console.log(`[Push] Sent ${batch.length} notification(s) for ${type}`);
+        }).catch(err => {
+            console.warn('[Push] Failed to send push notification:', err.message);
+        });
+    }
+}
+

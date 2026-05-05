@@ -1,5 +1,5 @@
 import { sha256, sha512 } from '@noble/hashes/sha2.js';
-import { getPublicKey, sign, verify, etc } from '@noble/ed25519';
+import { getPublicKey, sign, verify, etc, hashes } from '@noble/ed25519';
 import * as Crypto from 'expo-crypto';
 import { WORDLIST } from '../../pwa/src/lib/bip39-wordlist';
 
@@ -14,8 +14,8 @@ if (typeof global.crypto.getRandomValues !== 'function') {
     };
 }
 
-etc.sha512Sync = (...m) => sha512(etc.concatBytes(...m));
-etc.sha512Async = (...m) => Promise.resolve(etc.sha512Sync(...m));
+hashes.sha512 = (...m) => sha512(etc.concatBytes(...m));
+hashes.sha512Async = (...m) => Promise.resolve(hashes.sha512!(...m));
 
 export function bytesToHex(bytes: Uint8Array): string {
     return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -170,3 +170,12 @@ export async function mnemonicToKeypair(words: string[]): Promise<{
         privateKeyHex: bytesToHex(privateKey)
     };
 }
+
+export async function signData(message: Uint8Array, privateKey: Uint8Array): Promise<Uint8Array> {
+    return sign(message, privateKey);
+}
+
+export async function verifyData(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean> {
+    return verify(signature, message, publicKey);
+}
+

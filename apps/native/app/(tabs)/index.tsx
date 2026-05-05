@@ -506,6 +506,30 @@ export default function MapScreen() {
                 </SafeAreaView>
             )}
 
+            {/* TEMPORARY MIGRATION BUTTON */}
+            <SafeAreaView style={[StyleSheet.absoluteFill, { zIndex: 9999, justifyContent: 'flex-start', alignItems: 'center', paddingTop: 140 }]} pointerEvents="box-none">
+                <TouchableOpacity
+                    style={{ backgroundColor: '#ef4444', padding: 20, borderRadius: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 10 }}
+                    onPress={async () => {
+                        try {
+                            const { clearDB, initDB } = await import('../../utils/db');
+                            await AsyncStorage.setItem('beanpool_anchor_url', 'https://mullum.beanpool.org');
+                            await AsyncStorage.removeItem('pillar:last-sync');
+                            await AsyncStorage.removeItem('pillar:checkpoint');
+                            await clearDB();
+                            await initDB();
+                            const { performSync } = await import('../../services/pillar-sync');
+                            await performSync();
+                            Alert.alert('Success', 'Migrated to mullum.beanpool.org! Your database has been reset and synchronized.');
+                        } catch(e: any) {
+                            Alert.alert('Migration Error', e.message);
+                        }
+                    }}
+                >
+                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>🚨 FORCE SYNC TO MULLUM 🚨</Text>
+                </TouchableOpacity>
+            </SafeAreaView>
+
             {/* FAB — New Post Button */}
             {!showNewPost && !selectedPostPreview && (
                 <SafeAreaView style={StyleSheet.absoluteFill} pointerEvents="box-none">

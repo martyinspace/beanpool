@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image } from 'react-native';
 import { getDb } from '../../utils/db'; // Will query local mock array mapped to PWA layout
 import { useIdentity } from '../IdentityContext';
-import { hexToBytes, encodeUtf8, encodeBase64 } from '../../utils/crypto';
-import { sign } from '@noble/ed25519';
+import { hexToBytes, encodeUtf8, encodeBase64, signData } from '../../utils/crypto';
 import QRCode from 'react-native-qrcode-svg';
 import { TextInput, Alert, ScrollView, Share } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -70,7 +69,7 @@ export default function PeopleScreen() {
                 };
                 const apiPayloadStr = JSON.stringify(apiPayload);
                 const apiMsgBytes = encodeUtf8(apiPayloadStr);
-                const apiSigBytes = await sign(apiMsgBytes, hexToBytes(identity.privateKey));
+                const apiSigBytes = await signData(apiMsgBytes, hexToBytes(identity.privateKey));
                 const apiSigB64 = encodeBase64(apiSigBytes);
 
                 const res = await fetch(`${anchorUrl}/api/invite/generate`, {
@@ -118,7 +117,7 @@ export default function PeopleScreen() {
             
             const messageBytes = encodeUtf8(payloadStr);
             const privateKeyBytes = hexToBytes(identity.privateKey);
-            const signatureBytes = await sign(messageBytes, privateKeyBytes);
+            const signatureBytes = await signData(messageBytes, privateKeyBytes);
             
             const signatureBase64 = encodeBase64(signatureBytes);
             const payloadBase64 = encodeBase64(messageBytes);

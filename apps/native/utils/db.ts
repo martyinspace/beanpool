@@ -2,8 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadIdentity } from './identity';
 import * as Crypto from 'expo-crypto';
-import { sign } from '@noble/ed25519';
-import { hexToBytes, encodeBase64, encodeUtf8, decodeBase64, decodeUtf8 } from './crypto';
+import { hexToBytes, encodeBase64, encodeUtf8, decodeBase64, decodeUtf8, signData } from './crypto';
 import { getDatabaseFilenameForNode, addSavedNode } from './nodes';
 
 /**
@@ -386,7 +385,7 @@ export async function getPost(id: string) {
 export async function getConversations(myPubkey: string) {
     const database = await getDb();
     const rows = await database.getAllAsync<any>(`
-        SELECT c.id, c.name, c.post_id, p.title as postTitle, p.status as postStatus, m.ciphertext as lastMessage, m.nonce as lastNonce, m.type as lastMsgType, m.system_type as lastSysType, MAX(m.timestamp) as timestamp,
+        SELECT c.id, c.name, c.post_id, p.title as postTitle, p.status as postStatus, p.credits as postCredits, m.ciphertext as lastMessage, m.nonce as lastNonce, m.type as lastMsgType, m.system_type as lastSysType, MAX(m.timestamp) as timestamp,
         (SELECT memb.callsign FROM conversation_participants cp 
          LEFT JOIN members memb ON memb.public_key = cp.public_key
          WHERE cp.conversation_id = c.id AND cp.public_key != ? LIMIT 1) as otherCallsign,
@@ -394,10 +393,15 @@ export async function getConversations(myPubkey: string) {
          WHERE msg.conversation_id = c.id 
          AND msg.author_pubkey != ?
          AND (msg.timestamp > IFNULL((SELECT last_read_at FROM conversation_participants WHERE conversation_id = c.id AND public_key = ?), '2000-01-01'))
-        ) as unreadCount
+        ) as unreadCount,
+        mt.id as pendingTxId,
+        mt.credits as pendingAmount,
+        mt.buyer_pubkey as txBuyerPubkey,
+        mt.seller_pubkey as txSellerPubkey
         FROM conversations c
         LEFT JOIN messages m ON m.conversation_id = c.id
         LEFT JOIN posts p ON c.post_id = p.id
+        LEFT JOIN marketplace_transactions mt ON mt.post_id = c.post_id AND mt.status = 'pending'
         WHERE c.id IN (SELECT conversation_id FROM conversation_participants WHERE public_key = ?)
         GROUP BY c.id
         ORDER BY timestamp DESC
@@ -415,17 +419,26 @@ export async function getConversations(myPubkey: string) {
             displayMsg = row.lastMessage;
         }
 
+        const isPayer = row.txBuyerPubkey === myPubkey;
+        const isPayee = row.txSellerPubkey === myPubkey;
+
         return {
             id: row.id,
             postId: row.post_id,
             postTitle: row.postTitle,
             postStatus: row.postStatus,
+            postCredits: row.postCredits,
             peer: row.name || row.otherCallsign || row.id.slice(0, 8),
             lastMessage: displayMsg,
             lastMsgType: row.lastMsgType,
             lastSysType: row.lastSysType,
             timestamp: row.timestamp ? new Date(row.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'New',
-            unread: row.unreadCount || 0
+            unread: row.unreadCount || 0,
+            // Escrow role metadata for "Action Required" section
+            isPayer,
+            isPayee,
+            pendingAmount: row.pendingAmount || null,
+            pendingTxId: row.pendingTxId || null,
         };
     });
 }
@@ -722,7 +735,7 @@ export async function createPost(post: any) {
 
     const privateKeyBytes = hexToBytes(identity.privateKey);
     const messageBytes = encodeUtf8(bodyString);
-    const signatureBytes = await sign(messageBytes, privateKeyBytes);
+    const signatureBytes = await signData(messageBytes, privateKeyBytes);
     const signatureBase64 = encodeBase64(signatureBytes);
 
     try {
@@ -802,7 +815,7 @@ export async function createProject(project: {
 
         const privateKeyBytes = hexToBytes(identity.privateKey);
         const messageBytes = encodeUtf8(bodyString);
-        const signatureBytes = await sign(messageBytes, privateKeyBytes);
+        const signatureBytes = await signData(messageBytes, privateKeyBytes);
         const signatureBase64 = encodeBase64(signatureBytes);
 
         const controller = new AbortController();
@@ -881,7 +894,7 @@ export async function updateCrowdfundProjectApi(
 
     const privateKeyBytes = hexToBytes(identity.privateKey);
     const messageBytes = encodeUtf8(bodyString);
-    const signatureBytes = await sign(messageBytes, privateKeyBytes);
+    const signatureBytes = await signData(messageBytes, privateKeyBytes);
     const signatureBase64 = encodeBase64(signatureBytes);
 
     const controller = new AbortController();
@@ -945,7 +958,7 @@ export async function deleteCrowdfundProjectApi(projectId: string) {
 
     const privateKeyBytes = hexToBytes(identity.privateKey);
     const messageBytes = encodeUtf8(bodyString);
-    const signatureBytes = await sign(messageBytes, privateKeyBytes);
+    const signatureBytes = await signData(messageBytes, privateKeyBytes);
     const signatureBase64 = encodeBase64(signatureBytes);
 
     const controller = new AbortController();
@@ -1041,7 +1054,7 @@ export async function deletePost(id: string) {
     
     const privateKeyBytes = hexToBytes(identity.privateKey);
     const messageBytes = encodeUtf8(payload);
-    const signatureBytes = await sign(messageBytes, privateKeyBytes);
+    const signatureBytes = await signData(messageBytes, privateKeyBytes);
     const signature = encodeBase64(signatureBytes);
     
     try {
@@ -1289,9 +1302,14 @@ export async function getConversation(id: string, myPubkey?: string) {
             SELECT c.name, c.post_id as postId, p.title as postTitle, p.status as postStatus, p.price_type, p.credits,
             (SELECT memb.callsign FROM conversation_participants cp 
              LEFT JOIN members memb ON memb.public_key = cp.public_key
-             WHERE cp.conversation_id = c.id AND cp.public_key != ? LIMIT 1) as otherCallsign
+             WHERE cp.conversation_id = c.id AND cp.public_key != ? LIMIT 1) as otherCallsign,
+            mt.id as pendingTxId,
+            mt.credits as pendingAmount,
+            mt.buyer_pubkey as txBuyerPubkey,
+            mt.seller_pubkey as txSellerPubkey
             FROM conversations c 
             LEFT JOIN posts p ON c.post_id = p.id
+            LEFT JOIN marketplace_transactions mt ON mt.post_id = c.post_id AND mt.status = 'pending'
             WHERE c.id = ?`, [myPubkey, id]);
     }
     return await database.getFirstAsync<any>('SELECT name, post_id as postId FROM conversations WHERE id = ?', [id]);
@@ -1349,7 +1367,7 @@ export async function insertMessage(conversationId: string, authorPubkey: string
 
     const privateKeyBytes = hexToBytes(identity.privateKey);
     const messageBytes = encodeUtf8(bodyString);
-    const signatureBytes = await sign(messageBytes, privateKeyBytes);
+    const signatureBytes = await signData(messageBytes, privateKeyBytes);
     const signatureBase64 = encodeBase64(signatureBytes);
 
     try {
@@ -1407,7 +1425,7 @@ export async function createConversationApi(type: 'dm' | 'group', participants: 
     const bodyString = JSON.stringify(body);
     const privateKeyBytes = hexToBytes(identity.privateKey);
     const messageBytes = encodeUtf8(bodyString);
-    const signatureBytes = await sign(messageBytes, privateKeyBytes);
+    const signatureBytes = await signData(messageBytes, privateKeyBytes);
     const signatureBase64 = encodeBase64(signatureBytes);
 
     try {
@@ -1450,7 +1468,7 @@ export async function redeemInvite(code: string, callsign: string, identityToReg
 
         const privateKeyBytes = hexToBytes(identity.privateKey);
         const messageBytes = encodeUtf8(bodyString);
-        const signatureBytes = await sign(messageBytes, privateKeyBytes);
+        const signatureBytes = await signData(messageBytes, privateKeyBytes);
         
         const signatureBase64 = encodeBase64(signatureBytes);
 
@@ -1504,7 +1522,7 @@ async function _signedRequest(endpoint: string, payload: any) {
     const bodyString = JSON.stringify(payload);
     const privateKeyBytes = hexToBytes(identity.privateKey);
     const messageBytes = encodeUtf8(bodyString);
-    const signatureBytes = await sign(messageBytes, privateKeyBytes);
+    const signatureBytes = await signData(messageBytes, privateKeyBytes);
     const signatureBase64 = encodeBase64(signatureBytes);
 
     const controller = new AbortController();

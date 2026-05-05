@@ -7,6 +7,12 @@
     },
     "android": {
       "package": "org.beanpool.pillar"
+    },
+    "ios": {
+      "bundleIdentifier": "org.beanpool.pillar",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     }
   }
 }

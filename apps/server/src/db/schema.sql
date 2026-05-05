@@ -181,3 +181,12 @@ CREATE TABLE IF NOT EXISTS invite_links (
     created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
+-- 11. Push Notification Tokens (Expo Push)
+CREATE TABLE IF NOT EXISTS push_tokens (
+    public_key TEXT NOT NULL REFERENCES members(public_key),
+    token TEXT NOT NULL,
+    platform TEXT DEFAULT 'ios',
+    created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (public_key, token)
+);
+

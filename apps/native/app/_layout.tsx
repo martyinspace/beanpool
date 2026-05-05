@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Alert, LogBox, AppState, AppStateStatus } from 'react-native';
 import { registerPillarSync } from '../services/background-task';
 import { performSync } from '../services/pillar-sync';
+import { registerForPushNotifications, setupNotificationResponseHandler } from '../services/push-notifications';
 import { initDB, clearDB } from '../utils/db';
 import { IdentityProvider, useIdentity } from './IdentityContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -60,13 +61,27 @@ function RootLayoutNav() {
 
         // If we have no identity and we aren't already on the welcome screen, kick us out
         if (!identity && segments[0] !== 'welcome') {
-            router.replace({ pathname: '/welcome', params });
+            setTimeout(() => {
+                router.replace('/welcome');
+            }, 50);
         }
         // If we DO have an identity and we are stuck on the welcome screen or root, push us into the secure area
         else if (identity && ((segments as string[]).length === 0 || (segments as string[])[0] === 'welcome')) {
             router.replace('/(tabs)');
         }
     }, [identity, isLoading, segments]);
+
+    // Register for push notifications when identity is available
+    useEffect(() => {
+        if (!identity?.publicKey) return;
+        registerForPushNotifications(identity.publicKey).catch(console.warn);
+    }, [identity?.publicKey]);
+
+    // Set up notification deep-link handler
+    useEffect(() => {
+        const subscription = setupNotificationResponseHandler();
+        return () => subscription.remove();
+    }, []);
 
     if (isLoading) return null; // Or a splash screen
 

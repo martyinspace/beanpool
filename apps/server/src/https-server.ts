@@ -61,7 +61,8 @@ import {
     createProject, updateProject, deleteProject, voteForProject, createVotingRound, closeVotingRound,
     getProjects, getAllProjects, getVotingRounds, getActiveRound, getCommonsBalance,
     adminRejectProject,
-    getNodeConfig, updateNodeConfig, getDirectoryInfo, exportLedgerAudit
+    getNodeConfig, updateNodeConfig, getDirectoryInfo, exportLedgerAudit,
+    registerPushToken, removePushToken
 } from './state-engine.js';
 import { getCrowdfundProjects, getCrowdfundProject, createCrowdfundProject, updateCrowdfundProject, pledgeToProject, deleteCrowdfundProject } from './db/db.js';
 
@@ -972,6 +973,30 @@ export async function startHttpsServer(port: number): Promise<void> {
             conversation: conv,
             messages: getConversationMessages(conversationId, limit, offset),
         };
+    });
+
+    // ===================== PUSH NOTIFICATION TOKENS =====================
+
+    router.post('/api/push-tokens', async (ctx) => {
+        const { publicKey, token, platform } = (ctx as any).requestBody || {};
+        if (!publicKey || !token) {
+            ctx.status = 400;
+            ctx.body = { error: 'Missing publicKey or token' };
+            return;
+        }
+        const success = registerPushToken(publicKey, token, platform || 'ios');
+        ctx.body = { success };
+    });
+
+    router.delete('/api/push-tokens', async (ctx) => {
+        const { publicKey, token } = (ctx as any).requestBody || {};
+        if (!publicKey) {
+            ctx.status = 400;
+            ctx.body = { error: 'Missing publicKey' };
+            return;
+        }
+        const success = removePushToken(publicKey, token);
+        ctx.body = { success };
     });
 
     // ===================== MARKETPLACE API (PUBLIC) =====================

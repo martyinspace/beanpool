@@ -16,13 +16,26 @@ export default function ChatsScreen() {
     const [loadingMembers, setLoadingMembers] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
-    const filteredConversations = React.useMemo(() => {
+    // Partition conversations into "Action Required" and regular
+    const { actionRequired, regularConversations } = React.useMemo(() => {
         let list = conversations;
         if (activeTab === 'transactions') list = conversations.filter(c => !!c.postId);
         if (activeTab === 'direct') list = conversations.filter(c => !c.postId);
         
+        const actionRequired = list.filter(item => {
+            // User is the payer and the post is pending (they need to release credits)
+            if (item.postStatus === 'pending' && item.isPayer) return true;
+            // User is the payee and escrow was just funded (they need to fulfill)
+            if (item.lastMsgType === 'system' && item.lastSysType === 'ESCROW_FUNDED' && item.isPayee) return true;
+            // Review needed after release
+            if (item.lastMsgType === 'system' && item.lastSysType === 'ESCROW_RELEASED') return true;
+            return false;
+        });
+
+        let regular = list.filter(item => !actionRequired.includes(item));
+        
         if (activeTab === 'transactions') {
-            return list.sort((a, b) => {
+            regular = regular.sort((a, b) => {
                 const isAActive = ['active', 'pending'].includes(a.postStatus || '');
                 const isBActive = ['active', 'pending'].includes(b.postStatus || '');
                 if (isAActive && !isBActive) return -1;
@@ -30,7 +43,7 @@ export default function ChatsScreen() {
                 return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
             });
         }
-        return list;
+        return { actionRequired, regularConversations: regular };
     }, [conversations, activeTab]);
 
     useFocusEffect(
@@ -86,12 +99,48 @@ export default function ChatsScreen() {
         }
     };
 
+    const getActionLabel = (item: any) => {
+        if (item.postStatus === 'pending' && item.isPayer) return '🔓 Release Credits';
+        if (item.lastSysType === 'ESCROW_FUNDED' && item.isPayee) return '📦 Fulfill Order';
+        if (item.lastSysType === 'ESCROW_RELEASED') return '⭐ Leave Review';
+        return '⚡ Action Required';
+    };
+
+    const renderActionCard = ({ item }: { item: any }) => (
+        <Pressable 
+            style={styles.actionCard}
+            onPress={() => router.push(`/chat/${item.id}`)}
+        >
+            <View style={styles.actionCardHeader}>
+                <View style={styles.actionIconContainer}>
+                    <MaterialCommunityIcons name="lock-outline" size={20} color="#fff" />
+                </View>
+                <View style={styles.actionCardInfo}>
+                    <Text style={styles.actionCardTitle} numberOfLines={1}>{item.postTitle || 'Transaction'}</Text>
+                    <Text style={styles.actionCardPeer}>{item.peer}</Text>
+                </View>
+                {item.pendingAmount && (
+                    <View style={styles.actionAmountBadge}>
+                        <Text style={styles.actionAmountText}>Ʀ{item.pendingAmount}</Text>
+                    </View>
+                )}
+            </View>
+            <View style={styles.actionCardFooter}>
+                <Text style={styles.actionLabel}>{getActionLabel(item)}</Text>
+                <MaterialCommunityIcons name="chevron-right" size={20} color="#059669" />
+            </View>
+        </Pressable>
+    );
+
     const renderItem = ({ item }: { item: any }) => {
-        const needsReview = item.lastMsgType === 'system' && item.lastSysType === 'ESCROW_RELEASED';
+        const needsAction = (
+            (item.lastMsgType === 'system' && item.lastSysType === 'ESCROW_RELEASED') ||
+            (item.postStatus === 'pending' && item.isPayer)
+        );
         
         return (
             <Pressable 
-                style={[styles.chatRow, needsReview && styles.chatRowActionNeeded]}
+                style={[styles.chatRow, needsAction && styles.chatRowActionNeeded]}
                 onPress={() => router.push(`/chat/${item.id}`)}
             >
                 {activeTab === 'transactions' && item.postId ? (
@@ -139,7 +188,7 @@ export default function ChatsScreen() {
                     )}
                     
                     <View style={styles.messageRow}>
-                        {needsReview ? (
+                        {needsAction ? (
                             <Text style={styles.actionNeededText} numberOfLines={1}>
                                 <MaterialCommunityIcons name="star-outline" size={14} color="#f59e0b" /> Review Needed
                             </Text>
@@ -158,6 +207,27 @@ export default function ChatsScreen() {
             </Pressable>
         );
     };
+
+    const ListHeader = () => (
+        <>
+            {actionRequired.length > 0 && (
+                <View style={styles.actionSection}>
+                    <View style={styles.actionSectionHeader}>
+                        <MaterialCommunityIcons name="lightning-bolt" size={18} color="#059669" />
+                        <Text style={styles.actionSectionTitle}>Action Required</Text>
+                        <View style={styles.actionCountBadge}>
+                            <Text style={styles.actionCountText}>{actionRequired.length}</Text>
+                        </View>
+                    </View>
+                    {actionRequired.map(item => (
+                        <View key={item.id}>
+                            {renderActionCard({ item })}
+                        </View>
+                    ))}
+                </View>
+            )}
+        </>
+    );
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -188,31 +258,34 @@ export default function ChatsScreen() {
             </View>
 
             <FlatList
-                data={filteredConversations}
+                data={regularConversations}
                 keyExtractor={item => item.id}
                 renderItem={renderItem}
+                ListHeaderComponent={ListHeader}
                 contentContainerStyle={styles.list}
                 showsVerticalScrollIndicator={false}
                 ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                        {activeTab === 'transactions' ? (
-                            <>
-                                <MaterialCommunityIcons name="storefront-outline" size={48} color="#d1d5db" />
-                                <Text style={styles.emptyText}>No active transactions yet.</Text>
-                                <Pressable
-                                    onPress={() => router.push('/market')}
-                                    style={{ marginTop: 12, backgroundColor: '#8b5cf6', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }}
-                                >
-                                    <Text style={{ color: 'white', fontWeight: 'bold' }}>Browse Market</Text>
-                                </Pressable>
-                            </>
-                        ) : (
-                            <>
-                                <MaterialCommunityIcons name="message-outline" size={48} color="#d1d5db" />
-                                <Text style={styles.emptyText}>No active P2P connections found.</Text>
-                            </>
-                        )}
-                    </View>
+                    actionRequired.length === 0 ? (
+                        <View style={styles.emptyContainer}>
+                            {activeTab === 'transactions' ? (
+                                <>
+                                    <MaterialCommunityIcons name="storefront-outline" size={48} color="#d1d5db" />
+                                    <Text style={styles.emptyText}>No active transactions yet.</Text>
+                                    <Pressable
+                                        onPress={() => router.push('/market')}
+                                        style={{ marginTop: 12, backgroundColor: '#8b5cf6', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }}
+                                    >
+                                        <Text style={{ color: 'white', fontWeight: 'bold' }}>Browse Market</Text>
+                                    </Pressable>
+                                </>
+                            ) : (
+                                <>
+                                    <MaterialCommunityIcons name="message-outline" size={48} color="#d1d5db" />
+                                    <Text style={styles.emptyText}>No active P2P connections found.</Text>
+                                </>
+                            )}
+                        </View>
+                    ) : null
                 }
             />
 
@@ -301,6 +374,23 @@ const styles = StyleSheet.create({
     tabBtnTextActive: { color: '#fff' },
     emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 100 },
     emptyText: { marginTop: 16, fontSize: 15, color: '#9ca3af', fontWeight: '500' },
+
+    // Action Required Section
+    actionSection: { margin: 12, padding: 16, backgroundColor: '#f0fdf4', borderRadius: 16, borderWidth: 1, borderColor: '#bbf7d0' },
+    actionSectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 6 },
+    actionSectionTitle: { fontSize: 15, fontWeight: '800', color: '#166534', letterSpacing: 0.3 },
+    actionCountBadge: { backgroundColor: '#059669', width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
+    actionCountText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+    actionCard: { backgroundColor: '#ffffff', borderRadius: 12, padding: 14, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: '#e5e7eb' },
+    actionCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+    actionIconContainer: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#059669', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+    actionCardInfo: { flex: 1 },
+    actionCardTitle: { fontSize: 15, fontWeight: '700', color: '#1f2937' },
+    actionCardPeer: { fontSize: 13, color: '#6b7280', marginTop: 1 },
+    actionAmountBadge: { backgroundColor: '#d1fae5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+    actionAmountText: { fontSize: 14, fontWeight: '800', color: '#059669' },
+    actionCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTopWidth: 1, borderTopColor: '#f3f4f6' },
+    actionLabel: { fontSize: 14, fontWeight: '700', color: '#059669' },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
     modalContent: { width: '100%', maxHeight: '80%', backgroundColor: '#fff', borderRadius: 24, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },

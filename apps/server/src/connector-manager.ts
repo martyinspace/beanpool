@@ -24,7 +24,7 @@ const CONNECTORS_PATH = path.join(DATA_DIR, 'connectors.json');
 const HANDSHAKE_INTERVAL_MS = 10_000; // 10 seconds
 const RETRY_INTERVAL_MS = 30_000;     // 30 seconds
 const MAX_RETRY_DELAY_MS = 5 * 60_000; // 5 minutes max backoff
-const SYNC_INTERVAL_MS = 15 * 60_000;  // 15 minutes
+const SYNC_INTERVAL_MS = 30_000;  // 30 seconds
 
 export type TrustLevel = 'mirror' | 'peer' | 'blocked';
 

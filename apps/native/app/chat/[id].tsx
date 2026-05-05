@@ -5,7 +5,7 @@ import { useLocalSearchParams, router, useFocusEffect, Stack } from 'expo-router
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useIdentity } from '../IdentityContext';
-import { getMessages, getConversation, insertMessage, syncMessages, syncSingleConversation, markConversationRead } from '../../utils/db';
+import { getMessages, getConversation, insertMessage, syncMessages, syncSingleConversation, markConversationRead, completeMarketplaceTransaction, cancelMarketplaceTransaction } from '../../utils/db';
 
 export default function ChatScreen() {
     const { id } = useLocalSearchParams();
@@ -14,6 +14,8 @@ export default function ChatScreen() {
     const [draft, setDraft] = useState('');
     const [peerName, setPeerName] = useState('Loading...');
     const [postContext, setPostContext] = useState<any>(null);
+    const [pendingTx, setPendingTx] = useState<{ id: string; amount: number; isPayer: boolean } | null>(null);
+    const [actionLoading, setActionLoading] = useState(false);
     const flatListRef = useRef<FlatList>(null);
     const insets = useSafeAreaInsets();
 
@@ -34,6 +36,16 @@ export default function ChatScreen() {
                                 priceType: res.price_type,
                                 credits: res.credits
                             });
+                        }
+                        // Track pending transaction for inline action bar
+                        if (res.pendingTxId && identity.publicKey) {
+                            setPendingTx({
+                                id: res.pendingTxId,
+                                amount: res.pendingAmount,
+                                isPayer: res.txBuyerPubkey === identity.publicKey
+                            });
+                        } else {
+                            setPendingTx(null);
                         }
                     } else {
                         setPeerName(String(id).slice(0, 8));
@@ -93,6 +105,65 @@ export default function ChatScreen() {
         }
     };
 
+    const handleReleaseCredits = () => {
+        if (!pendingTx || !identity?.publicKey) return;
+        Alert.alert(
+            'Release Credits',
+            `Release Ʀ${pendingTx.amount} to the provider? This action cannot be undone.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Release',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setActionLoading(true);
+                        try {
+                            await completeMarketplaceTransaction(pendingTx.id, identity.publicKey);
+                            Alert.alert('Success', 'Credits have been released!');
+                            // Refresh conversation state
+                            syncSingleConversation(id as string).then(() => {
+                                loadMessages(true);
+                            });
+                        } catch (e: any) {
+                            Alert.alert('Failed', e.message || 'Could not release credits.');
+                        } finally {
+                            setActionLoading(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleCancelEscrow = () => {
+        if (!pendingTx || !identity?.publicKey) return;
+        Alert.alert(
+            'Cancel Escrow',
+            'Are you sure you want to cancel this escrow? The credits will be refunded.',
+            [
+                { text: 'Keep', style: 'cancel' },
+                {
+                    text: 'Cancel Escrow',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setActionLoading(true);
+                        try {
+                            await cancelMarketplaceTransaction(pendingTx.id, identity.publicKey);
+                            Alert.alert('Cancelled', 'Escrow has been cancelled and credits refunded.');
+                            syncSingleConversation(id as string).then(() => {
+                                loadMessages(true);
+                            });
+                        } catch (e: any) {
+                            Alert.alert('Failed', e.message || 'Could not cancel escrow.');
+                        } finally {
+                            setActionLoading(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     const renderMessage = ({ item }: { item: any }) => {
         const isSystem = item.type === 'system' || item.senderId === 'SYSTEM';
         
@@ -127,9 +198,10 @@ export default function ChatScreen() {
                         <MaterialCommunityIcons name={iconName} size={16} color={iconColor} style={{ marginRight: 6 }} />
                         <Text style={[styles.systemMessageText, { color: '#374151', fontSize: 13, fontWeight: '500' }]}>{item.text}</Text>
                     </View>
+                    <Text style={styles.systemTimestamp}>{item.timestamp}</Text>
                     
                     {/* Inline Hard Links based on Object Metadata */}
-                    {item.systemType === 'ESCROW_FUNDED' && item.metadata?.postId && (
+                    {item.metadata?.postId && (
                         <Pressable 
                             style={styles.systemActionBtn}
                             onPress={() => router.push(`/post/${item.metadata.postId}`)}
@@ -205,6 +277,30 @@ export default function ChatScreen() {
                         ]}>{postContext.status?.toUpperCase() || 'UNKNOWN'}</Text>
                     </View>
                 </Pressable>
+            )}
+
+            {/* Inline Action Bar — Release/Cancel when escrow is pending and user is the payer */}
+            {pendingTx && pendingTx.isPayer && postContext?.status === 'pending' && (
+                <View style={styles.inlineActionBar}>
+                    <Pressable 
+                        style={[styles.inlineActionBtn, styles.inlineActionRelease]}
+                        onPress={handleReleaseCredits}
+                        disabled={actionLoading}
+                    >
+                        <MaterialCommunityIcons name="check-circle-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
+                        <Text style={styles.inlineActionReleaseText}>
+                            {actionLoading ? 'Processing...' : `Release Ʀ${pendingTx.amount}`}
+                        </Text>
+                    </Pressable>
+                    <Pressable 
+                        style={[styles.inlineActionBtn, styles.inlineActionCancel]}
+                        onPress={handleCancelEscrow}
+                        disabled={actionLoading}
+                    >
+                        <MaterialCommunityIcons name="close-circle-outline" size={18} color="#ef4444" style={{ marginRight: 6 }} />
+                        <Text style={styles.inlineActionCancelText}>Cancel</Text>
+                    </Pressable>
+                </View>
             )}
 
             <KeyboardAvoidingView 
@@ -283,5 +379,13 @@ const styles = StyleSheet.create({
     input: { flex: 1, backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 20, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontSize: 16, maxHeight: 100, minHeight: 44, color: '#1f2937' },
     sendBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginLeft: 8, marginBottom: 4 },
     sendBtnActive: { backgroundColor: '#8b5cf6' },
-    sendBtnInactive: { backgroundColor: '#f3f4f6' }
+    sendBtnInactive: { backgroundColor: '#f3f4f6' },
+    systemTimestamp: { fontSize: 10, color: '#9ca3af', marginTop: 4 },
+    // Inline Action Bar
+    inlineActionBar: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10, gap: 8, backgroundColor: '#fefce8', borderBottomWidth: 1, borderBottomColor: '#fef08a' },
+    inlineActionBtn: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 10, borderRadius: 10 },
+    inlineActionRelease: { backgroundColor: '#059669' },
+    inlineActionReleaseText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+    inlineActionCancel: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#fca5a5' },
+    inlineActionCancelText: { color: '#ef4444', fontWeight: '700', fontSize: 14 },
 });
