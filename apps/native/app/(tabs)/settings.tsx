@@ -99,7 +99,7 @@ export default function SettingsScreen() {
         );
     }
 
-    const fingerprint = identity.publicKey.slice(0, 16) + '...';
+
 
     async function handlePickImage() {
         Alert.alert('Profile Photo', 'Choose a source', [
@@ -430,70 +430,89 @@ export default function SettingsScreen() {
 
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-            {/* Identity Card */}
-            <View style={styles.card}>
-                <View style={{ alignItems: 'center', marginBottom: 12 }}>
-                    {avatar ? (
-                        <Image source={{ uri: avatar }} style={{ width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: '#10b981' }} />
-                    ) : (
-                        <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#262626', borderWidth: 3, borderColor: '#404040', justifyContent: 'center', alignItems: 'center' }}>
-                            <Text style={{ fontSize: 32 }}>👤</Text>
-                        </View>
-                    )}
-                </View>
-                <Text style={styles.label}>CALLSIGN</Text>
-                <Text style={styles.value}>{identity.callsign}</Text>
-                
-                <Text style={styles.label}>PUBLIC KEY</Text>
-                <View style={styles.keyBox}>
-                    <Text style={styles.keyValue}>{fingerprint}</Text>
+            {/* ─── Identity Dashboard Card ─── */}
+            <View style={styles.identityCard}>
+                <View style={styles.identityInner}>
+                    {/* Edit button — top-right corner */}
+                    <Pressable style={styles.editBadge} onPress={() => setMode('profile')}>
+                        <Text style={{ fontSize: 13, color: '#fff' }}>✏️ Edit</Text>
+                    </Pressable>
+
+                    {/* Avatar */}
+                    <Pressable onPress={() => setMode('profile')} style={styles.avatarWrap}>
+                        {avatar ? (
+                            <Image source={{ uri: avatar }} style={styles.avatarImg} />
+                        ) : (
+                            <View style={styles.avatarPlaceholder}>
+                                <Text style={{ fontSize: 42 }}>👤</Text>
+                            </View>
+                        )}
+                        <View style={styles.avatarRing} />
+                    </Pressable>
+
+                    {/* Callsign */}
+                    <Text style={styles.callsignText}>{identity.callsign}</Text>
+
+                    {/* Public Key — truncated, tap to copy */}
+                    <Pressable 
+                        style={styles.pubkeyRow}
+                        onPress={async () => {
+                            await Clipboard.setStringAsync(identity.publicKey);
+                            Alert.alert('Copied', 'Public key copied to clipboard.');
+                        }}
+                    >
+                        <Text style={styles.pubkeyText}>
+                            {identity.publicKey.slice(0, 6)}...{identity.publicKey.slice(-6)}
+                        </Text>
+                        <Text style={{ fontSize: 12, marginLeft: 6 }}>📋</Text>
+                    </Pressable>
                 </View>
             </View>
 
             {mode === 'menu' && (
                 <>
+                {/* ─── Account & Identity ─── */}
+                <Text style={styles.sectionHeader}>ACCOUNT & IDENTITY</Text>
                 <View style={styles.menuGroup}>
-                    <Pressable style={styles.menuBtn} onPress={() => setMode('profile')}>
-                        <Text style={styles.menuText}>👤 Edit Profile</Text>
-                        <Text style={styles.menuArrow}>→</Text>
-                    </Pressable>
                     <Pressable style={styles.menuBtn} onPress={() => { setMode('export'); setPin(''); setExportUri(''); }}>
-                        <Text style={styles.menuText}>📤 Export Identity</Text>
-                        <Text style={styles.menuArrow}>→</Text>
+                        <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>📤</Text></View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.menuText}>Export Identity</Text>
+                            <Text style={styles.menuSub}>Transfer your keys to another device</Text>
+                        </View>
+                        <Text style={styles.menuChevron}>›</Text>
                     </Pressable>
-                    <Pressable style={styles.menuBtn} onPress={() => { setMode('import'); setImportUri(''); setImportPin(''); }}>
-                        <Text style={styles.menuText}>📥 Import Identity</Text>
-                        <Text style={styles.menuArrow}>→</Text>
+                    <Pressable style={[styles.menuBtn, styles.menuBtnLast]} onPress={() => { setMode('import'); setImportUri(''); setImportPin(''); }}>
+                        <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>📥</Text></View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.menuText}>Import Identity</Text>
+                            <Text style={styles.menuSub}>Merge from another device</Text>
+                        </View>
+                        <Text style={styles.menuChevron}>›</Text>
                     </Pressable>
-                    <Pressable style={styles.menuBtn} onPress={() => Linking.openURL('https://beanpool.org/privacy.html')}>
-                        <Text style={styles.menuText}>🛡️ Privacy Policy</Text>
-                        <Text style={styles.menuArrow}>→</Text>
-                    </Pressable>
-                    <Pressable style={styles.menuBtn} onPress={() => Linking.openURL('https://beanpool.org/terms.html')}>
-                        <Text style={styles.menuText}>⚖️ Terms of Service & EULA</Text>
-                        <Text style={styles.menuArrow}>→</Text>
-                    </Pressable>
-                    <Pressable style={styles.menuBtn} onPress={() => Linking.openURL('https://beanpool.org/safety.html')}>
-                        <Text style={styles.menuText}>🚸 Child Safety Standards</Text>
-                        <Text style={styles.menuArrow}>→</Text>
-                    </Pressable>
+                </View>
+
+                {/* ─── App Settings ─── */}
+                <Text style={styles.sectionHeader}>APP SETTINGS</Text>
+                <View style={styles.menuGroup}>
                     <View style={styles.menuBtn}>
-                        <View>
-                            <Text style={styles.menuText}>🗺️ Modern Map Pins</Text>
-                            <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Toggle standard vs custom pin styles</Text>
+                        <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>🗺️</Text></View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.menuText}>Modern Map Pins</Text>
+                            <Text style={styles.menuSub}>Toggle standard vs custom pin styles</Text>
                         </View>
                         <Pressable 
-                            style={{ width: 50, height: 28, borderRadius: 14, backgroundColor: useModernMarkers ? '#10b981' : '#e5e7eb', justifyContent: 'center', paddingHorizontal: 2 }}
+                            style={[styles.toggle, useModernMarkers && styles.toggleOn]}
                             onPress={async () => {
                                 const next = !useModernMarkers;
                                 setUseModernMarkers(next);
                                 await AsyncStorage.setItem('beanpool_modern_markers', next ? 'true' : 'false');
                             }}
                         >
-                            <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', transform: [{ translateX: useModernMarkers ? 22 : 0 }] }} />
+                            <View style={[styles.toggleThumb, useModernMarkers && styles.toggleThumbOn]} />
                         </Pressable>
                     </View>
-                    <Pressable style={styles.menuBtn} onPress={async () => {
+                    <Pressable style={[styles.menuBtn, styles.menuBtnLast]} onPress={async () => {
                         setMode('notifications');
                         setNotifLoading(true);
                         try {
@@ -510,19 +529,61 @@ export default function SettingsScreen() {
                         } catch (e) { console.warn('[Prefs] Failed to fetch preferences:', e); }
                         setNotifLoading(false);
                     }}>
-                        <Text style={styles.menuText}>🔔 Notification Preferences</Text>
-                        <Text style={styles.menuArrow}>→</Text>
-                    </Pressable>
-                    <Pressable style={styles.menuBtn} onPress={() => setMode('advanced')}>
-                        <Text style={styles.menuText}>⚙️ Advanced / Subsystem</Text>
-                        <Text style={styles.menuArrow}>→</Text>
-                    </Pressable>
-                    <Pressable style={[styles.menuBtn, { borderBottomWidth: 0, backgroundColor: '#fff5f5' }]} onPress={() => { setMode('wipe'); setWipeConfirm(''); }}>
-                        <Text style={[styles.menuText, { color: '#ef4444', fontWeight: 'bold' }]}>⚠️ Delete Account</Text>
-                        <Text style={[styles.menuArrow, { color: '#fca5a5' }]}>→</Text>
+                        <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>🔔</Text></View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.menuText}>Notification Preferences</Text>
+                            <Text style={styles.menuSub}>Control push alerts by category</Text>
+                        </View>
+                        <Text style={styles.menuChevron}>›</Text>
                     </Pressable>
                 </View>
-                <Text style={{ textAlign: 'center', marginTop: 32, fontSize: 13, color: '#9ca3af', fontWeight: '600', letterSpacing: 1 }}>
+
+                {/* ─── Legal & Privacy ─── */}
+                <Text style={styles.sectionHeader}>LEGAL & PRIVACY</Text>
+                <View style={styles.menuGroup}>
+                    <Pressable style={styles.menuBtn} onPress={() => Linking.openURL('https://beanpool.org/privacy.html')}>
+                        <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>🛡️</Text></View>
+                        <Text style={[styles.menuText, { flex: 1 }]}>Privacy Policy</Text>
+                        <Text style={styles.menuChevron}>›</Text>
+                    </Pressable>
+                    <Pressable style={styles.menuBtn} onPress={() => Linking.openURL('https://beanpool.org/terms.html')}>
+                        <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>⚖️</Text></View>
+                        <Text style={[styles.menuText, { flex: 1 }]}>Terms of Service & EULA</Text>
+                        <Text style={styles.menuChevron}>›</Text>
+                    </Pressable>
+                    <Pressable style={[styles.menuBtn, styles.menuBtnLast]} onPress={() => Linking.openURL('https://beanpool.org/safety.html')}>
+                        <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>🚸</Text></View>
+                        <Text style={[styles.menuText, { flex: 1 }]}>Child Safety Standards</Text>
+                        <Text style={styles.menuChevron}>›</Text>
+                    </Pressable>
+                </View>
+
+                {/* ─── Advanced ─── */}
+                <Text style={styles.sectionHeader}>SYSTEM</Text>
+                <View style={styles.menuGroup}>
+                    <Pressable style={[styles.menuBtn, styles.menuBtnLast]} onPress={() => setMode('advanced')}>
+                        <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>⚙️</Text></View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.menuText}>Advanced / Subsystem</Text>
+                            <Text style={styles.menuSub}>Node management & cache controls</Text>
+                        </View>
+                        <Text style={styles.menuChevron}>›</Text>
+                    </Pressable>
+                </View>
+
+                {/* ─── Danger Zone ─── */}
+                <View style={{ marginTop: 24 }}>
+                    <View style={styles.dangerGroup}>
+                        <Pressable style={[styles.menuBtn, styles.menuBtnLast]} onPress={() => { setMode('wipe'); setWipeConfirm(''); }}>
+                            <View style={[styles.menuIconWrap, { backgroundColor: '#fef2f2' }]}><Text style={styles.menuIcon}>⚠️</Text></View>
+                            <Text style={[styles.menuText, { flex: 1, color: '#dc2626' }]}>Delete Account</Text>
+                            <Text style={[styles.menuChevron, { color: '#fca5a5' }]}>›</Text>
+                        </Pressable>
+                    </View>
+                </View>
+
+                {/* ─── Version Footer ─── */}
+                <Text style={styles.versionText}>
                     BEANPOOL OS {Constants.expoConfig?.version || 'DEV'}
                 </Text>
                 </>
@@ -678,84 +739,43 @@ export default function SettingsScreen() {
                         <ActivityIndicator color="#10b981" style={{ marginVertical: 20 }} />
                     ) : (
                         <View style={styles.menuGroup}>
-                            {/* Direct Messages Toggle */}
                             <View style={styles.menuBtn}>
+                                <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>💬</Text></View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.menuText}>💬 Direct Messages</Text>
-                                    <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Get notified when someone sends you a message</Text>
+                                    <Text style={styles.menuText}>Direct Messages</Text>
+                                    <Text style={styles.menuSub}>Get notified when someone messages you</Text>
                                 </View>
-                                <Pressable 
-                                    style={{ width: 50, height: 28, borderRadius: 14, backgroundColor: notifChat ? '#10b981' : '#e5e7eb', justifyContent: 'center', paddingHorizontal: 2 }}
-                                    onPress={async () => {
-                                        const next = !notifChat;
-                                        setNotifChat(next);
-                                        try {
-                                            const url = await AsyncStorage.getItem('beanpool_anchor_url');
-                                            if (url && identity?.publicKey) {
-                                                await fetch(`${url}/api/members/preferences`, {
-                                                    method: 'POST',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ publicKey: identity.publicKey, preferences: { notify_chat: next } }),
-                                                });
-                                            }
-                                        } catch (e) { console.warn('[Prefs] Sync failed:', e); }
-                                    }}
-                                >
-                                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', transform: [{ translateX: notifChat ? 22 : 0 }] }} />
+                                <Pressable style={[styles.toggle, notifChat && styles.toggleOn]} onPress={async () => {
+                                    const next = !notifChat; setNotifChat(next);
+                                    try { const url = await AsyncStorage.getItem('beanpool_anchor_url'); if (url && identity?.publicKey) { await fetch(`${url}/api/members/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ publicKey: identity.publicKey, preferences: { notify_chat: next } }) }); } } catch (e) { console.warn('[Prefs]', e); }
+                                }}>
+                                    <View style={[styles.toggleThumb, notifChat && styles.toggleThumbOn]} />
                                 </Pressable>
                             </View>
-
-                            {/* Marketplace Activity Toggle */}
                             <View style={styles.menuBtn}>
+                                <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>📬</Text></View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.menuText}>📬 Marketplace Activity</Text>
-                                    <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Requests, approvals, and rejections for your posts</Text>
+                                    <Text style={styles.menuText}>Marketplace Activity</Text>
+                                    <Text style={styles.menuSub}>Requests, approvals & rejections</Text>
                                 </View>
-                                <Pressable 
-                                    style={{ width: 50, height: 28, borderRadius: 14, backgroundColor: notifMarketplace ? '#10b981' : '#e5e7eb', justifyContent: 'center', paddingHorizontal: 2 }}
-                                    onPress={async () => {
-                                        const next = !notifMarketplace;
-                                        setNotifMarketplace(next);
-                                        try {
-                                            const url = await AsyncStorage.getItem('beanpool_anchor_url');
-                                            if (url && identity?.publicKey) {
-                                                await fetch(`${url}/api/members/preferences`, {
-                                                    method: 'POST',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ publicKey: identity.publicKey, preferences: { notify_marketplace: next } }),
-                                                });
-                                            }
-                                        } catch (e) { console.warn('[Prefs] Sync failed:', e); }
-                                    }}
-                                >
-                                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', transform: [{ translateX: notifMarketplace ? 22 : 0 }] }} />
+                                <Pressable style={[styles.toggle, notifMarketplace && styles.toggleOn]} onPress={async () => {
+                                    const next = !notifMarketplace; setNotifMarketplace(next);
+                                    try { const url = await AsyncStorage.getItem('beanpool_anchor_url'); if (url && identity?.publicKey) { await fetch(`${url}/api/members/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ publicKey: identity.publicKey, preferences: { notify_marketplace: next } }) }); } } catch (e) { console.warn('[Prefs]', e); }
+                                }}>
+                                    <View style={[styles.toggleThumb, notifMarketplace && styles.toggleThumbOn]} />
                                 </Pressable>
                             </View>
-
-                            {/* Escrow & System Toggle */}
-                            <View style={[styles.menuBtn, { borderBottomWidth: 0 }]}>
+                            <View style={[styles.menuBtn, styles.menuBtnLast]}>
+                                <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>🔒</Text></View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.menuText}>🔒 Escrow & System</Text>
-                                    <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Credits locked, released, refunded, or disputed</Text>
+                                    <Text style={styles.menuText}>Escrow & System</Text>
+                                    <Text style={styles.menuSub}>Credits locked, released, or disputed</Text>
                                 </View>
-                                <Pressable 
-                                    style={{ width: 50, height: 28, borderRadius: 14, backgroundColor: notifEscrow ? '#10b981' : '#e5e7eb', justifyContent: 'center', paddingHorizontal: 2 }}
-                                    onPress={async () => {
-                                        const next = !notifEscrow;
-                                        setNotifEscrow(next);
-                                        try {
-                                            const url = await AsyncStorage.getItem('beanpool_anchor_url');
-                                            if (url && identity?.publicKey) {
-                                                await fetch(`${url}/api/members/preferences`, {
-                                                    method: 'POST',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ publicKey: identity.publicKey, preferences: { notify_escrow: next } }),
-                                                });
-                                            }
-                                        } catch (e) { console.warn('[Prefs] Sync failed:', e); }
-                                    }}
-                                >
-                                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', transform: [{ translateX: notifEscrow ? 22 : 0 }] }} />
+                                <Pressable style={[styles.toggle, notifEscrow && styles.toggleOn]} onPress={async () => {
+                                    const next = !notifEscrow; setNotifEscrow(next);
+                                    try { const url = await AsyncStorage.getItem('beanpool_anchor_url'); if (url && identity?.publicKey) { await fetch(`${url}/api/members/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ publicKey: identity.publicKey, preferences: { notify_escrow: next } }) }); } } catch (e) { console.warn('[Prefs]', e); }
+                                }}>
+                                    <View style={[styles.toggleThumb, notifEscrow && styles.toggleThumbOn]} />
                                 </Pressable>
                             </View>
                         </View>
@@ -896,21 +916,111 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f9fafb' },
-    content: { padding: 24, paddingVertical: 48 },
-    header: { fontSize: 24, fontWeight: 'bold', color: '#111827', textAlign: 'center', marginBottom: 24 },
-    card: { backgroundColor: '#ffffff', borderRadius: 16, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, marginBottom: 24, borderWidth: 1, borderColor: '#e5e7eb' },
+    container: { flex: 1, backgroundColor: '#f2f4f7' },
+    content: { padding: 20, paddingTop: 16, paddingBottom: 48 },
+
+    // ─── Identity Dashboard ───
+    identityCard: {
+        borderRadius: 20, marginBottom: 28, overflow: 'hidden',
+        backgroundColor: '#1a1f2e',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 16, elevation: 6,
+    },
+    identityInner: {
+        alignItems: 'center', paddingVertical: 28, paddingHorizontal: 20,
+        backgroundColor: 'rgba(16, 185, 129, 0.06)',
+    },
+    editBadge: {
+        position: 'absolute', top: 16, right: 16,
+        backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, paddingVertical: 5,
+        borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+    },
+    avatarWrap: {
+        width: 96, height: 96, borderRadius: 48,
+        marginBottom: 16, position: 'relative',
+    },
+    avatarImg: { width: 96, height: 96, borderRadius: 48 },
+    avatarPlaceholder: {
+        width: 96, height: 96, borderRadius: 48,
+        backgroundColor: '#2d3348', justifyContent: 'center', alignItems: 'center',
+    },
+    avatarRing: {
+        position: 'absolute', top: -3, left: -3, right: -3, bottom: -3,
+        borderRadius: 51, borderWidth: 2.5, borderColor: '#10b981',
+    },
+    callsignText: {
+        fontSize: 24, fontWeight: '800', color: '#ffffff', letterSpacing: 0.5, marginBottom: 8,
+    },
+    pubkeyRow: {
+        flexDirection: 'row', alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 14, paddingVertical: 7,
+        borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+    },
+    pubkeyText: { fontSize: 13, color: '#94a3b8', fontFamily: 'Courier', letterSpacing: 1 },
+
+    // ─── Section Headers ───
+    sectionHeader: {
+        fontSize: 12, fontWeight: '700', color: '#9ca3af', letterSpacing: 1.5,
+        marginBottom: 8, marginTop: 24, marginLeft: 4,
+    },
+
+    // ─── Menu Groups ───
+    menuGroup: {
+        backgroundColor: '#ffffff', borderRadius: 16,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8,
+        elevation: 2, overflow: 'hidden',
+    },
+    menuBtn: {
+        flexDirection: 'row', alignItems: 'center', padding: 14, paddingVertical: 13,
+        borderBottomWidth: 1, borderBottomColor: '#f3f4f6',
+    },
+    menuBtnLast: { borderBottomWidth: 0 },
+    menuIconWrap: {
+        width: 36, height: 36, borderRadius: 10, backgroundColor: '#f0fdf4',
+        justifyContent: 'center', alignItems: 'center', marginRight: 12,
+    },
+    menuIcon: { fontSize: 18 },
+    menuText: { fontSize: 15, fontWeight: '600', color: '#1f2937' },
+    menuSub: { fontSize: 12, color: '#9ca3af', marginTop: 1 },
+    menuChevron: { fontSize: 22, color: '#d1d5db', fontWeight: '300', marginLeft: 8 },
+
+    // ─── Toggle ───
+    toggle: {
+        width: 50, height: 28, borderRadius: 14,
+        backgroundColor: '#e5e7eb', justifyContent: 'center', paddingHorizontal: 2,
+    },
+    toggleOn: { backgroundColor: '#10b981' },
+    toggleThumb: {
+        width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 2, elevation: 2,
+    },
+    toggleThumbOn: { transform: [{ translateX: 22 }] },
+
+    // ─── Danger Zone ───
+    dangerGroup: {
+        backgroundColor: '#ffffff', borderRadius: 16, overflow: 'hidden',
+        borderWidth: 1, borderColor: '#fecaca',
+    },
+
+    // ─── Version ───
+    versionText: {
+        textAlign: 'center', marginTop: 32, fontSize: 12,
+        color: '#d1d5db', fontWeight: '700', letterSpacing: 1.5,
+    },
+
+    // ─── Shared (sub-screens) ───
+    card: {
+        backgroundColor: '#ffffff', borderRadius: 16, padding: 20,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8,
+        elevation: 2, marginBottom: 24,
+    },
     label: { fontSize: 11, fontWeight: 'bold', color: '#6b7280', letterSpacing: 1, marginBottom: 4, marginTop: 12 },
     value: { fontSize: 20, fontWeight: 'bold', color: '#111827', marginBottom: 8 },
-    keyBox: { backgroundColor: '#fdf4f2', borderColor: '#fbcfe8', borderWidth: 1, borderRadius: 8, padding: 8, marginTop: 4 },
-    keyValue: { color: '#e11d48', fontFamily: 'Courier', fontSize: 13 },
-    menuGroup: { backgroundColor: '#ffffff', borderRadius: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: '#e5e7eb', overflow: 'hidden' },
-    menuBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
-    menuText: { fontSize: 16, fontWeight: '600', color: '#374151' },
-    menuArrow: { fontSize: 16, color: '#9ca3af' },
     sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 16 },
-    input: { backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10, padding: 14, color: '#111827', fontSize: 16, marginBottom: 16 },
-    primaryBtn: { backgroundColor: '#111827', padding: 16, borderRadius: 10, alignItems: 'center', marginTop: 8 },
+    input: {
+        backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5e7eb',
+        borderRadius: 10, padding: 14, color: '#111827', fontSize: 16, marginBottom: 16,
+    },
+    primaryBtn: { backgroundColor: '#111827', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
     primaryBtnText: { color: '#ffffff', fontSize: 16, fontWeight: 'bold' },
     backBtn: { marginTop: 16, alignItems: 'center', padding: 10 },
     backBtnText: { color: '#6b7280', fontSize: 14, fontWeight: '600' },
@@ -918,5 +1028,5 @@ const styles = StyleSheet.create({
     dangerBtnText: { color: '#b91c1c', fontSize: 14, fontWeight: 'bold' },
     infoText: { fontSize: 14, color: '#6b7280', lineHeight: 20, marginBottom: 16 },
     uriBox: { backgroundColor: '#f1f5f9', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 16, maxHeight: 100 },
-    uriText: { fontSize: 12, fontFamily: 'monospace', color: '#475569' }
+    uriText: { fontSize: 12, fontFamily: 'monospace', color: '#475569' },
 });
