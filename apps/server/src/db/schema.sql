@@ -190,3 +190,11 @@ CREATE TABLE IF NOT EXISTS push_tokens (
     PRIMARY KEY (public_key, token)
 );
 
+-- 12. Member Notification Preferences
+CREATE TABLE IF NOT EXISTS member_preferences (
+    public_key TEXT NOT NULL REFERENCES members(public_key),
+    pref_key TEXT NOT NULL,
+    pref_value TEXT NOT NULL DEFAULT 'true',
+    PRIMARY KEY (public_key, pref_key)
+);
+

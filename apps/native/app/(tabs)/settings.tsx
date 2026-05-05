@@ -15,7 +15,13 @@ import Constants from 'expo-constants';
 
 export default function SettingsScreen() {
     const { identity, setIdentity } = useIdentity();
-    const [mode, setMode] = useState<'menu' | 'profile' | 'export' | 'import' | 'advanced' | 'wipe'>('menu');
+    const [mode, setMode] = useState<'menu' | 'profile' | 'export' | 'import' | 'advanced' | 'wipe' | 'notifications'>('menu');
+
+    // Notification preference state
+    const [notifChat, setNotifChat] = useState(true);
+    const [notifMarketplace, setNotifMarketplace] = useState(true);
+    const [notifEscrow, setNotifEscrow] = useState(true);
+    const [notifLoading, setNotifLoading] = useState(false);
     const [editCallsign, setEditCallsign] = useState(identity?.callsign || '');
     const [avatar, setAvatar] = useState<string | null>(null);
     const [bio, setBio] = useState('');
@@ -487,6 +493,26 @@ export default function SettingsScreen() {
                             <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', transform: [{ translateX: useModernMarkers ? 22 : 0 }] }} />
                         </Pressable>
                     </View>
+                    <Pressable style={styles.menuBtn} onPress={async () => {
+                        setMode('notifications');
+                        setNotifLoading(true);
+                        try {
+                            const url = await AsyncStorage.getItem('beanpool_anchor_url');
+                            if (url && identity?.publicKey) {
+                                const res = await fetch(`${url}/api/members/preferences?publicKey=${identity.publicKey}`);
+                                if (res.ok) {
+                                    const prefs = await res.json();
+                                    setNotifChat(prefs.notify_chat !== 'false');
+                                    setNotifMarketplace(prefs.notify_marketplace !== 'false');
+                                    setNotifEscrow(prefs.notify_escrow !== 'false');
+                                }
+                            }
+                        } catch (e) { console.warn('[Prefs] Failed to fetch preferences:', e); }
+                        setNotifLoading(false);
+                    }}>
+                        <Text style={styles.menuText}>🔔 Notification Preferences</Text>
+                        <Text style={styles.menuArrow}>→</Text>
+                    </Pressable>
                     <Pressable style={styles.menuBtn} onPress={() => setMode('advanced')}>
                         <Text style={styles.menuText}>⚙️ Advanced / Subsystem</Text>
                         <Text style={styles.menuArrow}>→</Text>
@@ -641,7 +667,105 @@ export default function SettingsScreen() {
                 </View>
             )}
 
+            {mode === 'notifications' && (
+                <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>🔔 Notification Preferences</Text>
+                    <Text style={styles.infoText}>
+                        Control which push notifications wake up your device. Changes are saved automatically.
+                    </Text>
 
+                    {notifLoading ? (
+                        <ActivityIndicator color="#10b981" style={{ marginVertical: 20 }} />
+                    ) : (
+                        <View style={styles.menuGroup}>
+                            {/* Direct Messages Toggle */}
+                            <View style={styles.menuBtn}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.menuText}>💬 Direct Messages</Text>
+                                    <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Get notified when someone sends you a message</Text>
+                                </View>
+                                <Pressable 
+                                    style={{ width: 50, height: 28, borderRadius: 14, backgroundColor: notifChat ? '#10b981' : '#e5e7eb', justifyContent: 'center', paddingHorizontal: 2 }}
+                                    onPress={async () => {
+                                        const next = !notifChat;
+                                        setNotifChat(next);
+                                        try {
+                                            const url = await AsyncStorage.getItem('beanpool_anchor_url');
+                                            if (url && identity?.publicKey) {
+                                                await fetch(`${url}/api/members/preferences`, {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ publicKey: identity.publicKey, preferences: { notify_chat: next } }),
+                                                });
+                                            }
+                                        } catch (e) { console.warn('[Prefs] Sync failed:', e); }
+                                    }}
+                                >
+                                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', transform: [{ translateX: notifChat ? 22 : 0 }] }} />
+                                </Pressable>
+                            </View>
+
+                            {/* Marketplace Activity Toggle */}
+                            <View style={styles.menuBtn}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.menuText}>📬 Marketplace Activity</Text>
+                                    <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Requests, approvals, and rejections for your posts</Text>
+                                </View>
+                                <Pressable 
+                                    style={{ width: 50, height: 28, borderRadius: 14, backgroundColor: notifMarketplace ? '#10b981' : '#e5e7eb', justifyContent: 'center', paddingHorizontal: 2 }}
+                                    onPress={async () => {
+                                        const next = !notifMarketplace;
+                                        setNotifMarketplace(next);
+                                        try {
+                                            const url = await AsyncStorage.getItem('beanpool_anchor_url');
+                                            if (url && identity?.publicKey) {
+                                                await fetch(`${url}/api/members/preferences`, {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ publicKey: identity.publicKey, preferences: { notify_marketplace: next } }),
+                                                });
+                                            }
+                                        } catch (e) { console.warn('[Prefs] Sync failed:', e); }
+                                    }}
+                                >
+                                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', transform: [{ translateX: notifMarketplace ? 22 : 0 }] }} />
+                                </Pressable>
+                            </View>
+
+                            {/* Escrow & System Toggle */}
+                            <View style={[styles.menuBtn, { borderBottomWidth: 0 }]}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.menuText}>🔒 Escrow & System</Text>
+                                    <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>Credits locked, released, refunded, or disputed</Text>
+                                </View>
+                                <Pressable 
+                                    style={{ width: 50, height: 28, borderRadius: 14, backgroundColor: notifEscrow ? '#10b981' : '#e5e7eb', justifyContent: 'center', paddingHorizontal: 2 }}
+                                    onPress={async () => {
+                                        const next = !notifEscrow;
+                                        setNotifEscrow(next);
+                                        try {
+                                            const url = await AsyncStorage.getItem('beanpool_anchor_url');
+                                            if (url && identity?.publicKey) {
+                                                await fetch(`${url}/api/members/preferences`, {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ publicKey: identity.publicKey, preferences: { notify_escrow: next } }),
+                                                });
+                                            }
+                                        } catch (e) { console.warn('[Prefs] Sync failed:', e); }
+                                    }}
+                                >
+                                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', transform: [{ translateX: notifEscrow ? 22 : 0 }] }} />
+                                </Pressable>
+                            </View>
+                        </View>
+                    )}
+
+                    <Pressable style={styles.backBtn} onPress={() => setMode('menu')}>
+                        <Text style={styles.backBtnText}>← Back</Text>
+                    </Pressable>
+                </View>
+            )}
 
             {mode === 'advanced' && (
                 <View style={styles.card}>

@@ -62,7 +62,8 @@ import {
     getProjects, getAllProjects, getVotingRounds, getActiveRound, getCommonsBalance,
     adminRejectProject,
     getNodeConfig, updateNodeConfig, getDirectoryInfo, exportLedgerAudit,
-    registerPushToken, removePushToken
+    registerPushToken, removePushToken,
+    getMemberPreferences, setMemberPreferences
 } from './state-engine.js';
 import { getCrowdfundProjects, getCrowdfundProject, createCrowdfundProject, updateCrowdfundProject, pledgeToProject, deleteCrowdfundProject } from './db/db.js';
 
@@ -1002,6 +1003,29 @@ export async function startHttpsServer(port: number): Promise<void> {
             return;
         }
         const success = removePushToken(publicKey, token);
+        ctx.body = { success };
+    });
+
+    // ===================== MEMBER NOTIFICATION PREFERENCES =====================
+
+    router.get('/api/members/preferences', async (ctx) => {
+        const publicKey = ctx.query.publicKey as string;
+        if (!publicKey) {
+            ctx.status = 400;
+            ctx.body = { error: 'Missing publicKey' };
+            return;
+        }
+        ctx.body = getMemberPreferences(publicKey);
+    });
+
+    router.post('/api/members/preferences', async (ctx) => {
+        const { publicKey, preferences } = (ctx as any).requestBody || {};
+        if (!publicKey || !preferences) {
+            ctx.status = 400;
+            ctx.body = { error: 'Missing publicKey or preferences' };
+            return;
+        }
+        const success = setMemberPreferences(publicKey, preferences);
         ctx.body = { success };
     });
 

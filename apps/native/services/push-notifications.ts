@@ -103,6 +103,22 @@ export async function registerForPushNotifications(publicKey: string): Promise<s
                 lightColor: '#059669',
                 description: 'Alerts for escrow events (credits locked, released, cancelled)',
             });
+
+            await Notifications.setNotificationChannelAsync('chat', {
+                name: 'Direct Messages',
+                importance: Notifications.AndroidImportance.HIGH,
+                vibrationPattern: [0, 250],
+                lightColor: '#3b82f6',
+                description: 'Notifications for new messages',
+            });
+
+            await Notifications.setNotificationChannelAsync('marketplace', {
+                name: 'Marketplace',
+                importance: Notifications.AndroidImportance.DEFAULT,
+                vibrationPattern: [0, 250, 250, 250],
+                lightColor: '#8b5cf6',
+                description: 'Requests and offers on your marketplace posts',
+            });
         }
 
         return token;

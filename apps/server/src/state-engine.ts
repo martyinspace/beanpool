@@ -976,6 +976,19 @@ export function requestPost(postId: string, requesterPublicKey: string, hours?: 
     // Note: getMarketplaceTransactions fetches by user; we'll fetch for the requester
     const tx = getMarketplaceTransactions(requesterPublicKey).find(t => t.id === transactionId)!;
     broadcast({ type: 'transaction_requested', transaction: tx });
+
+    // Push notification: notify the post author that someone wants their item
+    const requesterMember = getMember(requesterPublicKey) as any;
+    const requesterName = requesterMember?.callsign || requesterPublicKey.slice(0, 8);
+    dispatchPushNotification(
+        [post.author_pubkey],
+        requesterPublicKey,
+        '📬 New Request',
+        `${requesterName} wants "${post.title}"`,
+        { screen: 'post', postId },
+        'marketplace'
+    );
+
     return tx;
 }
 
@@ -1030,6 +1043,18 @@ export function approvePostRequest(transactionId: string, authorPublicKey: strin
         postId: row.post_id,
         actorPubkey: authorPublicKey
     }, row.buyer_pubkey, row.seller_pubkey);
+
+    // Push notification: notify the requester that their request was approved
+    const requesterPubkey = isOffer ? row.buyer_pubkey : row.seller_pubkey;
+    dispatchPushNotification(
+        [requesterPubkey],
+        authorPublicKey,
+        '✅ Request Approved',
+        `Your request for "${post.title}" was approved!`,
+        { screen: 'post', postId: row.post_id },
+        'marketplace'
+    );
+
     return tx;
 }
 
@@ -1048,6 +1073,18 @@ export function rejectPostRequest(transactionId: string, authorPublicKey: string
     
     const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
     broadcast({ type: 'transaction_rejected', transaction: tx });
+
+    // Push notification: notify the requester that their request was declined
+    const requesterPubkey = isOffer ? row.buyer_pubkey : row.seller_pubkey;
+    dispatchPushNotification(
+        [requesterPubkey],
+        authorPublicKey,
+        '❌ Request Declined',
+        `Your request for "${post.title}" was declined`,
+        { screen: 'post', postId: row.post_id },
+        'marketplace'
+    );
+
     return tx;
 }
 
@@ -1322,6 +1359,19 @@ export function sendMessage(conversationId: string, authorPubkey: string, cipher
     db.prepare(`INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, timestamp) VALUES (?, ?, ?, ?, ?, ?)`).run(msg.id, msg.conversationId, msg.authorPubkey, msg.ciphertext, msg.nonce, msg.timestamp);
 
     broadcast({ type: 'new_message', conversationId, message: msg, participants: participants.map(p => p.public_key) });
+
+    // Push notification for DMs (encrypted — body cannot include message content)
+    const senderMember = getMember(authorPubkey) as any;
+    const senderName = senderMember?.callsign || authorPubkey.slice(0, 8);
+    dispatchPushNotification(
+        participants.map(p => p.public_key),
+        authorPubkey,
+        '💬 New Message',
+        `${senderName} sent you a message`,
+        { screen: 'chat', conversationId },
+        'chat'
+    );
+
     return msg;
 }
 
@@ -1969,9 +2019,143 @@ export function getPushTokens(publicKey: string): { token: string; platform: str
     return (db.prepare(`SELECT token, platform FROM push_tokens WHERE public_key = ?`).all(publicKey) as any[]);
 }
 
+// ===================== MEMBER PREFERENCES =====================
+
+export function getMemberPreference(publicKey: string, prefKey: string): string {
+    const row = db.prepare(`SELECT pref_value FROM member_preferences WHERE public_key = ? AND pref_key = ?`).get(publicKey, prefKey) as any;
+    return row?.pref_value ?? 'true'; // Default to 'true' (enabled)
+}
+
+export function getMemberPreferences(publicKey: string): Record<string, string> {
+    const rows = db.prepare(`SELECT pref_key, pref_value FROM member_preferences WHERE public_key = ?`).all(publicKey) as any[];
+    const prefs: Record<string, string> = {
+        notify_chat: 'true',
+        notify_marketplace: 'true',
+        notify_escrow: 'true',
+    };
+    for (const r of rows) prefs[r.pref_key] = r.pref_value;
+    return prefs;
+}
+
+export function setMemberPreferences(publicKey: string, preferences: Record<string, boolean>): boolean {
+    try {
+        const stmt = db.prepare(`INSERT OR REPLACE INTO member_preferences (public_key, pref_key, pref_value) VALUES (?, ?, ?)`);
+        const tx = db.transaction(() => {
+            for (const [key, value] of Object.entries(preferences)) {
+                stmt.run(publicKey, key, String(value));
+            }
+        });
+        tx();
+        console.log(`[Prefs] Updated preferences for ${publicKey.slice(0, 8)}:`, preferences);
+        return true;
+    } catch (e) {
+        console.error('[Prefs] Failed to set preferences:', e);
+        return false;
+    }
+}
+
+// ===================== GENERIC PUSH DISPATCHER =====================
+
 /**
- * Dispatches Expo Push Notifications to all participants of a conversation,
- * excluding the actor who triggered the event. Fire-and-forget pattern.
+ * Generic push notification dispatcher with category-based preference gating,
+ * app icon badge counts, iOS threadId grouping, and Android channelId routing.
+ * Fire-and-forget pattern.
+ */
+export function dispatchPushNotification(
+    targetPubkeys: string[],
+    actorPubkey: string,
+    title: string,
+    body: string,
+    data: Record<string, any>,
+    categoryId: 'chat' | 'marketplace' | 'escrow'
+): void {
+    // Filter out the actor and SYSTEM from targets
+    const recipients = targetPubkeys.filter(pk => pk !== actorPubkey && pk !== 'SYSTEM');
+    if (recipients.length === 0) return;
+
+    const prefKey = `notify_${categoryId}`;
+    
+    // Map categoryId to Android channelId
+    const channelMap: Record<string, string> = {
+        chat: 'chat',
+        marketplace: 'marketplace',
+        escrow: 'escrow',
+    };
+
+    // Map categoryId to notification sound
+    const soundMap: Record<string, string> = {
+        chat: 'default',      // Softer sound for chat (uses system default for now)
+        marketplace: 'default',
+        escrow: 'default',
+    };
+
+    const allMessages: any[] = [];
+
+    for (const pk of recipients) {
+        // Check user's notification preference for this category
+        const pref = getMemberPreference(pk, prefKey);
+        if (pref === 'false') {
+            console.log(`[Push] Skipped ${pk.slice(0, 8)} — ${prefKey} disabled`);
+            continue;
+        }
+
+        const tokens = getPushTokens(pk);
+        if (tokens.length === 0) continue;
+
+        // Calculate total unread count for badge
+        const unreadCounts = getUnreadCounts(pk);
+        const totalUnread = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0);
+
+        for (const { token, platform } of tokens) {
+            const msg: any = {
+                to: token,
+                sound: soundMap[categoryId] || 'default',
+                title,
+                body,
+                data,
+                badge: totalUnread,
+                categoryId,
+            };
+
+            // iOS: threadId for notification grouping on lock screen
+            if (platform === 'ios' && data.conversationId) {
+                msg._contentAvailable = true;
+            }
+
+            // Android: route to the correct notification channel
+            if (platform === 'android') {
+                msg.channelId = channelMap[categoryId] || 'default';
+            }
+
+            allMessages.push(msg);
+        }
+    }
+
+    if (allMessages.length === 0) return;
+
+    // Batch send to Expo (max 100 per request)
+    const batches: typeof allMessages[] = [];
+    for (let i = 0; i < allMessages.length; i += 100) {
+        batches.push(allMessages.slice(i, i + 100));
+    }
+
+    for (const batch of batches) {
+        fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(batch),
+        }).then(res => {
+            if (!res.ok) console.warn(`[Push] Expo API returned ${res.status}`);
+            else console.log(`[Push] Sent ${batch.length} notification(s) for category=${categoryId}`);
+        }).catch(err => {
+            console.warn('[Push] Failed to send push notification:', err.message);
+        });
+    }
+}
+
+/**
+ * Dispatches Expo Push Notifications for Escrow lifecycle events.
+ * Delegates to the generic dispatchPushNotification with categoryId='escrow'.
  */
 export function sendPushNotification(postId: string, type: SystemMessageType, meta: SystemMessageMetadata, participantPubkeys: string[]) {
     // Build notification payload based on event type
@@ -2016,42 +2200,12 @@ export function sendPushNotification(postId: string, type: SystemMessageType, me
     const notification = notificationMap[type];
     if (!notification) return;
 
-    // Collect push tokens for all participants EXCEPT the actor
-    const targetPubkeys = participantPubkeys.filter(pk => pk !== meta.actorPubkey && pk !== 'SYSTEM');
-    const allTokens: string[] = [];
-    for (const pk of targetPubkeys) {
-        const tokens = getPushTokens(pk);
-        allTokens.push(...tokens.map(t => t.token));
-    }
-
-    if (allTokens.length === 0) return;
-
-    // Fire-and-forget: dispatch to Expo Push API
-    const messages = allTokens.map(token => ({
-        to: token,
-        sound: 'default',
-        title: notification.title,
-        body: notification.body,
-        data: notification.data,
-    }));
-
-    // Batch send to Expo (max 100 per request)
-    const batches: typeof messages[] = [];
-    for (let i = 0; i < messages.length; i += 100) {
-        batches.push(messages.slice(i, i + 100));
-    }
-
-    for (const batch of batches) {
-        fetch('https://exp.host/--/api/v2/push/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(batch),
-        }).then(res => {
-            if (!res.ok) console.warn(`[Push] Expo API returned ${res.status}`);
-            else console.log(`[Push] Sent ${batch.length} notification(s) for ${type}`);
-        }).catch(err => {
-            console.warn('[Push] Failed to send push notification:', err.message);
-        });
-    }
+    dispatchPushNotification(
+        participantPubkeys,
+        meta.actorPubkey,
+        notification.title,
+        notification.body,
+        notification.data,
+        'escrow'
+    );
 }
-
