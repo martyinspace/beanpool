@@ -1658,11 +1658,11 @@ export async function startHttpsServer(port: number): Promise<void> {
     // Read version from root package.json
     function getVersion(): string {
         try {
-            // In Docker, cwd is /app/apps/server, so root is ../../package.json
-            let pkgPath = path.resolve('../../package.json');
+            // First try reading the local package.json (which should be the server package when running inside Docker/dev)
+            let pkgPath = path.resolve('package.json');
             if (!fs.existsSync(pkgPath)) {
-                // Fallback for local dev if cwd is already root or something else
-                pkgPath = path.resolve('package.json');
+                // Fallback to monorepo root package.json if needed
+                pkgPath = path.resolve('../../package.json');
             }
             const rootPkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
             return rootPkg.version || '0.0.0';
