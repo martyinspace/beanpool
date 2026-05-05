@@ -680,6 +680,12 @@ export async function startHttpsServer(port: number): Promise<void> {
         ctx.body = getCommunityHealth();
     });
 
+    // Lightweight membership probe — returns whether a public key is a registered member
+    router.get('/api/community/membership/:publicKey', async (ctx) => {
+        const member = getMember(ctx.params.publicKey);
+        ctx.body = { isMember: !!member, callsign: member?.callsign || null };
+    });
+
     router.get('/api/community/members', async (ctx) => {
         ctx.body = getMembers();
     });

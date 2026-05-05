@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Image, Alert, Linking, Modal, Pressable } from 'react-native';
 import * as Location from 'expo-location';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -7,16 +7,21 @@ import { router, usePathname } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSavedNodes, SavedNode } from '../utils/nodes';
 import { getLastSyncTime } from '../services/pillar-sync';
+import { useIdentity } from '../app/IdentityContext';
 
 export function GlobalHeader() {
     const insets = useSafeAreaInsets();
     const pathname = usePathname();
+    const { identity } = useIdentity();
     const [locationEnabled, setLocationEnabled] = useState(false);
     const [dropdownVisible, setDropdownVisible] = useState(false);
-    const [savedNodes, setSavedNodes] = useState<(SavedNode & { status: 'pinging' | 'online' | 'offline' })[]>([]);
+    const [savedNodes, setSavedNodes] = useState<(SavedNode & { status: 'pinging' | 'online' | 'guest' | 'offline' })[]>([]);
     const [switching, setSwitching] = useState(false);
     const [activeNode, setActiveNode] = useState<string | null>(null);
     const [activeSyncTime, setActiveSyncTime] = useState<number | null>(null);
+    // Per-node membership cache: { [nodeUrl]: boolean }
+    const membershipCache = useRef<Record<string, boolean>>({});
+    const [isGuestOnActive, setIsGuestOnActive] = useState(false);
 
     useEffect(() => {
         (async () => {
@@ -24,6 +29,23 @@ export function GlobalHeader() {
             setLocationEnabled(status === 'granted');
         })();
     }, []);
+
+    // Check membership on active node at mount and when identity/node changes
+    useEffect(() => {
+        if (!identity?.publicKey) { setIsGuestOnActive(true); return; }
+        (async () => {
+            const active = await AsyncStorage.getItem('beanpool_anchor_url');
+            if (!active) return;
+            try {
+                const r = await fetch(`${active}/api/community/membership/${identity.publicKey}`, { signal: AbortSignal.timeout(3000) });
+                const data = await r.json();
+                membershipCache.current[active] = !!data.isMember;
+                setIsGuestOnActive(!data.isMember);
+            } catch {
+                // Network error — don't change state
+            }
+        })();
+    }, [identity?.publicKey]);
 
     const openDropdown = async () => {
         const nodes = await getSavedNodes();
@@ -37,32 +59,57 @@ export function GlobalHeader() {
         setSavedNodes(enriched);
         setDropdownVisible(true);
 
-        // Silent HTTP verification mapping
+        // Silent HTTP verification + membership probe
         enriched.forEach((node, idx) => {
             const controller = new AbortController();
             const t = setTimeout(() => controller.abort(), 3000);
             fetch(`${node.url}/api/community/health`, { signal: controller.signal })
                 .then(r => r.ok ? r.json() : null)
                 .catch(() => null)
-                .then(data => {
+                .then(async (data) => {
                     clearTimeout(t);
+                    if (!data) {
+                        setSavedNodes(prev => {
+                            const copy = [...prev];
+                            copy[idx] = { ...copy[idx], status: 'offline' };
+                            return copy;
+                        });
+                        return;
+                    }
+
+                    const remoteName = data.nodeName || data.name;
+                    const cType = data.currency?.type || 'image';
+                    const cVal = data.currency?.value || 'bean';
+
+                    // Membership probe: check if our identity is registered on this node
+                    let isMember = false;
+                    if (identity?.publicKey) {
+                        try {
+                            const mr = await fetch(`${node.url}/api/community/membership/${identity.publicKey}`, { signal: AbortSignal.timeout(3000) });
+                            const md = await mr.json();
+                            isMember = !!md.isMember;
+                            membershipCache.current[node.url] = isMember;
+                        } catch {
+                            // Fallback: use cached value if available
+                            isMember = membershipCache.current[node.url] ?? false;
+                        }
+                    }
+
+                    // Update active node guest state
+                    if (node.url === active) {
+                        setIsGuestOnActive(!isMember);
+                    }
+
+                    const resolvedStatus = isMember ? 'online' as const : 'guest' as const;
+
                     setSavedNodes(prev => {
                         const copy = [...prev];
-                        if (data) {
-                            const remoteName = data.nodeName || data.name /* fallback */;
-                            const cType = data.currency?.type || 'image';
-                            const cVal = data.currency?.value || 'bean';
-                            
-                            const changed = copy[idx].alias !== remoteName || copy[idx].currencyType !== cType || copy[idx].currencyValue !== cVal;
-                            
-                            if (remoteName && changed) {
-                                copy[idx] = { ...copy[idx], status: 'online', alias: remoteName, currencyType: cType, currencyValue: cVal };
-                                import('../utils/nodes').then(m => m.addSavedNode(node.url, remoteName, cType, cVal));
-                            } else {
-                                copy[idx] = { ...copy[idx], status: 'online' };
-                            }
+                        const changed = copy[idx].alias !== remoteName || copy[idx].currencyType !== cType || copy[idx].currencyValue !== cVal;
+                        if (remoteName && changed) {
+                            copy[idx] = { ...copy[idx], status: resolvedStatus, alias: remoteName, currencyType: cType, currencyValue: cVal };
+                            import('../utils/nodes').then(m => m.addSavedNode(node.url, remoteName, cType, cVal));
                         } else {
-                            copy[idx] = { ...copy[idx], status: 'offline' };
+                            copy[idx] = { ...copy[idx], status: resolvedStatus };
                         }
                         return copy;
                     });
@@ -81,6 +128,20 @@ export function GlobalHeader() {
             await closeDB(); 
             await AsyncStorage.setItem('beanpool_anchor_url', targetUrl);
             await initDB();
+
+            // Invalidate cached membership and re-probe for the new target node
+            const cached = membershipCache.current[targetUrl];
+            setIsGuestOnActive(cached === undefined ? true : !cached);
+            if (identity?.publicKey) {
+                fetch(`${targetUrl}/api/community/membership/${identity.publicKey}`, { signal: AbortSignal.timeout(3000) })
+                    .then(r => r.json())
+                    .then(d => {
+                        membershipCache.current[targetUrl] = !!d.isMember;
+                        setIsGuestOnActive(!d.isMember);
+                    })
+                    .catch(() => {});
+            }
+
             setDropdownVisible(false);
             setSwitching(false);
             router.replace('/welcome');
@@ -128,14 +189,20 @@ export function GlobalHeader() {
             </View>
 
             <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top + 10, 40) }]} pointerEvents="box-none">
-                {/* LEFT: Invite Router Pill */}
+                {/* LEFT: Invite/Join Router Pill */}
                 <View style={styles.headerLeft}>
                     <TouchableOpacity 
-                        style={styles.headerLeftControls} 
+                        style={[styles.headerLeftControls, isGuestOnActive && styles.headerLeftControlsGuest]} 
                         onPress={() => router.push({ pathname: '/people', params: { view: 'invites' } })}
                     >
-                        <MaterialCommunityIcons name="account-plus-outline" size={16} color="#10b981" />
-                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#10b981', marginLeft: 4 }}>Invite</Text>
+                        <MaterialCommunityIcons 
+                            name={isGuestOnActive ? 'account-alert-outline' : 'account-plus-outline'} 
+                            size={16} 
+                            color={isGuestOnActive ? '#d97706' : '#10b981'} 
+                        />
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: isGuestOnActive ? '#d97706' : '#10b981', marginLeft: 4 }}>
+                            {isGuestOnActive ? 'Join' : 'Invite'}
+                        </Text>
                     </TouchableOpacity>
                 </View>
 
@@ -206,15 +273,22 @@ export function GlobalHeader() {
                         {savedNodes.length === 0 && <Text style={{ padding: 10 }}>No saved communities.</Text>}
                         {savedNodes.map((n, i) => {
                             const isCurrent = activeNode === n.url;
+                            const isGuest = n.status === 'guest';
                             
                             // Format active relative sync gap
                             let activeStatusText = 'Syncing...';
-                            if (isCurrent && activeSyncTime) {
+                            if (isCurrent && activeSyncTime && !isGuest) {
                                 const seconds = Math.floor((Date.now() - activeSyncTime) / 1000);
                                 if (seconds < 60) activeStatusText = `${seconds}s ago`;
                                 else if (seconds < 3600) activeStatusText = `${Math.floor(seconds / 60)}m ago`;
                                 else activeStatusText = `${Math.floor(seconds / 3600)}h ago`;
                             }
+
+                            // Status dot colour based on 4-state model
+                            const dotColor = n.status === 'pinging' ? '#9ca3af' 
+                                : n.status === 'online' ? '#10b981' 
+                                : n.status === 'guest' ? '#d97706' 
+                                : '#ef4444';
 
                             return (
                                 <TouchableOpacity 
@@ -233,12 +307,22 @@ export function GlobalHeader() {
                                     </View>
                                     <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
                                         {isCurrent ? (
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                <Text style={{ fontSize: 13, color: '#10b981', fontWeight: 'bold' }}>{activeStatusText}</Text>
-                                                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#10b981' }} />
+                                            <View style={{ alignItems: 'flex-end' }}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                    <Text style={{ fontSize: 13, color: isGuest ? '#d97706' : '#10b981', fontWeight: 'bold' }}>
+                                                        {isGuest ? 'Guest Mode' : activeStatusText}
+                                                    </Text>
+                                                    <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: dotColor }} />
+                                                </View>
+                                                {isGuest && (
+                                                    <Text style={{ fontSize: 11, color: '#92400e', marginTop: 2 }}>Tap Join to register</Text>
+                                                )}
                                             </View>
                                         ) : (
-                                            <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: n.status === 'pinging' ? '#fbbf24' : n.status === 'online' ? '#10b981' : '#ef4444' }} />
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                {isGuest && <Text style={{ fontSize: 11, color: '#d97706', fontWeight: '600' }}>Guest</Text>}
+                                                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: dotColor }} />
+                                            </View>
                                         )}
                                     </View>
                                 </TouchableOpacity>
@@ -308,6 +392,7 @@ const styles = StyleSheet.create({
     },
     pillBase: {alignItems: 'center', justifyContent: 'flex-end', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', height: 32, overflow: 'hidden' },
     headerLeftControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)', height: 32, width: 80, overflow: 'hidden', marginTop: 12 },
+    headerLeftControlsGuest: { borderColor: 'rgba(217, 119, 6, 0.4)', backgroundColor: '#fffbeb' },
     headerRightControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', height: 32, width: 72, overflow: 'hidden', marginTop: 12 },
     controlPillBtn: { flex: 1, height: '100%', justifyContent: 'center', alignItems: 'center' },
     modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center' },
