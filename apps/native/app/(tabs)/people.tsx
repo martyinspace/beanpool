@@ -254,7 +254,10 @@ export default function PeopleScreen() {
                                     <Text style={styles.dateText}>Joined recently</Text>
                                 </View>
                             </View>
-                            <Pressable style={styles.addBtn}>
+                            <Pressable 
+                                style={styles.addBtn}
+                                onPress={() => Alert.alert('Coming Soon', `Friend requests to ${item.callsign} will be available in the next update.`)}
+                            >
                                 <Text style={styles.addBtnText}>+ Add</Text>
                             </Pressable>
                         </View>
