@@ -28,7 +28,7 @@ export default function ChatsScreen() {
             // User is the payee and escrow was just funded (they need to fulfill)
             if (item.lastMsgType === 'system' && item.lastSysType === 'ESCROW_FUNDED' && item.isPayee) return true;
             // Review needed after release
-            if (item.lastMsgType === 'system' && item.lastSysType === 'ESCROW_RELEASED') return true;
+            if (item.lastMsgType === 'system' && item.lastSysType === 'ESCROW_RELEASED' && !item.hasRated) return true;
             return false;
         });
 
@@ -134,7 +134,7 @@ export default function ChatsScreen() {
 
     const renderItem = ({ item }: { item: any }) => {
         const needsAction = (
-            (item.lastMsgType === 'system' && item.lastSysType === 'ESCROW_RELEASED') ||
+            (item.lastMsgType === 'system' && item.lastSysType === 'ESCROW_RELEASED' && !item.hasRated) ||
             (item.postStatus === 'pending' && item.isPayer)
         );
         

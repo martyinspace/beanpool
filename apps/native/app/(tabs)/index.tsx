@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { StyleSheet, View, Text, Platform, Alert, TouchableOpacity, ScrollView, TextInput, Pressable, Switch, KeyboardAvoidingView, Dimensions, Image as RNImage, Keyboard, Linking, DeviceEventEmitter, Animated } from 'react-native';
+import { StyleSheet, View, Text, Platform, Alert, TouchableOpacity, ScrollView, TextInput, Pressable, Switch, KeyboardAvoidingView, Dimensions, Image as RNImage, Keyboard, Linking, DeviceEventEmitter, Animated, Modal, FlatList } from 'react-native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -163,6 +163,9 @@ export default function MapScreen() {
     const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
     const [keyboardHeight, setKeyboardHeight] = useState(0);
     const [validationToast, setValidationToast] = useState('');
+    const [showCategoryModal, setShowCategoryModal] = useState(false);
+    const scrollViewRef = useRef<ScrollView>(null);
+    const pickerRef = useRef<any>(null);
 
     // Map UI State
     const [useModernMarkers, setUseModernMarkers] = useState(true);
@@ -188,10 +191,26 @@ export default function MapScreen() {
         return () => sub.remove();
     }, []);
 
+    const initialClusterTriggered = useRef(false);
+
     const loadPosts = async () => {
         try { 
             const p = await getPosts();
             setPosts(p); 
+            
+            // Workaround for react-native-map-clustering: 
+            // Force a microscopic region change to trigger supercluster after initial async data load
+            if (p.length > 0 && mapRef.current && !initialClusterTriggered.current) {
+                initialClusterTriggered.current = true;
+                setTimeout(() => {
+                    mapRef.current?.animateToRegion({
+                        latitude: currentRegion.latitude,
+                        longitude: currentRegion.longitude,
+                        latitudeDelta: currentRegion.latitudeDelta + 0.000001,
+                        longitudeDelta: currentRegion.longitudeDelta + 0.000001,
+                    }, 1);
+                }, 500);
+            }
         } catch (e: any) { 
             console.error('Failed to load map points', e); 
         }
@@ -552,8 +571,8 @@ export default function MapScreen() {
             {showNewPost && !pinDropMode && (
                 <KeyboardAvoidingView
                     style={[StyleSheet.absoluteFill, { zIndex: 500, justifyContent: 'flex-end' }]}
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    keyboardVerticalOffset={0}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
                 >
                     <View style={[styles.sheet, { paddingTop: Math.max(insets.top + 10, 20) }]}>
                         {/* Validation Toast */}
@@ -571,7 +590,7 @@ export default function MapScreen() {
                             </Pressable>
                         </View>
 
-                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 16 }}>
+                        <ScrollView ref={scrollViewRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={{ paddingBottom: 40 }}>
                             {/* Type Toggle */}
                             <View style={styles.typeRow}>
                                 <Pressable style={[styles.typeBtn, postType === 'offer' && styles.typeBtnOffer]} onPress={() => setPostType('offer')}>
@@ -582,21 +601,56 @@ export default function MapScreen() {
                                 </Pressable>
                             </View>
 
-                            {/* Category Dropdown */}
+                            {/* Category Selector — Full-width touch target */}
                             <Text style={styles.sectionLabel}>Category <Text style={styles.requiredStar}>*</Text></Text>
-                            <View style={[styles.pickerWrap, fieldBorder('category')]}>
-                                <Picker
-                                    selectedValue={postCategory}
-                                    onValueChange={v => { setPostCategory(v); setValidationErrors(prev => { const n = new Set(prev); n.delete('category'); return n; }); }}
-                                    style={styles.picker}
-                                    dropdownIconColor="#6b7280"
-                                >
-                                    <Picker.Item label="Select a category..." value="" enabled={false} color="#9ca3af" />
-                                    {CATEGORIES.map(c => (
-                                        <Picker.Item key={c.id} label={`${c.emoji} ${c.label}`} value={c.id} />
-                                    ))}
-                                </Picker>
-                            </View>
+                            {Platform.OS === 'ios' ? (
+                                <>
+                                    <Pressable style={[styles.pickerWrap, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 50 }, fieldBorder('category')]} onPress={() => setShowCategoryModal(true)}>
+                                        <Text style={{ flex: 1, color: postCategory ? '#fff' : '#9ca3af', fontSize: 15 }}>
+                                            {postCategory ? `${CATEGORIES.find(c => c.id === postCategory)?.emoji} ${CATEGORIES.find(c => c.id === postCategory)?.label}` : 'Select a category...'}
+                                        </Text>
+                                        <Text style={{ color: '#6b7280', fontSize: 16 }}>▼</Text>
+                                    </Pressable>
+                                    <Modal visible={showCategoryModal} transparent animationType="slide">
+                                        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowCategoryModal(false)}>
+                                            <View style={{ backgroundColor: '#1e251e', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: 400, paddingBottom: 32 }}>
+                                                <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }}>
+                                                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center' }}>Select Category</Text>
+                                                </View>
+                                                <FlatList
+                                                    data={CATEGORIES}
+                                                    keyExtractor={c => c.id}
+                                                    renderItem={({ item: c }) => (
+                                                        <Pressable
+                                                            style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', backgroundColor: postCategory === c.id ? 'rgba(16,185,129,0.15)' : 'transparent' }}
+                                                            onPress={() => { setPostCategory(c.id); setShowCategoryModal(false); setValidationErrors(prev => { const n = new Set(prev); n.delete('category'); return n; }); }}
+                                                        >
+                                                            <Text style={{ fontSize: 20, marginRight: 12 }}>{c.emoji}</Text>
+                                                            <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>{c.label}</Text>
+                                                            {postCategory === c.id && <Text style={{ marginLeft: 'auto', color: '#10b981', fontWeight: '800' }}>✓</Text>}
+                                                        </Pressable>
+                                                    )}
+                                                />
+                                            </View>
+                                        </Pressable>
+                                    </Modal>
+                                </>
+                            ) : (
+                                <Pressable style={[styles.pickerWrap, fieldBorder('category')]} onPress={() => pickerRef.current?.focus()}>
+                                    <Picker
+                                        ref={pickerRef}
+                                        selectedValue={postCategory}
+                                        onValueChange={v => { setPostCategory(v); setValidationErrors(prev => { const n = new Set(prev); n.delete('category'); return n; }); }}
+                                        style={styles.picker}
+                                        dropdownIconColor="#6b7280"
+                                    >
+                                        <Picker.Item label="Select a category..." value="" enabled={false} color="#9ca3af" />
+                                        {CATEGORIES.map(c => (
+                                            <Picker.Item key={c.id} label={`${c.emoji} ${c.label}`} value={c.id} />
+                                        ))}
+                                    </Picker>
+                                </Pressable>
+                            )}
 
                             {/* Title */}
                             <Text style={styles.sectionLabel}>Title <Text style={styles.requiredStar}>*</Text></Text>
@@ -609,36 +663,40 @@ export default function MapScreen() {
                                 maxLength={50}
                             />
 
-                            {/* Price Row */}
-                            <Text style={styles.sectionLabel}>Price <Text style={styles.requiredStar}>*</Text></Text>
-                            <View style={styles.priceRow}>
-                                <TextInput
-                                    style={[styles.creditsInputWide, fieldBorder('credits')]}
-                                    placeholder="Beans"
-                                    placeholderTextColor="#9ca3af"
-                                    keyboardType="numeric"
-                                    value={postCredits}
-                                    onChangeText={v => { setPostCredits(v); setValidationErrors(prev => { const n = new Set(prev); n.delete('credits'); return n; }); }}
-                                    maxLength={5}
-                                />
-                                <Pressable onPress={() => {
-                                    const types = ['fixed', 'hourly', 'daily', 'weekly', 'monthly'];
-                                    setPostPriceType(types[(types.indexOf(postPriceType) + 1) % types.length]);
-                                }} style={styles.priceTypeBtn}>
-                                    <Text style={styles.priceTypeBtnText}>{
-                                        { fixed: 'Total', hourly: '/ Hr', daily: '/ Dy', weekly: '/ Wk', monthly: '/ Mo' }[postPriceType] || 'Total'
-                                    }</Text>
-                                </Pressable>
-                                <Pressable
-                                    style={[styles.freeChip, postCredits === '0' && styles.freeChipActive]}
-                                    onPress={() => { setPostCredits('0'); setValidationErrors(prev => { const n = new Set(prev); n.delete('credits'); return n; }); }}
-                                >
-                                    <Text style={[styles.freeChipText, postCredits === '0' && styles.freeChipTextActive]}>FREE</Text>
-                                </Pressable>
+                            {/* Price Row — Compact inline layout */}
+                            <View style={styles.priceRowCompact}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                    <Text style={styles.sectionLabel}>Price <Text style={styles.requiredStar}>*</Text></Text>
+                                    <Pressable onPress={showPricingGuide} hitSlop={8}>
+                                        <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>💡</Text>
+                                    </Pressable>
+                                </View>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <TextInput
+                                        style={[styles.creditsInputCompact, fieldBorder('credits')]}
+                                        placeholder="0"
+                                        placeholderTextColor="#9ca3af"
+                                        keyboardType="numeric"
+                                        value={postCredits}
+                                        onChangeText={v => { setPostCredits(v); setValidationErrors(prev => { const n = new Set(prev); n.delete('credits'); return n; }); }}
+                                        maxLength={5}
+                                    />
+                                    <Pressable onPress={() => {
+                                        const types = ['fixed', 'hourly', 'daily', 'weekly', 'monthly'];
+                                        setPostPriceType(types[(types.indexOf(postPriceType) + 1) % types.length]);
+                                    }} style={styles.priceTypeBtn}>
+                                        <Text style={styles.priceTypeBtnText}>{
+                                            { fixed: 'Total', hourly: '/ Hr', daily: '/ Dy', weekly: '/ Wk', monthly: '/ Mo' }[postPriceType] || 'Total'
+                                        }</Text>
+                                    </Pressable>
+                                    <Pressable
+                                        style={[styles.freeChip, postCredits === '0' && styles.freeChipActive]}
+                                        onPress={() => { setPostCredits('0'); setValidationErrors(prev => { const n = new Set(prev); n.delete('credits'); return n; }); }}
+                                    >
+                                        <Text style={[styles.freeChipText, postCredits === '0' && styles.freeChipTextActive]}>FREE</Text>
+                                    </Pressable>
+                                </View>
                             </View>
-                            <Pressable onPress={showPricingGuide} style={styles.pricingGuideLink}>
-                                <Text style={styles.pricingGuideLinkText}>💡 How should I price this?</Text>
-                            </Pressable>
 
                             {/* Location */}
                             <Text style={styles.sectionLabel}>Location <Text style={styles.requiredStar}>*</Text></Text>
@@ -662,7 +720,7 @@ export default function MapScreen() {
                                 )}
                             </View>
 
-                            {/* Description */}
+                            {/* Description — with auto-scroll on focus */}
                             <Text style={styles.sectionLabel}>Description <Text style={styles.requiredStar}>*</Text></Text>
                             <TextInput
                                 style={[styles.descriptionInput, fieldBorder('description')]}
@@ -672,6 +730,7 @@ export default function MapScreen() {
                                 onChangeText={v => { setPostDescription(v); setValidationErrors(prev => { const n = new Set(prev); n.delete('description'); return n; }); }}
                                 multiline
                                 textAlignVertical="top"
+                                onFocus={() => { setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 300); }}
                             />
 
                             {/* Repeatable Toggle */}
@@ -782,24 +841,28 @@ const styles = StyleSheet.create({
     toastText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
     // Section labels
-    sectionLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, marginTop: 4 },
+    sectionLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4, marginTop: 2 },
     requiredStar: { color: '#ef4444', fontSize: 12 },
     sectionLabelHint: { color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: '500', textTransform: 'none', letterSpacing: 0 },
 
     // Type toggle
-    typeRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-    typeBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 2, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center' },
+    typeRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+    typeBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 2, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center' },
     typeBtnOffer: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
     typeBtnNeed: { backgroundColor: '#ea580c', borderColor: '#ea580c' },
     typeBtnText: { fontSize: 15, fontWeight: '800', color: 'rgba(255,255,255,0.6)' },
     typeBtnTextActive: { color: '#fff' },
 
     // Category picker
-    pickerWrap: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', marginBottom: 12, overflow: 'hidden' },
+    pickerWrap: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', marginBottom: 8, overflow: 'hidden' },
     picker: { color: '#fff', height: 50 },
 
     // Title (full-width)
-    titleInputFull: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 12, color: '#fff', fontSize: 15, marginBottom: 12 },
+    titleInputFull: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 10, color: '#fff', fontSize: 15, marginBottom: 8 },
+
+    // Price row — compact inline
+    priceRowCompact: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingVertical: 2 },
+    creditsInputCompact: { width: 70, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 10, color: '#fff', fontSize: 16, fontWeight: '800', textAlign: 'center' },
 
     // Price row
     priceRow: { flexDirection: 'row', gap: 8, marginBottom: 4, alignItems: 'center' },
@@ -814,7 +877,7 @@ const styles = StyleSheet.create({
     pricingGuideLinkText: { color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: '600' },
 
     // Location (compact chips)
-    locationRow: { flexDirection: 'row', gap: 8, marginBottom: 12, alignItems: 'center' },
+    locationRow: { flexDirection: 'row', gap: 8, marginBottom: 8, alignItems: 'center' },
     locationChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.08)' },
     locationChipActive: { borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.15)' },
     locationChipIcon: { fontSize: 16 },
@@ -822,14 +885,14 @@ const styles = StyleSheet.create({
     locationConfirmInline: { color: '#10b981', fontSize: 13, fontWeight: '800' },
 
     // Repeatable
-    repeatableRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, marginBottom: 10 },
+    repeatableRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, marginBottom: 6 },
     checkbox: { width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)', backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' },
     checkboxActive: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
     checkboxTick: { color: '#fff', fontSize: 14, fontWeight: '800' },
     repeatableText: { flex: 1, color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '500' },
 
     // Description
-    descriptionInput: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 12, color: '#fff', fontSize: 15, minHeight: 80, marginBottom: 12 },
+    descriptionInput: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 10, color: '#fff', fontSize: 15, minHeight: 70, marginBottom: 8 },
 
     // Photos
     photosRow: { flexDirection: 'row', gap: 10, marginBottom: 4, flexWrap: 'wrap', padding: 4, borderRadius: 14 },
@@ -839,7 +902,7 @@ const styles = StyleSheet.create({
     photoRemoveText: { color: '#fff', fontSize: 11, fontWeight: '800' },
     photoAdd: { width: 60, height: 60, borderRadius: 12, borderWidth: 2, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)' },
     photoAddIcon: { fontSize: 26 },
-    photoCount: { color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 },
+    photoCount: { color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
 
     // Submit
     submitBtn: { paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginBottom: 8, marginTop: 4 },

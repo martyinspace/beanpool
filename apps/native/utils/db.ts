@@ -259,6 +259,12 @@ async function _doInitDB() {
         }
         
         try {
+            await database.execAsync(`ALTER TABLE marketplace_transactions ADD COLUMN rated_by_buyer INTEGER DEFAULT 0;`);
+        } catch (e) {}
+        try {
+            await database.execAsync(`ALTER TABLE marketplace_transactions ADD COLUMN rated_by_seller INTEGER DEFAULT 0;`);
+        } catch (e) {}
+        try {
             await database.execAsync(`ALTER TABLE projects ADD COLUMN photos TEXT;`);
         } catch (e) {
             // Column likely already exists, ignore
@@ -401,15 +407,23 @@ export async function getConversations(myPubkey: string) {
         mt.id as pendingTxId,
         mt.credits as pendingAmount,
         mt.buyer_pubkey as txBuyerPubkey,
-        mt.seller_pubkey as txSellerPubkey
+        mt.seller_pubkey as txSellerPubkey,
+        (SELECT MAX(
+            CASE 
+                WHEN mt.buyer_pubkey = ? THEN mt.rated_by_buyer 
+                WHEN mt.seller_pubkey = ? THEN mt.rated_by_seller 
+                ELSE 0 
+            END
+         ) FROM marketplace_transactions mt
+         WHERE mt.post_id = c.post_id) as hasRated
         FROM conversations c
         LEFT JOIN messages m ON m.conversation_id = c.id
         LEFT JOIN posts p ON c.post_id = p.id
-        LEFT JOIN marketplace_transactions mt ON mt.post_id = c.post_id AND mt.status = 'pending'
+        LEFT JOIN marketplace_transactions mt ON mt.post_id = p.id AND mt.status = 'pending'
         WHERE c.id IN (SELECT conversation_id FROM conversation_participants WHERE public_key = ?)
         GROUP BY c.id
         ORDER BY timestamp DESC
-    `, [myPubkey, myPubkey, myPubkey, myPubkey]);
+    `, [myPubkey, myPubkey, myPubkey, myPubkey, myPubkey, myPubkey]);
     
     return rows.map(row => {
         let displayMsg = row.lastMessage ? '[Encrypted Message]' : 'Started conversation';
@@ -443,6 +457,7 @@ export async function getConversations(myPubkey: string) {
             isPayee,
             pendingAmount: row.pendingAmount || null,
             pendingTxId: row.pendingTxId || null,
+            hasRated: row.hasRated > 0,
         };
     });
 }
@@ -1167,7 +1182,7 @@ export async function applyDelta(delta: any) {
                 }
 
                 await database.runAsync(
-                    'INSERT OR REPLACE INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, completed_at, cover_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT OR REPLACE INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, completed_at, cover_image, rated_by_buyer, rated_by_seller) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         tx.id ?? null,
                         tx.postId ?? tx.post_id ?? null,
@@ -1178,7 +1193,9 @@ export async function applyDelta(delta: any) {
                         incomingStatus,
                         tx.createdAt ?? tx.created_at ?? new Date().toISOString(),
                         tx.completedAt ?? tx.completed_at ?? null,
-                        tx.coverImage ?? tx.cover_image ?? null
+                        tx.coverImage ?? tx.cover_image ?? null,
+                        tx.ratedByBuyer ? 1 : 0,
+                        tx.ratedBySeller ? 1 : 0
                     ]
                 );
             }
@@ -1585,6 +1602,7 @@ async function _signedRequest(endpoint: string, payload: any) {
 
 export async function acceptMarketplacePost(postId: string, buyerPublicKey: string, hours?: number) {
     const res = await _signedRequest('/api/marketplace/posts/accept', { postId, buyerPublicKey, hours });
+    await acquireSyncLock();
     try {
         const database = await getDb();
         // Store both accepted_by AND pending_transaction_id from server response
@@ -1629,6 +1647,8 @@ export async function acceptMarketplacePost(postId: string, buyerPublicKey: stri
         DeviceEventEmitter.emit('sync_data_updated');
     } catch(e) {
         console.error('[Escrow] acceptMarketplacePost local update failed:', e);
+    } finally {
+        releaseSyncLock();
     }
     return res;
 }
@@ -1636,6 +1656,7 @@ export async function acceptMarketplacePost(postId: string, buyerPublicKey: stri
 export async function completeMarketplaceTransaction(transactionId: string, confirmerPublicKey: string, finalHours?: number) {
     const res = await _signedRequest('/api/marketplace/transactions/complete', { transactionId, confirmerPublicKey, finalHours });
     console.log(`[Escrow] Server complete response:`, JSON.stringify(res));
+    await acquireSyncLock();
     try {
         const database = await getDb();
         const postParam = await database.getFirstAsync<{ repeatable: number, id: string }>('SELECT id, repeatable FROM posts WHERE pending_transaction_id = ?', [transactionId]);
@@ -1681,6 +1702,8 @@ export async function completeMarketplaceTransaction(transactionId: string, conf
         console.log('[Escrow] Events emitted, UI should refresh');
     } catch(e) {
         console.error('[Escrow] completeMarketplaceTransaction local update failed:', e);
+    } finally {
+        releaseSyncLock();
     }
     return res;
 }
@@ -1771,7 +1794,7 @@ export async function getMemberRatings(publicKey: string): Promise<{ ratings: an
 export async function getMarketplaceTransactions(publicKey: string, filter?: { status?: string }, limit = 50, offset = 0) {
     const database = await getDb();
     let query = `
-        SELECT mt.*, p.title as postTitle, m1.callsign as buyerCallsign, m2.callsign as sellerCallsign,
+        SELECT mt.*, p.title as postTitle, p.photos as postPhotos, m1.callsign as buyerCallsign, m2.callsign as sellerCallsign,
                EXISTS(SELECT 1 FROM ratings r WHERE r.transaction_id = mt.id AND r.rater_pubkey = mt.buyer_pubkey) as ratedByBuyer,
                EXISTS(SELECT 1 FROM ratings r WHERE r.transaction_id = mt.id AND r.rater_pubkey = mt.seller_pubkey) as ratedBySeller
         FROM marketplace_transactions mt
@@ -1789,20 +1812,29 @@ export async function getMarketplaceTransactions(publicKey: string, filter?: { s
     params.push(limit, offset);
 
     const rows = await database.getAllAsync<any>(query, params);
-    return rows.map(r => ({
-        id: r.id, 
-        postId: r.post_id, 
-        postTitle: r.postTitle, 
-        buyerPublicKey: r.buyer_pubkey, 
-        buyerCallsign: r.buyerCallsign, 
-        sellerPublicKey: r.seller_pubkey, 
-        sellerCallsign: r.sellerCallsign, 
-        credits: r.credits, 
-        status: r.status, 
-        createdAt: r.created_at, 
-        completedAt: r.completed_at,
-        coverImage: r.cover_image,
-        ratedByBuyer: !!r.ratedByBuyer,
-        ratedBySeller: !!r.ratedBySeller
-    }));
+    return rows.map(r => {
+        let coverImg = r.cover_image;
+        if (!coverImg && r.postPhotos) {
+            try { 
+                const arr = Array.isArray(r.postPhotos) ? r.postPhotos : JSON.parse(r.postPhotos); 
+                if (arr.length > 0) coverImg = arr[0]; 
+            } catch {}
+        }
+        return {
+            id: r.id, 
+            postId: r.post_id, 
+            postTitle: r.postTitle, 
+            buyerPublicKey: r.buyer_pubkey, 
+            buyerCallsign: r.buyerCallsign, 
+            sellerPublicKey: r.seller_pubkey, 
+            sellerCallsign: r.sellerCallsign, 
+            credits: r.credits, 
+            status: r.status, 
+            createdAt: r.created_at, 
+            completedAt: r.completed_at,
+            coverImage: coverImg,
+            ratedByBuyer: !!r.ratedByBuyer,
+            ratedBySeller: !!r.ratedBySeller
+        };
+    });
 }

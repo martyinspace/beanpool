@@ -155,7 +155,10 @@ export function MyDealsSheet({ visible, identity, onClose, initialTab = 'active'
         // Active post items
         let coverImage: string | null = null;
         if (item.photos) {
-            try { const arr = JSON.parse(item.photos); if (arr.length > 0) coverImage = arr[0]; } catch {}
+            try { 
+                const arr = Array.isArray(item.photos) ? item.photos : JSON.parse(item.photos); 
+                if (arr.length > 0) coverImage = arr[0]; 
+            } catch {}
         }
 
         return (

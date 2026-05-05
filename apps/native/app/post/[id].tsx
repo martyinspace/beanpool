@@ -323,9 +323,14 @@ export default function PostDetailModal() {
                         <View style={styles.authorInfo}>
                             <Text style={styles.authorName}>🤝 {cardAuthor}</Text>
                             <Text style={styles.authorRating}>
-                                {authorAvgRating !== null && authorRatingCount > 0 
-                                    ? renderBeans(authorAvgRating) + ` (${authorAvgRating.toFixed(1)}) • ${authorRatingCount} Reviews`
-                                    : '☆☆☆☆☆ No ratings yet'}
+                                {authorAvgRating !== null && authorRatingCount > 0 ? (
+                                    <>
+                                        <Text style={{ color: '#fbbf24', letterSpacing: -1 }}>{renderBeans(authorAvgRating)}</Text>
+                                        <Text> {`(${authorAvgRating.toFixed(1)}) • ${authorRatingCount} Reviews`}</Text>
+                                    </>
+                                ) : (
+                                    <Text>☆☆☆☆☆ No ratings yet</Text>
+                                )}
                             </Text>
                         </View>
                     </View>
