@@ -60,6 +60,8 @@ function HeaderControls({ showSettings, setShowSettings }: { showSettings: boole
             <button
                 onClick={toggleLocation}
                 title={locationEnabled ? "Location: On (Live)" : "Location: Off (Ghost)"}
+                aria-label="Toggle location tracking"
+                aria-pressed={locationEnabled}
                 className="text-nature-600 dark:text-nature-400 hover:text-nature-900 dark:hover:text-nature-200 transition-colors flex items-center justify-center p-0"
             >
                 {locationEnabled ? (
@@ -81,6 +83,8 @@ function HeaderControls({ showSettings, setShowSettings }: { showSettings: boole
             <button
                 onClick={() => setShowSettings(!showSettings)}
                 title="Settings"
+                aria-label="Settings"
+                aria-expanded={showSettings}
                 className={`flex items-center justify-center transition-colors p-0 ${
                     showSettings 
                         ? 'text-accent dark:text-accent' 
