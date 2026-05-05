@@ -34,6 +34,16 @@ export default function SettingsScreen() {
         AsyncStorage.getItem('beanpool_modern_markers').then(val => {
             if (val !== null) setUseModernMarkers(val === 'true');
         });
+        // Load profile data on mount
+        if (identity?.publicKey) {
+            getMemberProfile(identity.publicKey).then(profile => {
+                if (profile) {
+                    if (profile.avatar_url) setAvatar(profile.avatar_url);
+                    if (profile.bio) setBio(profile.bio);
+                    if (profile.contact_value) setContact(profile.contact_value);
+                }
+            }).catch(() => {});
+        }
     }, []);
     
     // Advanced subsystem state
@@ -452,6 +462,17 @@ export default function SettingsScreen() {
 
                     {/* Callsign */}
                     <Text style={styles.callsignText}>{identity.callsign}</Text>
+
+                    {/* Bio */}
+                    {bio ? <Text style={styles.bioText}>{bio}</Text> : null}
+
+                    {/* Contact */}
+                    {contact ? (
+                        <View style={styles.contactRow}>
+                            <Text style={{ fontSize: 13 }}>📱</Text>
+                            <Text style={styles.contactText}>{contact}</Text>
+                        </View>
+                    ) : null}
 
                     {/* Public Key — truncated, tap to copy */}
                     <Pressable 
@@ -956,6 +977,16 @@ const styles = StyleSheet.create({
         borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
     },
     pubkeyText: { fontSize: 13, color: '#94a3b8', fontFamily: 'Courier', letterSpacing: 1 },
+    bioText: {
+        fontSize: 14, color: '#cbd5e1', lineHeight: 20, textAlign: 'center',
+        marginBottom: 8, paddingHorizontal: 12, fontStyle: 'italic',
+    },
+    contactRow: {
+        flexDirection: 'row', alignItems: 'center', marginBottom: 10,
+        backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 12, paddingVertical: 5,
+        borderRadius: 16,
+    },
+    contactText: { fontSize: 13, color: '#a5b4c8', marginLeft: 6 },
 
     // ─── Section Headers ───
     sectionHeader: {
