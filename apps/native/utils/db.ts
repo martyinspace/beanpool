@@ -1522,17 +1522,25 @@ export async function redeemInvite(code: string, callsign: string, identityToReg
         });
 
         if (!res.ok) {
-            let errorMsg = `Failed to redeem invite (HTTP ${res.status} ${res.statusText})`;
-            try {
-                const textBody = await res.text();
+            let errorMsg = `Failed to redeem invite (HTTP ${res.status})`;
+            if (res.status === 530 || res.status === 502 || res.status === 503 || res.status === 504) {
+                errorMsg = `Relay Node Offline: The selected community node is currently unreachable (HTTP ${res.status}).`;
+            } else {
                 try {
-                    const errJson = JSON.parse(textBody);
-                    if (errJson.error) errorMsg = errJson.error;
-                } catch {
-                    errorMsg += `: [Text] ${textBody.substring(0, 100)}`;
+                    const textBody = await res.text();
+                    try {
+                        const errJson = JSON.parse(textBody);
+                        if (errJson.error) errorMsg = errJson.error;
+                    } catch {
+                        if (textBody.toLowerCase().includes('cloudflare') || textBody.toLowerCase().includes('<html')) {
+                            errorMsg = `Relay Node Offline: The selected community node is currently unreachable.`;
+                        } else {
+                            errorMsg += `: [Text] ${textBody.substring(0, 100)}`;
+                        }
+                    }
+                } catch (e: any) {
+                    errorMsg += ` - Parse Error: ${e.message}`;
                 }
-            } catch (e: any) {
-                errorMsg += ` - Parse Error: ${e.message}`;
             }
             throw new Error(errorMsg);
         }

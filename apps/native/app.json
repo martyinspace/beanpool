@@ -2,7 +2,7 @@
   "expo": {
     "name": "Bean Pool",
     "slug": "beanpool-pillar",
-    "version": "1.0.26",
+    "version": "1.0.32",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "scheme": "beanpool",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "org.beanpool.pillar",
-      "buildNumber": "41",
+      "buildNumber": "47",
       "associatedDomains": [
         "applinks:beanpool.org",
         "applinks:*.beanpool.org"
@@ -31,8 +31,9 @@
       }
     },
     "android": {
-      "versionCode": 41,
+      "versionCode": 47,
       "package": "org.beanpool.pillar",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/app-icon.png",
         "backgroundColor": "#0a0a0a"
@@ -71,6 +72,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-notifications",
       [
         "expo-image-picker",
         {

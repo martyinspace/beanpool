@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, FlatList, Pressable, SafeAreaView, Platform, Alert, Image, TextInput, ScrollView, DeviceEventEmitter } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
@@ -9,6 +9,45 @@ import { RadiusPickerModal } from '../../components/RadiusPickerModal';
 import { CategoryPickerSheet } from '../../components/CategoryPickerSheet';
 import { MyDealsSheet, usePendingDealsCount } from '../../components/MyDealsSheet';
 import { PostAuthorTrust, isElder } from '../../components/PostAuthorTrust';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import synonymMap from '../../utils/synonyms.json';
+
+// Build reverse synonym index: given a category/synonym, find all words that map to it
+// e.g. "fruit" → ["lemon", "lime", "orange", "apple", ...]
+const reverseSynonyms: Record<string, string[]> = {};
+for (const [word, syns] of Object.entries(synonymMap)) {
+    if (word === '_meta') continue;
+    for (const syn of syns as string[]) {
+        if (!reverseSynonyms[syn]) reverseSynonyms[syn] = [];
+        reverseSynonyms[syn].push(word);
+    }
+}
+
+/** Expand a search query using synonyms: "fruit" → ["fruit", "lemon", "lime", ...] */
+function expandSearchTerms(query: string): string[] {
+    const words = query.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 1);
+    const expanded = new Set<string>(words);
+    for (const w of words) {
+        // Forward: word → its synonyms (e.g. "lemon" → ["fruit", "citrus"])
+        const fwd = (synonymMap as any)[w];
+        if (fwd) for (const s of fwd) expanded.add(s);
+        // Reverse: word → all words that have it as synonym (e.g. "fruit" → ["lemon", "lime"])
+        if (reverseSynonyms[w]) for (const s of reverseSynonyms[w]) expanded.add(s);
+        // Also try stemmed forms
+        let stem = w;
+        if (w.endsWith('ies')) stem = w.slice(0, -3) + 'y';
+        else if (w.endsWith('es')) stem = w.slice(0, -2);
+        else if (w.endsWith('s') && w.length > 3) stem = w.slice(0, -1);
+        else if (w.endsWith('ing') && w.length > 5) stem = w.slice(0, -3);
+        if (stem !== w) {
+            expanded.add(stem);
+            const fwdStem = (synonymMap as any)[stem];
+            if (fwdStem) for (const s of fwdStem) expanded.add(s);
+            if (reverseSynonyms[stem]) for (const s of reverseSynonyms[stem]) expanded.add(s);
+        }
+    }
+    return [...expanded];
+}
 
 export const MARKETPLACE_CATEGORIES = [
     { id: 'all', emoji: '🏷️', label: 'All Categories' },
@@ -52,6 +91,9 @@ export default function MarketScreen() {
     const [searchQuery, setSearchQuery] = useState('');
     const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
     const [posts, setPosts] = useState<any[]>([]);
+    const [searchResults, setSearchResults] = useState<any[] | null>(null);
+    const [isSearching, setIsSearching] = useState(false);
+    const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [showCategoryPicker, setShowCategoryPicker] = useState(false);
     const [radiusKm, setRadiusKm] = useState<number | null>(null);
@@ -93,6 +135,51 @@ export default function MarketScreen() {
         const sub = DeviceEventEmitter.addListener('sync_data_updated', () => loadPosts());
         return () => sub.remove();
     }, [filter, identity?.publicKey]);
+
+    // Debounced FTS5 server search
+    useEffect(() => {
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        
+        const q = searchQuery.trim();
+        if (!q) {
+            setSearchResults(null);
+            setIsSearching(false);
+            return;
+        }
+        
+        setIsSearching(true);
+        searchTimerRef.current = setTimeout(async () => {
+            try {
+                const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+                if (!anchorUrl) {
+                    setSearchResults(null);
+                    setIsSearching(false);
+                    return;
+                }
+                const type = filter === 'all' ? '' : filter === 'needs' ? '&type=need' : '&type=offer';
+                const cat = categoryFilter !== 'all' ? `&category=${categoryFilter}` : '';
+                const res = await fetch(`${anchorUrl}/api/marketplace/posts?q=${encodeURIComponent(q)}${type}${cat}&limit=50`);
+                if (res.ok) {
+                    const data = await res.json();
+                    // Parse photos for each result
+                    const parsed = (Array.isArray(data) ? data : []).map((p: any) => {
+                        if (typeof p.photos === 'string') {
+                            try { p.photos = JSON.parse(p.photos); } catch { p.photos = []; }
+                        }
+                        return p;
+                    });
+                    setSearchResults(parsed);
+                } else {
+                    setSearchResults(null); // Fall back to local filtering
+                }
+            } catch {
+                setSearchResults(null); // Fall back to local filtering
+            }
+            setIsSearching(false);
+        }, 300);
+
+        return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+    }, [searchQuery, filter, categoryFilter]);
 
     const loadPosts = async () => {
         const queryFilter = filter === 'all' ? undefined : { type: filter === 'needs' ? 'need' : 'offer' };
@@ -155,7 +242,10 @@ export default function MarketScreen() {
         );
     };
 
-    const filteredPosts = posts.filter(p => {
+    // Use server search results when available, otherwise filter locally
+    const basePosts = searchResults !== null ? searchResults : posts;
+
+    const filteredPosts = basePosts.filter(p => {
         if (p.status !== 'active') return false;
         if (blockedUsers.includes(p.author_pubkey)) return false;
         if (categoryFilter !== 'all' && p.category !== categoryFilter) return false;
@@ -168,11 +258,18 @@ export default function MarketScreen() {
             if (dist > radiusKm) return false;
         }
 
+        // Synonym-aware local search: expand query using synonym map
+        // Works on ALL servers, even those without FTS5 deployed
         if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase().trim();
-            const titleStr = p.title ? p.title.toLowerCase() : '';
-            const descStr = p.description ? p.description.toLowerCase() : '';
-            if (!titleStr.includes(q) && !descStr.includes(q)) return false;
+            const serverHasFTS = searchResults !== null && searchResults.length > 0 && 'search_keywords' in searchResults[0];
+            if (!serverHasFTS) {
+                const terms = expandSearchTerms(searchQuery);
+                const titleStr = p.title ? p.title.toLowerCase() : '';
+                const descStr = p.description ? p.description.toLowerCase() : '';
+                const postText = `${titleStr} ${descStr}`;
+                const matched = terms.some(term => postText.includes(term));
+                if (!matched) return false;
+            }
         }
         return true;
     });
@@ -183,7 +280,7 @@ export default function MarketScreen() {
     const HeaderComponent = (
         <View>
             {/* Top row: Search + My Deals + View Toggle */}
-            <View style={styles.searchRow}>
+            <View style={[styles.searchRow, { paddingHorizontal: 16 }]}>
                 <View style={styles.searchWrap}>
                     <Text style={{ opacity: 0.4, fontSize: 14 }}>🔍</Text>
                     <TextInput 
@@ -195,6 +292,18 @@ export default function MarketScreen() {
                     />
                 </View>
                 <Pressable 
+                    onPress={() => setShowDealsSheet(true)} 
+                    style={styles.dealsIconBtn}
+                >
+                    <Text style={{ fontSize: 18, marginBottom: -2 }}>🤝</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#b45309' }}>My Deals</Text>
+                    {pendingCount > 0 && (
+                        <View style={styles.dealsIconBadge}>
+                            <Text style={{ color: '#fff', fontSize: 8, fontWeight: '900' }}>{pendingCount}</Text>
+                        </View>
+                    )}
+                </Pressable>
+                <Pressable 
                     onPress={() => setViewMode(v => v === 'list' ? 'grid' : 'list')} 
                     style={styles.iconBtn}
                 >
@@ -203,71 +312,62 @@ export default function MarketScreen() {
             </View>
 
             {/* Horizontal Filter Chips */}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10, marginBottom: 4 }}>
-                {/* My Deals chip */}
-                <Pressable 
-                    onPress={() => setShowDealsSheet(true)} 
-                    style={[styles.chip, { backgroundColor: '#fef3c7', borderColor: '#fcd34d' }]}
+            <View style={{ marginTop: 10, marginBottom: 4 }}>
+                <ScrollView 
+                    horizontal 
+                    showsHorizontalScrollIndicator={false} 
+                    contentContainerStyle={styles.chipScrollContainer}
                 >
-                    <Text style={[styles.chipText, { color: '#b45309' }]}>🤝 My Deals</Text>
-                    {pendingCount > 0 && (
-                        <View style={{ backgroundColor: '#ef4444', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 8, marginLeft: 6 }}>
-                            <Text style={{ color: '#ffffff', fontSize: 9, fontWeight: '900' }}>{pendingCount}</Text>
-                        </View>
-                    )}
-                </Pressable>
-                {/* Type chips */}
-                <Pressable 
-                    onPress={() => setFilter('all')} 
-                    style={[styles.chip, filter === 'all' && styles.chipAllActive]}
-                >
-                    <Text style={[styles.chipText, filter === 'all' && styles.chipTextActive]}>All</Text>
-                </Pressable>
-                <Pressable 
-                    onPress={() => setFilter('offers')} 
-                    style={[styles.chip, filter === 'offers' && styles.chipOfferActive]}
-                >
-                    <Text style={[styles.chipText, filter === 'offers' && styles.chipTextActive]}>🟢 Offers</Text>
-                </Pressable>
-                <Pressable 
-                    onPress={() => setFilter('needs')} 
-                    style={[styles.chip, filter === 'needs' && styles.chipNeedActive]}
-                >
-                    <Text style={[styles.chipText, filter === 'needs' && styles.chipTextActive]}>🟠 Needs</Text>
-                </Pressable>
+                    {/* Type chips */}
+                    <Pressable 
+                        onPress={() => setFilter('all')} 
+                        style={[styles.chip, filter === 'all' && styles.chipAllActive]}
+                    >
+                        <Text style={[styles.chipText, filter === 'all' && styles.chipTextActive]}>All</Text>
+                    </Pressable>
+                    <Pressable 
+                        onPress={() => setFilter('offers')} 
+                        style={[styles.chip, filter === 'offers' && styles.chipOfferActive]}
+                    >
+                        <Text style={[styles.chipText, filter === 'offers' && styles.chipTextActive]}>🟢 Offers</Text>
+                    </Pressable>
+                    <Pressable 
+                        onPress={() => setFilter('needs')} 
+                        style={[styles.chip, filter === 'needs' && styles.chipNeedActive]}
+                    >
+                        <Text style={[styles.chipText, filter === 'needs' && styles.chipTextActive]}>🟠 Needs</Text>
+                    </Pressable>
 
-                {/* Divider */}
-                <View style={styles.chipDivider} />
+                    {/* Category chip */}
+                    <Pressable 
+                        onPress={() => setShowCategoryPicker(true)} 
+                        style={[styles.chip, categoryFilter !== 'all' && styles.chipActive]}
+                    >
+                        <Text style={[styles.chipText, categoryFilter !== 'all' && styles.chipTextActive]}>
+                            {selectedCategory?.emoji || '🏷️'} {categoryFilter !== 'all' ? selectedCategory?.label : 'Category'}
+                        </Text>
+                        <Text style={{ fontSize: 8, color: '#9ca3af', marginLeft: 2 }}>▼</Text>
+                    </Pressable>
 
-                {/* Category chip */}
-                <Pressable 
-                    onPress={() => setShowCategoryPicker(true)} 
-                    style={[styles.chip, categoryFilter !== 'all' && styles.chipActive]}
-                >
-                    <Text style={[styles.chipText, categoryFilter !== 'all' && styles.chipTextActive]}>
-                        {selectedCategory?.emoji || '🏷️'} {categoryFilter !== 'all' ? selectedCategory?.label : 'Category'}
-                    </Text>
-                    <Text style={{ fontSize: 8, color: '#9ca3af', marginLeft: 2 }}>▼</Text>
-                </Pressable>
-
-                {/* Distance chip */}
-                <Pressable 
-                    onPress={() => setShowRadiusPicker(true)} 
-                    style={[styles.chip, radiusKm !== null && styles.chipDistanceActive]}
-                >
-                    <Text style={[styles.chipText, radiusKm !== null && styles.chipTextActive]}>
-                        📍 {radiusKm ? `${radiusKm}km` : 'Distance'}
-                    </Text>
-                    {radiusKm !== null && (
-                        <Pressable 
-                            onPress={(e) => { e.stopPropagation(); setRadiusKm(null); setLocationCenter(null); }}
-                            hitSlop={8}
-                            style={{ marginLeft: 4 }}
-                        >
-                            <Text style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>✕</Text>
-                        </Pressable>
-                    )}
-                </Pressable>
+                    {/* Distance chip */}
+                    <Pressable 
+                        onPress={() => setShowRadiusPicker(true)} 
+                        style={[styles.chip, radiusKm !== null && styles.chipDistanceActive, radiusKm === null && { paddingHorizontal: 10 }]}
+                    >
+                        <Text style={[styles.chipText, radiusKm !== null && styles.chipTextActive]}>
+                            📍{radiusKm ? ` ${radiusKm}km` : ''}
+                        </Text>
+                        {radiusKm !== null && (
+                            <Pressable 
+                                onPress={(e) => { e.stopPropagation(); setRadiusKm(null); setLocationCenter(null); }}
+                                hitSlop={8}
+                                style={{ marginLeft: 4 }}
+                            >
+                                <Text style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>✕</Text>
+                            </Pressable>
+                        )}
+                    </Pressable>
+                </ScrollView>
             </View>
         </View>
     );
@@ -384,7 +484,7 @@ export default function MarketScreen() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <View style={{ padding: 16, paddingBottom: 0 }}>
+            <View style={{ paddingTop: 16, paddingBottom: 0 }}>
                 {HeaderComponent}
             </View>
             <FlatList
@@ -417,14 +517,14 @@ export default function MarketScreen() {
                         )}
                         <Pressable 
                             style={{ backgroundColor: '#111827', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 }}
-                            onPress={() => router.push('/')}
+                            onPress={() => router.push({ pathname: '/', params: { newPost: 'true' } })}
                         >
                             <Text style={{ fontWeight: '700', color: '#fff', fontSize: 14 }}>+ Post a Deal</Text>
                         </Pressable>
                     </View>
                 }
             />
-            <Pressable style={styles.fab} onPress={() => router.push('/')}>
+            <Pressable style={styles.fab} onPress={() => router.push({ pathname: '/', params: { newPost: 'true' } })}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={{ color: '#fff', fontSize: 20, fontWeight: '400', marginTop: -2 }}>+</Text>
                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 }}>ADD POST</Text>
@@ -473,21 +573,23 @@ const styles = StyleSheet.create({
 
     // Search row
     searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-    searchWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 24, paddingHorizontal: 14, height: 40, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
+    searchWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 23, paddingHorizontal: 14, height: 46, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
     searchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: '#1f2937', fontWeight: '500' },
-    iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
+    iconBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
+    dealsIconBtn: { paddingHorizontal: 14, height: 46, borderRadius: 23, backgroundColor: '#fffbeb', borderWidth: 1.5, borderColor: '#fcd34d', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
+    dealsIconBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#ef4444', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 8, minWidth: 14, alignItems: 'center' },
 
     // Deal badge (positioned on icon button)
     dealBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#ef4444', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 8, minWidth: 16, alignItems: 'center' },
     dealBadgeText: { color: '#ffffff', fontSize: 9, fontWeight: '900' },
 
     // Horizontal filter chips
-    chipScrollContainer: { flexDirection: 'row', gap: 8, paddingRight: 16, paddingVertical: 4 },
+    chipScrollContainer: { flexGrow: 1, justifyContent: 'center', flexDirection: 'row', gap: 4, paddingHorizontal: 16, paddingVertical: 4 },
     chip: { 
         flexDirection: 'row', 
         alignItems: 'center', 
         paddingVertical: 8, 
-        paddingHorizontal: 14, 
+        paddingHorizontal: 10, 
         borderRadius: 20, 
         borderWidth: 1.5, 
         borderColor: '#e5e7eb', 
@@ -498,7 +600,7 @@ const styles = StyleSheet.create({
         shadowRadius: 2,
         elevation: 1,
     },
-    chipText: { fontSize: 12, fontWeight: '700', color: '#6b7280' },
+    chipText: { fontSize: 13, fontWeight: '700', color: '#6b7280' },
     chipTextActive: { color: '#ffffff' },
     chipAllActive: { backgroundColor: '#1f2937', borderColor: '#1f2937' },
     chipOfferActive: { backgroundColor: '#059669', borderColor: '#047857' },
@@ -543,20 +645,5 @@ const styles = StyleSheet.create({
     badgeNeed: { backgroundColor: 'rgba(245, 158, 11, 0.1)', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.2)' },
     badgeText: { fontSize: 11, fontWeight: '800', color: '#1f2937', letterSpacing: 0.5 },
     price: { fontSize: 16, fontWeight: '800', color: '#8b5cf6' },
-    fab: {
-        position: 'absolute',
-        bottom: 24,
-        right: 24,
-        height: 48,
-        paddingHorizontal: 20,
-        borderRadius: 24,
-        backgroundColor: '#d87254', // Soft Terracotta
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#c2583b',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.35,
-        shadowRadius: 10,
-        elevation: 8,
-    }
+    fab: { position: 'absolute', bottom: 32, right: 24, backgroundColor: '#ea580c', paddingVertical: 14, paddingHorizontal: 20, borderRadius: 28, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 8, zIndex: 100 }
 });

@@ -12,6 +12,7 @@ import { getSavedNodes, SavedNode, removeSavedNode, getDatabaseFilenameForNode }
 import * as FileSystem from 'expo-file-system';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
+import appConfig from '../../app.json';
 
 export default function SettingsScreen() {
     const { identity, setIdentity } = useIdentity();
@@ -605,7 +606,7 @@ export default function SettingsScreen() {
 
                 {/* ─── Version Footer ─── */}
                 <Text style={styles.versionText}>
-                    BEANPOOL OS {Constants.expoConfig?.version || 'DEV'}
+                    BEANPOOL OS {appConfig.expo.version}
                 </Text>
                 </>
             )}

@@ -6,7 +6,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as Crypto from 'expo-crypto';
 import { Picker } from '@react-native-picker/picker';
 import MapView, { Marker, PROVIDER_DEFAULT } from '../../components/Map';
-import { useFocusEffect, router } from 'expo-router';
+import { useFocusEffect, router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPosts, createPost } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
@@ -14,6 +14,7 @@ import { useCurrencyString } from '../../components/CurrencyDisplay';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { CategoryPickerSheet } from '../../components/CategoryPickerSheet';
 
 const CATEGORIES = [
     { id: 'food', emoji: '🥕', label: 'Food & Produce' },
@@ -146,6 +147,17 @@ export default function MapScreen() {
     const insets = useSafeAreaInsets();
     const { identity } = useIdentity();
 
+    const params = useLocalSearchParams();
+
+    useFocusEffect(
+        useCallback(() => {
+            if (params.newPost === 'true') {
+                setShowNewPost(true);
+                router.setParams({ newPost: '' });
+            }
+        }, [params.newPost])
+    );
+
     // New Post state
     const [showNewPost, setShowNewPost] = useState(false);
     const [postType, setPostType] = useState<'offer' | 'need'>('offer');
@@ -170,6 +182,11 @@ export default function MapScreen() {
     // Map UI State
     const [useModernMarkers, setUseModernMarkers] = useState(true);
     const [selectedPostPreview, setSelectedPostPreview] = useState<any>(null);
+
+    // Filter state
+    const [mapTypeFilter, setMapTypeFilter] = useState<'all' | 'offers' | 'needs'>('all');
+    const [mapCategoryFilter, setMapCategoryFilter] = useState('all');
+    const [showMapCategoryPicker, setShowMapCategoryPicker] = useState(false);
 
     useFocusEffect(
         React.useCallback(() => { 
@@ -432,7 +449,13 @@ export default function MapScreen() {
                     if (p.lat == null || p.lng == null) return false;
                     const l1 = Number(p.lat);
                     const l2 = Number(p.lng);
-                    return !isNaN(l1) && !isNaN(l2);
+                    if (isNaN(l1) || isNaN(l2)) return false;
+                    
+                    if (mapTypeFilter === 'offers' && p.type !== 'offer') return false;
+                    if (mapTypeFilter === 'needs' && p.type !== 'need') return false;
+                    if (mapCategoryFilter !== 'all' && p.category !== mapCategoryFilter) return false;
+
+                    return true;
                 }).map(post => {
                     const catObj = CATEGORIES.find(c => c.id === post.category);
                     const safePost = { ...post, lat: Number(post.lat), lng: Number(post.lng) };
@@ -456,8 +479,41 @@ export default function MapScreen() {
                 )}
             </MapView>
 
-            {/* Top Gradient Overlay for Edge-to-Edge immersion */}
-            <LinearGradient colors={['rgba(0,0,0,0.4)', 'transparent']} style={styles.topGradient} pointerEvents="none" />
+            {/* Floating Filter Bar */}
+            {!showNewPost && !selectedPostPreview && (
+                <SafeAreaView style={styles.filterBarWrapper} pointerEvents="box-none">
+                    <View style={styles.filterBar}>
+                        <Pressable style={[styles.filterChip, mapTypeFilter === 'all' && styles.filterChipActive]} onPress={() => setMapTypeFilter('all')}>
+                            <Text style={[styles.filterChipText, mapTypeFilter === 'all' && styles.filterChipTextActive]}>All</Text>
+                        </Pressable>
+                        <Pressable style={[styles.filterChip, mapTypeFilter === 'offers' && styles.filterChipActive]} onPress={() => setMapTypeFilter('offers')}>
+                            <Text style={[styles.filterChipText, mapTypeFilter === 'offers' && styles.filterChipTextActive]}>Offers</Text>
+                        </Pressable>
+                        <Pressable style={[styles.filterChip, mapTypeFilter === 'needs' && styles.filterChipActive]} onPress={() => setMapTypeFilter('needs')}>
+                            <Text style={[styles.filterChipText, mapTypeFilter === 'needs' && styles.filterChipTextActive]}>Needs</Text>
+                        </Pressable>
+                        <View style={styles.filterDivider} />
+                        <Pressable style={[styles.filterChip, mapCategoryFilter !== 'all' && styles.filterChipActive]} onPress={() => setShowMapCategoryPicker(true)}>
+                            <Text style={[styles.filterChipText, mapCategoryFilter !== 'all' && styles.filterChipTextActive]}>
+                                {mapCategoryFilter === 'all' ? '🏷️ Cat' : `${CATEGORIES.find(c => c.id === mapCategoryFilter)?.emoji || '🏷️'} ▼`}
+                            </Text>
+                        </Pressable>
+                        {/* Clear all icon if filters active */}
+                        {(mapTypeFilter !== 'all' || mapCategoryFilter !== 'all') && (
+                            <Pressable style={styles.filterClear} onPress={() => { setMapTypeFilter('all'); setMapCategoryFilter('all'); }}>
+                                <Text style={styles.filterClearText}>✕</Text>
+                            </Pressable>
+                        )}
+                    </View>
+                </SafeAreaView>
+            )}
+
+            <CategoryPickerSheet
+                visible={showMapCategoryPicker}
+                selected={mapCategoryFilter}
+                onSelect={(id) => setMapCategoryFilter(id)}
+                onClose={() => setShowMapCategoryPicker(false)}
+            />
 
             {/* Map Action FABs - Left Pill */}
             {!showNewPost && !selectedPostPreview && (
@@ -534,7 +590,10 @@ export default function MapScreen() {
                         onPress={() => setShowNewPost(true)}
                         activeOpacity={0.8}
                     >
-                        <Text style={styles.fabText}>+</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={{ color: '#fff', fontSize: 20, fontWeight: '400', marginTop: -2 }}>+</Text>
+                            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 }}>ADD POST</Text>
+                        </View>
                     </TouchableOpacity>
                 </SafeAreaView>
             )}
@@ -781,8 +840,17 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#f9fafb' },
     map: { width: '100%', height: '100%' },
-    // Top Gradient Overlay
-    topGradient: { position: 'absolute', top: 0, left: 0, right: 0, height: 120, zIndex: 10 },
+
+    // Floating Filter Bar
+    filterBarWrapper: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center', zIndex: 90, paddingTop: 100 },
+    filterBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.85)', padding: 4, borderRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 8 },
+    filterChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
+    filterChipActive: { backgroundColor: '#e5e7eb' },
+    filterChipText: { fontSize: 13, fontWeight: '600', color: '#4b5563' },
+    filterChipTextActive: { color: '#111827', fontWeight: '800' },
+    filterDivider: { width: 1, height: 16, backgroundColor: '#d1d5db', marginHorizontal: 4 },
+    filterClear: { paddingHorizontal: 8, paddingVertical: 8 },
+    filterClearText: { fontSize: 14, color: '#9ca3af', fontWeight: '800' },
 
     // FAB Pill (Right side)
     fabPill: { position: 'absolute', width: 48, backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 24, paddingVertical: 8, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 8, zIndex: 100 },
@@ -822,8 +890,7 @@ const styles = StyleSheet.create({
     previewCloseText: { fontSize: 12, fontWeight: '800', color: '#6b7280' },
 
     // FAB
-    fab: { position: 'absolute', bottom: 32, right: 24, width: 64, height: 64, borderRadius: 32, backgroundColor: '#111827', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 10, zIndex: 100 },
-    fabText: { color: '#fff', fontSize: 32, fontWeight: '300', marginTop: -2 },
+    fab: { position: 'absolute', bottom: 32, right: 24, backgroundColor: '#ea580c', paddingVertical: 14, paddingHorizontal: 20, borderRadius: 28, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 8, zIndex: 100 },
 
     // Pin drop banner
     pinDropBanner: { position: 'absolute', top: 60, left: 20, right: 20, backgroundColor: '#3b82f6', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16, alignItems: 'center', zIndex: 200 },

@@ -9,6 +9,7 @@ import { getSavedNodes, SavedNode, removeSavedNode } from '../utils/nodes';
 import { getLastSyncTime } from '../services/pillar-sync';
 import { useIdentity } from '../app/IdentityContext';
 import Constants from 'expo-constants';
+import appConfig from '../app.json';
 
 // React Native's fetch doesn't support AbortSignal.timeout natively
 const fetchWithTimeout = async (resource: RequestInfo, options: RequestInit & { timeout?: number } = {}) => {
@@ -207,7 +208,7 @@ export function GlobalHeader() {
                 <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.5)' }]} />
             </View>
 
-            <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top + 10, 40) }]} pointerEvents="box-none">
+            <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top + 10, 40), height: Math.max(insets.top + 10, 40) + 56 }]} pointerEvents="box-none">
                 {/* LEFT: Invite/Join Router Pill */}
                 <View style={styles.headerLeft}>
                     <TouchableOpacity 
@@ -231,7 +232,7 @@ export function GlobalHeader() {
                     activeOpacity={0.7} 
                     onPress={openDropdown}
                 >
-                    <View style={{ flexDirection: 'column', alignItems: 'center', position: 'relative', transform: [{ translateX: isMapScreen ? -12 : -6 }, { translateY: isMapScreen ? -8 : 0 }] }}>
+                    <View style={{ flexDirection: 'column', alignItems: 'center', position: 'relative', transform: [{ translateX: isMapScreen ? -12 : -6 }, { translateY: isMapScreen ? -12 : 0 }] }}>
                         {isMapScreen ? (
                             <View style={{ position: 'relative' }}>
                                 <Image 
@@ -240,7 +241,7 @@ export function GlobalHeader() {
                                     resizeMode="contain" 
                                 />
                                 <Text style={{ position: 'absolute', left: 80, bottom: -8, fontSize: 10, fontWeight: '900', color: '#fbbf24', letterSpacing: 1, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
-                                    v{Constants.expoConfig?.version}
+                                    v{appConfig.expo.version}
                                 </Text>
                                 <MaterialCommunityIcons 
                                     name="chevron-down" 
@@ -394,7 +395,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingBottom: 12,
     },
     headerLeft: { flex: 1, alignItems: 'flex-start' },
     headerCenter: { flex: 2, alignItems: 'center', justifyContent: 'center' },
@@ -427,9 +427,9 @@ const styles = StyleSheet.create({
         color: '#cb5326', // terra-400 equivalent
     },
     pillBase: {alignItems: 'center', justifyContent: 'flex-end', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', height: 32, overflow: 'hidden' },
-    headerLeftControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)', height: 32, width: 80, overflow: 'hidden', marginTop: 12 },
+    headerLeftControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)', height: 32, width: 80, overflow: 'hidden' },
     headerLeftControlsGuest: { borderColor: 'rgba(217, 119, 6, 0.4)', backgroundColor: '#fffbeb' },
-    headerRightControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', height: 32, width: 72, overflow: 'hidden', marginTop: 12 },
+    headerRightControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', height: 32, width: 72, overflow: 'hidden' },
     controlPillBtn: { flex: 1, height: '100%', justifyContent: 'center', alignItems: 'center' },
     modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center' },
     modalContent: { backgroundColor: '#fff', width: '85%', borderRadius: 16, padding: 16, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 10, shadowOffset: { width: 0, height: 10 }, elevation: 5 },

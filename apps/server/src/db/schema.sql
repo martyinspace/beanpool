@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS posts (
     lng REAL,
     origin_node TEXT,
     updated_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    search_keywords TEXT DEFAULT '',
     CONSTRAINT lat_lng_check CHECK (lat BETWEEN -90 AND 90 AND lng BETWEEN -180 AND 180)
 );
 
@@ -198,3 +199,26 @@ CREATE TABLE IF NOT EXISTS member_preferences (
     PRIMARY KEY (public_key, pref_key)
 );
 
+-- 13. Full-Text Search Index (FTS5)
+CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(
+    title, description, search_keywords,
+    content='posts',
+    content_rowid='rowid'
+);
+
+CREATE TRIGGER IF NOT EXISTS posts_ai AFTER INSERT ON posts BEGIN
+    INSERT INTO posts_fts(rowid, title, description, search_keywords)
+    VALUES (new.rowid, new.title, new.description, new.search_keywords);
+END;
+
+CREATE TRIGGER IF NOT EXISTS posts_ad AFTER DELETE ON posts BEGIN
+    INSERT INTO posts_fts(posts_fts, rowid, title, description, search_keywords)
+    VALUES ('delete', old.rowid, old.title, old.description, old.search_keywords);
+END;
+
+CREATE TRIGGER IF NOT EXISTS posts_au AFTER UPDATE ON posts BEGIN
+    INSERT INTO posts_fts(posts_fts, rowid, title, description, search_keywords)
+    VALUES ('delete', old.rowid, old.title, old.description, old.search_keywords);
+    INSERT INTO posts_fts(rowid, title, description, search_keywords)
+    VALUES (new.rowid, new.title, new.description, new.search_keywords);
+END;
