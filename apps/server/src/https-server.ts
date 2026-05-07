@@ -52,9 +52,9 @@ import {
     getCommunityHealth,
     seedGenesisMember,
     addRating, getRatings, getAverageRating,
-    submitReport, getReports,
+    submitReport, getReports, dismissReport, actionReport, getReportCount,
     getFriends, addFriend, removeFriend, setGuardian,
-    adminSetUserStatus, adminDeletePost, adminPruneUser,
+    adminSetUserStatus, adminDeletePost, adminPruneUser, adminBulkDeletePosts,
     adminPruneBranch, adminBroadcastAnnouncement, adminSendMessage,
     getAdminPubkey, recordActivity,
     markConversationRead, getUnreadCounts,
@@ -280,6 +280,21 @@ export async function startHttpsServer(port: number): Promise<void> {
         }
     });
 
+    router.get('/settings.js', async (ctx) => {
+        const publicPath = path.join(__dirname, '../public/settings.js');
+        const staticPath = path.join(__dirname, '../static/settings.js');
+        const resolvedPath = fs.existsSync(publicPath) ? publicPath : staticPath;
+
+        if (fs.existsSync(resolvedPath)) {
+            ctx.type = 'application/javascript';
+            ctx.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+            ctx.body = fs.createReadStream(resolvedPath);
+        } else {
+            ctx.status = 404;
+            ctx.body = '// settings.js not found';
+        }
+    });
+
 
     // ===================== ROOT REDIRECT =====================
     // Redirect root to the PWA app — existing users auto-login via IndexedDB identity
@@ -434,9 +449,11 @@ export async function startHttpsServer(port: number): Promise<void> {
         if (!checkAdminAuth(ctx as any)) return;
         ctx.body = {
             members: getAllMembers(),
-            profiles: getAllMembers().map(m => getProfile(m.publicKey)), // fetch profiles for all
-            posts: getPosts().filter(p => p.status !== 'cancelled'), // ONLY send non-cancelled posts to admin
+            profiles: getAllMembers().map(m => getProfile(m.publicKey)),
+            posts: getPosts().filter(p => p.status !== 'cancelled'),
             health: getCommunityHealth(),
+            reports: getReports(),
+            reportCount: getReportCount(),
         };
     });
 
@@ -478,6 +495,33 @@ export async function startHttpsServer(port: number): Promise<void> {
         const { title, body, severity } = (ctx as any).requestBody || {};
         adminBroadcastAnnouncement(title || 'System Announcement', body || '', severity || 'info');
         ctx.body = { success: true };
+    });
+
+    // ======================== MODERATION: REPORT MANAGEMENT ========================
+
+    router.post('/api/local/admin/reports/:id/dismiss', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        const ok = dismissReport(ctx.params.id);
+        ctx.body = { success: ok };
+    });
+
+    router.post('/api/local/admin/reports/:id/action', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        const { deletePost } = (ctx as any).requestBody || {};
+        const ok = actionReport(ctx.params.id, !!deletePost);
+        ctx.body = { success: ok };
+    });
+
+    router.post('/api/local/admin/posts/bulk-delete', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        const { postIds } = (ctx as any).requestBody || {};
+        if (!Array.isArray(postIds) || postIds.length === 0) {
+            ctx.status = 400;
+            ctx.body = { error: 'postIds array required' };
+            return;
+        }
+        const deleted = adminBulkDeletePosts(postIds);
+        ctx.body = { success: true, deleted };
     });
 
     router.post('/api/local/admin/inbox', async (ctx) => {
@@ -1671,11 +1715,17 @@ export async function startHttpsServer(port: number): Promise<void> {
 
     // Read version from root package.json
     function getVersion(): string {
+        // Priority: APP_VERSION env (from Docker build arg) > .version file > package.json
+        if (process.env.APP_VERSION) return process.env.APP_VERSION;
         try {
-            // First try reading the local package.json (which should be the server package when running inside Docker/dev)
+            const versionFile = path.resolve('/app/.version');
+            if (fs.existsSync(versionFile)) {
+                return fs.readFileSync(versionFile, 'utf-8').trim();
+            }
+        } catch { /* fall through */ }
+        try {
             let pkgPath = path.resolve('package.json');
             if (!fs.existsSync(pkgPath)) {
-                // Fallback to monorepo root package.json if needed
                 pkgPath = path.resolve('../../package.json');
             }
             const rootPkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
@@ -1690,12 +1740,78 @@ export async function startHttpsServer(port: number): Promise<void> {
         } catch { return 'unknown'; }
     }
 
+    // ===================== BACKGROUND UPDATE CHECKER =====================
+    let cachedUpdateInfo: {
+        updateAvailable: boolean;
+        latestVersion: string;
+        releaseNotes: string;
+        releaseUrl: string;
+        publishedAt: string;
+        lastChecked: string;
+    } | null = null;
+
+    async function backgroundUpdateCheck() {
+        try {
+            const response = await fetch(
+                'https://api.github.com/repos/martyinspace/beanpool/releases/latest',
+                { headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'BeanPool-Node' } }
+            );
+            if (response.ok) {
+                const release = await response.json() as any;
+                const latestVersion = (release.tag_name || '').replace(/^v/, '');
+                const currentVersion = getVersion();
+                cachedUpdateInfo = {
+                    updateAvailable: semverGreater(latestVersion, currentVersion),
+                    latestVersion,
+                    releaseNotes: release.body || '',
+                    releaseUrl: release.html_url || '',
+                    publishedAt: release.published_at || '',
+                    lastChecked: new Date().toISOString(),
+                };
+            } else {
+                // Fallback to tags
+                const tagsResponse = await fetch(
+                    'https://api.github.com/repos/martyinspace/beanpool/tags?per_page=1',
+                    { headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'BeanPool-Node' } }
+                );
+                if (tagsResponse.ok) {
+                    const tags = await tagsResponse.json() as any[];
+                    const latestTag = tags[0]?.name?.replace(/^v/, '') || '';
+                    const currentVersion = getVersion();
+                    cachedUpdateInfo = {
+                        updateAvailable: semverGreater(latestTag, currentVersion),
+                        latestVersion: latestTag,
+                        releaseNotes: '',
+                        releaseUrl: '',
+                        publishedAt: '',
+                        lastChecked: new Date().toISOString(),
+                    };
+                }
+            }
+            if (cachedUpdateInfo?.updateAvailable) {
+                console.log(`[Update] New version available: v${cachedUpdateInfo.latestVersion} (current: v${getVersion()})`);
+            }
+        } catch (e: any) {
+            console.log(`[Update] Background check failed: ${e.message || 'unknown error'}`);
+        }
+    }
+
+    // Run initial check after 30s startup delay, then every 6 hours
+    setTimeout(() => backgroundUpdateCheck(), 30000);
+    setInterval(() => backgroundUpdateCheck(), 6 * 60 * 60 * 1000);
+
     router.get('/api/version', (ctx) => {
         ctx.body = {
             version: getVersion(),
             commit: getCommitHash(),
             buildTime: new Date().toISOString(),
             node: process.env.CF_RECORD_NAME || 'local',
+            // Include cached update info if available
+            ...(cachedUpdateInfo ? {
+                updateAvailable: cachedUpdateInfo.updateAvailable,
+                latestVersion: cachedUpdateInfo.latestVersion,
+                lastUpdateCheck: cachedUpdateInfo.lastChecked,
+            } : {}),
         };
     });
 
@@ -1801,34 +1917,8 @@ export async function startHttpsServer(port: number): Promise<void> {
         }
     });
 
-    router.post('/api/admin/update', async (ctx) => {
-        const config = getLocalConfig();
-        const { password } = (ctx as any).requestBody || {};
-        if (!password || !config.adminHash || !config.salt ||
-            !verifyPassword(password, config.adminHash, config.salt)) {
-            ctx.status = 401;
-            ctx.body = { error: 'Invalid password' };
-            return;
-        }
-        try {
-            // Signal-file approach: write a marker to the shared /data volume.
-            // The host-side update.sh (running as a cron job) detects this file,
-            // runs `docker pull` for the latest GHCR image, and restarts the container.
-            const dataDir = process.env.BEANPOOL_DATA_DIR || '/data';
-            const signalPath = path.join(dataDir, '.update-requested');
-            fs.writeFileSync(signalPath, JSON.stringify({
-                requestedAt: new Date().toISOString(),
-                currentVersion: getVersion(),
-            }));
-            ctx.body = {
-                success: true,
-                message: 'Update requested. The node will pull the latest image and restart within 60 seconds.',
-            };
-        } catch (e: any) {
-            ctx.status = 500;
-            ctx.body = { success: false, error: e.message || 'Update request failed' };
-        }
-    });
+    // NOTE: /api/admin/update (signal-file approach) has been removed.
+    // Updates are notification-only — admin runs `docker compose pull && docker compose up -d` manually.
 
     // ===================== MIDDLEWARE =====================
 

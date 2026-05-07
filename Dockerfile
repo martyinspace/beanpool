@@ -41,6 +41,9 @@ RUN pnpm prune --prod --no-optional
 # =============================================================================
 FROM node:22-alpine AS runtime
 
+# Accept version from CI build args (from git tag)
+ARG APP_VERSION=""
+
 WORKDIR /app
 
 # Install native build tools for better-sqlite3 compilation
@@ -66,8 +69,8 @@ COPY --from=builder /app/packages/beanpool-core/node_modules ./packages/beanpool
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 
-# Copy update script
-COPY --from=builder /app/update.sh ./update.sh
+# Write version file if provided via build arg (overrides package.json version)
+RUN if [ -n "$APP_VERSION" ]; then echo "$APP_VERSION" > /app/.version; fi
 
 WORKDIR /app/apps/server
 
@@ -82,6 +85,7 @@ EXPOSE 8080 8443 4001 4002
 
 # Data directory for genesis, TLS certs, and SQLite
 ENV BEANPOOL_DATA_DIR=/data
+ENV APP_VERSION=${APP_VERSION}
 VOLUME /data
 
 # Run compiled JavaScript directly

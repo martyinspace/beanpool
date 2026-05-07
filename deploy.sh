@@ -113,10 +113,8 @@ for NODE in "${TARGETS[@]}"; do
     fi
     echo \"Public IP: \$PUBLIC_IP\"
     echo \"DNS Record: \$CF_RECORD_NAME\"
-    # Temporarily building directly on server instead of GHCR pull
-    # sudo -E docker compose -p $PROJ_NAME pull
     sudo docker image prune -f 2>/dev/null || true
-    sudo -E docker compose -p $PROJ_NAME build
+    sudo -E docker compose -p $PROJ_NAME pull
     sudo -E docker compose -p $PROJ_NAME up -d
   " 2>&1
 

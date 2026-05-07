@@ -3,6 +3,7 @@ name: Build and Push Docker Image
 on:
   push:
     branches: [main]
+    tags: ['v*']
 
 env:
   REGISTRY: ghcr.io
@@ -12,12 +13,23 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -34,6 +46,8 @@ jobs:
           tags: |
             type=raw,value=latest
             type=sha,prefix=
+            type=semver,pattern={{version}},enable=${{ steps.version.outputs.is_release }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ steps.version.outputs.is_release }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -42,3 +56,14 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.version }}
+
+      - name: Create GitHub Release
+        if: steps.version.outputs.is_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          tag_name: ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1821,8 +1821,160 @@ export function submitReport(reporterPubkey: string, targetPubkey: string, reaso
 }
 
 export function getReports(): AbuseReport[] {
-    const rows = db.prepare("SELECT * FROM abuse_reports ORDER BY created_at DESC").all() as any[];
-    return rows.map(r => ({ id: r.id, reporterPubkey: r.reporter_pubkey, targetPubkey: r.target_pubkey, targetPostId: r.target_post_id, reason: r.reason, createdAt: r.created_at }));
+    const rows = db.prepare(`
+        SELECT ar.*, 
+               mr.callsign as reporter_callsign, 
+               mt.callsign as target_callsign,
+               p.title as post_title
+        FROM abuse_reports ar
+        LEFT JOIN members mr ON ar.reporter_pubkey = mr.public_key
+        LEFT JOIN members mt ON ar.target_pubkey = mt.public_key
+        LEFT JOIN posts p ON ar.target_post_id = p.id
+        ORDER BY ar.created_at DESC
+    `).all() as any[];
+    return rows.map(r => ({ 
+        id: r.id, reporterPubkey: r.reporter_pubkey, targetPubkey: r.target_pubkey, 
+        targetPostId: r.target_post_id, reason: r.reason, createdAt: r.created_at,
+        status: r.status || 'pending',
+        reporterCallsign: r.reporter_callsign || r.reporter_pubkey.substring(0, 8),
+        targetCallsign: r.target_callsign || r.target_pubkey.substring(0, 8),
+        postTitle: r.post_title || null
+    }));
+}
+
+export function getReportCount(): number {
+    return (db.prepare("SELECT COUNT(*) as c FROM abuse_reports WHERE status = 'pending' OR status IS NULL").get() as any).c;
+}
+
+export function dismissReport(reportId: string): boolean {
+    const res = db.prepare("UPDATE abuse_reports SET status = 'reviewed' WHERE id = ?").run(reportId);
+    return res.changes > 0;
+}
+
+export function actionReport(reportId: string, deletePost: boolean = false): boolean {
+    const report = db.prepare("SELECT * FROM abuse_reports WHERE id = ?").get(reportId) as any;
+    if (!report) return false;
+    
+    db.prepare("UPDATE abuse_reports SET status = 'actioned' WHERE id = ?").run(reportId);
+    
+    if (deletePost && report.target_post_id) {
+        adminDeletePost(report.target_post_id);
+    }
+    return true;
+}
+
+export function adminBulkDeletePosts(postIds: string[]): number {
+    let deleted = 0;
+    db.transaction(() => {
+        for (const id of postIds) {
+            try {
+                adminDeletePost(id);
+                deleted++;
+            } catch (e) {
+                console.error(`Failed to delete post ${id}:`, e);
+            }
+        }
+    })();
+    return deleted;
+}
+
+export function getPostCount(filter?: { type?: string; category?: string; status?: string; query?: string }): number {
+    let query = `SELECT COUNT(*) as c FROM posts WHERE active = 1 AND status NOT IN ('cancelled')`;
+    const params: any[] = [];
+    if (filter?.type && filter.type !== 'all') { query += " AND type = ?"; params.push(filter.type); }
+    if (filter?.category && filter.category !== 'all') { query += " AND category = ?"; params.push(filter.category); }
+    if (filter?.status) { query += " AND status = ?"; params.push(filter.status); }
+    return (db.prepare(query).get(...params) as any).c;
+}
+
+// ===================== COMMUNITY HEALTH =====================
+
+export interface HealthFlag { type: 'wash_trading' | 'isolated_branch' | 'inactive_member' | 'invite_spam'; severity: 'warning' | 'alert'; description: string; members: string[]; }
+export interface CommunityHealth { nodeName: string; currency: { type: string; value: string }; tree: any; activity: any; flags: HealthFlag[]; reportCount: number; }
+
+export function getCommunityHealth(): CommunityHealth {
+    const now = Date.now();
+    const t = getThresholds();
+    
+    // Active member count
+    const activeMemberCount = (db.prepare(`SELECT COUNT(DISTINCT m.public_key) as c FROM members m JOIN transactions tx ON tx.timestamp > datetime('now', '-30 days') AND (m.public_key = tx.from_pubkey OR m.public_key = tx.to_pubkey) WHERE m.status != 'pruned'`).get() as any).c;
+    const totalMembers = getMembers().length;
+    
+    // ========== HEALTH FLAG DETECTION ==========
+    const flags: HealthFlag[] = [];
+    
+    // 1. Inactive Members: no transactions in N days
+    try {
+        const inactiveRows = db.prepare(`
+            SELECT m.public_key, m.callsign FROM members m 
+            WHERE m.status = 'active' AND m.invited_by != 'genesis'
+            AND m.public_key NOT IN (
+                SELECT DISTINCT from_pubkey FROM transactions WHERE timestamp > datetime('now', '-${t.inactiveMemberDays} days')
+                UNION
+                SELECT DISTINCT to_pubkey FROM transactions WHERE timestamp > datetime('now', '-${t.inactiveMemberDays} days')
+            )
+        `).all() as any[];
+        if (inactiveRows.length > 0) {
+            flags.push({
+                type: 'inactive_member',
+                severity: 'warning',
+                description: `${inactiveRows.length} member${inactiveRows.length > 1 ? 's' : ''} with no activity for ${t.inactiveMemberDays}+ days`,
+                members: inactiveRows.map(r => r.callsign || r.public_key.substring(0, 8))
+            });
+        }
+    } catch (e) { console.error('Health flag check (inactive) failed:', e); }
+    
+    // 2. Wash Trading: reciprocal transactions between the same pair within time window
+    try {
+        const washRows = db.prepare(`
+            SELECT t1.from_pubkey as a, t1.to_pubkey as b, COUNT(*) as cnt
+            FROM transactions t1
+            WHERE t1.timestamp > datetime('now', '-${t.washTradingWindowHours} hours')
+            AND t1.from_pubkey NOT LIKE 'escrow_%' AND t1.to_pubkey NOT LIKE 'escrow_%'
+            AND t1.from_pubkey != 'commons' AND t1.to_pubkey != 'commons'
+            GROUP BY t1.from_pubkey, t1.to_pubkey
+            HAVING cnt >= ${t.washTradingMinTxns}
+        `).all() as any[];
+        
+        // Find reciprocal pairs (A→B AND B→A both above threshold)
+        const pairs = new Set<string>();
+        for (const row of washRows) {
+            const reverse = washRows.find(r => r.a === row.b && r.b === row.a);
+            if (reverse) {
+                const key = [row.a, row.b].sort().join('|');
+                if (!pairs.has(key)) {
+                    pairs.add(key);
+                    const callsignA = (db.prepare("SELECT callsign FROM members WHERE public_key=?").get(row.a) as any)?.callsign || row.a.substring(0, 8);
+                    const callsignB = (db.prepare("SELECT callsign FROM members WHERE public_key=?").get(row.b) as any)?.callsign || row.b.substring(0, 8);
+                    flags.push({
+                        type: 'wash_trading',
+                        severity: 'alert',
+                        description: `${row.cnt + reverse.cnt} reciprocal transactions between ${callsignA} ↔ ${callsignB} in ${t.washTradingWindowHours}h`,
+                        members: [callsignA, callsignB]
+                    });
+                }
+            }
+        }
+    } catch (e) { console.error('Health flag check (wash trading) failed:', e); }
+    
+    const config = getLocalConfig();
+    const reportCount = getReportCount();
+    
+    return {
+        nodeName: getDirectoryInfo()?.name || 'Local Discovery',
+        currency: { type: config.currencyType || 'image', value: config.currencyValue || 'bean' },
+        tree: { totalMembers, maxDepth: 0, widestBranch: { callsign: 'db-optimized', children: 0 }, avgBranchSize: 0 },
+        activity: {
+            totalTransactions: (db.prepare(`SELECT COUNT(*) as c FROM transactions`).get() as any).c,
+            last7Days: (db.prepare(`SELECT COUNT(*) as c FROM transactions WHERE timestamp > datetime('now', '-7 days')`).get() as any).c,
+            last30Days: (db.prepare(`SELECT COUNT(*) as c FROM transactions WHERE timestamp > datetime('now', '-30 days')`).get() as any).c,
+            activeMemberCount,
+            inactiveMemberCount: totalMembers - activeMemberCount,
+            commonsBalance: Math.round(COMMONS_BALANCE * 100) / 100
+        },
+        flags,
+        reportCount
+    };
 }
 
 // ===================== ADMIN CONTROLS =====================
@@ -1842,16 +1994,10 @@ export function adminDeletePost(postId: string) {
         // Find existing pending transactions to refund escrow
         const pending = db.prepare("SELECT * FROM marketplace_transactions WHERE post_id=? AND status='pending'").all(postId) as any[];
         for (const tx of pending) {
-            // Escrow refund automatically handles balance updates and transaction records
-            // Wallet keyed by transaction ID to match the deposit
             transfer(`escrow_${tx.id}`, tx.buyer_pubkey, tx.credits, `Escrow refund for removed post`, 'escrow');
             db.prepare("UPDATE marketplace_transactions SET status='cancelled', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?").run(tx.id);
         }
-        
-        // Cancel requested transactions
         db.prepare("UPDATE marketplace_transactions SET status='cancelled', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE post_id=? AND status='requested'").run(postId);
-
-        // Soft delete the post
         db.prepare("UPDATE posts SET active=0, status='cancelled', updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?").run(postId);
     })();
     broadcast({ type: 'post_removed', id: postId });
@@ -1895,36 +2041,7 @@ export function recordActivity(publicKey: string) {
     db.prepare("UPDATE members SET last_active_at=? WHERE public_key=?").run(new Date().toISOString(), publicKey);
 }
 
-// ===================== COMMUNITY HEALTH =====================
-
-export interface HealthFlag { type: 'wash_trading' | 'isolated_branch' | 'inactive_member' | 'invite_spam'; severity: 'warning' | 'alert'; description: string; members: string[]; }
-export interface CommunityHealth { nodeName: string; currency: { type: string; value: string }; tree: any; activity: any; flags: HealthFlag[]; }
-
-export function getCommunityHealth(): CommunityHealth {
-    const now = Date.now();
-    const t = getThresholds();
-    const THIRTY_DAYS = t.inactiveMemberDays * 24 * 60 * 60 * 1000;
-    
-    // Active member count
-    const activeMemberCount = (db.prepare(`SELECT COUNT(DISTINCT m.public_key) as c FROM members m JOIN transactions tx ON tx.timestamp > datetime('now', '-30 days') AND (m.public_key = tx.from_pubkey OR m.public_key = tx.to_pubkey) WHERE m.status != 'pruned'`).get() as any).c;
-    const totalMembers = getMembers().length;
-    
-    const config = getLocalConfig();
-    return {
-        nodeName: getDirectoryInfo()?.name || 'Local Discovery',
-        currency: { type: config.currencyType || 'image', value: config.currencyValue || 'bean' },
-        tree: { totalMembers, maxDepth: 0, widestBranch: { callsign: 'db-optimized', children: 0 }, avgBranchSize: 0 },
-        activity: {
-            totalTransactions: (db.prepare(`SELECT COUNT(*) as c FROM transactions`).get() as any).c,
-            last7Days: (db.prepare(`SELECT COUNT(*) as c FROM transactions WHERE timestamp > datetime('now', '-7 days')`).get() as any).c,
-            last30Days: (db.prepare(`SELECT COUNT(*) as c FROM transactions WHERE timestamp > datetime('now', '-30 days')`).get() as any).c,
-            activeMemberCount,
-            inactiveMemberCount: totalMembers - activeMemberCount,
-            commonsBalance: Math.round(COMMONS_BALANCE * 100) / 100
-        },
-        flags: []
-    };
-}
+// getCommunityHealth, HealthFlag, and CommunityHealth defined above near reports section
 
 // ===================== NODE CONFIG =====================
 

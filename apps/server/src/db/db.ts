@@ -70,6 +70,8 @@ export function initSchema() {
     try { db.prepare(`ALTER TABLE members ADD COLUMN earned_credit REAL DEFAULT 0`).run(); } catch { }
     // FTS5 Search: Add search_keywords column to posts
     try { db.prepare(`ALTER TABLE posts ADD COLUMN search_keywords TEXT DEFAULT ''`).run(); } catch { }
+    // Moderation: Add status tracking to abuse reports
+    try { db.prepare(`ALTER TABLE abuse_reports ADD COLUMN status TEXT DEFAULT 'pending'`).run(); } catch { }
 }
 
 // Function to migrate from legacy JSON state
