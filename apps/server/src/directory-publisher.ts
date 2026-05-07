@@ -36,8 +36,8 @@ export async function pushDirectoryNow() {
         // and the TTL will naturally prune it, OR we could push an explicitly empty state.
         // For now, if all are false, we can skip or send nulls.
         if (!config.publishLocation && !config.publishMembers && !config.publishContacts && !config.publishHealth) {
-            console.log(`[Directory] ℹ️ All privacy toggles off, skipping push`);
-            return { success: true, skipped: true };
+            console.log(`[Directory] ℹ️ All privacy toggles off. Pushing empty state to clear registry.`);
+            // We no longer return early here. We want to push the nulls to overwrite existing data!
         }
         
         const directoryInfo = getDirectoryInfo();

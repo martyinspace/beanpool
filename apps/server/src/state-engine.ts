@@ -1979,14 +1979,38 @@ export function getDirectoryInfo(): any {
         name: localConfig.callsign || process.env.BEANPOOL_NODE_NAME || process.env.CF_RECORD_NAME || 'BeanPool Node'
     };
 
-    if (config.publishLocation) info.serviceRadius = config.serviceRadius;
-    if (config.publishMembers) info.memberCount = (db.prepare("SELECT COUNT(*) as c FROM members WHERE status != 'pruned'").get() as any).c;
+    if (config.publishLocation) {
+        info.lat = localConfig.location?.lat;
+        info.lng = localConfig.location?.lng;
+        info.service_radius = config.serviceRadius;
+    } else {
+        info.lat = null;
+        info.lng = null;
+        info.service_radius = null;
+    }
+
+    if (config.publishMembers) {
+        info.member_count = (db.prepare("SELECT COUNT(*) as c FROM members WHERE status != 'pruned'").get() as any).c;
+    } else {
+        info.member_count = null;
+    }
+
     if (config.publishContacts) {
         if (localConfig.communityName) info.name = localConfig.communityName;
-        if (localConfig.contactEmail) info.contactEmail = localConfig.contactEmail;
-        if (localConfig.contactPhone) info.contactPhone = localConfig.contactPhone;
+        if (localConfig.contactEmail) info.contact_email = localConfig.contactEmail;
+        if (localConfig.contactPhone) info.contact_phone = localConfig.contactPhone;
+    } else {
+        info.contact_email = null;
+        info.contact_phone = null;
     }
-    if (config.publishHealth) info.version = '1.0.0';
+
+    if (config.publishHealth) {
+        info.version = '1.0.33';
+        info.status = 'online';
+    } else {
+        info.version = null;
+        info.status = null;
+    }
 
     return info;
 }
