@@ -336,13 +336,13 @@ Neighboring communities scaling federation can elegantly federate through a sing
 
 ## 🌐 Live Network Topology
 
-The project maintains 4 live sovereign nodes spanning bare-metal LAN deployments and Azure VMs. 
+The project maintains 4 live sovereign nodes spanning bare-metal and Azure VMs. Both bare-metal nodes run on the Debian "Lighthouse" server at `192.168.1.219`, served via Cloudflare Tunnel.
 
 | # | Flag | Callsign | IP Address | DNS Name | Type | PWA |
 |---|------|----------|-----------|----------|------|-----|
-| 1 | 🇦🇺 | Mullum 2 | `20.211.27.68` | `mullum2.beanpool.org` | Azure VM | [Open](https://mullum2.beanpool.org) |
-| 3 | 🏠 | Mullum 1 | `192.168.1.219` | `mullum1.beanpool.org` | Bare Metal (LAN) | [Open](https://mullum.beanpool.org:8443) |
-| 4 | 🇺🇸 | Review | `20.96.126.56` | `review.beanpool.org` | Azure VM (US) | [Open](https://review.beanpool.org) |
+| 1 | 🇦🇺 | Mullum 2 | `20.211.27.68` | `mullum2.beanpool.org` | Azure VM (AU) | [Open](https://mullum2.beanpool.org) |
+| 3 | 🏠 | Mullum 1 | `192.168.1.219` | `mullum1.beanpool.org` | Bare Metal (Cloudflare Tunnel) | [Open](https://mullum.beanpool.org:8443) |
+| 4 | 🏠 | Review | `192.168.1.219` | `review.beanpool.org` | Bare Metal (Cloudflare Tunnel) | [Open](https://review.beanpool.org) |
 
 ### Deployment Commands
 The root `deploy.sh` manages upgrades across the mesh:
@@ -350,14 +350,13 @@ The root `deploy.sh` manages upgrades across the mesh:
 bash deploy.sh           # Deploy to all 4 nodes
 bash deploy.sh 1         # Mullum 2 only
 bash deploy.sh 3         # Mullum 1 only
-bash deploy.sh 4         # Review (US) only
+bash deploy.sh 4         # Review only
 ```
 
 ### SSH Access
 ```bash
 ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68   # Mullum 2 (Azure)
-ssh marty@192.168.1.219                                  # Mullum 1 (LAN)
-ssh -i ~/.ssh/id_azure_lattice azureuser@20.96.126.56   # Review (Azure US)
+ssh marty@192.168.1.219                                  # Mullum 1 + Review (Debian Lighthouse)
 ```
 
 **Check Container Logs:**

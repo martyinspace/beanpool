@@ -39,7 +39,7 @@
 - ✅ **Mirror State Sync** — Merkle hash comparison + delta exchange, 15-min intervals (for mirror-trusted nodes)
 - ✅ **Handshake Protocol** — mutual trust + latency over yamux streams
 - ✅ **Let's Encrypt Auto-TLS** — DNS-01 challenge via Cloudflare API (acme-client v5)
-- ✅ **3 Live Nodes** — Mullum 2 (Azure AU), Mullum 1 (bare metal LAN), Review (Azure US)
+- ✅ **4 Live Nodes** — Mullum 2 (Azure AU), Mullum 1 (bare metal, Cloudflare Tunnel), Review (bare metal, Cloudflare Tunnel)
 - ✅ **Node Admin Setup Guide** — comprehensive docs for new node operators
 - ✅ **Database Migration (SQLite)** — replaced JSON engine with `better-sqlite3` with WAL mode and self-healing schema migrations
 - ✅ **FTS5 Full-Text Search** — marketplace search with synonym mapping (`synonyms.json`)
@@ -172,13 +172,12 @@ bash deploy.sh 4         # Review (US) only
 | # | Node | IP | DNS | SSH User | SSH Key | Notes |
 |---|------|----|-----|----------|---------|-------|
 | 1 | Mullum 2 | `20.211.27.68` | `mullum2.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` | Azure VM (AU) |
-| 3 | Mullum 1 | `192.168.1.219` | `mullum1.beanpool.org` | `marty` | default key | Bare metal (LAN), behind CF `mullum.beanpool.org` LB |
-| 4 | Review | `20.96.126.56` | `review.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` | Azure VM (US) — staging/review server |
+| 3 | Mullum 1 | `192.168.1.219` | `mullum1.beanpool.org` | `marty` | default key | Bare metal (Debian Lighthouse), served via Cloudflare Tunnel |
+| 4 | Review | `192.168.1.219` | `review.beanpool.org` | `marty` | default key | Bare metal (Debian Lighthouse), served via Cloudflare Tunnel, alternate ports |
 
 ```bash
-ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68   # Mullum 2
-ssh marty@192.168.1.219                                  # Mullum 1 (LAN)
-ssh -i ~/.ssh/id_azure_lattice azureuser@20.96.126.56   # Review (US)
+ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68   # Mullum 2 (Azure)
+ssh marty@192.168.1.219                                  # Mullum 1 + Review (Debian Lighthouse)
 ```
 
 ### Useful Debug Commands

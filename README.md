@@ -380,7 +380,7 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ Mirror state sync (Merkle hash + delta exchange, 15-min intervals)
 - ✅ Handshake protocol (~570ms latency between continents)
 - ✅ Let's Encrypt auto-TLS via DNS-01 challenge (Cloudflare API)
-- ✅ 3 live nodes — Mullum 2 (Azure AU), Mullum 1 (bare metal), Review (Azure US)
+- ✅ 4 live nodes — Mullum 2 (Azure AU), Mullum 1 (bare metal, Cloudflare Tunnel), Review (bare metal, Cloudflare Tunnel)
 - ✅ Node admin setup guide with LE and no-domain instructions
 - ✅ Database (SQLite) — `better-sqlite3` with WAL mode, self-healing schema migrations
 - ✅ FTS5 full-text search — marketplace search with synonym mapping
