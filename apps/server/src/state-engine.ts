@@ -1980,28 +1980,24 @@ export function getDirectoryInfo(): any {
     };
 
     if (config.publishLocation) {
-        info.lat = localConfig.location?.lat;
-        info.lng = localConfig.location?.lng;
-        info.service_radius = config.serviceRadius;
+        info.serviceRadius = config.serviceRadius;
     } else {
-        info.lat = null;
-        info.lng = null;
-        info.service_radius = null;
+        info.serviceRadius = null;
     }
 
     if (config.publishMembers) {
-        info.member_count = (db.prepare("SELECT COUNT(*) as c FROM members WHERE status != 'pruned'").get() as any).c;
+        info.memberCount = (db.prepare("SELECT COUNT(*) as c FROM members WHERE status != 'pruned'").get() as any).c;
     } else {
-        info.member_count = null;
+        info.memberCount = null;
     }
 
     if (config.publishContacts) {
         if (localConfig.communityName) info.name = localConfig.communityName;
-        if (localConfig.contactEmail) info.contact_email = localConfig.contactEmail;
-        if (localConfig.contactPhone) info.contact_phone = localConfig.contactPhone;
+        if (localConfig.contactEmail) info.contactEmail = localConfig.contactEmail;
+        if (localConfig.contactPhone) info.contactPhone = localConfig.contactPhone;
     } else {
-        info.contact_email = null;
-        info.contact_phone = null;
+        info.contactEmail = null;
+        info.contactPhone = null;
     }
 
     if (config.publishHealth) {
