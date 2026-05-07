@@ -466,7 +466,15 @@
 
         // ======================== RESET ========================
         document.getElementById('reset-btn').addEventListener('click', async () => {
-            if (!confirm('Are you sure? This erases your node identity and connectors.')) return;
+            // First offer a backup
+            const wantsBackup = confirm('⚠️ LAST CHANCE: Download a backup before resetting?\n\nClick OK to download a backup first, or Cancel to proceed without one.');
+            if (wantsBackup) {
+                await downloadBackup();
+                // Give them a chance to cancel after seeing the backup
+                if (!confirm('Backup downloaded. Proceed with the reset?\n\nThis will erase your node identity and admin password.')) return;
+            } else {
+                if (!confirm('Are you absolutely sure?\n\nThis will erase your node identity, admin password, and all configuration. This cannot be undone.')) return;
+            }
             try {
                 const res = await fetch(`${API}/reset`, {
                     method: 'POST',
@@ -480,6 +488,9 @@
                     showStatus('reset-status', d.error || 'Reset failed', 'error');
                 }
             } catch (e) { showStatus('reset-status', 'Failed', 'error'); }
+            // Re-lock the button
+            document.getElementById('reset-confirm-input').value = '';
+            document.getElementById('reset-btn').disabled = true;
         });
 
         // ======================== SOFTWARE UPDATES ========================

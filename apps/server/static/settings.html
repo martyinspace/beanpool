@@ -1049,12 +1049,21 @@
             </div>
 
             <!-- Reset Node -->
-            <div class="glass" data-tab="system">
-                <h3>⚠️ Reset Node</h3>
-                <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.75rem;">
-                    Erases identity and all configuration. You'll need to restart the container to reconfigure.
+            <div class="glass" data-tab="system" style="border: 1px solid #7f1d1d;">
+                <h3>☢️ Reset Node</h3>
+                <p style="font-size: 0.8rem; color: #f87171; margin-bottom: 0.5rem;">
+                    <strong>This erases your node identity, admin password, and all configuration.</strong>
+                    The database (members, posts, ledger) is preserved, but the node will need to be 
+                    completely reconfigured after a container restart.
                 </p>
-                <button class="btn btn-danger btn-full" id="reset-btn">Reset Configuration</button>
+                <p style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.75rem;">
+                    Type <code style="color:#f87171;background:#1e1e1e;padding:1px 4px;border-radius:3px;">RESET</code> below to enable the button.
+                </p>
+                <input type="text" id="reset-confirm-input" placeholder="Type RESET to confirm" 
+                    autocomplete="off" spellcheck="false"
+                    style="margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 2px; text-align: center; border-color: #7f1d1d;"
+                    oninput="document.getElementById('reset-btn').disabled = this.value !== 'RESET'">
+                <button class="btn btn-danger btn-full" id="reset-btn" disabled>Reset Configuration</button>
                 <div class="status-msg" id="reset-status"></div>
             </div>
         </div>
