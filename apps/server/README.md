@@ -248,6 +248,38 @@ docker compose up -d
 
 You can configure the auto-check interval (Hourly / Every 6 hours / Daily / Weekly) in Settings → System tab.
 
+#### Developer Release Flow (Pushing a New Version)
+
+When you're ready to ship a new version, the entire pipeline is driven by **git tags** — no manual version bumps in `package.json` needed.
+
+```bash
+# 1. Commit and push your changes to main
+git add -A && git commit -m "feat: your changes"
+git push origin main
+
+# 2. Tag the release (this triggers the full pipeline)
+git tag -a v1.0.34 -m "Short description of what's new"
+git push --tags
+```
+
+**What happens automatically:**
+
+1. **GitHub Actions** detects the `v*` tag push
+2. **Builds** the Docker image with `APP_VERSION=1.0.34` baked in as a build arg
+3. **Pushes** to GHCR as `:latest` + `:v1.0.34` + `:1.0` + `:sha-xxxxx`
+4. **Creates a GitHub Release** with auto-generated release notes from commits since last tag
+5. **All deployed nodes** detect the new version within their configured check interval (default 6h)
+6. **Admin sees** the pulsing update badge in the header → clicks through to System tab → copies the update commands
+
+> **Version priority chain:** The server resolves its running version as: `APP_VERSION` env var (set by CI) → `/app/.version` file → `package.json`. This means the git tag is always the source of truth in production.
+
+To deploy immediately (without waiting for auto-detection):
+```bash
+bash deploy.sh        # All nodes
+bash deploy.sh 1      # Mullum 2 only
+bash deploy.sh 3 4    # Mullum 1 + Review
+```
+
 ---
 
 ## 🪞 Mirroring, Failover & Merging Nodes
