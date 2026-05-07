@@ -1265,8 +1265,9 @@
         function renderAdminMembers() {
             const el = document.getElementById('admin-members-tree');
             if (!el || !adminDataCache) return;
-            const { members, profiles, health, reports } = adminDataCache;
+            const { members, profiles, health, reports, memberStats } = adminDataCache;
             const flags = health?.flags || [];
+            const stats = memberStats || {};
             
             // Build report counts per target pubkey
             const reportsByMember = {};
@@ -1311,6 +1312,27 @@
                 return unique;
             }
 
+            // Recursive branch stats aggregation
+            const branchStatsCache = {};
+            function computeBranchStats(pubkey) {
+                if (branchStatsCache[pubkey]) return branchStatsCache[pubkey];
+                const personal = stats[pubkey] || { posts: 0, messages: 0, deals: 0, volume: 0, cancelled: 0 };
+                const children = tree[pubkey] || [];
+                const agg = { ...personal, memberCount: 1 };
+                children.forEach(c => {
+                    const childAgg = computeBranchStats(c.publicKey);
+                    agg.posts += childAgg.posts;
+                    agg.messages += childAgg.messages;
+                    agg.deals += childAgg.deals;
+                    agg.volume += childAgg.volume;
+                    agg.cancelled += childAgg.cancelled;
+                    agg.memberCount += childAgg.memberCount;
+                });
+                agg.volume = Math.round(agg.volume * 100) / 100;
+                branchStatsCache[pubkey] = agg;
+                return agg;
+            }
+
             function buildNode(pubkey, depth = 0) {
                 const member = members.find(m => m.publicKey === pubkey);
                 if (!member) return '';
@@ -1334,6 +1356,37 @@
                     reportPill = `<span style="background:#ef4444;color:#fff;font-size:0.65rem;padding:0.1rem 0.4rem;border-radius:12px;margin-left:0.3rem;font-weight:700;" title="${memberReportCount} pending report${memberReportCount > 1 ? 's' : ''}">🚩 ${memberReportCount}</span>`;
                 }
 
+                // Personal stat chips (compact inline indicators)
+                const s = stats[pubkey] || { posts: 0, messages: 0, deals: 0, volume: 0, cancelled: 0 };
+                let chipHtml = '<span style="display:inline-flex;gap:3px;margin-left:0.4rem;vertical-align:middle;">';
+                if (s.posts > 0) chipHtml += `<span class="stat-chip posts" title="${s.posts} active posts">📦${s.posts}</span>`;
+                if (s.messages > 0) chipHtml += `<span class="stat-chip msgs" title="${s.messages} messages sent">💬${s.messages}</span>`;
+                if (s.deals > 0) chipHtml += `<span class="stat-chip deals" title="${s.deals} completed deals · Ʀ${s.volume} volume">🤝${s.deals}</span>`;
+                if (s.cancelled > 0) chipHtml += `<span class="stat-chip cancelled" title="${s.cancelled} cancelled escrows">🚫${s.cancelled}</span>`;
+                chipHtml += '</span>';
+
+                // Branch stats card (expandable)
+                const branchStats = computeBranchStats(pubkey);
+                const hasBranch = children.length > 0;
+                const statsCardId = `stats-${pubkey.slice(0,12)}`;
+                let statsBtn = '';
+                let statsCard = '';
+                if (hasBranch || s.deals > 0 || s.posts > 0) {
+                    statsBtn = `<button class="btn btn-sm btn-outline" onclick="event.preventDefault();event.stopPropagation();const c=document.getElementById('${statsCardId}');c.style.display=c.style.display==='none'?'grid':'none';" title="Toggle stats" style="padding:2px 6px;font-size:0.65rem;">📊</button>`;
+                    statsCard = `<div id="${statsCardId}" class="stats-card" style="display:none;">
+                        <div class="stat-row"><span class="label">📦 Posts</span><span class="value">${s.posts}</span></div>
+                        <div class="stat-row"><span class="label">💬 Messages</span><span class="value">${s.messages}</span></div>
+                        <div class="stat-row"><span class="label">🤝 Deals</span><span class="value">${s.deals}</span></div>
+                        <div class="stat-row"><span class="label">💰 Volume</span><span class="value">Ʀ${s.volume}</span></div>
+                        <div class="stat-row"><span class="label">🚫 Cancelled</span><span class="value">${s.cancelled}</span></div>
+                        ${hasBranch ? `
+                        <div class="stat-row full-width" style="background:#0f172a;border:1px solid #334155;margin-top:0.2rem;">
+                            <span class="label" style="color:#60a5fa;">🌳 Branch (${branchStats.memberCount} members)</span>
+                            <span class="value" style="color:#60a5fa;">📦${branchStats.posts} 💬${branchStats.messages} 🤝${branchStats.deals} 💰Ʀ${branchStats.volume}</span>
+                        </div>` : ''}
+                    </div>`;
+                }
+
                 const childrenHtml = children.map(c => buildNode(c.publicKey, depth + 1)).join('');
                 const hasChildren = children.length > 0;
                 
@@ -1343,10 +1396,11 @@
                             <div style="display:inline-flex; width: calc(100% - 20px); justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; vertical-align: top;">
                                 <div>
                                     <strong style="font-size:0.85rem;color:${isPruned ? '#64748b' : isActive ? '#f8fafc' : '#f59e0b'}">${isPruned ? '🗑️ ' : !isActive ? '⏸️ ' : ''}${member.callsign} <span style="font-size:0.6rem;font-family:monospace;color:#475569;">(${pubkey.substring(0,8)})</span></strong>
-                                    ${flagPill}${reportPill}
+                                    ${flagPill}${reportPill}${chipHtml}
                                     <div style="font-size:0.7rem;color:#94a3b8;">Active: ${profile?.lastActiveAt ? new Date(profile.lastActiveAt).toLocaleString() : 'Never'}</div>
                                 </div>
                                 <div style="display:flex;gap:0.3rem;align-items:center;">
+                                    ${statsBtn}
                                     <button class="btn btn-sm btn-outline" onclick="event.preventDefault(); viewMemberPosts('${pubkey}')" title="View posts by this member" style="padding:2px 6px;font-size:0.65rem;">📦 Posts</button>
                                     ${!isGenesis && !isPruned ? `<button class="btn btn-sm ${isActive?'btn-outline':'btn-primary'}" onclick="event.preventDefault(); adminAction('/users/${pubkey}/status', {status:'${isActive?'disabled':'active'}'})">${isActive?'Pause':'Resume'}</button>` : ''}
                                     ${!isGenesis && !isPruned ? `<button class="btn btn-sm btn-danger" onclick="event.preventDefault(); adminAction('/users/${pubkey}/prune')">Prune User</button>` : ''}
@@ -1355,6 +1409,7 @@
                                 </div>
                             </div>
                         </summary>
+                        ${statsCard}
                         <div>
                             ${childrenHtml}
                         </div>
@@ -1602,6 +1657,48 @@
         });
 
 
+
+        // ======================== DATABASE BACKUP ========================
+        async function downloadBackup() {
+            if (!authToken) return;
+            const btn = document.getElementById('btn-backup');
+            const statusEl = document.getElementById('backup-status');
+            btn.disabled = true;
+            btn.textContent = '⏳ Creating backup...';
+            statusEl.textContent = '';
+            try {
+                const res = await fetch('/api/local/admin/backup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken })
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+                    throw new Error(err.error || `HTTP ${res.status}`);
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const disposition = res.headers.get('Content-Disposition') || '';
+                const match = disposition.match(/filename="(.+?)"/);
+                a.download = match ? match[1] : `beanpool-backup-${new Date().toISOString().slice(0,19).replace(/[:.]/g,'-')}.tar.gz`;
+                a.href = url;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                statusEl.textContent = '✅ Backup downloaded';
+                statusEl.style.color = '#10b981';
+            } catch (e) {
+                statusEl.textContent = '❌ ' + e.message;
+                statusEl.style.color = '#ef4444';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '💾 Download Backup';
+            }
+        }
+        // Make it globally accessible for onclick
+        window.downloadBackup = downloadBackup;
 
         // ======================== INIT ========================
         async function init() {

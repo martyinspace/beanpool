@@ -417,6 +417,45 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.6; }
         }
+
+        /* Audit tree stat chips */
+        .stat-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            font-size: 0.6rem;
+            padding: 1px 5px;
+            border-radius: 8px;
+            font-weight: 600;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+        .stat-chip.posts { background: #1e3a5f; color: #60a5fa; }
+        .stat-chip.msgs { background: #1e3a3e; color: #34d399; }
+        .stat-chip.deals { background: #3b2f1e; color: #fbbf24; }
+        .stat-chip.cancelled { background: #3b1e1e; color: #f87171; }
+
+        .stats-card {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            padding: 0.6rem;
+            margin: 0.4rem 0 0.2rem 0;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.3rem;
+            font-size: 0.7rem;
+        }
+        .stats-card .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            background: #1e293b;
+        }
+        .stats-card .stat-row .label { color: #94a3b8; }
+        .stats-card .stat-row .value { color: #f8fafc; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .stats-card .stat-row.full-width { grid-column: 1 / -1; }
     </style>
 </head>
 
@@ -993,6 +1032,20 @@
                 </div>
                 <button class="btn btn-outline btn-full" id="btn-send-announcement" style="margin-bottom:0.75rem;">Broadcast Announcement</button>
                 <div class="status-msg" id="announce-status"></div>
+            </div>
+
+            <!-- Database Backup -->
+            <div class="glass" data-tab="system">
+                <h3>💾 Database Backup</h3>
+                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.75rem;">
+                    Download a consistent snapshot of your node's database and configuration. 
+                    The backup includes <code>state.db</code> (all members, posts, ledger, messages) 
+                    and <code>node_config.json</code> in a compressed archive.
+                </p>
+                <button class="btn btn-primary btn-full" id="btn-backup" onclick="downloadBackup()">
+                    💾 Download Backup
+                </button>
+                <div class="status-msg" id="backup-status"></div>
             </div>
 
             <!-- Reset Node -->

@@ -63,7 +63,8 @@ import {
     adminRejectProject,
     getNodeConfig, updateNodeConfig, getDirectoryInfo, exportLedgerAudit,
     registerPushToken, removePushToken,
-    getMemberPreferences, setMemberPreferences
+    getMemberPreferences, setMemberPreferences,
+    getMemberStats
 } from './state-engine.js';
 import { getCrowdfundProjects, getCrowdfundProject, createCrowdfundProject, updateCrowdfundProject, pledgeToProject, deleteCrowdfundProject } from './db/db.js';
 import { initDirectoryPublisher, pushDirectoryNow } from './directory-publisher.js';
@@ -454,6 +455,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             health: getCommunityHealth(),
             reports: getReports(),
             reportCount: getReportCount(),
+            memberStats: getMemberStats(),
         };
     });
 
@@ -522,6 +524,63 @@ export async function startHttpsServer(port: number): Promise<void> {
         }
         const deleted = adminBulkDeletePosts(postIds);
         ctx.body = { success: true, deleted };
+    });
+
+    // ======================== DATABASE BACKUP ========================
+
+    router.post('/api/local/admin/backup', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        const { execSync } = await import('node:child_process');
+        const DATA_DIR = process.env.BEANPOOL_DATA_DIR || path.join(process.cwd(), 'data');
+        const tmpDir = path.join(DATA_DIR, '.backup-tmp');
+        const tarPath = path.join(DATA_DIR, '.backup-tmp.tar.gz');
+
+        try {
+            // Clean up any previous temp files
+            if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true });
+            if (fs.existsSync(tarPath)) fs.unlinkSync(tarPath);
+            fs.mkdirSync(tmpDir, { recursive: true });
+
+            // Use SQLite VACUUM INTO for a consistent snapshot (no WAL corruption risk)
+            const snapshotPath = path.join(tmpDir, 'state.db');
+            const { db: rawDb } = await import('./db/db.js');
+            rawDb.exec(`VACUUM INTO '${snapshotPath.replace(/'/g, "''")}'`);
+
+            // Copy node_config.json if it exists
+            const configPath = path.join(DATA_DIR, 'node_config.json');
+            if (fs.existsSync(configPath)) {
+                fs.copyFileSync(configPath, path.join(tmpDir, 'node_config.json'));
+            } else {
+                // Export config from DB
+                const config = getLocalConfig();
+                fs.writeFileSync(path.join(tmpDir, 'node_config.json'), JSON.stringify(config, null, 2));
+            }
+
+            // Create tar.gz
+            execSync(`tar -czf "${tarPath}" -C "${tmpDir}" .`);
+
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            ctx.set('Content-Type', 'application/gzip');
+            ctx.set('Content-Disposition', `attachment; filename="beanpool-backup-${timestamp}.tar.gz"`);
+            ctx.body = fs.createReadStream(tarPath);
+
+            // Clean up after stream finishes
+            ctx.res.on('finish', () => {
+                try {
+                    if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true });
+                    if (fs.existsSync(tarPath)) fs.unlinkSync(tarPath);
+                } catch { /* ignore cleanup errors */ }
+            });
+        } catch (e: any) {
+            console.error('Backup failed:', e);
+            // Clean up on error
+            try {
+                if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true });
+                if (fs.existsSync(tarPath)) fs.unlinkSync(tarPath);
+            } catch { /* ignore */ }
+            ctx.status = 500;
+            ctx.body = { error: 'Backup failed: ' + e.message };
+        }
     });
 
     router.post('/api/local/admin/inbox', async (ctx) => {

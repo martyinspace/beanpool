@@ -1846,6 +1846,57 @@ export function getReportCount(): number {
     return (db.prepare("SELECT COUNT(*) as c FROM abuse_reports WHERE status = 'pending' OR status IS NULL").get() as any).c;
 }
 
+/**
+ * Aggregated per-member stats for the Audit tree.
+ * Returns one row per member with post counts, message counts, trade volume, and escrow cancellation counts.
+ * Single-pass SQL — no per-member queries needed on the frontend.
+ */
+export function getMemberStats(): Record<string, { posts: number; messages: number; deals: number; volume: number; cancelled: number }> {
+    const rows = db.prepare(`
+        SELECT m.public_key,
+            COALESCE(p.post_count, 0) as post_count,
+            COALESCE(msg.msg_count, 0) as msg_count,
+            COALESCE(d.deal_count, 0) as deal_count,
+            COALESCE(d.volume, 0) as volume,
+            COALESCE(d.cancelled_count, 0) as cancelled_count
+        FROM members m
+        LEFT JOIN (
+            SELECT author_pubkey, COUNT(*) as post_count 
+            FROM posts WHERE active = 1 
+            GROUP BY author_pubkey
+        ) p ON m.public_key = p.author_pubkey
+        LEFT JOIN (
+            SELECT author_pubkey, COUNT(*) as msg_count 
+            FROM messages WHERE author_pubkey != 'SYSTEM' 
+            GROUP BY author_pubkey
+        ) msg ON m.public_key = msg.author_pubkey
+        LEFT JOIN (
+            SELECT pubkey,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as deal_count,
+                SUM(CASE WHEN status = 'completed' THEN credits ELSE 0 END) as volume,
+                SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_count
+            FROM (
+                SELECT buyer_pubkey as pubkey, status, credits FROM marketplace_transactions
+                UNION ALL
+                SELECT seller_pubkey as pubkey, status, credits FROM marketplace_transactions
+            ) combined
+            GROUP BY pubkey
+        ) d ON m.public_key = d.pubkey
+    `).all() as any[];
+
+    const stats: Record<string, { posts: number; messages: number; deals: number; volume: number; cancelled: number }> = {};
+    for (const r of rows) {
+        stats[r.public_key] = {
+            posts: r.post_count,
+            messages: r.msg_count,
+            deals: r.deal_count,
+            volume: Math.round(r.volume * 100) / 100,
+            cancelled: r.cancelled_count
+        };
+    }
+    return stats;
+}
+
 export function dismissReport(reportId: string): boolean {
     const res = db.prepare("UPDATE abuse_reports SET status = 'reviewed' WHERE id = ?").run(reportId);
     return res.changes > 0;
