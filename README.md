@@ -256,6 +256,7 @@ All endpoints are served on port 8443 (HTTPS):
 | `/api/ratings/:publicKey` | GET | Get ratings and average for a member |
 | `/api/reports` | POST | Submit an abuse report |
 | `/api/admin/reports` | POST | List all abuse reports (admin auth required) |
+| `/api/local/admin/backup` | POST | Stream a complete `state.db` snapshot and config as `.tar.gz` |
 | `/api/messages/conversation` | POST | Create a DM or group conversation |
 | `/api/messages/send` | POST | Send a message |
 | `/api/messages/conversations/:pubkey` | GET | List conversations for a member |
@@ -373,7 +374,7 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ Community health dashboard (admin settings)
 - ✅ Moderation Centre — reported posts, health-flagged wash trading, batch operations, member audit
 - ✅ Software update notifications — Docker Desktop-style header badge, auto-check with configurable interval
-- ✅ REST APIs (45+ endpoints) including friends, ratings, reports, admin thresholds, version check, push tokens, escrow lifecycle
+- ✅ REST APIs (46+ endpoints) including friends, ratings, reports, admin thresholds, version check, push tokens, escrow lifecycle
 - ✅ WebSocket real-time state feed
 - ✅ Federation protocol — peer/mirror/blocked trust levels
 - ✅ Cross-community marketplace browsing (Connected Communities UI)

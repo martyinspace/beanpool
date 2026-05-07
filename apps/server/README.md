@@ -12,7 +12,7 @@
 | `src/index.ts` | Main boot orchestrator — 5-stage startup |
 | `src/tls.ts` | **TLS certificate management** — LE via acme-client + self-signed fallback |
 | `src/state-engine.ts` | In-memory state: members, posts, profiles, conversations, messages, invites, ledger, ratings, reports |
-| `src/https-server.ts` | 45+ REST API endpoints: community, marketplace, friends, ratings, reports, admin, version/update, push notifications, escrow lifecycle |
+| `src/https-server.ts` | 46+ REST API endpoints: community, marketplace, friends, ratings, reports, admin, version/update, push notifications, escrow lifecycle, database backup |
 | `src/http-server.ts` | HTTP endpoint (port 80) for Let's Encrypt validation, LAN QR Poster, and HTTPS redirect |
 | `src/p2p.ts` | Core libp2p node instantiation, bootstrap logic, and gossipsub |
 | `src/connector-manager.ts` | Sovereign connectors with federation trust levels (peer/mirror/blocked) |
@@ -28,8 +28,8 @@
 | `src/db/db.ts` | SQLite database layer — `better-sqlite3` with WAL mode, self-healing schema migrations |
 | `src/db/schema.sql` | Database schema — members, posts, transactions, conversations, messages, ratings, reports |
 | `src/db/synonyms.json` | FTS5 synonym mapping for marketplace full-text search |
-| `static/settings.html` | Admin settings page — 8-tab layout (Identity, Network, Invites, System, Moderation, Audit, Commons, Inbox & Comms) |
-| `static/settings.js` | Admin settings JavaScript — login, tabs, update checks, moderation centre, health dashboard |
+| `static/settings.html` | Admin settings page — 8-tab layout (Identity, Network, Invites, System, Moderation, Audit, Commons, Inbox & Comms) with Database Backup |
+| `static/settings.js` | Admin settings JavaScript — login, tabs, update checks, moderation centre, health dashboard, branch stats |
 
 ---
 
