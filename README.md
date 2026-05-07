@@ -109,8 +109,25 @@ Mutual credit balance and transaction history:
 Admin insights in Settings page:
 - **Stats grid** — members, tree depth, 7/30-day transactions, active/inactive counts, commons balance
 - **Widest branch** — who has the largest invite tree
-- **Flags** — automated health alerts
+- **Flags** — automated health alerts (wash trading detection, rapid circulation, zero-balance)
 - **Refreshable** with one click
+
+### 🛡️ Moderation Centre
+Comprehensive admin dashboard for node safety:
+- **Reported Posts** — review abuse reports with author profiles, reason, and one-click navigation
+- **Health-Flagged Posts** — automated wash-trading detection (self-dealing, circular trading, rapid reciprocation)
+- **Batch Operations** — select multiple posts and bulk-remove with escrow-safe refunds
+- **Member Audit** — search and browse all community members with post counts and join dates
+- **Client-side pagination** — 25 posts per page for nodes with thousands of listings
+- **Inbox member cap** — "Show all members" toggle capped at 50 to prevent DOM overflow
+
+### 🔄 Software Update Notifications
+Docker Desktop-style update detection built into each node:
+- **Header badge** — pulsing blue "v1.0.34 available" link next to version number
+- **Update panel** — version comparison, release notes, "How to Update" code block with copy button
+- **Auto-check** — configurable interval (Hourly / Every 6 hours / Daily / Weekly)
+- **Server-side polling** — background timer checks GitHub Releases API every 6 hours
+- **Notification-only** — admin runs `docker compose pull && docker compose up -d` manually
 
 ### 🔗 Sovereign Connectors + Federation
 Node-to-node trust relationships with 3 levels:
@@ -154,15 +171,16 @@ Install banner with device-specific instructions:
 beanpool/
 ├── apps/
 │   ├── server/        # BeanPool Node — gateway, PWA host, REST API, libp2p mesh
+│   │   └── static/    # Admin settings page (settings.html + settings.js)
 │   ├── pwa/           # PWA — map, marketplace (13 categories), messaging, ledger (Vite + React + Leaflet)
 │   └── native/        # Native App — 7-tab mobile client (Expo + React Native), SQLite, background sync
 ├── packages/
 │   └── beanpool-core/ # Shared protocol: Ledger, Merkle, Passport, Governance
 ├── branding/          # Bean icon assets (16x16 → 512x512)
 ├── docs/              # Node admin setup guide
-├── Dockerfile         # Multi-stage build for BeanPool Node container
+├── Dockerfile         # Multi-stage build (accepts APP_VERSION build arg from CI)
 ├── docker-compose.yml # Docker orchestration
-└── deploy.sh          # Deploy to all nodes via SSH (Azure + Debian)
+└── deploy.sh          # Deploy to all nodes via SSH — pulls pre-built GHCR image
 ```
 
 ---
@@ -174,8 +192,19 @@ beanpool/
 ```bash
 git clone https://github.com/martyinspace/beanpool.git
 cd beanpool
-docker compose -p beanpool up -d --build
+docker compose pull
+docker compose -p beanpool up -d
 ```
+
+#### Updating an Existing Node
+
+```bash
+cd ~/beanpool
+docker compose pull
+docker compose up -d
+```
+
+> Your data is preserved in `./data/` — only the application container is replaced.
 
 - **PWA:** `https://localhost:8443/` — community map, marketplace, messaging, ledger
 - **Landing Page:** `http://localhost:8080/` — community welcome hub (3 paths: join, transfer, recover)
@@ -226,7 +255,7 @@ All endpoints are served on port 8443 (HTTPS):
 | `/api/ratings` | POST | Submit or update a bean rating |
 | `/api/ratings/:publicKey` | GET | Get ratings and average for a member |
 | `/api/reports` | POST | Submit an abuse report |
-| `/api/admin/reports` | GET | List all abuse reports (admin auth required) |
+| `/api/admin/reports` | POST | List all abuse reports (admin auth required) |
 | `/api/messages/conversation` | POST | Create a DM or group conversation |
 | `/api/messages/send` | POST | Send a message |
 | `/api/messages/conversations/:pubkey` | GET | List conversations for a member |
@@ -237,6 +266,10 @@ All endpoints are served on port 8443 (HTTPS):
 | `/api/friends/guardian` | POST | Set/unset a friend as recovery guardian |
 | `/api/members` | GET | List all community members |
 | `/api/local/community-info` | GET | Community name, admin email/phone (public) |
+| `/api/version` | GET | Current version, build info, cached update status |
+| `/api/admin/check-update` | POST | Check GitHub for newer releases (admin auth) |
+| `/api/admin/thresholds` | POST | Update protocol thresholds (admin auth) |
+| `/api/admin/thresholds/get` | POST | Read current thresholds (admin auth) |
 | `/ws` | WebSocket | Real-time state feed |
 
 ---
@@ -299,8 +332,8 @@ All endpoints are served on port 8443 (HTTPS):
 |------|---------|
 | `docker-compose.yml` | Port mappings, env vars, volume mounts |
 | `.env` | Cloudflare + admin secrets (**gitignored**) |
-| `Dockerfile` | Multi-stage build: core → PWA → BeanPool Node |
-| `deploy.sh` | Deploy script — Azure + Debian nodes, per-node SSH user |
+| `Dockerfile` | Multi-stage build: core → PWA → BeanPool Node (accepts `APP_VERSION` build arg) |
+| `deploy.sh` | Deploy script — pulls pre-built GHCR image to Azure + Debian nodes |
 | `turbo.json` | Turborepo build pipeline |
 | `pnpm-workspace.yaml` | Monorepo workspace config |
 
@@ -325,7 +358,9 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ PWA with map, marketplace, messaging, people, ledger
 - ✅ Post detail view with author profile, photos, bean rating, Message/Rate/Report actions
 - ✅ Community health dashboard (admin settings)
-- ✅ REST APIs (30+ endpoints) including friends, ratings, reports
+- ✅ Moderation Centre — reported posts, health-flagged wash trading, batch operations, member audit
+- ✅ Software update notifications — Docker Desktop-style header badge, auto-check with configurable interval
+- ✅ REST APIs (35+ endpoints) including friends, ratings, reports, admin thresholds, version check
 - ✅ WebSocket real-time state feed
 - ✅ Federation protocol — peer/mirror/blocked trust levels
 - ✅ Cross-community marketplace browsing (Connected Communities UI)
@@ -336,6 +371,7 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ Node admin setup guide with LE and no-domain instructions
 - ✅ Database Migration (SQLite) — replacing JSON engine with `better-sqlite3` for production scalability
 - ✅ Cryptographically signed APIs — Ed25519 client-side signatures on all POST requests to prevent spoofing
+- ✅ CI/CD pipeline — GitHub Actions auto-builds Docker image, auto-creates Releases from git tags
 - ✅ Native App (Expo) — 7-tab React Native companion app: Map, Projects, Market (14 cats), Chat, People, Ledger, Settings
 - ✅ Native SQLite + SecureStore — local persistence and sovereign identity on device
 - ✅ Community Projects — native-only crowdfunding tab with progress tracking
@@ -351,4 +387,4 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 
 [MIT](LICENSE)
 
-_Last updated: 2026-04-01 00:45 AEDT_
+_Last updated: 2026-05-08 AEST_

@@ -29,7 +29,7 @@
 | `src/pages/ProfilePage.tsx` | Editable profile — avatar (camera/gallery), callsign, bio, contact |
 | `src/components/MarketplaceCard.tsx` | Post tile with primary photo + bean rating |
 | `src/components/RadiusPickerPage.tsx` | Facebook-style map radius picker (Leaflet circle + slider) |
-| `src/lib/api.ts` | Typed client for all 30+ REST endpoints (incl. friends, guardians, members) |
+| `src/lib/api.ts` | Typed client for all 35+ REST endpoints (incl. friends, guardians, members, version) |
 | `src/lib/identity.ts` | Ed25519 identity — mnemonic-derived keys, IndexedDB persistence |
 | `src/lib/mnemonic.ts` | BIP-39 mnemonic generation + WebCrypto PKCS8 key derivation |
 | `src/lib/e2e-crypto.ts` | Plaintext v1 encoding (E2E-ready data model) |

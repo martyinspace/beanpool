@@ -1,6 +1,6 @@
 # 🗺️ BeanPool Roadmap
 
-> Planned features and future work. Updated: 2026-04-01
+> Planned features and future work. Updated: 2026-05-08
 
 ---
 
@@ -18,6 +18,11 @@
 - ✅ **Community Projects Tab** — native-only crowdfunding feature with progress tracking, atomic editing, and destructive rollback for escrow.
 - ✅ **Marketplace Deals Hub** — Sync'd 1-step (Offers) and 3-step (Needs) atomic escrow handshake logic across both Native and PWA.
 - ✅ **Smart CRM Inbox** — Converted messaging interfaces natively and functionally into transactional Deal tracking hubs (All/Transactions/Direct) with inline Object Attribution identifying post title and status parameters.
+- ✅ **Moderation Centre** — Admin dashboard with reported posts, health-flagged wash trading (self-dealing, circular, rapid reciprocation), batch post operations, and member audit with client-side pagination (25/page).
+- ✅ **Software Update Notifications** — Docker Desktop-style header badge, server-side GitHub polling, configurable auto-check interval (Hourly/6h/Daily/Weekly), copy-to-clipboard update instructions.
+- ✅ **CI/CD Release Pipeline** — GitHub Actions auto-builds Docker images on `v*` tags, auto-creates GitHub Releases, injects version from git tag (no manual package.json bumps).
+- ✅ **Deploy Model: Pull vs Build** — `deploy.sh` switched from `docker compose build` to `docker compose pull`, eliminating 2-5 min server-side compilation.
+- ✅ **Admin Settings Extraction** — Moved all settings JS from inline `<script>` to standalone `static/settings.js` for maintainability.
 ---
 
 ## Identity & Security

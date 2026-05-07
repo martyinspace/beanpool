@@ -12,7 +12,7 @@
 | `src/index.ts` | Main boot orchestrator — 5-stage startup |
 | `src/tls.ts` | **TLS certificate management** — LE via acme-client + self-signed fallback |
 | `src/state-engine.ts` | In-memory state: members, posts, profiles, conversations, messages, invites, ledger, ratings, reports |
-| `src/https-server.ts` | 30+ REST API endpoints: community, marketplace, friends, ratings, reports, admin |
+| `src/https-server.ts` | 35+ REST API endpoints: community, marketplace, friends, ratings, reports, admin, version/update |
 | `src/http-server.ts` | HTTP endpoint (port 80) for Let's Encrypt validation, LAN QR Poster, and HTTPS redirect |
 | `src/p2p.ts` | Core libp2p node instantiation, bootstrap logic, and gossipsub |
 | `src/connector-manager.ts` | Sovereign connectors with federation trust levels (peer/mirror/blocked) |
@@ -24,7 +24,8 @@
 | `src/dns-shim.ts` | Captive portal DNS responder to resolve `beanpool.local` locally |
 | `src/genesis.ts` | Initializes node configuration and creates the immutable genesis block |
 | `src/seed-organic.ts` | Test script to seed the database with mock organic marketplace posts |
-| `static/settings.html` | Admin settings page — 4-tab layout, health dashboard, abuse reports, connectors |
+| `static/settings.html` | Admin settings page — 8-tab layout (Identity, Network, Invites, System, Moderation, Audit, Commons, Inbox & Comms) |
+| `static/settings.js` | Admin settings JavaScript — login, tabs, update checks, moderation centre, health dashboard |
 
 ---
 
@@ -230,6 +231,22 @@ Let's Encrypt allows **5 duplicate certificates per domain per week**. If you hi
 
 #### Backups
 All persistent data is in `./data/`. Copy this folder to natively backup all SQLite databases.
+
+#### Software Updates
+Your node automatically checks GitHub for new releases every 6 hours. When an update is available:
+- A pulsing badge appears in the admin header next to the version number
+- The System tab shows version comparison and release notes
+- To update, run on the Docker host:
+
+```bash
+cd ~/BeanPool
+docker compose pull
+docker compose up -d
+```
+
+> Your data is preserved in `./data/` — only the application container is replaced.
+
+You can configure the auto-check interval (Hourly / Every 6 hours / Daily / Weekly) in Settings → System tab.
 
 ---
 

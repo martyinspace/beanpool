@@ -147,4 +147,4 @@ npx expo start                      # Native dev client
 
 ---
 
-_Last updated: 2026-03-24 21:15 AEDT_
+_Last updated: 2026-05-08 AEST_

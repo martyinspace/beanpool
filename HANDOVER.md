@@ -4,9 +4,9 @@
 > **Read this first** — then see `index.md` for a full documentation map.
 
 ---
-## Current State (2026-04-15)
+## Current State (2026-05-08)
 
-**BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🫘 bean reputation system, abuse reporting, community health dashboard, and federation protocol — deployed on **3 sovereign nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity.
+**BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🪶 bean reputation system, abuse reporting, **moderation centre** (batch post management, wash-trading detection, member audit), **update notifications** (Docker Desktop-style header badge with auto-check), community health dashboard, and federation protocol — deployed on **3 sovereign nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity.
 
 ### What's Working
 - ✅ **Dynamic Map Root** — Leaflet map defaults coordinate center to the node's `serviceRadius` config (e.g. Mullumbimby) instead of hardcoding, and handles location cleanly without async ghost-pin drops.
@@ -50,6 +50,12 @@
 - ✅ **Native Identity Flow** — sovereign identity creation and 12-word recovery via Expo SecureStore
 - ✅ **Community Projects Tab** — native-only crowdfunding feature with progress bars and proposal creation
 - ✅ **Neon-Vine Tab Bar** — branded tab navigation with artwork background and dark overlay
+- ✅ **Moderation Centre** — Admin dashboard with reported posts, health-flagged wash trading (self-dealing, circular, rapid reciprocation), batch operations (multi-select + bulk remove with escrow refunds), and member audit. Client-side pagination (25/page) for large nodes.
+- ✅ **Software Update Notifications** — Docker Desktop-style system. Server polls GitHub Releases API every 6h, caches result. `/api/version` includes `updateAvailable` field. Header badge pulses "v1.0.34 available" and links to update panel with copy-to-clipboard instructions (`docker compose pull && docker compose up -d`). Configurable auto-check interval (Hourly/6h/Daily/Weekly).
+- ✅ **Settings.js Extraction** — All admin settings JS extracted from inline `<script>` to standalone `static/settings.js` for maintainability.
+- ✅ **CI/CD Release Pipeline** — `docker-publish.yml` triggers on `v*` tags, extracts version from git tag (no manual package.json bumps), tags GHCR image with semver, auto-creates GitHub Releases.
+- ✅ **Deploy Model Change** — `deploy.sh` now runs `docker compose pull` instead of `docker compose build`, eliminating 2-5 min server-side compilation per deploy.
+- ✅ **Version Management** — `getVersion()` priority chain: `APP_VERSION` env var (from CI) → `.version` file → `package.json`. Eliminates forgotten version bumps.
 
 ---
 
@@ -64,7 +70,7 @@
 
 ### Why Deploys Are Dangerous
 
-1. `deploy.sh` stops the container, re-extracts code, pulls a new image, and starts a fresh container
+1. `deploy.sh` stops the container, re-extracts code, pulls a new GHCR image, and starts a fresh container
 2. The fresh container has no cached LE cert, so it calls `requestLetsEncryptCert()` on boot
 3. If a previous deploy already obtained a cert AND then failed (or you deploy again quickly), the ACME account is different and LE rate-limits the domain
 4. The `acme-client` library **silently waits** for the `retry-after` header (60-90 min) before the 5-minute timeout catches it
@@ -200,4 +206,4 @@ gh run list --limit 3
 
 ---
 
-_Last updated: 2026-04-15_
+_Last updated: 2026-05-08_
