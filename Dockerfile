@@ -29,8 +29,8 @@ COPY . .
 #   3. Server (tsc → outputs to apps/server/dist/)
 RUN cd packages/beanpool-core && pnpm run build
 RUN cd apps/pwa && pnpm run build
-# PWA build clears apps/server/public/ (emptyOutDir), so copy settings.html from static/
-COPY apps/server/static/settings.html /app/apps/server/public/settings.html
+# PWA build clears apps/server/public/ (emptyOutDir), so copy settings files from static/
+COPY apps/server/static/* /app/apps/server/public/
 RUN cd apps/server && pnpm run build
 
 # Prune to production-only dependencies
