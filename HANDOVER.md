@@ -41,8 +41,10 @@
 - ✅ **Let's Encrypt Auto-TLS** — DNS-01 challenge via Cloudflare API (acme-client v5)
 - ✅ **3 Live Nodes** — Mullum 2 (Azure AU), Mullum 1 (bare metal LAN), Review (Azure US)
 - ✅ **Node Admin Setup Guide** — comprehensive docs for new node operators
-- ✅ **Database Migration (SQLite)** — replaced JSON engine with `better-sqlite3` for robust relational validation and paging limits
+- ✅ **Database Migration (SQLite)** — replaced JSON engine with `better-sqlite3` with WAL mode and self-healing schema migrations
+- ✅ **FTS5 Full-Text Search** — marketplace search with synonym mapping (`synonyms.json`)
 - ✅ **Cryptographically signed APIs** — Ed25519 client-side signatures on all POST requests preventing spoofing
+- ✅ **Directory Publisher** — nodes push metadata to beanpool.org Supabase global directory (`directory-publisher.ts`)
 - ✅ **Native App (Expo)** — 7-tab React Native companion app with PWA parity: Map, Projects, Market (14 categories), Chat, People, Ledger, Settings
 - ✅ **Native SQLite Persistence** — `expo-sqlite` for local data storage (posts, projects, messages, ledger)
 - ✅ **Native Background Sync** — SQLite `dbSyncLock` Mutex Queue safely handling parallel `applyDelta` and foreground Map/Inbox requests without `database is locked` panics.
@@ -50,6 +52,13 @@
 - ✅ **Native Identity Flow** — sovereign identity creation and 12-word recovery via Expo SecureStore
 - ✅ **Community Projects Tab** — native-only crowdfunding feature with progress bars and proposal creation
 - ✅ **Neon-Vine Tab Bar** — branded tab navigation with artwork background and dark overlay
+- ✅ **Push Notifications** — Expo push token registration, DM/marketplace deal alerts, per-member notification preferences. Server stores tokens and dispatches notifications on message/deal events.
+- ✅ **Guest Mode** — multi-node onboarding with `/api/community/membership/:publicKey` probe. Guest indicators in native `GlobalHeader` + `SyncStatus` and PWA header/sync status.
+- ✅ **Map Phase 6** — pin clustering for dense areas, modern markers with category icons, elder glow effects for founding members. Implemented on both PWA (Leaflet) and Native (WebView).
+- ✅ **Marketplace UX Modernization** — horizontal category chips (`CategoryPickerSheet`/`CategoryPickerModal`), author trust badges (`PostAuthorTrust`), active deals tracking (`MyDealsSheet`/`MyDealsModal`). Both PWA and Native.
+- ✅ **Community Search** — search and infinite scroll on the People/Community member list (native).
+- ✅ **Escrow Demurrage Exemption** — `escrow_*` synthetic wallets exempt from circulation decay, with DB persistence fix.
+- ✅ **iOS Crypto Polyfill** — SHA-512 and Ed25519 signing polyfilled for iOS via `expo-crypto`.
 - ✅ **Moderation Centre** — Admin dashboard with reported posts, health-flagged wash trading (self-dealing, circular, rapid reciprocation), batch operations (multi-select + bulk remove with escrow refunds), and member audit. Client-side pagination (25/page) for large nodes.
 - ✅ **Software Update Notifications** — Docker Desktop-style system. Server polls GitHub Releases API every 6h, caches result. `/api/version` includes `updateAvailable` field. Header badge pulses "v1.0.34 available" and links to update panel with copy-to-clipboard instructions (`docker compose pull && docker compose up -d`). Configurable auto-check interval (Hourly/6h/Daily/Weekly).
 - ✅ **Settings.js Extraction** — All admin settings JS extracted from inline `<script>` to standalone `static/settings.js` for maintainability.

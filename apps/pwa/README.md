@@ -6,13 +6,14 @@
 
 ## 📱 Features
 
-- **Map:** Leaflet/OSM map with marketplace pins, dynamic root locations, and post form with photo upload.
-- **Marketplace:** 13-category Deals Hub with "My Market" segment controls, radius filters, and unread inbound request counters.
+- **Map:** Leaflet/OSM map with marketplace pins, dynamic root locations, pin clustering, and post form with photo upload.
+- **Marketplace:** 13-category Deals Hub with "My Market" segment controls, radius filters, MyDeals modal, category picker, trust badges, and unread inbound request counters.
 - **Messaging (Chat):** Direct messages and group chats representing Transactional CRM (smart mapping to parent marketplace posts).
-- **People:** Community browser, Friends, Invites (hierarchical code management), and Guardians.
-- **Ledger:** Mutual credit balances, raw transactions, and fund transfers.
+- **People:** Community browser with search + infinite scroll, Friends, Invites (hierarchical code management), and Guardians.
+- **Ledger:** Mutual credit balances, raw transactions, fund transfers, and CSV export.
 - **Profile:** Editable profiles with camera/gallery avatar uploads, callsigns, bios, and 3-tier visibility settings.
 - **Identity:** Deterministic Ed25519 identity generation and 12-word seed phrase recovery locally stored in IndexedDB.
+- **Guest Mode:** UI indicators when visiting a node you're not a member of (header badge + sync status).
 
 ---
 
@@ -29,7 +30,10 @@
 | `src/pages/ProfilePage.tsx` | Editable profile — avatar (camera/gallery), callsign, bio, contact |
 | `src/components/MarketplaceCard.tsx` | Post tile with primary photo + bean rating |
 | `src/components/RadiusPickerPage.tsx` | Facebook-style map radius picker (Leaflet circle + slider) |
-| `src/lib/api.ts` | Typed client for all 35+ REST endpoints (incl. friends, guardians, members, version) |
+| `src/components/CategoryPickerModal.tsx` | Modal for selecting marketplace categories |
+| `src/components/MyDealsModal.tsx` | Modal for viewing active marketplace deals (offers/needs in escrow) |
+| `src/components/PostAuthorTrust.tsx` | Trust badge display for post authors (ratings, join date) |
+| `src/lib/api.ts` | Typed client for all 45+ REST endpoints (incl. friends, guardians, members, push tokens, escrow) |
 | `src/lib/identity.ts` | Ed25519 identity — mnemonic-derived keys, IndexedDB persistence |
 | `src/lib/mnemonic.ts` | BIP-39 mnemonic generation + WebCrypto PKCS8 key derivation |
 | `src/lib/e2e-crypto.ts` | Plaintext v1 encoding (E2E-ready data model) |

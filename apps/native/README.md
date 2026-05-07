@@ -33,21 +33,25 @@ apps/native/
 │       ├── ledger.tsx           # 📊 Ledger — balance & transactions
 │       └── settings.tsx         # ⚙️ Settings — profile, node, identity
 ├── components/
-│   ├── GlobalHeader.tsx         # Shared header with branding
+│   ├── GlobalHeader.tsx         # Shared header with branding + guest mode indicator
 │   ├── Map.tsx                  # Native map stub (placeholder)
 │   ├── Map.web.tsx              # Web-only Leaflet map
 │   ├── MapPinTail.tsx           # Custom map marker with tail
-│   ├── SyncStatus.tsx           # Background sync status indicator
+│   ├── SyncStatus.tsx           # Background sync status indicator + guest mode badge
 │   ├── CurrencyDisplay.tsx      # Formatted display for Bean credits
 │   ├── RadiusPickerModal.tsx    # Modal for filtering by distance
-│   └── ReviewModal.tsx          # Modal for submitting and viewing ratings
+│   ├── ReviewModal.tsx          # Modal for submitting and viewing ratings
+│   ├── CategoryPickerSheet.tsx  # Bottom sheet for marketplace category selection
+│   ├── MyDealsSheet.tsx         # Bottom sheet for viewing active deals (offers/needs in escrow)
+│   └── PostAuthorTrust.tsx      # Trust badge display for post authors (ratings, join date)
 ├── services/
 │   ├── pillar-sync.ts           # Delta-only Merkle sync engine
-│   └── background-task.ts       # Expo BackgroundFetch registration
+│   ├── background-task.ts       # Expo BackgroundFetch registration
+│   └── push-notifications.ts    # Expo push notification registration + handler
 ├── utils/
-│   ├── db.ts                    # SQLite database (expo-sqlite)
+│   ├── db.ts                    # SQLite database (expo-sqlite) with FTS5 search
 │   ├── identity.ts              # Ed25519 keypair + BIP-39 mnemonic
-│   ├── crypto.ts                # Crypto utilities (SHA-256, signing)
+│   ├── crypto.ts                # Crypto utilities (SHA-256, SHA-512, Ed25519 signing) with iOS polyfill
 │   └── identity-transfer.ts     # Cross-device identity transfer
 └── assets/
     └── images/
@@ -71,6 +75,11 @@ apps/native/
 - **Sovereign Identity** — Ed25519 keypair from BIP-39 12-word mnemonic, stored in Expo SecureStore
 - **SQLite Persistence** — all posts, projects, messages, and ledger data stored locally via `expo-sqlite`
 - **14-Category Marketplace** — Food, Services, Labour, Tools, Goods, Housing, Transport, Education, Arts, Health, Care, Animals, Energy, General (PWA has 13; native adds Care ❤️)
+- **Marketplace UX Modernization** — horizontal category chips via `CategoryPickerSheet`, author trust badges (`PostAuthorTrust`), and active deals tracking (`MyDealsSheet`)
+- **Map Clustering (Phase 6)** — pin clustering for dense areas, modern markers with category icons, elder glow effects for founding members
+- **Push Notifications** — DM and marketplace deal alerts via Expo Push, per-member notification preferences, token registration
+- **Guest Mode** — multi-node onboarding flow with membership probe; guest indicators in header and sync status when visiting a node you're not a member of
+- **Community Search** — search and infinite scroll on the Community member list
 - **Community Projects** — crowdfund tab with progress bars, funding badges, and proposal creation
 - **Branded Tab Bar** — neon-vine artwork background with semi-transparent overlay
 - **Post Detail View** — full-screen view with photos, credits, author info
@@ -78,6 +87,9 @@ apps/native/
 - **Live Thread Syncing** — optimized 3-second polling hooks inside Active Chat fragments safely establish WebSocket-like responsiveness without hammering the background Node
 - **SQLite Concurrency Mutex** — robust `dbSyncLock` javascript queue guarantees zero memory locks when background `applyDelta` daemons inherently overlap with foreground UX reads
 - **Local User Blocking** — client-side block list stored in SecureStore securely hides target callsigns and listings
+- **Settings Visual Overhaul** — identity card with bio, contact details, and contrast improvements
+- **iOS Crypto Polyfill** — SHA-512 and Ed25519 signing polyfilled for iOS via `expo-crypto`
+- **Escrow Actions** — request/approve/reject/cancel/complete marketplace deals with atomic escrow settlement
 
 ## Background Sync (Pillar Toggle)
 
@@ -143,6 +155,9 @@ npx expo start                      # Native dev client
 | Settings / Profile | ✅ | ✅ | |
 | Bean ratings | ✅ | ✅ | Implemented via SQLite and ReviewModal |
 | Abuse reporting | ✅ | ✅ | Implemented via SQLite and identity tracking |
+| Push notifications | — | ✅ | DM + marketplace alerts via Expo Push |
+| Guest mode | ✅ | ✅ | Multi-node onboarding with membership probe |
+| Map clustering | ✅ | ✅ | Phase 6 overhaul with elder glow |
 | Federation (remote markets) | ✅ | 🔜 | Planned |
 
 ---

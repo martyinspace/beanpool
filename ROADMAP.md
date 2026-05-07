@@ -23,6 +23,16 @@
 - ✅ **CI/CD Release Pipeline** — GitHub Actions auto-builds Docker images on `v*` tags, auto-creates GitHub Releases, injects version from git tag (no manual package.json bumps).
 - ✅ **Deploy Model: Pull vs Build** — `deploy.sh` switched from `docker compose build` to `docker compose pull`, eliminating 2-5 min server-side compilation.
 - ✅ **Admin Settings Extraction** — Moved all settings JS from inline `<script>` to standalone `static/settings.js` for maintainability.
+- ✅ **Push Notifications** — Expo push token registration, DM/marketplace deal alerts, per-member notification preferences.
+- ✅ **Guest Mode** — multi-node onboarding with membership probe endpoint, guest UI indicators in native and PWA headers.
+- ✅ **Map Phase 6** — pin clustering, modern markers with category icons, elder glow effects for founding members (PWA + Native).
+- ✅ **Marketplace UX Modernization** — horizontal category chips, author trust badges, active deals tracking (PWA + Native).
+- ✅ **FTS5 Full-Text Search** — marketplace search with synonym mapping across titles, descriptions, and categories.
+- ✅ **Directory Publisher** — nodes push metadata to beanpool.org Supabase global directory.
+- ✅ **Community Search** — search and infinite scroll on the People/Community member list (native).
+- ✅ **Escrow Demurrage Exemption** — escrow wallets exempt from circulation decay with DB persistence fix.
+- ✅ **Self-Healing DB Migrations** — auto-repair corrupted ratings table schema on startup.
+- ✅ **iOS Crypto Polyfill** — SHA-512 and Ed25519 signing polyfilled for iOS via `expo-crypto`.
 ---
 
 ## Identity & Security
