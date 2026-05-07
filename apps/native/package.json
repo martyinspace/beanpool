@@ -1,7 +1,7 @@
 {
   "name": "@beanpool/native",
   "main": "expo-router/entry",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "description": "BeanPool Pillar Toggle — Background Mesh State Mirror",
   "private": true,
   "scripts": {
