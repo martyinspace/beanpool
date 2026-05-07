@@ -309,6 +309,10 @@ export async function startHttpsServer(port: number): Promise<void> {
 
     router.get('/api/local/status', async (ctx) => {
         const config = getLocalConfig();
+        
+        // Allow cross-origin requests so other nodes' settings UI can fetch status
+        ctx.set('Access-Control-Allow-Origin', '*');
+        
         ctx.body = {
             isLocked: config.isLocked,
             callsign: config.callsign || null,
