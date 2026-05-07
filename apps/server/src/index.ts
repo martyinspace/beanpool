@@ -41,6 +41,7 @@ import { initConnectorManager, connectAll } from './connector-manager.js';
 import { registerHandshakeHandler } from './handshake.js';
 import { registerFederationHandler } from './federation-protocol.js';
 import { initStateEngine, migrateAdminConversations } from './state-engine.js';
+import { initDirectoryPublisher } from './directory-publisher.js';
 
 const PORT_HTTP = Number(process.env.PORT_HTTP ?? 8080);
 const PORT_HTTPS = Number(process.env.PORT_HTTPS ?? 8443);
@@ -85,6 +86,9 @@ async function main() {
 
     // Step 9: Start cert renewal scheduler (checks every 24h)
     startRenewalScheduler();
+
+    // Step 10: Start directory publisher
+    initDirectoryPublisher();
 
     const hostname = process.env.CF_RECORD_NAME ?? 'beanpool.local';
     const isLE = !!process.env.CF_RECORD_NAME;

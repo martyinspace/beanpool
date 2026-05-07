@@ -66,6 +66,7 @@ import {
     getMemberPreferences, setMemberPreferences
 } from './state-engine.js';
 import { getCrowdfundProjects, getCrowdfundProject, createCrowdfundProject, updateCrowdfundProject, pledgeToProject, deleteCrowdfundProject } from './db/db.js';
+import { initDirectoryPublisher, pushDirectoryNow } from './directory-publisher.js';
 
 const PUBLIC_DIR = path.resolve('public');
 import { PROTOCOL_CONSTANTS } from '@beanpool/core';
@@ -1034,10 +1035,11 @@ export async function startHttpsServer(port: number): Promise<void> {
     router.get('/api/marketplace/posts', async (ctx) => {
         const type = ctx.query.type as string | undefined;
         const category = ctx.query.category as string | undefined;
+        const q = ctx.query.q as string | undefined;
         const limit = Number(ctx.query.limit) || 50;
         const offset = Number(ctx.query.offset) || 0;
         const updatedAfter = ctx.query.updatedAfter as string | undefined;
-        ctx.body = getPosts({ type, category, limit, offset, updatedAfter });
+        ctx.body = getPosts({ type, category, query: q, limit, offset, updatedAfter });
     });
 
     router.post('/api/marketplace/posts', async (ctx) => {
@@ -1546,25 +1548,37 @@ export async function startHttpsServer(port: number): Promise<void> {
     // ===================== NODE CONFIG =====================
 
     router.get('/api/node/config', async (ctx) => {
+        ctx.set('Cache-Control', 'no-cache, no-store, must-revalidate');
         ctx.body = getNodeConfig();
     });
 
     router.post('/api/local/admin/node/config', async (ctx) => {
-        if (!checkAdminAuth(ctx as any)) return;
-        const update = (ctx as any).requestBody || {};
-        ctx.body = updateNodeConfig(update);
+        console.log("updateNodeConfig hit!", (ctx as any).requestBody);
+        if (!checkAdminAuth(ctx as any)) {
+            console.log("Auth failed for updateNodeConfig");
+            return;
+        }
+        const { publishLocation, publishMembers, publishContacts, publishHealth, serviceRadius, directoryPushIntervalHours } = (ctx as any).requestBody || {};
+        console.log("Updating node config:", { publishLocation, publishMembers, publishContacts, publishHealth, serviceRadius, directoryPushIntervalHours });
+        ctx.body = updateNodeConfig({ publishLocation, publishMembers, publishContacts, publishHealth, serviceRadius, directoryPushIntervalHours });
+        
+        // Re-initialize the publisher with the new interval
+        if (directoryPushIntervalHours !== undefined) {
+            initDirectoryPublisher();
+        }
     });
 
-    // Public directory info endpoint (returns null/403 if opted out)
-    // CORS-enabled for beanpool.org website
-    router.options('/api/directory/info', async (ctx) => {
-        ctx.set('Access-Control-Allow-Origin', '*');
-        ctx.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-        ctx.set('Access-Control-Allow-Headers', 'Content-Type');
-        ctx.status = 204;
+    router.post('/api/local/admin/directory/push', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) {
+            ctx.status = 401;
+            return;
+        }
+        ctx.body = await pushDirectoryNow();
     });
+
+    // Local directory info endpoint (used by settings preview)
+    // No CORS headers - should only be called from same origin (admin PWA)
     router.get('/api/directory/info', async (ctx) => {
-        ctx.set('Access-Control-Allow-Origin', '*');
         const info = getDirectoryInfo();
         if (!info) {
             ctx.status = 403;

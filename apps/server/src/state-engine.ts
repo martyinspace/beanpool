@@ -3,6 +3,68 @@ import { LedgerManager, COMMONS_BALANCE, calculateDynamicFloor, getTier, getGene
 import type { TrustStats, TierInfo, GenesisInviteType } from '@beanpool/core';
 import { getThresholds, getLocalConfig } from './local-config.js';
 import { db, initSchema, migrateLegacyState } from './db/db.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+// Load synonym map for FTS5 search keyword expansion
+const __filename_se = fileURLToPath(import.meta.url);
+const __dirname_se = dirname(__filename_se);
+const synonymMap: Record<string, string[]> = (() => {
+    try {
+        const raw = readFileSync(join(__dirname_se, 'db', 'synonyms.json'), 'utf-8');
+        const parsed = JSON.parse(raw);
+        delete parsed._meta;
+        return parsed;
+    } catch (e) {
+        console.warn('[FTS] Failed to load synonyms.json, search keywords will be minimal:', e);
+        return {};
+    }
+})();
+
+/**
+ * Generate hidden search keywords by expanding post content through the synonym map.
+ * e.g. title "Fresh Lemons" → keywords "fruit citrus produce food tree"
+ */
+export function generateSearchKeywords(title: string, description: string, category: string): string {
+    const text = `${title} ${description}`.toLowerCase().replace(/[^a-z0-9\s]/g, '');
+    const words = text.split(/\s+/).filter(w => w.length > 2);
+    const expanded = new Set<string>();
+    expanded.add(category);
+
+    // Try exact match first, then strip common suffixes (lemons→lemon, mowing→mow)
+    const lookup = (word: string): string[] | undefined => {
+        if (synonymMap[word]) return synonymMap[word];
+        if (word.endsWith('ies')) { const stem = word.slice(0, -3) + 'y'; if (synonymMap[stem]) return synonymMap[stem]; }
+        if (word.endsWith('es')) { const stem = word.slice(0, -2); if (synonymMap[stem]) return synonymMap[stem]; }
+        if (word.endsWith('s')) { const stem = word.slice(0, -1); if (synonymMap[stem]) return synonymMap[stem]; }
+        if (word.endsWith('ing')) { const stem = word.slice(0, -3); if (synonymMap[stem]) return synonymMap[stem]; }
+        if (word.endsWith('ed')) { const stem = word.slice(0, -2); if (synonymMap[stem]) return synonymMap[stem]; }
+        return undefined;
+    };
+
+    for (const word of words) {
+        const syns = lookup(word);
+        if (syns) {
+            for (const syn of syns) expanded.add(syn);
+        }
+    }
+    // Also check multi-word phrases (up to 3 words)
+    const allWords = text.split(/\s+/);
+    for (let i = 0; i < allWords.length - 1; i++) {
+        const two = `${allWords[i]} ${allWords[i+1]}`;
+        if (synonymMap[two]) {
+            for (const syn of synonymMap[two]) expanded.add(syn);
+        }
+        if (i < allWords.length - 2) {
+            const three = `${allWords[i]} ${allWords[i+1]} ${allWords[i+2]}`;
+            if (synonymMap[three]) {
+                for (const syn of synonymMap[three]) expanded.add(syn);
+            }
+        }
+    }
+    return [...expanded].join(' ');
+}
 
 // ===================== TYPES =====================
 
@@ -180,7 +242,12 @@ export interface VotingRound {
 
 export interface NodeConfig {
     serviceRadius?: { lat: number; lng: number; radiusKm: number };
-    publishToDirectory?: boolean;
+    publishLocation?: boolean;
+    publishMembers?: boolean;
+    publishContacts?: boolean;
+    publishHealth?: boolean;
+    directoryPushIntervalHours?: number;
+    lastDirectoryPush?: string;
 }
 
 // ===================== STATE =====================
@@ -211,9 +278,77 @@ export function initStateEngine(): void {
     // One-time migration: move escrow funds from old post-keyed wallets to transaction-keyed wallets
     migrateEscrowWalletKeys();
 
+    // FTS5: Backfill search keywords for existing posts that don't have them
+    backfillSearchKeywords();
+
     const memberCount = db.prepare("SELECT COUNT(*) as c FROM members").get() as any;
     const postCount = db.prepare("SELECT COUNT(*) as c FROM posts").get() as any;
     console.log(`📒 SQLite DB initialized: ${memberCount.c} members, ${postCount.c} posts`);
+}
+
+/**
+ * One-time backfill: Generate search keywords for all existing posts that lack them.
+ * Also rebuilds the FTS5 index to ensure it's in sync.
+ */
+function backfillSearchKeywords(): void {
+    const posts = db.prepare(`SELECT id, title, description, category FROM posts WHERE search_keywords = '' OR search_keywords IS NULL`).all() as any[];
+    if (posts.length === 0) return;
+
+    console.log(`🔍 Backfilling FTS5 search keywords for ${posts.length} posts...`);
+    
+    // Step 1: Drop and recreate FTS5 table + triggers to avoid corruption
+    // (external content table gets out of sync when rows existed before triggers were created)
+    try {
+        db.exec(`DROP TRIGGER IF EXISTS posts_ai`);
+        db.exec(`DROP TRIGGER IF EXISTS posts_ad`);
+        db.exec(`DROP TRIGGER IF EXISTS posts_au`);
+        db.exec(`DROP TABLE IF EXISTS posts_fts`);
+    } catch (e) {
+        console.warn('[FTS] Cleanup failed:', e);
+    }
+
+    // Step 2: Update keywords on all posts
+    const update = db.prepare(`UPDATE posts SET search_keywords = ? WHERE id = ?`);
+    db.transaction(() => {
+        for (const p of posts) {
+            const keywords = generateSearchKeywords(p.title || '', p.description || '', p.category || 'general');
+            update.run(keywords, p.id);
+        }
+    })();
+
+    // Step 3: Recreate FTS5 table and triggers (now all data has keywords)
+    try {
+        db.exec(`
+            CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(
+                title, description, search_keywords,
+                content='posts',
+                content_rowid='rowid'
+            );
+
+            CREATE TRIGGER IF NOT EXISTS posts_ai AFTER INSERT ON posts BEGIN
+                INSERT INTO posts_fts(rowid, title, description, search_keywords)
+                VALUES (new.rowid, new.title, new.description, new.search_keywords);
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS posts_ad AFTER DELETE ON posts BEGIN
+                INSERT INTO posts_fts(posts_fts, rowid, title, description, search_keywords)
+                VALUES ('delete', old.rowid, old.title, old.description, old.search_keywords);
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS posts_au AFTER UPDATE ON posts BEGIN
+                INSERT INTO posts_fts(posts_fts, rowid, title, description, search_keywords)
+                VALUES ('delete', old.rowid, old.title, old.description, old.search_keywords);
+                INSERT INTO posts_fts(rowid, title, description, search_keywords)
+                VALUES (new.rowid, new.title, new.description, new.search_keywords);
+            END;
+        `);
+        // Rebuild index with all current data
+        db.exec(`INSERT INTO posts_fts(posts_fts) VALUES('rebuild')`);
+    } catch (e) {
+        console.warn('[FTS] FTS5 table recreation failed:', e);
+    }
+    
+    console.log(`✅ FTS5 search keywords backfilled for ${posts.length} posts.`);
 }
 
 /**
@@ -833,11 +968,12 @@ export function createPost(
 
     const finalId = id || crypto.randomUUID();
     const createdAt = new Date().toISOString();
+    const searchKeywords = generateSearchKeywords(title, description, category);
     
     db.transaction(() => {
         db.prepare(`INSERT INTO posts (
-            id, type, category, title, description, credits, price_type, author_pubkey, created_at, active, status, repeatable, lat, lng, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'active', ?, ?, ?, ?)`).run(finalId, type, category, title, description, credits, priceType, authorPublicKey, createdAt, repeatable ? 1 : 0, lat ?? null, lng ?? null, createdAt);
+            id, type, category, title, description, credits, price_type, author_pubkey, created_at, active, status, repeatable, lat, lng, updated_at, search_keywords
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'active', ?, ?, ?, ?, ?)`).run(finalId, type, category, title, description, credits, priceType, authorPublicKey, createdAt, repeatable ? 1 : 0, lat ?? null, lng ?? null, createdAt, searchKeywords);
 
         if (photos && photos.length > 0) {
             const insertPhoto = db.prepare(`INSERT INTO post_photos (post_id, photo_data, order_num) VALUES (?, ?, ?)`);
@@ -850,7 +986,7 @@ export function createPost(
     return post;
 }
 
-export function getPosts(filter?: { id?: string; type?: string; category?: string; status?: string; offset?: number; limit?: number; updatedAfter?: string }): MarketplacePost[] {
+export function getPosts(filter?: { id?: string; type?: string; category?: string; status?: string; offset?: number; limit?: number; updatedAfter?: string; query?: string }): MarketplacePost[] {
     let query = `
         SELECT p.*, m.callsign as author_callsign, a.callsign as accepted_callsign,
                COALESCE((SELECT SUM(amount) FROM transactions WHERE from_pubkey = m.public_key), 0) as author_energy_cycled
@@ -874,6 +1010,16 @@ export function getPosts(filter?: { id?: string; type?: string; category?: strin
     if (filter?.type && filter.type !== 'all') { query += " AND p.type = ?"; params.push(filter.type); }
     if (filter?.category && filter.category !== 'all') { query += " AND p.category = ?"; params.push(filter.category); }
     if (filter?.status) { query += " AND p.status = ?"; params.push(filter.status); }
+
+    // FTS5 full-text search with synonym-expanded keywords
+    if (filter?.query && filter.query.trim()) {
+        const searchTerms = filter.query.trim().replace(/["']/g, '').split(/\s+/).filter(w => w.length > 0);
+        if (searchTerms.length > 0) {
+            const ftsQuery = searchTerms.map(t => `"${t}"*`).join(' OR ');
+            query += ` AND p.rowid IN (SELECT rowid FROM posts_fts WHERE posts_fts MATCH ?)`;
+            params.push(ftsQuery);
+        }
+    }
 
     if (filter?.updatedAfter) {
         query += " AND p.updated_at >= ?";
@@ -923,6 +1069,19 @@ export function updatePost(id: string, authorPublicKey: string, updates: Partial
     if (updates.repeatable !== undefined) { setClauses.push("repeatable = ?"); params.push(updates.repeatable ? 1 : 0); }
     
     if (setClauses.length === 0 && updates.photos === undefined) return getPosts({ id })[0];
+
+    // Regenerate search keywords if title, description, or category changed
+    if (updates.title || updates.description !== undefined || updates.category) {
+        const existing = db.prepare(`SELECT title, description, category FROM posts WHERE id = ?`).get(id) as any;
+        if (existing) {
+            const newTitle = updates.title || existing.title;
+            const newDesc = updates.description !== undefined ? updates.description : existing.description;
+            const newCat = updates.category || existing.category;
+            const keywords = generateSearchKeywords(newTitle, newDesc, newCat);
+            setClauses.push("search_keywords = ?");
+            params.push(keywords);
+        }
+    }
 
     setClauses.push("updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')");
 
@@ -1771,7 +1930,35 @@ export function getCommunityHealth(): CommunityHealth {
 
 export function getNodeConfig(): NodeConfig {
     const row = db.prepare("SELECT value FROM node_config WHERE key='node_config'").get() as any;
-    return row ? JSON.parse(row.value) : { publishToDirectory: true };
+    let config: any = row ? JSON.parse(row.value) : {};
+
+    let migrated = false;
+    if ('publishToDirectory' in config || 'password' in config) {
+        migrated = true;
+        const pub = config.publishToDirectory !== false;
+        config.publishLocation = pub;
+        config.publishMembers = pub;
+        config.publishContacts = pub;
+        config.publishHealth = pub;
+        delete config.publishToDirectory;
+        delete config.password;
+    }
+
+    const finalConfig: NodeConfig = {
+        serviceRadius: config.serviceRadius,
+        publishLocation: config.publishLocation !== false,
+        publishMembers: config.publishMembers !== false,
+        publishContacts: config.publishContacts !== false,
+        publishHealth: config.publishHealth !== false,
+        directoryPushIntervalHours: typeof config.directoryPushIntervalHours === 'number' ? config.directoryPushIntervalHours : 12,
+        lastDirectoryPush: config.lastDirectoryPush
+    };
+
+    if (migrated) {
+        db.prepare(`INSERT INTO node_config (key, value) VALUES ('node_config', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`).run(JSON.stringify(finalConfig));
+    }
+
+    return finalConfig;
 }
 
 export function updateNodeConfig(update: Partial<NodeConfig>): NodeConfig {
@@ -1781,15 +1968,27 @@ export function updateNodeConfig(update: Partial<NodeConfig>): NodeConfig {
     return next;
 }
 
-export function getDirectoryInfo(): { name: string; memberCount: number; serviceRadius?: { lat: number; lng: number; radiusKm: number }; version: string } | null {
+export function getDirectoryInfo(): any {
     const config = getNodeConfig();
-    if (config.publishToDirectory === false) return null;
-    return {
-        name: getLocalConfig().callsign || process.env.BEANPOOL_NODE_NAME || process.env.CF_RECORD_NAME || 'BeanPool Node',
-        memberCount: (db.prepare("SELECT COUNT(*) as c FROM members WHERE status != 'pruned'").get() as any).c,
-        serviceRadius: config.serviceRadius,
-        version: '1.0.0',
+    if (!config.publishLocation && !config.publishMembers && !config.publishContacts && !config.publishHealth) {
+        return null;
+    }
+    
+    const localConfig = getLocalConfig();
+    const info: any = {
+        name: localConfig.callsign || process.env.BEANPOOL_NODE_NAME || process.env.CF_RECORD_NAME || 'BeanPool Node'
     };
+
+    if (config.publishLocation) info.serviceRadius = config.serviceRadius;
+    if (config.publishMembers) info.memberCount = (db.prepare("SELECT COUNT(*) as c FROM members WHERE status != 'pruned'").get() as any).c;
+    if (config.publishContacts) {
+        if (localConfig.communityName) info.name = localConfig.communityName;
+        if (localConfig.contactEmail) info.contactEmail = localConfig.contactEmail;
+        if (localConfig.contactPhone) info.contactPhone = localConfig.contactPhone;
+    }
+    if (config.publishHealth) info.version = '1.0.0';
+
+    return info;
 }
 
 // ===================== AUDIT EXPORT =====================
