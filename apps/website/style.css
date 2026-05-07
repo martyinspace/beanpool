@@ -327,7 +327,7 @@ section { padding: 5rem 0; }
     background: var(--bg-card);
 }
 #nodes-map {
-    height: 320px;
+    height: 480px;
     width: 100%;
 }
 

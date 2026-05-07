@@ -5,18 +5,14 @@
  * then displays them as markers on a Leaflet map with radius circles.
  */
 
-// Known seed nodes — in production these would come from a registry
-// Nodes must opt-in via the "Publish to beanpool.org" checkbox in settings
-const SEED_NODES = [
-    'https://mullum.beanpool.org',
-    'https://review.beanpool.org',
-    // Add more as communities join
-];
+const SUPABASE_URL = 'https://dpemwoermzkaxoctafzg.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_fmlYuaf6NCkTI2IwWnvZmw_bOzo-PrF';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ======================== MAP INIT ========================
 const nodesMap = L.map('nodes-map', {
-    center: [-28.5, 153.5],
-    zoom: 6,
+    center: [20, 0],
+    zoom: 2,
     zoomControl: true,
     attributionControl: false,
     scrollWheelZoom: false,
@@ -45,64 +41,66 @@ const bounds = [];
 
 async function pollNodes() {
 
-    const results = await Promise.allSettled(
-        SEED_NODES.map(async (url) => {
-            const res = await fetch(`${url}/api/directory/info`, {
-                signal: AbortSignal.timeout(5000),
-            });
-            if (!res.ok) throw new Error(`${res.status}`);
-            return { url, ...(await res.json()) };
-        })
-    );
+    try {
+        const { data: nodes, error } = await supabase
+            .from('directory_nodes')
+            .select('*');
+            
+        if (error) throw error;
+        
+        totalNodes = 0;
+        totalMembers = 0;
 
-    totalNodes = 0;
-    totalMembers = 0;
+        nodes.forEach((node) => {
+            totalNodes++;
+            totalMembers += node.member_count || 0;
+            
+            // Map db fields to expected format
+            const radiusKm = node.service_radius?.radiusKm || 0;
+            const lat = node.service_radius?.lat || node.lat;
+            const lng = node.service_radius?.lng || node.lng;
+            const name = node.community_name || node.callsign;
+            const url = node.node_url || '#';
 
-    results.forEach((result) => {
-        if (result.status !== 'fulfilled') return;
-        const node = result.value;
-        totalNodes++;
-        totalMembers += node.memberCount || 0;
+            // Add marker
+            if (lat && lng) {
+                if (radiusKm > 0) {
+                    L.marker([lat, lng], { icon: nodeIcon })
+                        .bindPopup(`
+                            <div style="font-family:Inter,sans-serif;">
+                                <strong>${name}</strong><br>
+                                <span style="color:#94a3b8;font-size:0.85em;">${node.member_count} members · ${radiusKm}km radius</span>
+                            </div>
+                        `)
+                        .addTo(nodesMap);
 
-        // Add marker
-        if (node.serviceRadius) {
-            const { lat, lng, radiusKm } = node.serviceRadius;
-            L.marker([lat, lng], { icon: nodeIcon })
-                .bindPopup(`
-                    <div style="font-family:Inter,sans-serif;">
-                        <strong>${node.name}</strong><br>
-                        <span style="color:#94a3b8;font-size:0.85em;">${node.memberCount} members · ${radiusKm}km radius</span><br>
-                        <a href="${node.url}" target="_blank" style="font-size:0.85em; display:inline-block; margin-top:6px; color:#f59e0b; font-weight:500;">Visit Community →</a>
-                    </div>
-                `)
-                .addTo(nodesMap);
+                    // Radius circle
+                    L.circle([lat, lng], {
+                        radius: radiusKm * 1000,
+                        color: '#f59e0b',
+                        fillColor: '#f59e0b',
+                        fillOpacity: 0.06,
+                        weight: 1.5,
+                        dashArray: '6 4',
+                        interactive: false,
+                    }).addTo(nodesMap);
+                } else {
+                    L.marker([lat, lng], { icon: nodeIcon })
+                        .bindPopup(`
+                            <div style="font-family:Inter,sans-serif;">
+                                <strong>${name}</strong><br>
+                                <span style="color:#94a3b8;font-size:0.85em;">${node.member_count} members</span>
+                            </div>
+                        `)
+                        .addTo(nodesMap);
+                }
+                bounds.push([lat, lng]);
+            }
 
-            // Radius circle
-            L.circle([lat, lng], {
-                radius: radiusKm * 1000,
-                color: '#f59e0b',
-                fillColor: '#f59e0b',
-                fillOpacity: 0.06,
-                weight: 1.5,
-                dashArray: '6 4',
-                interactive: false,
-            }).addTo(nodesMap);
-
-            bounds.push([lat, lng]);
-        } else if (node.lat && node.lng) {
-            L.marker([node.lat, node.lng], { icon: nodeIcon })
-                .bindPopup(`
-                    <div style="font-family:Inter,sans-serif;">
-                        <strong>${node.name}</strong><br>
-                        <span style="color:#94a3b8;font-size:0.85em;">${node.memberCount} members</span><br>
-                        <a href="${node.url}" target="_blank" style="font-size:0.85em; display:inline-block; margin-top:6px; color:#f59e0b; font-weight:500;">Visit Community →</a>
-                    </div>
-                `)
-                .addTo(nodesMap);
-            bounds.push([node.lat, node.lng]);
-        }
-
-    });
+        });
+    } catch (err) {
+        console.error('Failed to load directory nodes from Supabase:', err);
+    }
 
     // Update hero stats
     document.getElementById('stat-nodes').textContent = totalNodes || '—';
