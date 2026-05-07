@@ -62,6 +62,14 @@ async function pollNodes() {
             const name = node.community_name || node.callsign;
             const url = node.node_url || '#';
 
+            let contactHtml = '';
+            if (node.contact_email || node.contact_phone) {
+                const parts = [];
+                if (node.contact_email) parts.push(`<a href="mailto:${node.contact_email}" style="color:#10b981;">Email</a>`);
+                if (node.contact_phone) parts.push(`<a href="tel:${node.contact_phone}" style="color:#10b981;">Phone</a>`);
+                contactHtml = `<br><span style="font-size:0.85em;">Contact: ${parts.join(' | ')}</span>`;
+            }
+
             // Add marker
             if (lat && lng) {
                 if (radiusKm > 0) {
@@ -70,6 +78,7 @@ async function pollNodes() {
                             <div style="font-family:Inter,sans-serif;">
                                 <strong>${name}</strong><br>
                                 <span style="color:#94a3b8;font-size:0.85em;">${node.member_count} members · ${radiusKm}km radius</span>
+                                ${contactHtml}
                             </div>
                         `)
                         .addTo(nodesMap);
@@ -90,6 +99,7 @@ async function pollNodes() {
                             <div style="font-family:Inter,sans-serif;">
                                 <strong>${name}</strong><br>
                                 <span style="color:#94a3b8;font-size:0.85em;">${node.member_count} members</span>
+                                ${contactHtml}
                             </div>
                         `)
                         .addTo(nodesMap);
@@ -112,12 +122,7 @@ async function pollNodes() {
         document.getElementById('nodes-map').style.opacity = '1';
     }
 
-    // Fit map to bounds
-    if (bounds.length === 1) {
-        nodesMap.setView(bounds[0], 8);
-    } else if (bounds.length > 1) {
-        nodesMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
-    }
+    // We removed the automatic fitBounds to keep the map locked in the default global view!
 }
 
 // ======================== SMOOTH SCROLL ========================
