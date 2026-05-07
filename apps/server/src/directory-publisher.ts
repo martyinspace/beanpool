@@ -43,8 +43,8 @@ export async function pushDirectoryNow() {
         const directoryInfo = getDirectoryInfo();
         const localConfig = getLocalConfig();
         
-        // Provide a stable node ID based on the node's seed
-        const nodeId = crypto.createHash('sha256').update(localConfig.seed).digest('hex');
+        // Provide a stable node ID based on the node's adminHash (which is generated on first boot)
+        const nodeId = crypto.createHash('sha256').update(localConfig.adminHash || localConfig.communityName || 'unknown').digest('hex');
         
         const payload = {
             nodeId,
