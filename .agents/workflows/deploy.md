@@ -27,10 +27,10 @@ gh run list --limit 1
 // turbo
 4. Deploy to specific node(s):
 ```bash
-bash deploy.sh 1         # Sydney only
-bash deploy.sh 2         # Brisbane only
-bash deploy.sh 3         # Debian (local dev) only
-bash deploy.sh 1 2 3     # All nodes
+bash deploy.sh 1         # Sydney only (mullum2)
+bash deploy.sh 3         # Debian only (mullum1)
+bash deploy.sh 4         # Review only
+bash deploy.sh 1 3 4     # All nodes
 ```
 
 ## After Deploying
@@ -41,8 +41,8 @@ bash deploy.sh 1 2 3     # All nodes
 6. Check the logs:
 ```bash
 ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68 "docker logs beanpool-beanpool-node-1 2>&1 | tail -20"   # Sydney
-ssh -i ~/.ssh/id_azure_lattice azureuser@20.5.121.158 "docker logs beanpool-beanpool-node-1 2>&1 | tail -20"  # Brisbane
 ssh marty@192.168.1.219 "sudo docker logs beanpool-beanpool-node-1 2>&1 | tail -20"                            # Debian
+ssh marty@192.168.1.219 "sudo docker logs beanpool-beanpool-review-node-1 2>&1 | tail -20"                     # Review
 ```
 
 7. Look for one of these outcomes:

@@ -6,7 +6,7 @@ set -e
 #
 # Usage:
 #   bash deploy.sh           # Deploy to all nodes
-#   bash deploy.sh 1 3       # Deploy to specific nodes by number
+#   bash deploy.sh 1 3 4     # Deploy to specific nodes by number
 #
 # The Docker image is auto-built by GitHub Actions on push to main:
 #   ghcr.io/martyinspace/beanpool-node:latest
