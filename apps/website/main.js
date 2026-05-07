@@ -65,9 +65,9 @@ async function pollNodes() {
             let contactHtml = '';
             if (node.contact_email || node.contact_phone) {
                 const parts = [];
-                if (node.contact_email) parts.push(`<a href="mailto:${node.contact_email}" style="color:#10b981;">Email</a>`);
-                if (node.contact_phone) parts.push(`<a href="tel:${node.contact_phone}" style="color:#10b981;">Phone</a>`);
-                contactHtml = `<br><span style="font-size:0.85em;">Contact: ${parts.join(' | ')}</span>`;
+                if (node.contact_email) parts.push(`<a href="mailto:${node.contact_email}" style="color:#10b981; text-decoration:none;">${node.contact_email}</a>`);
+                if (node.contact_phone) parts.push(`<a href="tel:${node.contact_phone}" style="color:#10b981; text-decoration:none;">${node.contact_phone}</a>`);
+                contactHtml = `<br><span style="font-size:0.85em; color:#cbd5e1; display:inline-block; margin-top:4px;">${parts.join(' &middot; ')}</span>`;
             }
 
             // Add marker
