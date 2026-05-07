@@ -21,7 +21,8 @@
 
         // ======================== PASSWORD EYE TOGGLE ========================
         document.querySelectorAll('.pwd-eye').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
                 const input = btn.closest('.pwd-wrapper').querySelector('input');
                 input.type = input.type === 'password' ? 'text' : 'password';
             });
