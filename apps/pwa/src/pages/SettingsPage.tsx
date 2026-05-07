@@ -129,6 +129,7 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                             theme === 'light' ? 'bg-terra-100 border-terra-200' : 'bg-slate-700 border-slate-600'
                         }`}
                         aria-label="Toggle Theme"
+                        aria-pressed={theme === 'dark'}
                     >
                         <span className={`block w-[22px] h-[22px] rounded-full bg-white absolute top-[2px] shadow-sm transform transition-transform duration-300 ease-in-out ${
                             theme === 'dark' ? 'translate-x-[26px]' : 'translate-x-[2px] drop-shadow-[0_2px_4px_rgba(226,114,91,0.4)]'
@@ -148,6 +149,7 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                             useModernMarkers ? 'bg-emerald-500 border-emerald-600' : 'bg-nature-200 dark:bg-nature-700 border-nature-300 dark:border-nature-600'
                         }`}
                         aria-label="Toggle Modern Markers"
+                        aria-pressed={useModernMarkers}
                     >
                         <span className={`block w-[22px] h-[22px] rounded-full bg-white absolute top-[2px] shadow-sm transform transition-transform duration-300 ease-in-out ${
                             useModernMarkers ? 'translate-x-[26px]' : 'translate-x-[2px]'
