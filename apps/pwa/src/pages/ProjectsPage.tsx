@@ -383,6 +383,7 @@ export function ProjectsPage({ identity }: Props) {
                                     <div key={i} className="relative w-24 h-24 shrink-0 rounded-lg overflow-hidden border border-border-secondary">
                                         <img src={photo} className="w-full h-full object-cover" alt={`Upload ${i}`} />
                                         <button 
+                                            aria-label="Remove photo"
                                             onClick={() => setNewPhotos(prev => prev.filter((_, idx) => idx !== i))}
                                             className="absolute top-1 right-1 bg-black/50 p-1 rounded-full text-white"
                                         >
@@ -505,6 +506,7 @@ export function ProjectsPage({ identity }: Props) {
                                             <div key={i} className="relative w-24 h-24 shrink-0 rounded-xl overflow-hidden border border-border-secondary shadow-sm">
                                                 <img src={photo} className="w-full h-full object-cover" alt={`Edit ${i}`} />
                                                 <button 
+                                                    aria-label="Remove photo"
                                                     onClick={() => setEditPhotos(prev => prev.filter((_, idx) => idx !== i))}
                                                     className="absolute top-1.5 right-1.5 bg-black/60 backdrop-blur-sm p-1.5 rounded-full text-white hover:bg-red-500/80 transition-colors"
                                                 >
