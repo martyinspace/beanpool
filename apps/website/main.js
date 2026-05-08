@@ -1,5 +1,5 @@
 /**
- * BeanPool.org — Live Node Directory & Interactive Map
+ * BeanPool.org — Live Node Directory, Interactive Map, Newsletter & Utilities
  * 
  * Polls known BeanPool node endpoints for directory info,
  * then displays them as markers on a Leaflet map with radius circles.
@@ -38,6 +38,7 @@ const nodeIcon = L.divIcon({
 let totalMembers = 0;
 let totalNodes = 0;
 const bounds = [];
+const markersLayer = L.layerGroup().addTo(nodesMap);
 
 async function pollNodes() {
 
@@ -50,6 +51,7 @@ async function pollNodes() {
         
         totalNodes = 0;
         totalMembers = 0;
+        markersLayer.clearLayers();
 
         nodes.forEach((node) => {
             totalNodes++;
@@ -77,11 +79,11 @@ async function pollNodes() {
                         .bindPopup(`
                             <div style="font-family:Inter,sans-serif;">
                                 <strong>${name}</strong><br>
-                                <span style="color:#94a3b8;font-size:0.85em;">${node.member_count} members · ${radiusKm}km radius</span>
+                                <span style="color:#94a3b8;font-size:0.85em;">${node.member_count} members &middot; ${radiusKm}km radius</span>
                                 ${contactHtml}
                             </div>
                         `)
-                        .addTo(nodesMap);
+                        .addTo(markersLayer);
 
                     // Radius circle
                     L.circle([lat, lng], {
@@ -92,7 +94,7 @@ async function pollNodes() {
                         weight: 1.5,
                         dashArray: '6 4',
                         interactive: false,
-                    }).addTo(nodesMap);
+                    }).addTo(markersLayer);
                 } else {
                     L.marker([lat, lng], { icon: nodeIcon })
                         .bindPopup(`
@@ -102,7 +104,7 @@ async function pollNodes() {
                                 ${contactHtml}
                             </div>
                         `)
-                        .addTo(nodesMap);
+                        .addTo(markersLayer);
                 }
                 bounds.push([lat, lng]);
             }
@@ -112,7 +114,7 @@ async function pollNodes() {
         console.error('Failed to load directory nodes from Supabase:', err);
     }
 
-    // Update hero stats
+    // Update map stats
     document.getElementById('stat-nodes').textContent = totalNodes || '—';
     document.getElementById('stat-members').textContent = totalMembers || '—';
 
@@ -121,8 +123,74 @@ async function pollNodes() {
     } else {
         document.getElementById('nodes-map').style.opacity = '1';
     }
+}
 
-    // We removed the automatic fitBounds to keep the map locked in the default global view!
+// ======================== COPY TO CLIPBOARD ========================
+function copyCode(btn) {
+    const code = btn.parentElement.querySelector('code').textContent;
+    navigator.clipboard.writeText(code).then(() => {
+        btn.classList.add('copied');
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+        setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+        }, 2000);
+    });
+}
+
+// ======================== NEWSLETTER ========================
+const newsletterForm = document.getElementById('newsletter-form');
+const newsletterStatus = document.getElementById('newsletter-status');
+
+if (newsletterForm) {
+    newsletterForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('newsletter-email').value.trim();
+        if (!email) return;
+
+        const btn = newsletterForm.querySelector('button');
+        btn.textContent = 'Subscribing...';
+        btn.disabled = true;
+        newsletterStatus.textContent = '';
+        newsletterStatus.className = 'newsletter-status';
+
+        try {
+            // Use Supabase Auth to create a real account — sends confirmation email automatically
+            const { data, error } = await supabaseClient.auth.signUp({
+                email,
+                password: crypto.randomUUID(), // Auto-generate password; user won't need it
+                options: {
+                    data: { source: 'website_newsletter' },
+                    emailRedirectTo: 'https://beanpool.org'
+                }
+            });
+
+            if (error) {
+                if (error.message.includes('already registered')) {
+                    newsletterStatus.textContent = "You're already subscribed! 🫘";
+                    newsletterStatus.className = 'newsletter-status success';
+                } else {
+                    throw error;
+                }
+            } else {
+                // Also insert into newsletter_subscribers for easy querying
+                await supabaseClient
+                    .from('newsletter_subscribers')
+                    .upsert({ email }, { onConflict: 'email' });
+
+                newsletterStatus.textContent = 'Check your inbox for a confirmation email! 🫘';
+                newsletterStatus.className = 'newsletter-status success';
+                document.getElementById('newsletter-email').value = '';
+            }
+        } catch (err) {
+            console.error('Newsletter signup failed:', err);
+            newsletterStatus.textContent = 'Something went wrong. Please try again.';
+            newsletterStatus.className = 'newsletter-status error';
+        }
+
+        btn.textContent = 'Subscribe';
+        btn.disabled = false;
+    });
 }
 
 // ======================== SMOOTH SCROLL ========================

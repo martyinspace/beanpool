@@ -540,7 +540,7 @@
                     { emoji: '📊', value: h.activity.last30Days, label: 'Txns (30d)' },
                     { emoji: '🟢', value: h.activity.activeMemberCount, label: 'Active', color: '#22c55e' },
                     { emoji: '⚪', value: h.activity.inactiveMemberCount, label: 'Inactive', color: '#64748b' },
-                    { emoji: '🏦', value: h.activity.commonsBalance + 'Ʀ', label: 'Commons', color: '#f59e0b' },
+                    { emoji: '🏦', value: h.activity.commonsBalance + 'B', label: 'Commons', color: '#f59e0b' },
                     { emoji: '💸', value: h.activity.totalTransactions, label: 'Total Txns' },
                 ];
                 const grid = document.getElementById('health-grid');
@@ -776,7 +776,7 @@
 
         function renderCommonsTab() {
             if (!commonsData) return;
-            document.getElementById('commons-balance').textContent = commonsData.balance.toFixed(2) + 'Ʀ';
+            document.getElementById('commons-balance').textContent = commonsData.balance.toFixed(2) + 'B';
 
             const activeRound = commonsData.rounds.find(r => r.status === 'open');
             const roundStatus = document.getElementById('commons-round-status');
@@ -803,7 +803,7 @@
                 }[p.status] || p.status;
                 const votes = p.votes?.length || 0;
                 const exceeds = (p.status === 'active' || p.status === 'proposed') && p.requestedAmount > commonsData.balance;
-                const amountText = `<span style="color:${exceeds ? '#ef4444' : 'inherit'}; font-weight:${exceeds ? 'bold' : 'normal'};" title="${exceeds ? '⚠️ Exceeds available Commons balance' : ''}">${p.requestedAmount.toFixed(2)}Ʀ${exceeds ? ' ⚠️' : ''}</span>`;
+                const amountText = `<span style="color:${exceeds ? '#ef4444' : 'inherit'}; font-weight:${exceeds ? 'bold' : 'normal'};" title="${exceeds ? '⚠️ Exceeds available Commons balance' : ''}">${p.requestedAmount.toFixed(2)}B${exceeds ? ' ⚠️' : ''}</span>`;
                 
                 return `<div style="padding:0.6rem 0.75rem;border-bottom:1px solid #1e293b;display:flex;justify-content:space-between;align-items:center;">
                     <div>
@@ -859,7 +859,7 @@
                     body: JSON.stringify({ password: authToken, action: 'close', roundId: activeRound.id })
                 });
                 const data = await res.json();
-                if (data.winner) alert('🎉 Funded: ' + data.winner.title + ' (' + data.winner.requestedAmount + 'Ʀ)');
+                if (data.winner) alert('🎉 Funded: ' + data.winner.title + ' (' + data.winner.requestedAmount + 'B)');
                 else alert('Round closed. No project was funded (not enough in commons or no votes).');
                 await loadCommonsData();
             } catch (e) { alert('Failed to close round: ' + e.message); }
@@ -1373,7 +1373,7 @@
                 let chipHtml = '<span style="display:inline-flex;gap:3px;margin-left:0.4rem;vertical-align:middle;">';
                 if (s.posts > 0) chipHtml += `<span class="stat-chip posts" title="${s.posts} active posts">📦${s.posts}</span>`;
                 if (s.messages > 0) chipHtml += `<span class="stat-chip msgs" title="${s.messages} messages sent">💬${s.messages}</span>`;
-                if (s.deals > 0) chipHtml += `<span class="stat-chip deals" title="${s.deals} completed deals · Ʀ${s.volume} volume">🤝${s.deals}</span>`;
+                if (s.deals > 0) chipHtml += `<span class="stat-chip deals" title="${s.deals} completed deals · B${s.volume} volume">🤝${s.deals}</span>`;
                 if (s.cancelled > 0) chipHtml += `<span class="stat-chip cancelled" title="${s.cancelled} cancelled escrows">🚫${s.cancelled}</span>`;
                 chipHtml += '</span>';
 
@@ -1389,12 +1389,12 @@
                         <div class="stat-row"><span class="label">📦 Posts</span><span class="value">${s.posts}</span></div>
                         <div class="stat-row"><span class="label">💬 Messages</span><span class="value">${s.messages}</span></div>
                         <div class="stat-row"><span class="label">🤝 Deals</span><span class="value">${s.deals}</span></div>
-                        <div class="stat-row"><span class="label">💰 Volume</span><span class="value">Ʀ${s.volume}</span></div>
+                        <div class="stat-row"><span class="label">💰 Volume</span><span class="value">B${s.volume}</span></div>
                         <div class="stat-row"><span class="label">🚫 Cancelled</span><span class="value">${s.cancelled}</span></div>
                         ${hasBranch ? `
                         <div class="stat-row full-width" style="background:#0f172a;border:1px solid #334155;margin-top:0.2rem;">
                             <span class="label" style="color:#60a5fa;">🌳 Branch (${branchStats.memberCount} members)</span>
-                            <span class="value" style="color:#60a5fa;">📦${branchStats.posts} 💬${branchStats.messages} 🤝${branchStats.deals} 💰Ʀ${branchStats.volume}</span>
+                            <span class="value" style="color:#60a5fa;">📦${branchStats.posts} 💬${branchStats.messages} 🤝${branchStats.deals} 💰B${branchStats.volume}</span>
                         </div>` : ''}
                     </div>`;
                 }
