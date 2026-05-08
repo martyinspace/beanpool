@@ -87,6 +87,8 @@ Deterministic identity from a BIP-39 mnemonic:
 ### 🏠 Landing Page (Welcome Hub)
 Port 80 serves a community welcome hub:
 - **Three clear paths**: New member (invite code), Add another device (transfer link), Lost device (recovery)
+- **App Store Badges**: Quick links to download the native iOS and Android apps
+- **Newsletter Signup**: Supabase Auth integration to capture early interest and email subscriptions
 - **Dynamic content** — pulls community name, admin email/phone from node config
 - **FAQ accordion** — common questions with expandable answers
 - **Contact section** — configurable admin contact info
@@ -123,7 +125,7 @@ Comprehensive admin dashboard for node safety:
 
 ### 🔄 Software Update Notifications
 Docker Desktop-style update detection built into each node:
-- **Header badge** — pulsing blue "v1.0.34 available" link next to version number
+- **Header badge** — pulsing blue "v1.0.38 available" link next to version number
 - **Update panel** — version comparison, release notes, "How to Update" code block with copy button
 - **Auto-check** — configurable interval (Hourly / Every 6 hours / Daily / Weekly)
 - **Server-side polling** — background timer checks GitHub Releases API every 6 hours

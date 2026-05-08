@@ -33,7 +33,7 @@
 | `src/components/CategoryPickerModal.tsx` | Modal for selecting marketplace categories |
 | `src/components/MyDealsModal.tsx` | Modal for viewing active marketplace deals (offers/needs in escrow) |
 | `src/components/PostAuthorTrust.tsx` | Trust badge display for post authors (ratings, join date) |
-| `src/lib/api.ts` | Typed client for all 45+ REST endpoints (incl. friends, guardians, members, push tokens, escrow) |
+| `src/lib/api.ts` | Typed client for all 46+ REST endpoints (incl. friends, guardians, members, push tokens, escrow) |
 | `src/lib/identity.ts` | Ed25519 identity — mnemonic-derived keys, IndexedDB persistence |
 | `src/lib/mnemonic.ts` | BIP-39 mnemonic generation + WebCrypto PKCS8 key derivation |
 | `src/lib/e2e-crypto.ts` | Plaintext v1 encoding (E2E-ready data model) |

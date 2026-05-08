@@ -262,15 +262,15 @@ git add -A && git commit -m "feat: your changes"
 git push origin main
 
 # 2. Tag the release (this triggers the full pipeline)
-git tag -a v1.0.34 -m "Short description of what's new"
+git tag -a v1.0.38 -m "Short description of what's new"
 git push --tags
 ```
 
 **What happens automatically:**
 
 1. **GitHub Actions** detects the `v*` tag push
-2. **Builds** the Docker image with `APP_VERSION=1.0.34` baked in as a build arg
-3. **Pushes** to GHCR as `:latest` + `:v1.0.34` + `:1.0` + `:sha-xxxxx`
+2. **Builds** the Docker image with `APP_VERSION=1.0.38` baked in as a build arg
+3. **Pushes** to GHCR as `:latest` + `:v1.0.38` + `:1.0` + `:sha-xxxxx`
 4. **Creates a GitHub Release** with auto-generated release notes from commits since last tag
 5. **All deployed nodes** detect the new version within their configured check interval (default 6h)
 6. **Admin sees** the pulsing update badge in the header → clicks through to System tab → copies the update commands

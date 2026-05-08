@@ -64,7 +64,7 @@
 - [x] **Federation Protocol — Phase 2** — Remote marketplace browsing, Connected Communities UI, node badges
 - [x] **Federation Protocol — Phase 3** — Cross-node trading (Accept Offer on remote node) with Libp2p identity verification
 - [x] **Federation Protocol — Phase 4** — Cross-node E2E messaging and mesh fund validation over authenticated Noise streams
-- [ ] **Offline Queue** — Queue transactions/messages when offline, replay on reconnect
+- [ ] **Offline Queue** — Queue posts/transactions/messages when offline, replay on reconnect (save pending_upload to SQLite)
 
 ## Governance & Credits
 
