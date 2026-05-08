@@ -176,7 +176,7 @@ if (newsletterForm) {
                 // Also insert into newsletter_subscribers for easy querying
                 await supabaseClient
                     .from('newsletter_subscribers')
-                    .upsert({ email }, { onConflict: 'email' });
+                    .insert({ email });
 
                 newsletterStatus.textContent = 'Check your inbox for a confirmation email! 🫘';
                 newsletterStatus.className = 'newsletter-status success';
