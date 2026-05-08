@@ -1,4 +1,9 @@
-## 2024-05-18 - [Use of GET Request Method With Sensitive Query Strings]
-**Vulnerability:** A password to access admin reports was sent in the query parameter (CWE-598).
-**Learning:** Query parameters are frequently logged by web servers, proxies, and browser history, exposing sensitive authentication tokens. The frontend was constructed to use a simple URL string interpolation rather than securely transmitting credentials.
-**Prevention:** Avoid putting credentials or sensitive tokens in the query string or URL path for any HTTP method. For sensitive endpoints, consider migrating to POST requests using JSON body authentication, or use standard Authorization headers for GET requests.
+## 2024-05-08 - Authentication Bypass in Identity Verifier Middleware
+**Vulnerability:** Several sensitive POST endpoints (e.g., `/api/ratings`, `/api/marketplace/transactions/reject`, `/api/commons/vote`) bypassed signature verification, and spoof checking was incomplete for various user identity fields.
+**Learning:** The Koa middleware used an explicitly enumerated prefix list for `isProtected` which omitted new routes. Additionally, the spoof check hardcoded property names.
+**Prevention:** Use broadly encompassing path prefixes (e.g., `/api/marketplace/`) for modular features. Dynamically check all variations of public key identifiers, or standardize on a single key name across the API (`publicKey`) to prevent newly added identifier fields from bypassing checks.
+
+## 2024-05-08 - Authentication Bypass in Identity Verifier Middleware
+**Vulnerability:** Several sensitive POST endpoints (e.g., `/api/ratings`, `/api/marketplace/transactions/reject`, `/api/commons/vote`) bypassed signature verification, and spoof checking was incomplete for various user identity fields.
+**Learning:** The Koa middleware used an explicitly enumerated prefix list for `isProtected` which omitted new routes. Additionally, the spoof check hardcoded property names.
+**Prevention:** Use broadly encompassing path prefixes (e.g., `/api/marketplace/`) for modular features. Dynamically check all variations of public key identifiers, or standardize on a single key name across the API (`publicKey`) to prevent newly added identifier fields from bypassing checks.
