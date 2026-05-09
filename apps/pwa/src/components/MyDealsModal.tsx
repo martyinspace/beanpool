@@ -100,6 +100,7 @@ export function MyDealsModal({ visible, identity, onClose, posts, transactions, 
                     <button
                         onClick={onClose}
                         className="w-8 h-8 rounded-full bg-nature-100 dark:bg-nature-800 flex items-center justify-center text-nature-500 hover:bg-nature-200 dark:hover:bg-nature-700 transition-colors font-bold"
+                        aria-label="Close modal"
                     >
                         ✕
                     </button>
