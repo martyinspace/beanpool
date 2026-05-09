@@ -281,6 +281,12 @@ export function initStateEngine(): void {
     // FTS5: Backfill search keywords for existing posts that don't have them
     backfillSearchKeywords();
 
+    // Purge legacy synthetic wallet entries that leaked into the members table
+    purgeSyntheticMembers();
+
+    // Sweep zero-balance escrow accounts from settled/cancelled transactions
+    sweepSettledEscrowAccounts();
+
     const memberCount = db.prepare("SELECT COUNT(*) as c FROM members").get() as any;
     const postCount = db.prepare("SELECT COUNT(*) as c FROM posts").get() as any;
     console.log(`📒 SQLite DB initialized: ${memberCount.c} members, ${postCount.c} posts`);
@@ -394,6 +400,42 @@ function migrateEscrowWalletKeys(): void {
     }
     if (migrated > 0) {
         console.log(`[Migration] Escrow wallet key migration complete: ${migrated}/${pending.length} transactions migrated`);
+    }
+}
+
+/**
+ * One-time migration: Remove synthetic wallet entries (escrow_*, project_*) that
+ * leaked into the members table before the transfer() guard was added.
+ * Safe to re-run — only deletes members whose public_key matches synthetic patterns.
+ */
+function purgeSyntheticMembers(): void {
+    const result = db.prepare(
+        "DELETE FROM members WHERE public_key LIKE 'escrow_%' OR public_key LIKE 'project_%'"
+    ).run();
+    if (result.changes > 0) {
+        console.log(`🧹 Purged ${result.changes} synthetic wallet entries from members table (escrow_*/project_*)`);
+    }
+}
+
+/**
+ * Sweep zero-balance escrow accounts from completed/cancelled transactions.
+ * Only deletes accounts where:
+ *   1. public_key starts with 'escrow_'
+ *   2. balance is 0
+ *   3. No pending marketplace_transaction references that escrow wallet
+ * Safe to re-run and to call periodically.
+ */
+function sweepSettledEscrowAccounts(): void {
+    const result = db.prepare(`
+        DELETE FROM accounts 
+        WHERE public_key LIKE 'escrow_%' 
+          AND balance = 0
+          AND SUBSTR(public_key, 8) NOT IN (
+              SELECT id FROM marketplace_transactions WHERE status IN ('pending', 'requested')
+          )
+    `).run();
+    if (result.changes > 0) {
+        console.log(`🧹 Swept ${result.changes} settled escrow accounts with zero balance`);
     }
 }
 

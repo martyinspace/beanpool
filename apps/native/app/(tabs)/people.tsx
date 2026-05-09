@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image } from 'react-native';
-import { getDb } from '../../utils/db'; // Will query local mock array mapped to PWA layout
+import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image, ActivityIndicator } from 'react-native';
+import { getDb, getFriendsLocal, addFriendLocal, removeFriendLocal, createConversationApi } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
 import { hexToBytes, encodeUtf8, encodeBase64, signData } from '../../utils/crypto';
 import QRCode from 'react-native-qrcode-svg';
@@ -37,6 +37,10 @@ export default function PeopleScreen() {
     const [hasMore, setHasMore] = useState(true);
     const PAGE_SIZE = 20;
 
+    const [friends, setFriends] = useState<any[]>([]);
+    const [friendPubkeys, setFriendPubkeys] = useState<Set<string>>(new Set());
+    const [friendsLoading, setFriendsLoading] = useState(false);
+
     useEffect(() => {
         // Reset and reload when switching back to community view
         if (view === 'community') {
@@ -59,7 +63,22 @@ export default function PeopleScreen() {
                 }
             }).catch(() => {});
         }
+        if (view === 'friends') loadFriends();
     }, [view]);
+
+    const loadFriends = async () => {
+        if (!identity?.publicKey) return;
+        setFriendsLoading(true);
+        try {
+            const result = await getFriendsLocal(identity.publicKey);
+            setFriends(result);
+            setFriendPubkeys(new Set(result.map((f: any) => f.publicKey)));
+        } catch (e) {
+            console.error('[People] Failed to load friends:', e);
+        } finally {
+            setFriendsLoading(false);
+        }
+    };
 
     const loadOfflineInvites = async () => {
         if (!identity?.publicKey) return;
@@ -210,11 +229,11 @@ export default function PeopleScreen() {
             if (!reset) setLoadingMore(true);
             const database = await getDb();
             
-            let sql = 'SELECT * FROM members';
+            let sql = 'SELECT * FROM members WHERE public_key NOT LIKE \'escrow_%\' AND public_key NOT LIKE \'project_%\'';
             let params: any[] = [];
             
             if (query.trim()) {
-                sql += ' WHERE callsign LIKE ? OR public_key LIKE ?';
+                sql += ' AND (callsign LIKE ? OR public_key LIKE ?)';
                 const likeTerm = `%${query.trim()}%`;
                 params.push(likeTerm, likeTerm);
             }
@@ -266,11 +285,73 @@ export default function PeopleScreen() {
 
             {/* Views */}
             {view === 'friends' && (
-                <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyEmoji}>👫</Text>
-                    <Text style={styles.emptyTitle}>No friends yet</Text>
-                    <Text style={styles.emptyDesc}>Go to Community to browse members and add friends.</Text>
-                </View>
+                friendsLoading ? (
+                    <View style={styles.emptyContainer}>
+                        <ActivityIndicator size="large" color="#8b5cf6" />
+                    </View>
+                ) : friends.length === 0 ? (
+                    <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyEmoji}>👫</Text>
+                        <Text style={styles.emptyTitle}>No friends yet</Text>
+                        <Text style={styles.emptyDesc}>Go to Community to browse members and add friends.</Text>
+                    </View>
+                ) : (
+                    <FlatList
+                        data={friends}
+                        keyExtractor={item => item.publicKey}
+                        contentContainerStyle={styles.list}
+                        renderItem={({ item }) => (
+                            <View style={styles.card}>
+                                <View style={styles.cardHeader}>
+                                    <View style={styles.avatar}>
+                                        {item.avatar_url ? (
+                                            <Image source={{ uri: item.avatar_url }} style={{ width: 44, height: 44, borderRadius: 22 }} />
+                                        ) : (
+                                            <Text style={styles.avatarEmoji}>👤</Text>
+                                        )}
+                                    </View>
+                                    <View style={styles.textStack}>
+                                        <Text style={styles.callsign}>{item.callsign}</Text>
+                                        <Text style={styles.dateText}>
+                                            Added {item.addedAt ? new Date(item.addedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'recently'}
+                                        </Text>
+                                    </View>
+                                </View>
+                                <View style={styles.friendActions}>
+                                    <Pressable 
+                                        style={styles.msgBtn}
+                                        onPress={async () => {
+                                            if (!identity?.publicKey) return;
+                                            try {
+                                                const conv = await createConversationApi('dm', [identity.publicKey, item.publicKey], identity.publicKey);
+                                                router.push(`/chat/${conv.id}`);
+                                            } catch (e: any) {
+                                                Alert.alert('Error', e.message);
+                                            }
+                                        }}
+                                    >
+                                        <Text style={styles.msgBtnText}>💬</Text>
+                                    </Pressable>
+                                    <Pressable 
+                                        style={styles.removeFriendBtn}
+                                        onPress={() => {
+                                            Alert.alert('Remove Friend', `Remove ${item.callsign} from your friends?`, [
+                                                { text: 'Cancel', style: 'cancel' },
+                                                { text: 'Remove', style: 'destructive', onPress: async () => {
+                                                    if (!identity?.publicKey) return;
+                                                    await removeFriendLocal(identity.publicKey, item.publicKey);
+                                                    loadFriends();
+                                                }}
+                                            ]);
+                                        }}
+                                    >
+                                        <Text style={styles.removeFriendBtnText}>✕</Text>
+                                    </Pressable>
+                                </View>
+                            </View>
+                        )}
+                    />
+                )
             )}
 
             {view === 'community' && (
@@ -311,9 +392,18 @@ export default function PeopleScreen() {
                                 </View>
                             ) : null
                         }
-                        renderItem={({ item }) => (
+                        renderItem={({ item }) => {
+                        const isFriend = friendPubkeys.has(item.public_key);
+                        const isSelf = item.public_key === identity?.publicKey;
+                        const joinDate = item.joined_at 
+                            ? new Date(item.joined_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                            : 'Member';
+                        return (
                         <View style={styles.card}>
-                            <View style={styles.cardHeader}>
+                            <Pressable 
+                                style={styles.cardHeader}
+                                onPress={() => router.push(`/public-profile?publicKey=${item.public_key}`)}
+                            >
                                 <View style={styles.avatar}>
                                     {item.avatar_url ? (
                                         <Image source={{ uri: item.avatar_url }} style={{ width: 44, height: 44, borderRadius: 22 }} />
@@ -322,18 +412,34 @@ export default function PeopleScreen() {
                                     )}
                                 </View>
                                 <View style={styles.textStack}>
-                                    <Text style={styles.callsign}>{item.callsign}</Text>
-                                    <Text style={styles.dateText}>Joined recently</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <Text style={styles.callsign}>{item.callsign}</Text>
+                                        {isFriend && <Text style={styles.friendChip}>★ Friend</Text>}
+                                    </View>
+                                    <Text style={styles.dateText}>Joined {joinDate}</Text>
                                 </View>
-                            </View>
-                            <Pressable 
-                                style={styles.addBtn}
-                                onPress={() => Alert.alert('Coming Soon', `Friend requests to ${item.callsign} will be available in the next update.`)}
-                            >
-                                <Text style={styles.addBtnText}>+ Add</Text>
                             </Pressable>
+                            {!isSelf && (
+                                <Pressable 
+                                    style={[styles.addBtn, isFriend && styles.addBtnFriended]}
+                                    onPress={async () => {
+                                        if (!identity?.publicKey) return;
+                                        if (isFriend) {
+                                            await removeFriendLocal(identity.publicKey, item.public_key);
+                                        } else {
+                                            await addFriendLocal(identity.publicKey, item.public_key);
+                                        }
+                                        loadFriends();
+                                    }}
+                                >
+                                    <Text style={[styles.addBtnText, isFriend && styles.addBtnTextFriended]}>
+                                        {isFriend ? '✓ Added' : '+ Add'}
+                                    </Text>
+                                </Pressable>
+                            )}
                         </View>
-                    )}
+                    );
+                    }}
                 />
                 </>
             )}
@@ -497,5 +603,15 @@ const styles = StyleSheet.create({
     pendingFor: { fontSize: 12, fontWeight: '700', color: '#059669', marginBottom: 4 },
     pendingCode: { fontSize: 13, fontFamily: 'monospace', color: '#111827', fontWeight: '600' },
     btnCopySmall: { backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5e7eb', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, marginLeft: 12 },
-    btnCopySmallText: { fontSize: 12, fontWeight: '600', color: '#4b5563' }
+    btnCopySmallText: { fontSize: 12, fontWeight: '600', color: '#4b5563' },
+
+    // Friend-specific styles
+    friendChip: { fontSize: 10, fontWeight: '800', color: '#f59e0b', backgroundColor: '#fffbeb', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
+    addBtnFriended: { backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#d1d5db', shadowOpacity: 0 },
+    addBtnTextFriended: { color: '#059669' },
+    friendActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    msgBtn: { backgroundColor: '#f0fdf4', width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#dcfce7' },
+    msgBtnText: { fontSize: 18 },
+    removeFriendBtn: { backgroundColor: '#fef2f2', width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#fecaca' },
+    removeFriendBtnText: { fontSize: 16, color: '#ef4444', fontWeight: '700' }
 });

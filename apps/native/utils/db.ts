@@ -231,6 +231,15 @@ async function _doInitDB() {
             created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
             UNIQUE(rater_pubkey, transaction_id)
         );
+
+        -- 6b. Friends
+        CREATE TABLE IF NOT EXISTS friends (
+            owner_pubkey TEXT NOT NULL,
+            friend_pubkey TEXT NOT NULL,
+            added_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            is_guardian INTEGER DEFAULT 0,
+            PRIMARY KEY (owner_pubkey, friend_pubkey)
+        );
         
         -- 7. Projects
         CREATE TABLE IF NOT EXISTS projects (
@@ -1113,6 +1122,8 @@ export async function applyDelta(delta: any) {
     if (delta.members && delta.members.length > 0) {
         for (const m of delta.members) {
             const pk = m.publicKey || m.public_key || '';
+            // Skip synthetic wallet entries (escrow/project accounts are not real members)
+            if (pk.startsWith('escrow_') || pk.startsWith('project_')) continue;
             const cs = m.callsign || '';
             const av = m.avatarUrl || m.avatar_url || null;
             await database.runAsync(
@@ -1224,6 +1235,41 @@ export async function applyDelta(delta: any) {
                         proj.createdAt ?? proj.created_at ?? new Date().toISOString()
                     ]
                 );
+            }
+        }
+
+        // Sync friends (compact diff from server)
+        if (delta.friends && Array.isArray(delta.friends)) {
+            const identity = await loadIdentity();
+            if (identity?.publicKey) {
+                // Get current local friend pubkeys
+                const localFriends = await database.getAllAsync<any>(
+                    'SELECT friend_pubkey FROM friends WHERE owner_pubkey = ?',
+                    [identity.publicKey]
+                );
+                const localSet = new Set(localFriends.map((f: any) => f.friend_pubkey));
+                const serverSet = new Set(delta.friends.map((f: any) => f.publicKey || f.friend_pubkey));
+
+                // Add new friends from server
+                for (const f of delta.friends) {
+                    const fpk = f.publicKey || f.friend_pubkey;
+                    if (!localSet.has(fpk)) {
+                        await database.runAsync(
+                            'INSERT OR IGNORE INTO friends (owner_pubkey, friend_pubkey, added_at, is_guardian) VALUES (?, ?, ?, ?)',
+                            [identity.publicKey, fpk, f.addedAt || f.added_at || new Date().toISOString(), f.isGuardian ? 1 : 0]
+                        );
+                    }
+                }
+
+                // Remove friends no longer on server
+                for (const local of localFriends) {
+                    if (!serverSet.has(local.friend_pubkey)) {
+                        await database.runAsync(
+                            'DELETE FROM friends WHERE owner_pubkey = ? AND friend_pubkey = ?',
+                            [identity.publicKey, local.friend_pubkey]
+                        );
+                    }
+                }
             }
         }
 
@@ -1857,4 +1903,98 @@ export async function getMarketplaceTransactions(publicKey: string, filter?: { s
             ratedBySeller: !!r.ratedBySeller
         };
     });
+}
+
+// ===================== FRIENDS =====================
+
+/** Get all friends from local SQLite (INNER JOIN to avoid ghost friends) */
+export async function getFriendsLocal(ownerPubkey: string): Promise<any[]> {
+    const database = await getDb();
+    return database.getAllAsync<any>(
+        `SELECT f.friend_pubkey as publicKey, m.callsign, m.avatar_url, f.added_at as addedAt, f.is_guardian as isGuardian, m.joined_at as joinedAt
+         FROM friends f
+         INNER JOIN members m ON f.friend_pubkey = m.public_key
+         WHERE f.owner_pubkey = ?
+         ORDER BY f.added_at DESC`,
+        [ownerPubkey]
+    );
+}
+
+/** Check if a pubkey is a friend */
+export async function isFriendLocal(ownerPubkey: string, friendPubkey: string): Promise<boolean> {
+    const database = await getDb();
+    const row = await database.getFirstAsync<any>(
+        'SELECT 1 FROM friends WHERE owner_pubkey = ? AND friend_pubkey = ?',
+        [ownerPubkey, friendPubkey]
+    );
+    return !!row;
+}
+
+/** Add a friend locally + sync to server */
+export async function addFriendLocal(ownerPubkey: string, friendPubkey: string): Promise<void> {
+    if (ownerPubkey === friendPubkey) return;
+    const database = await getDb();
+    await database.runAsync(
+        'INSERT OR IGNORE INTO friends (owner_pubkey, friend_pubkey, added_at) VALUES (?, ?, ?)',
+        [ownerPubkey, friendPubkey, new Date().toISOString()]
+    );
+    // Fire-and-forget server sync
+    _syncFriendToServer('add', ownerPubkey, friendPubkey).catch(e => console.warn('[Friends] Server sync failed:', e.message));
+}
+
+/** Remove a friend locally + sync to server */
+export async function removeFriendLocal(ownerPubkey: string, friendPubkey: string): Promise<void> {
+    const database = await getDb();
+    await database.runAsync(
+        'DELETE FROM friends WHERE owner_pubkey = ? AND friend_pubkey = ?',
+        [ownerPubkey, friendPubkey]
+    );
+    // Fire-and-forget server sync
+    _syncFriendToServer('remove', ownerPubkey, friendPubkey).catch(e => console.warn('[Friends] Server sync failed:', e.message));
+}
+
+/** Server sync helper for friend add/remove */
+async function _syncFriendToServer(action: 'add' | 'remove', ownerPubkey: string, friendPubkey: string) {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) return;
+    const endpoint = action === 'add' ? '/api/friends/add' : '/api/friends/remove';
+    await fetch(`${anchorUrl}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerPubkey, friendPubkey })
+    });
+}
+
+/** Fetch friends from server (used by sync) */
+export async function fetchFriendsFromServer(publicKey: string): Promise<any[]> {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) return [];
+    try {
+        const res = await fetch(`${anchorUrl}/api/friends/${publicKey}`, {
+            headers: { 'Accept': 'application/json' }
+        });
+        if (res.ok) return await res.json();
+    } catch (e) {
+        console.warn('[Friends] Failed to fetch from server:', e);
+    }
+    return [];
+}
+
+/** Get recent chat peers (for "Recents" section in contact picker) */
+export async function getRecentChatMembers(myPubkey: string, limit = 10): Promise<any[]> {
+    const database = await getDb();
+    return database.getAllAsync<any>(
+        `SELECT DISTINCT m.public_key as publicKey, m.callsign, m.avatar_url, m.joined_at as joinedAt,
+                MAX(msg.timestamp) as lastChatAt
+         FROM conversation_participants cp
+         JOIN conversations c ON cp.conversation_id = c.id
+         JOIN conversation_participants cp2 ON cp2.conversation_id = c.id AND cp2.public_key != ?
+         JOIN members m ON m.public_key = cp2.public_key
+         LEFT JOIN messages msg ON msg.conversation_id = c.id
+         WHERE cp.public_key = ? AND c.type = 'dm' AND c.post_id IS NULL
+         GROUP BY m.public_key
+         ORDER BY lastChatAt DESC
+         LIMIT ?`,
+        [myPubkey, myPubkey, limit]
+    );
 }

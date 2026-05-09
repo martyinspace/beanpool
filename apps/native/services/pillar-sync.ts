@@ -14,7 +14,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { BeanPoolMerkleTree } from '@beanpool/core';
-import { applyDelta } from '../utils/db';
+import { applyDelta, fetchFriendsFromServer } from '../utils/db';
 import { getDatabaseFilenameForNode } from '../utils/nodes';
 
 const SYNC_TIMEOUT_MS = 20_000;
@@ -185,7 +185,7 @@ export async function performSync(): Promise<SyncResult> {
         const postsTimeout = setTimeout(() => postsController.abort(), 30000); // Extended for heavy initial payloads
         const balanceTimeout = setTimeout(() => balanceController.abort(), 30000);
 
-        const [postsRes, balanceRes, directoryRes, projectsRes, txRes, mkptxRes] = await Promise.all([
+        const [postsRes, balanceRes, directoryRes, projectsRes, txRes, mkptxRes, friendsData] = await Promise.all([
             fetch(`${anchorUrl}/api/marketplace/posts?limit=1000${lastSyncParam}&_t=${Date.now()}`, {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' },
@@ -215,7 +215,8 @@ export async function performSync(): Promise<SyncResult> {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' },
                 signal: postsController.signal
-            }) : Promise.resolve(null)
+            }) : Promise.resolve(null),
+            pubKey ? fetchFriendsFromServer(pubKey) : Promise.resolve([])
         ]);
 
         clearTimeout(postsTimeout);
@@ -237,6 +238,11 @@ export async function performSync(): Promise<SyncResult> {
             members: [],
             projects: []
         };
+
+        // Add friends to delta (already parsed array from fetchFriendsFromServer)
+        if (Array.isArray(friendsData) && friendsData.length > 0) {
+            delta.friends = friendsData;
+        }
         
         if (directoryRes && directoryRes.ok) {
             try {

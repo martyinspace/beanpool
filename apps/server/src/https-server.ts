@@ -1761,7 +1761,8 @@ export async function startHttpsServer(port: number): Promise<void> {
     // ======================== MEMBERS LIST ========================
 
     router.get('/api/members', async (ctx) => {
-        const allMembers = getAllMembers();
+        const allMembers = getAllMembers()
+            .filter(m => !m.publicKey.startsWith('escrow_') && !m.publicKey.startsWith('project_'));
         ctx.body = allMembers.map(m => ({
             publicKey: m.publicKey,
             callsign: m.callsign,
