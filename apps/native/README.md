@@ -93,6 +93,7 @@ apps/native/
 - **Settings Visual Overhaul** — identity card with bio, contact details, and contrast improvements
 - **iOS Crypto Polyfill** — SHA-512 and Ed25519 signing polyfilled for iOS via `expo-crypto`
 - **Escrow Actions** — request/approve/reject/cancel/complete marketplace deals with atomic escrow settlement
+- **Social Recovery (3-of-N)** — cryptographically secure identity recovery requiring a quorum of trusted guardians without central admins.
 
 ## Background Sync (Pillar Toggle)
 
@@ -163,8 +164,9 @@ npx expo start                      # Native dev client
 | Map clustering | ✅ | ✅ | Phase 6 overhaul with elder glow and stabilization patches |
 | Offline Outbox | — | ✅ | Native-only offline draft queuing |
 | Sanitized Syncing | ✅ | ✅ | Filtering of synthetic visitor accounts |
+| Social Recovery | — | ✅ | 3-of-N quorum-based Guardian identity restoration |
 | Federation (remote markets) | ✅ | 🔜 | Planned |
 
 ---
 
-_Last updated: 2026-05-09 AEST_
+_Last updated: 2026-05-10 AEST_

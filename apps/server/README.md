@@ -12,7 +12,7 @@
 | `src/index.ts` | Main boot orchestrator — 5-stage startup |
 | `src/tls.ts` | **TLS certificate management** — LE via acme-client + self-signed fallback |
 | `src/state-engine.ts` | In-memory state: members, posts, profiles, conversations, messages, invites, ledger, ratings, reports |
-| `src/https-server.ts` | 46+ REST API endpoints: community, marketplace, friends, ratings, reports, admin, version/update, push notifications, escrow lifecycle, database backup |
+| `src/https-server.ts` | 50+ REST API endpoints: community, marketplace, friends, ratings, reports, admin, version/update, push notifications, escrow lifecycle, database backup, social recovery |
 | `src/http-server.ts` | HTTP endpoint (port 80) for Let's Encrypt validation, LAN QR Poster, and HTTPS redirect |
 | `src/p2p.ts` | Core libp2p node instantiation, bootstrap logic, and gossipsub |
 | `src/connector-manager.ts` | Sovereign connectors with federation trust levels (peer/mirror/blocked) |

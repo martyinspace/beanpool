@@ -84,6 +84,14 @@ Deterministic identity from a BIP-39 mnemonic:
 - **Recovery mode** — enter 12 words + callsign to restore identity on any device
 - **WebCrypto SHA-256 + PKCS8** — no external crypto dependencies
 
+### 🛡️ Social Recovery (3-of-N)
+Cryptographically secure identity recovery without central admins:
+- **Guardian Selection** — Select 3 to 5 trusted friends as recovery guardians.
+- **Guardian Knowledge Check** — Initiators must know a guardian's exact callsign to prevent spam.
+- **Quorum Approval** — Requires 3 guardians to approve the recovery request.
+- **Atomic Migration** — Old identity data (posts, friends, balances) seamlessly migrates to a newly generated 12-word seed.
+- **24-Hour Cooldown** — Security buffer to allow users to cancel fraudulent recovery attempts.
+
 ### 🏠 Landing Page (Welcome Hub)
 Port 80 serves a community welcome hub:
 - **Three clear paths**: New member (invite code), Add another device (transfer link), Lost device (recovery)

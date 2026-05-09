@@ -1,6 +1,6 @@
 # 🗺️ BeanPool Roadmap
 
-> Planned features and future work. Updated: 2026-05-09
+> Planned features and future work. Updated: 2026-05-10
 
 ---
 
@@ -17,7 +17,7 @@
 - ✅ **Recovery Mode** — enter 12 words + callsign to restore identity on any device
 - ✅ **Landing Page Welcome Hub** — 3 clear paths (join, transfer, recover) + admin contact info. Newsletter signup using insert bypassed RLS constraints.
 - ✅ **Admin Community Config** — name, email, phone in Settings → Community tab
-- ✅ **Guardian Selection** — select up to 5 friends as recovery guardians (UI ready)
+- ✅ **Social Recovery (3-of-N)** — Cryptographically secure identity recovery mechanism requiring quorum approval from trusted friends. Includes Guardian Knowledge Check to prevent spoofing and a 24-hour security cooldown.
 - ✅ **Native App (Expo)** — 7-tab React Native companion app achieving PWA parity: Map, Projects, Market (14 categories), Chat, People, Ledger, Settings
 - ✅ **Native SQLite + SecureStore** — local data persistence and sovereign identity storage on device
 - ✅ **Community Projects Tab** — native-only crowdfunding feature with progress tracking, atomic editing, and destructive rollback for escrow.
@@ -38,45 +38,67 @@
 - ✅ **Escrow Demurrage Exemption** — escrow wallets exempt from circulation decay with DB persistence fix.
 - ✅ **Self-Healing DB Migrations** — auto-repair corrupted ratings table schema on startup.
 - ✅ **iOS Crypto Polyfill** — SHA-512 and Ed25519 signing polyfilled for iOS via `expo-crypto`.
+- ✅ **Commons Demurrage Persistence** — COMMONS_BALANCE now persists to `accounts` table, restored on startup, saved every 5 min + on every transfer.
+- ✅ **Project System Unification** — Admin Commons UI now reads from the live `projects` SQL table instead of deprecated JSON config blob.
+- ✅ **Profile Photo Server Sync** — Profile updates (including avatar) now push to server and propagate to all devices via sync.
 
 ---
 
-## Identity & Security
+## 🔴 Critical / High Priority
 
+> These items represent data integrity risks, security gaps, or significant UX blockers for real users.
+
+### Identity & Security
+
+- [ ] 🔴 **View Recovery Phrase** — Show stored 12-word phrase in Settings for existing mnemonic-based identities. _Users currently have no way to see their seed words after initial creation. If they didn't write them down, identity loss is permanent on device failure._
+- [ ] 🔴 **Identity Backup Reminder** — Prompt users to export their identity if they haven't yet. _Without this, users who lose their device lose everything with no warning._
+- [ ] 🔴 **Ban / Revoke Member (Enforcement)** — `adminSetUserStatus('disabled')` exists but doesn't actually block transactions or posting. Disabled members can still transact. _Need to enforce status checks in transfer/post/messaging pathways._
+- [ ] **Visitor Account Audit** — Investigate signup flow for ghost/unnamed accounts; consider enforcing mandatory profile info or redirecting to profile settings on first login.
+
+### Data Lifecycle & Storage
+
+- [ ] 🔴 **Photo Size Limits** — No upload size enforcement exists. Large base64 images (including profile avatars) are stored as-is, creating unbounded storage growth and sync payload bloat.
+- [ ] 🟡 **Stale Post Archival** — Auto-archive posts older than X days (configurable), remove photos to free disk space. _Without this, node storage grows indefinitely._
+- [ ] 🟡 **Post Completion Cleanup** — When a need/offer is fulfilled, delete associated photos after a grace period (7 days).
+- [ ] **Photo Compression Pipeline** — Server-side image optimisation for marketplace post photos.
+- [ ] **Message Retention Policy** — Auto-prune old messages/conversations beyond a configurable age.
+- [ ] **Storage Dashboard** — Show total data/photos disk usage in admin System tab with warnings.
+
+---
+
+## 🟡 Important
+
+### Governance & Credits
+
+- [ ] 🟡 **Mobile Voting UI** — Native app interface for community members to vote on funding rounds. _Admin voting UI exists in settings.html, but phone users cannot currently participate in governance — this is a major participation gap for a community currency._
 - [ ] **Self-Healing Profile Synchronization** — Enable correct promotion of Visitor accounts to full member state when recovering locally before connecting to the node.
-- [ ] **Social Recovery (Shamir 3-of-5)** — guardians reconstruct identity from secret shares when device is lost
-- [ ] **Sign Out / Wipe Identity** — Button in PWA Settings to delete the local Ed25519 key from IndexedDB
-- [ ] **Ban / Revoke Member** — Admin action to block a public key from transacting on the node
-- [ ] **View Recovery Phrase** — Show stored 12-word phrase in Settings for existing mnemonic-based identities
-- [ ] **Identity Backup Reminder** — Prompt users to export their identity if they haven't yet
 
-## Marketplace
+### Identity & Security
+
+- [x] **Sign Out / Wipe Identity** — `wipeIdentity()` implemented in native app Settings with type-to-confirm safeguard and full state cleanup.
+
+---
+
+## Backlog
+
+### Marketplace
 
 - [x] **Database Migration (SQLite)** — Replaced JSON state engine with `better-sqlite3`. Includes relational constraints and paging limits.
-- [ ] **Photo Compression Pipeline** — Server-side image optimisation for marketplace post photos
 
-## Data Lifecycle & Storage
-
-- [ ] **Post Completion Cleanup** — When a need/offer is fulfilled, delete associated photos after a grace period (7 days)
-- [ ] **Stale Post Archival** — Auto-archive posts older than X days (configurable), remove photos to free disk space
-- [ ] **Storage Dashboard** — Show total data/photos disk usage in admin System tab with warnings
-- [ ] **Photo Size Limits** — Enforce max file size per photo and max photos per post at upload time
-- [ ] **Message Retention Policy** — Auto-prune old messages/conversations beyond a configurable age
-
-## Network & Federation
+### Network & Federation
 
 - [x] **Federation Protocol — Phase 1** — Trust levels (mirror/peer/blocked), CORS, `/api/node/info`
 - [x] **Federation Protocol — Phase 2** — Remote marketplace browsing, Connected Communities UI, node badges
 - [x] **Federation Protocol — Phase 3** — Cross-node trading (Accept Offer on remote node) with Libp2p identity verification
 - [x] **Federation Protocol — Phase 4** — Cross-node E2E messaging and mesh fund validation over authenticated Noise streams
 - [x] **Offline Queue** — Queue posts/transactions/messages when offline, replay on reconnect (save pending_upload to SQLite)
+- [ ] **Federation (Native)** — remote marketplace browsing on native
 
-## Governance & Credits
+### Governance & Credits
 
-- [ ] **Commons Fund Proposals** — UI for creating and voting on community proposals
 - [x] **Transaction History Export** — Implemented `/api/ledger/export` CSV generation on Web and Native environments.
 
-## Native App
+### Native App
 
 - [x] **7-Tab Native Interface** — Map, Projects, Market, Chat, People, Ledger, Settings with neon-vine branded tab bar
 - [x] **Native Identity Flow** — sovereign identity creation and 12-word recovery via Expo SecureStore
@@ -87,9 +109,8 @@
 - [x] **Live Inbox Parity** — SQLite E2E text decryption, Background Sync Mutex Locking, & Native Tab Unread Badges
 - [x] **Bean Ratings (Native)** — port 🫘 rating system to native app
 - [x] **Abuse Reporting (Native)** — port reporting UI to native app
-- [ ] **Federation (Native)** — remote marketplace browsing on native
-- [ ] **App Store & Play Store Submission** — Polish and submit for formal distribution
 - [x] **Push Notifications** — Message and trade alerts via Expo Push Notifications
+- [x] **App Store & Play Store Submission** — Published to both stores (v1.0.39, build 50).
 
 ---
 

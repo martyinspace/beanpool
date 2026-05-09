@@ -52,6 +52,7 @@
 - ✅ **Native Background Sync** — SQLite `dbSyncLock` Mutex Queue safely handling parallel `applyDelta` and foreground Map/Inbox requests without `database is locked` panics.
 - ✅ **Live Inbox Parity** — Base64 E2E plaintext message decryption, real-time polling, and global unread notification tab badges.
 - ✅ **Native Identity Flow** — sovereign identity creation and 12-word recovery via Expo SecureStore
+- ✅ **Social Recovery (3-of-N)** — Cryptographically secure identity recovery without central admins, using 3-of-N quorum from trusted guardians. Includes Guardian Knowledge Check anti-spam and a 24-hour security cooldown. UI built in Native App.
 - ✅ **Community Projects Tab** — native-only crowdfunding feature with progress bars and proposal creation
 - ✅ **Neon-Vine Tab Bar** — branded tab navigation with artwork background and dark overlay
 - ✅ **Push Notifications** — Expo push token registration, DM/marketplace deal alerts, per-member notification preferences. Server stores tokens and dispatches notifications on message/deal events.
