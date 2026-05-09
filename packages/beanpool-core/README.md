@@ -18,6 +18,7 @@ A peer-to-peer economic layer designed to encourage circulation rather than accu
 *   **Mutual Credit**: Participants begin with 0.00 credits and a guaranteed credit floor of `−100Ʀ`. This enables immediate participation — you can contribute value before receiving it.
 *   **Community Circulation (Decay)**: Positive balances decay progressively based on abundance (0.5% - 2.5% per month). The circulated value is swept into a shared `COMMONS_BALANCE`, funding community projects via governance proposals.
 *   **Escrow Settlement**: Marketplace deals utilize atomic `escrow_{id}` synthetic wallets to lock funds prior to service delivery, guaranteeing robust refunds on cancellation without double-charging base ledgers.
+*   **Escrow Demurrage Exemption**: Funds currently locked inside active synthetic escrow wallets are entirely exempt from circulation decay.
 
 ### 1.3 Governance (Quadratic Voting)
 Community proposals are voted on using quadratic voting to prevent plutocratic capture.

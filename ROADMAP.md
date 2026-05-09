@@ -1,18 +1,21 @@
 # 🗺️ BeanPool Roadmap
 
-> Planned features and future work. Updated: 2026-05-08
+> Planned features and future work. Updated: 2026-05-09
 
 ---
 
 ## ✅ Recently Completed
 
+- ✅ **Sanitized Syncing** — Automatic filtering of synthetic "Visitor" and escrow accounts from local databases and UI elements.
+- ✅ **Map Clustering Stabilization** — Patched `react-native-map-clustering` to prevent marker disappearance on iOS during zoom and scroll interactions.
+- ✅ **Offline Queue** — Built native SQLite capability to draft and save marketplace posts whilst offline, syncing automatically when connection restores.
 - ✅ **Database Backup & Reset Safeguards** — Streaming `tar.gz` database snapshot downloads via the System tab, plus type-to-confirm and backup prompts to protect against accidental node resets.
 - ✅ **Admin Branch Stats** — Inline stats chips (posts, msgs, deals) and expandable branch aggregate cards in the Audit tree, optimized with a single-pass SQL query.
 - ✅ **Map Centering & Location Fixes** — Map now centers dynamically on the node's configured `serviceRadius` (defaulting to Mullumbimby), and Leaflet async "ghost pin" leak bugs were resolved.
 - ✅ **People Tab** — replaced Invite tab with Friends, Community browser, Invites, Guardians
 - ✅ **12-Word Seed Phrase** — BIP-39 mnemonic generation + deterministic Ed25519 key derivation
 - ✅ **Recovery Mode** — enter 12 words + callsign to restore identity on any device
-- ✅ **Landing Page Welcome Hub** — 3 clear paths (join, transfer, recover) + admin contact info
+- ✅ **Landing Page Welcome Hub** — 3 clear paths (join, transfer, recover) + admin contact info. Newsletter signup using insert bypassed RLS constraints.
 - ✅ **Admin Community Config** — name, email, phone in Settings → Community tab
 - ✅ **Guardian Selection** — select up to 5 friends as recovery guardians (UI ready)
 - ✅ **Native App (Expo)** — 7-tab React Native companion app achieving PWA parity: Map, Projects, Market (14 categories), Chat, People, Ledger, Settings
@@ -35,10 +38,12 @@
 - ✅ **Escrow Demurrage Exemption** — escrow wallets exempt from circulation decay with DB persistence fix.
 - ✅ **Self-Healing DB Migrations** — auto-repair corrupted ratings table schema on startup.
 - ✅ **iOS Crypto Polyfill** — SHA-512 and Ed25519 signing polyfilled for iOS via `expo-crypto`.
+
 ---
 
 ## Identity & Security
 
+- [ ] **Self-Healing Profile Synchronization** — Enable correct promotion of Visitor accounts to full member state when recovering locally before connecting to the node.
 - [ ] **Social Recovery (Shamir 3-of-5)** — guardians reconstruct identity from secret shares when device is lost
 - [ ] **Sign Out / Wipe Identity** — Button in PWA Settings to delete the local Ed25519 key from IndexedDB
 - [ ] **Ban / Revoke Member** — Admin action to block a public key from transacting on the node
@@ -64,7 +69,7 @@
 - [x] **Federation Protocol — Phase 2** — Remote marketplace browsing, Connected Communities UI, node badges
 - [x] **Federation Protocol — Phase 3** — Cross-node trading (Accept Offer on remote node) with Libp2p identity verification
 - [x] **Federation Protocol — Phase 4** — Cross-node E2E messaging and mesh fund validation over authenticated Noise streams
-- [ ] **Offline Queue** — Queue posts/transactions/messages when offline, replay on reconnect (save pending_upload to SQLite)
+- [x] **Offline Queue** — Queue posts/transactions/messages when offline, replay on reconnect (save pending_upload to SQLite)
 
 ## Governance & Credits
 
@@ -84,7 +89,7 @@
 - [x] **Abuse Reporting (Native)** — port reporting UI to native app
 - [ ] **Federation (Native)** — remote marketplace browsing on native
 - [ ] **App Store & Play Store Submission** — Polish and submit for formal distribution
-- [ ] **Push Notifications** — Message and trade alerts via Firebase Cloud Messaging
+- [x] **Push Notifications** — Message and trade alerts via Expo Push Notifications
 
 ---
 

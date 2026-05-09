@@ -391,13 +391,22 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ CI/CD pipeline — GitHub Actions auto-builds Docker image, auto-creates Releases from git tags
 - ✅ Directory Publisher — nodes push metadata to beanpool.org Supabase global directory
 - ✅ Push Notifications — Expo push tokens, DM/marketplace alerts, per-member notification preferences
+- ✅ Native Background Sync — SQLite `dbSyncLock` Mutex Queue safely handling parallel `applyDelta` and foreground Map/Inbox requests without `database is locked` panics.
+- ✅ Offline Outbox — Draft and queue marketplace posts while offline, syncs automatically when connection restores.
+- ✅ Live Inbox Parity — Base64 E2E plaintext message decryption, real-time polling, and global unread notification tab badges.
+- ✅ Native Identity Flow — sovereign identity creation and 12-word recovery via Expo SecureStore
+- ✅ Community Projects Tab — native-only crowdfunding feature with progress bars and proposal creation
+- ✅ Neon-Vine Tab Bar — branded tab navigation with artwork background and dark overlay
+- ✅ Push Notifications — Expo push token registration, DM/marketplace deal alerts, per-member notification preferences. Server stores tokens and dispatches notifications on message/deal events.
 - ✅ Guest Mode — multi-node onboarding with membership probe, guest UI indicators in header and sync status
 - ✅ Native App (Expo) — 7-tab React Native companion app: Map, Projects, Market (14 cats), Chat, People, Ledger, Settings
 - ✅ Native SQLite + SecureStore — local persistence and sovereign identity on device
 - ✅ Map Phase 6 — pin clustering, modern markers, elder glow effects (both PWA + Native)
+- ✅ Map Clustering Stabilization — custom patching to prevent marker disappearance on iOS scroll/zoom.
 - ✅ Marketplace UX Modernization — horizontal category chips, trust badges, MyDeals sheet/modal, post author trust display
 - ✅ Community Projects — native-only crowdfunding tab with progress tracking
 - ✅ Escrow Demurrage Exemption — escrow wallets exempt from circulation decay
+- ✅ Sanitized Syncing — Synthetic "Visitor" and escrow accounts automatically filtered from local member directories and map views.
 
 **Coming next:**
 - Native App Polish & App Store Submission (federation parity)
@@ -409,4 +418,4 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 
 [MIT](LICENSE)
 
-_Last updated: 2026-05-08 AEST_
+_Last updated: 2026-05-09 AEST_

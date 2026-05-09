@@ -77,6 +77,9 @@ apps/native/
 - **14-Category Marketplace** — Food, Services, Labour, Tools, Goods, Housing, Transport, Education, Arts, Health, Care, Animals, Energy, General (PWA has 13; native adds Care ❤️)
 - **Marketplace UX Modernization** — horizontal category chips via `CategoryPickerSheet`, author trust badges (`PostAuthorTrust`), and active deals tracking (`MyDealsSheet`)
 - **Map Clustering (Phase 6)** — pin clustering for dense areas, modern markers with category icons, elder glow effects for founding members
+- **Map Clustering Stabilization** — Patched `react-native-map-clustering` to prevent marker disappearance on iOS scroll/zoom
+- **Offline Outbox** — Native SQLite capability allowing users to draft and queue marketplace posts whilst offline, with automatic syncing upon reconnection
+- **Sanitized Syncing** — The native SQLite `applyDelta` daemon and map automatically filter out synthetic visitor/guest accounts and escrow wallets
 - **Push Notifications** — DM and marketplace deal alerts via Expo Push, per-member notification preferences, token registration
 - **Guest Mode** — multi-node onboarding flow with membership probe; guest indicators in header and sync status when visiting a node you're not a member of
 - **Community Search** — search and infinite scroll on the Community member list
@@ -157,9 +160,11 @@ npx expo start                      # Native dev client
 | Abuse reporting | ✅ | ✅ | Implemented via SQLite and identity tracking |
 | Push notifications | — | ✅ | DM + marketplace alerts via Expo Push |
 | Guest mode | ✅ | ✅ | Multi-node onboarding with membership probe |
-| Map clustering | ✅ | ✅ | Phase 6 overhaul with elder glow |
+| Map clustering | ✅ | ✅ | Phase 6 overhaul with elder glow and stabilization patches |
+| Offline Outbox | — | ✅ | Native-only offline draft queuing |
+| Sanitized Syncing | ✅ | ✅ | Filtering of synthetic visitor accounts |
 | Federation (remote markets) | ✅ | 🔜 | Planned |
 
 ---
 
-_Last updated: 2026-05-08 AEST_
+_Last updated: 2026-05-09 AEST_

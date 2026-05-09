@@ -4,7 +4,7 @@
 > **Read this first** — then see `index.md` for a full documentation map.
 
 ---
-## Current State (2026-05-08)
+## Current State (2026-05-09)
 
 **BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🪶 bean reputation system, abuse reporting, **moderation centre** (batch post management, wash-trading detection, member audit), **update notifications** (Docker Desktop-style header badge with auto-check), community health dashboard, and federation protocol — deployed on **3 sovereign nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity.
 
@@ -13,7 +13,7 @@
 - ✅ **Invite-only membership** — single-use invite codes, hierarchical invite tree (node → seed codes → admin → organic invites)
 - ✅ **12-word seed phrase** — BIP-39 mnemonic, deterministic Ed25519 key derivation, recovery flow in PWA
 - ✅ **People tab** — Friends, Community browser, Invites (moved), Guardians (select up to 5)
-- ✅ **Landing page welcome hub** — 3 paths (join, transfer, recover), admin contact info, FAQ
+- ✅ **Landing page welcome hub** — 3 paths (join, transfer, recover), admin contact info, FAQ. Auth-bypassed newsletter signup via Supabase insertion.
 - ✅ **Admin community config** — name, email, phone in Settings → Community tab
 - ✅ **Member profiles** — avatar (camera + gallery), editable callsign, bio, contact details with 3-tier visibility
 - ✅ **Editable callsign** — change callsign in Profile, syncs to IndexedDB + server
@@ -21,6 +21,7 @@
 - ✅ **🫘 Bean reputation** — 5-bean rating with comments, displayed on post tiles and detail view
 - ✅ **Abuse reporting** — reason dropdown (spam, offensive, misleading, harassment, other), admin panel in Settings
 - ✅ **Marketplace** — 14-category Deals Hub with "My Market" segment controls and unread inbound request counters. The Global Discovery feed permanently hides personal listings to isolate discovery from personal administration.
+- ✅ **Offline Outbox** — Native SQLite capability allowing users to draft and save marketplace posts whilst offline, with automated syncing to the server once connection is restored (`pending_upload` status).
 - ✅ **Smart CRM Inbox** — The messaging tab acts as a Transactional CRM. Threads automatically surface their parent Marketplace Post Title and contextual Status (Active/In Escrow/Completed), with quick-filters for All, Transactions, and Direct messages natively and in PWA.
 - ✅ **Automated Deals Routing** — Both Native and PWA instantly route users into their "My Market" active deals dashboard immediately upon creating a new post.
 - ✅ **Escrow Handshake & Soft-Delets** — Branching 3-step (Needs) vs 1-step (Offers) request flow with smart-contract style `escrow_{id}` wallets securely handling auto-refunds even on post soft-deletion.
@@ -37,6 +38,7 @@
 - ✅ **Cross-Community Marketplace** — Connected Communities UI, remote post browsing, `🌐` node badges
 - ✅ **Secure Libp2p Federation Routing** — Cross-node messaging and ledger trade validation now strictly operate over authenticated PeerID Noise streams to cryptographically prevent spoofing.
 - ✅ **Mirror State Sync** — Merkle hash comparison + delta exchange, 15-min intervals (for mirror-trusted nodes)
+- ✅ **Sanitized Local Syncing** — The native SQLite `applyDelta` and map interfaces automatically filter out synthetic guest/visitor accounts and system wallets.
 - ✅ **Handshake Protocol** — mutual trust + latency over yamux streams
 - ✅ **Let's Encrypt Auto-TLS** — DNS-01 challenge via Cloudflare API (acme-client v5)
 - ✅ **4 Live Nodes** — Mullum 2 (Azure AU), Mullum 1 (bare metal, Cloudflare Tunnel), Review (bare metal, Cloudflare Tunnel)
@@ -45,7 +47,7 @@
 - ✅ **FTS5 Full-Text Search** — marketplace search with synonym mapping (`synonyms.json`)
 - ✅ **Cryptographically signed APIs** — Ed25519 client-side signatures on all POST requests preventing spoofing
 - ✅ **Directory Publisher** — nodes push metadata to beanpool.org Supabase global directory (`directory-publisher.ts`)
-- ✅ **Native App (Expo)** — 7-tab React Native companion app with PWA parity: Map, Projects, Market (14 categories), Chat, People, Ledger, Settings
+- ✅ **Native App (Expo)** — 7-tab React Native companion app with PWA parity: Map, Projects, Market (14 categories), Chat, People, Ledger, Settings (Build 1.0.39)
 - ✅ **Native SQLite Persistence** — `expo-sqlite` for local data storage (posts, projects, messages, ledger)
 - ✅ **Native Background Sync** — SQLite `dbSyncLock` Mutex Queue safely handling parallel `applyDelta` and foreground Map/Inbox requests without `database is locked` panics.
 - ✅ **Live Inbox Parity** — Base64 E2E plaintext message decryption, real-time polling, and global unread notification tab badges.
@@ -54,7 +56,7 @@
 - ✅ **Neon-Vine Tab Bar** — branded tab navigation with artwork background and dark overlay
 - ✅ **Push Notifications** — Expo push token registration, DM/marketplace deal alerts, per-member notification preferences. Server stores tokens and dispatches notifications on message/deal events.
 - ✅ **Guest Mode** — multi-node onboarding with `/api/community/membership/:publicKey` probe. Guest indicators in native `GlobalHeader` + `SyncStatus` and PWA header/sync status.
-- ✅ **Map Phase 6** — pin clustering for dense areas, modern markers with category icons, elder glow effects for founding members. Implemented on both PWA (Leaflet) and Native (WebView).
+- ✅ **Map Phase 6 & Clustering Stabilization** — pin clustering for dense areas with modern markers. Custom patched `react-native-map-clustering` to eliminate iOS marker disappearance on bounds changes.
 - ✅ **Marketplace UX Modernization** — horizontal category chips (`CategoryPickerSheet`/`CategoryPickerModal`), author trust badges (`PostAuthorTrust`), active deals tracking (`MyDealsSheet`/`MyDealsModal`). Both PWA and Native.
 - ✅ **Community Search** — search and infinite scroll on the People/Community member list (native).
 - ✅ **Escrow Demurrage Exemption** — `escrow_*` synthetic wallets exempt from circulation decay, with DB persistence fix.
