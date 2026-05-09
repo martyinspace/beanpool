@@ -17,7 +17,8 @@
       "esbuild": "0.25.12"
     },
     "patchedDependencies": {
-      "is-generator-function@1.1.2": "patches/is-generator-function@1.1.2.patch"
+      "is-generator-function@1.1.2": "patches/is-generator-function@1.1.2.patch",
+      "react-native-map-clustering@4.0.0": "patches/react-native-map-clustering@4.0.0.patch"
     }
   },
   "packageManager": "pnpm@9.0.0"

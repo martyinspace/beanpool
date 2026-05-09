@@ -158,7 +158,11 @@ export default function MarketScreen() {
                 }
                 const type = filter === 'all' ? '' : filter === 'needs' ? '&type=need' : '&type=offer';
                 const cat = categoryFilter !== 'all' ? `&category=${categoryFilter}` : '';
-                const res = await fetch(`${anchorUrl}/api/marketplace/posts?q=${encodeURIComponent(q)}${type}${cat}&limit=50`);
+                
+                // Expand synonyms so the server's FTS5 'OR' logic can find them
+                const expandedQ = expandSearchTerms(q).join(' ');
+                
+                const res = await fetch(`${anchorUrl}/api/marketplace/posts?q=${encodeURIComponent(expandedQ)}${type}${cat}&limit=50`);
                 if (res.ok) {
                     const data = await res.json();
                     // Parse photos for each result

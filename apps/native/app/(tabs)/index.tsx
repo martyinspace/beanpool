@@ -62,39 +62,40 @@ const darkMapStyle = [
   { featureType: "water", elementType: "labels.text.stroke", stylers: [{ color: "#17263c" }] }
 ];
 
-const ClusterMarker = ({ cluster }: any) => {
-    const [track, setTrack] = useState(true);
-    const { id, geometry, onPress, properties } = cluster;
-    const points = properties.point_count;
+const getClusterStyle = (points: number) => {
+    if (points >= 50) return { size: 64, glow: 80, fontSize: 20 };
+    if (points >= 25) return { size: 56, glow: 72, fontSize: 19 };
+    if (points >= 15) return { size: 50, glow: 66, fontSize: 18 };
+    if (points >= 10) return { size: 46, glow: 60, fontSize: 17 };
+    if (points >= 5)  return { size: 42, glow: 54, fontSize: 16 };
+    return { size: 36, glow: 48, fontSize: 15 };
+};
 
-    useEffect(() => {
-        setTrack(true);
-        const t = setTimeout(() => setTrack(false), 500);
-        return () => clearTimeout(t);
-    }, [points]);
+const ClusterMarker = ({ cluster }: any) => {
+    const { geometry, onPress, properties } = cluster;
+    const points = properties.point_count;
+    const { size, glow, fontSize } = getClusterStyle(points);
 
     return (
         <Marker
             coordinate={{ longitude: geometry.coordinates[0], latitude: geometry.coordinates[1] }}
             onPress={onPress}
-            tracksViewChanges={track}
+            tracksViewChanges={true}
             style={{ zIndex: points + 1 }}
         >
-            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', borderColor: '#ffffff', borderWidth: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 8 }}>
-                <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: 16 }}>{points}</Text>
+            <View collapsable={false} style={{ width: glow, height: glow, justifyContent: 'center', alignItems: 'center' }}>
+                {/* Outer glow ring */}
+                <View style={{ position: 'absolute', width: glow, height: glow, borderRadius: glow / 2, backgroundColor: 'rgba(59, 130, 246, 0.25)' }} />
+                {/* Inner solid circle */}
+                <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', borderColor: '#ffffff', borderWidth: 3, shadowColor: '#2563eb', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 6, elevation: 8 }}>
+                    <Text style={{ color: '#ffffff', fontWeight: '800', fontSize }}>{points}</Text>
+                </View>
             </View>
         </Marker>
     );
 };
 
-const CustomMapMarker = ({ coordinate, post, catObj, useModernMarkers, isSelected, onPress }: any) => {
-    const [track, setTrack] = useState(true);
-
-    useEffect(() => {
-        setTrack(true);
-        const t = setTimeout(() => setTrack(false), 500);
-        return () => clearTimeout(t);
-    }, [isSelected, useModernMarkers]);
+const CustomMapMarker = React.memo(({ coordinate, post, catObj, useModernMarkers, isSelected, onPress, opacity = 1 }: any) => {
 
     const isOffer = post.type === 'offer';
     const bgColor = isOffer ? '#10b981' : '#ea580c';
@@ -107,11 +108,12 @@ const CustomMapMarker = ({ coordinate, post, catObj, useModernMarkers, isSelecte
     return (
         <Marker
             coordinate={coordinate}
-            tracksViewChanges={track}
+            tracksViewChanges={true}
+            opacity={opacity}
             anchor={{ x: 0.5, y: 1 }}
             onPress={(e) => { e.stopPropagation(); onPress(post); }}
         >
-            <View style={styles.pinContainer}>
+            <View collapsable={false} style={styles.pinContainer}>
                 {useModernMarkers ? (
                     <>
                         <View style={[styles.modernPin, { backgroundColor: bgColor }, isElder && { borderColor: '#fbbf24', borderWidth: 2 }, isSelected && { transform: [{ scale: 1.15 }] }]}>
@@ -133,7 +135,7 @@ const CustomMapMarker = ({ coordinate, post, catObj, useModernMarkers, isSelecte
             </View>
         </Marker>
     );
-};
+});
 
 export default function MapScreen() {
     const currencyStr = useCurrencyString();
@@ -434,7 +436,9 @@ export default function MapScreen() {
                 customMapStyle={isDarkMap ? darkMapStyle : hidePoisStyle}
                 userInterfaceStyle={isDarkMap ? "dark" : "light"}
                 showsUserLocation={true}
-                onRegionChangeComplete={(r) => setCurrentRegion(r)}
+                onRegionChangeComplete={(r) => {
+                    setCurrentRegion(r);
+                }}
                 onPress={(e) => {
                     handleMapPress(e);
                     if (selectedPostPreview) setSelectedPostPreview(null);
@@ -443,6 +447,8 @@ export default function MapScreen() {
                 initialRegion={currentRegion}
                 renderCluster={renderCluster}
                 spiralEnabled={true}
+                animationEnabled={false}
+                radius={15}
             >
                 {posts.filter(p => {
                     if (p.status && p.status !== 'active') return false;
@@ -462,7 +468,7 @@ export default function MapScreen() {
                     const isSelected = selectedPostPreview?.id === post.id;
                     return (
                         <CustomMapMarker
-                            key={post.id}
+                            key={`${post.id}-${isSelected}`}
                             coordinate={{ latitude: safePost.lat, longitude: safePost.lng }}
                             post={safePost}
                             catObj={catObj}
