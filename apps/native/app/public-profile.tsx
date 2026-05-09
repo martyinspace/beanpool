@@ -52,8 +52,8 @@ export default function PublicProfileScreen() {
             <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
                 {/* Banner Profile */}
                 <View style={styles.banner}>
-                    {profile?.avatar ? (
-                        <Image source={{ uri: profile.avatar }} style={styles.avatar} />
+                    {profile?.avatar_url ? (
+                        <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
                     ) : (
                         <View style={styles.avatarPlaceholder}>
                             <Text style={styles.avatarInitial}>{(callsignStr || '?').charAt(0).toUpperCase()}</Text>

@@ -1115,7 +1115,13 @@ export async function applyDelta(delta: any) {
             const pk = m.publicKey || m.public_key || '';
             const cs = m.callsign || '';
             const av = m.avatarUrl || m.avatar_url || null;
-            await database.runAsync('INSERT OR REPLACE INTO members (public_key, callsign, avatar_url) VALUES (?, ?, ?)', [pk, cs, av]);
+            await database.runAsync(
+                `INSERT INTO members (public_key, callsign, avatar_url) VALUES (?, ?, ?)
+                 ON CONFLICT(public_key) DO UPDATE SET
+                   callsign = excluded.callsign,
+                   avatar_url = COALESCE(excluded.avatar_url, members.avatar_url)`,
+                [pk, cs, av]
+            );
         }
     }
     
@@ -1251,7 +1257,13 @@ export async function syncMessages(publicKey: string) {
                         const pk = m.publicKey || m.public_key || '';
                         const cs = m.callsign || '';
                         const av = m.avatarUrl || m.avatar_url || null;
-                        await database.runAsync('INSERT OR REPLACE INTO members (public_key, callsign, avatar_url) VALUES (?, ?, ?)', [pk, cs, av]);
+                        await database.runAsync(
+                            `INSERT INTO members (public_key, callsign, avatar_url) VALUES (?, ?, ?)
+                             ON CONFLICT(public_key) DO UPDATE SET
+                               callsign = excluded.callsign,
+                               avatar_url = COALESCE(excluded.avatar_url, members.avatar_url)`,
+                            [pk, cs, av]
+                        );
                     }
                 }
             } catch (e) {}
