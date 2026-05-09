@@ -194,6 +194,14 @@ export async function startHttpsServer(port: number): Promise<void> {
             if (body.from && body.from !== pubKeyHex) throw new Error('Spoofed from');
             if (body.proposerPubkey && body.proposerPubkey !== pubKeyHex) throw new Error('Spoofed proposerPubkey');
             if (body.pubkey && body.pubkey !== pubKeyHex) throw new Error('Spoofed pubkey');
+            if (body.creatorPubkey && body.creatorPubkey !== pubKeyHex) throw new Error('Spoofed creatorPubkey');
+            if (body.raterPubkey && body.raterPubkey !== pubKeyHex) throw new Error('Spoofed raterPubkey');
+            if (body.voterPubkey && body.voterPubkey !== pubKeyHex) throw new Error('Spoofed voterPubkey');
+            if (body.reporterPubkey && body.reporterPubkey !== pubKeyHex) throw new Error('Spoofed reporterPubkey');
+            if (body.fromPubkey && body.fromPubkey !== pubKeyHex) throw new Error('Spoofed fromPubkey');
+            if (body.ownerPubkey && body.ownerPubkey !== pubKeyHex) throw new Error('Spoofed ownerPubkey');
+            if (body.confirmerPublicKey && body.confirmerPublicKey !== pubKeyHex) throw new Error('Spoofed confirmerPublicKey');
+            if (body.cancellerPublicKey && body.cancellerPublicKey !== pubKeyHex) throw new Error('Spoofed cancellerPublicKey');
 
         } catch (err: any) {
             ctx.status = 403;
