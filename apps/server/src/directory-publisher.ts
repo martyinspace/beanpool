@@ -1,10 +1,9 @@
 import { getDirectoryInfo, getNodeConfig, updateNodeConfig } from './state-engine.js';
 import { getLocalConfig } from './local-config.js';
-import crypto from 'node:crypto';
+import { getP2PNode, getPrivateKey } from './p2p.js';
 
 // The URL of the directory registry Edge Function
 const DIRECTORY_REGISTRY_URL = process.env.DIRECTORY_REGISTRY_URL || 'https://dpemwoermzkaxoctafzg.supabase.co/functions/v1/directory-register';
-const DIRECTORY_API_KEY = process.env.DIRECTORY_API_KEY;
 
 let pushTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -28,42 +27,40 @@ export function initDirectoryPublisher() {
 
 export async function pushDirectoryNow() {
     try {
-        if (!DIRECTORY_API_KEY) {
-            console.log(`[Directory] ℹ️ DIRECTORY_API_KEY not configured. Skipping push.`);
-            return { success: false, error: 'DIRECTORY_API_KEY is not configured' };
-        }
-
-        const config = getNodeConfig();
-        
-        // Check if node wants to publish anything at all
-        // If everything is turned off, we should still push, but with empty fields?
-        // Actually, if it's off, it just won't be on the map. We can skip it,
-        // and the TTL will naturally prune it, OR we could push an explicitly empty state.
-        // For now, if all are false, we can skip or send nulls.
-        if (!config.publishLocation && !config.publishMembers && !config.publishContacts && !config.publishHealth) {
-            console.log(`[Directory] ℹ️ All privacy toggles off. Pushing empty state to clear registry.`);
-            // We no longer return early here. We want to push the nulls to overwrite existing data!
-        }
-        
         const directoryInfo = getDirectoryInfo();
         const localConfig = getLocalConfig();
+        const p2pNode = getP2PNode();
+        const privateKey = getPrivateKey();
+
+        if (!p2pNode || !privateKey) {
+            console.warn(`[Directory] ⚠️ P2P node not fully initialized. Skipping push.`);
+            return { success: false, error: 'P2P node not ready' };
+        }
         
-        // Provide a stable node ID based on the node's adminHash (which is generated on first boot)
-        const nodeId = crypto.createHash('sha256').update(localConfig.adminHash || localConfig.communityName || 'unknown').digest('hex');
+        // Provide a stable node ID based on the node's true cryptographic PeerId
+        const nodeId = p2pNode.peerId.toString();
+        const timestamp = Date.now();
         
         const payload = {
             nodeId,
             callsign: localConfig.communityName,
+            timestamp,
             ...directoryInfo
         };
         
+        const rawBody = JSON.stringify(payload);
+        const signatureBytes = await privateKey.sign(new TextEncoder().encode(rawBody));
+        const signatureHex = Buffer.from(signatureBytes).toString('hex');
+        const pubKeyHex = Buffer.from(privateKey.publicKey.bytes).toString('hex');
+
         const res = await fetch(DIRECTORY_REGISTRY_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${DIRECTORY_API_KEY}`
+                'x-signature': signatureHex,
+                'x-public-key': pubKeyHex
             },
-            body: JSON.stringify(payload)
+            body: rawBody
         });
         
         if (!res.ok) {

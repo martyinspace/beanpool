@@ -30,6 +30,8 @@ const DATA_DIR = process.env.BEANPOOL_DATA_DIR || path.join(process.cwd(), 'data
 const KEY_PATH = path.join(DATA_DIR, 'libp2p_key');
 
 let node: Libp2p;
+let _privateKey: any;
+
 
 async function loadOrCreateIdentity() {
     try {
@@ -57,7 +59,7 @@ async function loadOrCreateIdentity() {
 }
 
 export async function startP2P(tcpPort: number, wsPort: number): Promise<Libp2p> {
-    const privateKey = await loadOrCreateIdentity();
+    _privateKey = await loadOrCreateIdentity();
 
     // If PUBLIC_IP is set, announce those addresses to bypass Docker NAT
     const publicIp = process.env.PUBLIC_IP;
@@ -67,7 +69,7 @@ export async function startP2P(tcpPort: number, wsPort: number): Promise<Libp2p>
     ] : undefined;
 
     node = await createLibp2p({
-        privateKey,
+        privateKey: _privateKey,
         addresses: {
             listen: [
                 `/ip4/0.0.0.0/tcp/${tcpPort}`,
@@ -96,4 +98,8 @@ export async function startP2P(tcpPort: number, wsPort: number): Promise<Libp2p>
 
 export function getP2PNode(): Libp2p {
     return node;
+}
+
+export function getPrivateKey(): any {
+    return _privateKey;
 }
