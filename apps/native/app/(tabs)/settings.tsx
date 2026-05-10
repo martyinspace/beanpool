@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { updateCallsign, wipeIdentity } from '../../utils/identity';
 import { nativeExportIdentity } from '../../utils/native-crypto';
+import { encodeBase64, encodeUtf8, hexToBytes, signData } from '../../utils/crypto';
 import { updateMemberProfile, getMemberProfile, getPendingRecoveryRequests, approveRecoveryRequest, rejectRecoveryRequest } from '../../utils/db';
 import { getSavedNodes, SavedNode, removeSavedNode, getDatabaseFilenameForNode } from '../../utils/nodes';
 import * as FileSystem from 'expo-file-system';
@@ -193,20 +194,38 @@ export default function SettingsScreen() {
             // Push profile (including avatar) to the server so other devices see it
             try {
                 const url = await AsyncStorage.getItem('beanpool_anchor_url');
-                if (url) {
-                    await fetch(`${url}/api/profile/update`, {
+                if (url && identity) {
+                    const payloadObj = {
+                        publicKey: identity.publicKey,
+                        avatar: avatar,
+                        bio: bio.trim(),
+                        contact: contact.trim() ? { value: contact.trim(), visibility: 'community' } : null,
+                    };
+                    const bodyString = JSON.stringify(payloadObj);
+                    const privateKeyBytes = hexToBytes(identity.privateKey);
+                    const messageBytes = encodeUtf8(bodyString);
+                    const signatureBytes = await signData(messageBytes, privateKeyBytes);
+                    const signatureBase64 = encodeBase64(signatureBytes);
+
+                    const res = await fetch(`${url}/api/profile/update`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            publicKey: identity.publicKey,
-                            avatar: avatar,
-                            bio: bio.trim(),
-                            contact: contact.trim() ? { value: contact.trim(), visibility: 'community' } : null,
-                        }),
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-Public-Key': identity.publicKey,
+                            'X-Signature': signatureBase64,
+                        },
+                        body: bodyString,
                     });
+                    
+                    if (!res.ok) {
+                        throw new Error('Server rejected the profile update.');
+                    }
+                    await AsyncStorage.removeItem('pending_profile_sync');
                 }
-            } catch (e) {
+            } catch (e: any) {
                 console.warn('[Profile] Server sync failed (offline?):', e);
+                await AsyncStorage.setItem('pending_profile_sync', 'true');
+                Alert.alert('Offline Mode', 'Profile saved locally. It will be published automatically in the background when you reconnect to the network.');
             }
 
             setMode('menu');

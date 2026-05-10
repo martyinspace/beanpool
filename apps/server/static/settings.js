@@ -1352,6 +1352,8 @@
                 const isActive = !profile || profile.status === 'active' || profile.status === undefined;
                 const isGenesis = depth === 0;
                 const memberReportCount = reportsByMember[pubkey] || 0;
+                
+                const isSystemAccount = pubkey === 'SYSTEM' || member.callsign === 'Admin' || member.callsign === 'System';
 
                 const bFlags = getBranchFlags(pubkey);
                 const hasFlags = bFlags.length > 0;
@@ -1413,8 +1415,8 @@
                                     ${statsBtn}
                                     <button class="btn btn-sm btn-outline" onclick="event.preventDefault(); viewMemberPosts('${pubkey}')" title="View posts by this member" style="padding:2px 6px;font-size:0.65rem;">📦 Posts</button>
                                     ${!isGenesis && !isPruned ? `<button class="btn btn-sm ${isActive?'btn-outline':'btn-primary'}" onclick="event.preventDefault(); adminAction('/users/${pubkey}/status', {status:'${isActive?'disabled':'active'}'})">${isActive?'Pause':'Resume'}</button>` : ''}
-                                    ${!isGenesis && !isPruned ? `<button class="btn btn-sm btn-danger" onclick="event.preventDefault(); adminAction('/users/${pubkey}/prune')">Prune User</button>` : ''}
-                                    ${!isGenesis && children.length > 0 ? `<button class="btn btn-sm btn-danger" onclick="event.preventDefault(); adminAction('/branches/${pubkey}/prune')">Prune Branch</button>` : ''}
+                                    ${!isSystemAccount && !isPruned ? `<button class="btn btn-sm btn-danger" onclick="event.preventDefault(); adminAction('/users/${pubkey}/prune')">Prune User</button>` : ''}
+                                    ${!isSystemAccount && children.length > 0 ? `<button class="btn btn-sm btn-danger" onclick="event.preventDefault(); adminAction('/branches/${pubkey}/prune')">Prune Branch</button>` : ''}
                                     ${!isPruned ? `<button class="btn btn-sm btn-primary" style="background:#2563eb;color:#fff;border-color:#2563eb;" onclick="event.preventDefault(); promptWarning('${pubkey}')">✉️ Message</button>` : ''}
                                 </div>
                             </div>
@@ -1709,6 +1711,60 @@
         }
         // Make it globally accessible for onclick
         window.downloadBackup = downloadBackup;
+
+        async function uploadBackup() {
+            if (!authToken) return;
+            const input = document.getElementById('backup-upload-input');
+            if (!input.files || input.files.length === 0) return;
+            
+            const file = input.files[0];
+            const statusEl = document.getElementById('restore-status');
+            const labelEl = input.parentElement;
+            const btn = document.getElementById('btn-backup');
+            
+            if (!confirm(`WARNING: This will completely overwrite your node's current database with the uploaded backup (${file.name}). This action cannot be undone.\n\nAre you sure you want to proceed?`)) {
+                input.value = '';
+                return;
+            }
+
+            labelEl.style.pointerEvents = 'none';
+            labelEl.style.opacity = '0.5';
+            labelEl.innerHTML = '⏳ Uploading...';
+            btn.disabled = true;
+            statusEl.textContent = '';
+            
+            try {
+                const res = await fetch(`/api/local/admin/restore?password=${encodeURIComponent(authToken)}`, {
+                    method: 'POST',
+                    body: file // Send as raw binary stream
+                });
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ error: 'Unknown error' }));
+                    throw new Error(err.error || `HTTP ${res.status}`);
+                }
+
+                statusEl.innerHTML = '✅ <b>Restore successful!</b><br/>The node is restarting. If you are not using a process manager (like Docker or PM2), your server has stopped and you must <b>restart it manually</b>.';
+                statusEl.style.color = '#10b981';
+                statusEl.classList.add('show');
+                
+                // Attempt to reload after 5 seconds to show login or re-connect
+                setTimeout(() => {
+                    window.location.reload();
+                }, 5000);
+
+            } catch (e) {
+                statusEl.textContent = '❌ ' + e.message;
+                statusEl.style.color = '#ef4444';
+                statusEl.classList.add('show');
+                labelEl.style.pointerEvents = 'auto';
+                labelEl.style.opacity = '1';
+                labelEl.innerHTML = '<input type="file" id="backup-upload-input" accept=".tar.gz" style="display:none;" onchange="uploadBackup()">📂 Upload Restore';
+                btn.disabled = false;
+                input.value = '';
+            }
+        }
+        window.uploadBackup = uploadBackup;
 
         // ======================== INIT ========================
         async function init() {

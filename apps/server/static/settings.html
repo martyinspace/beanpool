@@ -1030,18 +1030,23 @@
                 <div class="status-msg" id="announce-status"></div>
             </div>
 
-            <!-- Database Backup -->
+            <!-- Database Backup & Restore -->
             <div class="glass" data-tab="system">
-                <h3>💾 Database Backup</h3>
+                <h3>💾 Database Backup & Restore</h3>
                 <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.75rem;">
-                    Download a consistent snapshot of your node's database and configuration. 
-                    The backup includes <code>state.db</code> (all members, posts, ledger, messages) 
-                    and <code>node_config.json</code> in a compressed archive.
+                    Download a snapshot of your node's database and config, or upload a previously downloaded snapshot to restore your node's state.
                 </p>
-                <button class="btn btn-primary btn-full" id="btn-backup" onclick="downloadBackup()">
-                    💾 Download Backup
-                </button>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <button class="btn btn-primary" id="btn-backup" onclick="downloadBackup()" style="flex: 1;">
+                        💾 Download Backup
+                    </button>
+                    <label class="btn btn-outline" style="flex: 1; text-align: center; cursor: pointer; display: flex; justify-content: center; align-items: center; margin: 0; color: #f8fafc;">
+                        <input type="file" id="backup-upload-input" accept=".tar.gz" style="display:none;" onchange="uploadBackup()">
+                        📂 Upload Restore
+                    </label>
+                </div>
                 <div class="status-msg" id="backup-status"></div>
+                <div class="status-msg" id="restore-status"></div>
             </div>
 
             <!-- Reset Node -->

@@ -1120,10 +1120,12 @@ export async function applyDelta(delta: any) {
     }
     
     if (delta.members && delta.members.length > 0) {
+        const serverMemberSet = new Set();
         for (const m of delta.members) {
             const pk = m.publicKey || m.public_key || '';
             // Skip synthetic wallet entries (escrow/project accounts are not real members)
             if (pk.startsWith('escrow_') || pk.startsWith('project_')) continue;
+            serverMemberSet.add(pk);
             const cs = m.callsign || '';
             const av = m.avatarUrl || m.avatar_url || null;
             await database.runAsync(
@@ -1133,6 +1135,18 @@ export async function applyDelta(delta: any) {
                    avatar_url = COALESCE(excluded.avatar_url, members.avatar_url)`,
                 [pk, cs, av]
             );
+        }
+
+        // Garbage collect members that are no longer in the server's directory
+        const localMembers = await database.getAllAsync<{public_key:string}>('SELECT public_key FROM members');
+        for (const lm of localMembers) {
+            // Ensure we don't accidentally delete synthetic project accounts if any leaked in
+            if (lm.public_key.startsWith('escrow_') || lm.public_key.startsWith('project_')) continue;
+            
+            if (!serverMemberSet.has(lm.public_key)) {
+                console.log(`[DB] applyDelta: deleting obsolete member ${lm.public_key} not present on server`);
+                await database.runAsync('DELETE FROM members WHERE public_key = ?', [lm.public_key]);
+            }
         }
     }
     
@@ -1261,13 +1275,11 @@ export async function applyDelta(delta: any) {
                     }
                 }
 
-                // Remove friends no longer on server
+                // Note: We intentionally DO NOT delete local friends that are missing from the server payload.
+                // Instead, we push them to the server to heal the state in case of offline additions.
                 for (const local of localFriends) {
                     if (!serverSet.has(local.friend_pubkey)) {
-                        await database.runAsync(
-                            'DELETE FROM friends WHERE owner_pubkey = ? AND friend_pubkey = ?',
-                            [identity.publicKey, local.friend_pubkey]
-                        );
+                        _syncFriendToServer('add', identity.publicKey, local.friend_pubkey).catch(() => {});
                     }
                 }
             }

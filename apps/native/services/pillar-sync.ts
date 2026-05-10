@@ -162,6 +162,38 @@ export async function performSync(): Promise<SyncResult> {
             try {
                 const id = JSON.parse(identityRaw);
                 pubKey = id.publicKey;
+                
+                // Heal offline profile edits BEFORE downloading old state from server
+                const pendingSync = await AsyncStorage.getItem('pending_profile_sync');
+                if (pendingSync === 'true') {
+                    const { getMemberProfile } = await import('../utils/db');
+                    const profile = await getMemberProfile(pubKey);
+                    if (profile) {
+                        const { encodeUtf8, encodeBase64 } = require('../utils/crypto');
+                        const { signData, hexToBytes } = require('../utils/crypto');
+                        const payloadObj = {
+                            publicKey: pubKey,
+                            avatar: profile.avatar_url,
+                            bio: profile.bio,
+                            contact: profile.contact_value ? { value: profile.contact_value, visibility: profile.contact_visibility || 'community' } : null,
+                        };
+                        const bodyString = JSON.stringify(payloadObj);
+                        const signatureBytes = await signData(encodeUtf8(bodyString), hexToBytes(id.privateKey));
+                        const res = await fetch(`${anchorUrl}/api/profile/update`, {
+                            method: 'POST',
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'X-Public-Key': pubKey,
+                                'X-Signature': encodeBase64(signatureBytes)
+                            },
+                            body: bodyString
+                        });
+                        if (res.ok) {
+                            await AsyncStorage.removeItem('pending_profile_sync');
+                            console.log('[Pillar Sync] Successfully healed pending profile sync');
+                        }
+                    }
+                }
             } catch (e) {}
         }
 
@@ -240,7 +272,7 @@ export async function performSync(): Promise<SyncResult> {
         };
 
         // Add friends to delta (already parsed array from fetchFriendsFromServer)
-        if (Array.isArray(friendsData) && friendsData.length > 0) {
+        if (Array.isArray(friendsData)) {
             delta.friends = friendsData;
         }
         

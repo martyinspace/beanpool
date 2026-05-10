@@ -12,6 +12,21 @@ import { router, useLocalSearchParams } from 'expo-router';
 
 type SubView = 'friends' | 'community' | 'invites' | 'guardians';
 
+function formatJoinDate(dateStr: string | null) {
+    if (!dateStr) return 'Member';
+    try {
+        const d = new Date(dateStr);
+        const now = new Date();
+        const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays < 1) return 'Joined today';
+        if (diffDays < 7) return `Joined ${diffDays}d ago`;
+        if (diffDays < 30) return `Joined ${Math.floor(diffDays / 7)}w ago`;
+        return `Joined ${d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`;
+    } catch {
+        return 'Member';
+    }
+};
+
 export default function PeopleScreen() {
     const { view: pView } = useLocalSearchParams<{ view: string }>();
     const [view, setView] = useState<SubView>('friends');
@@ -396,9 +411,7 @@ export default function PeopleScreen() {
                         renderItem={({ item }) => {
                         const isFriend = friendPubkeys.has(item.public_key);
                         const isSelf = item.public_key === identity?.publicKey;
-                        const joinDate = item.joined_at 
-                            ? new Date(item.joined_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-                            : 'Member';
+                        const joinDateText = formatJoinDate(item.joined_at);
                         return (
                         <View style={styles.card}>
                             <Pressable 
@@ -417,7 +430,7 @@ export default function PeopleScreen() {
                                         <Text style={styles.callsign}>{item.callsign}</Text>
                                         {isFriend && <Text style={styles.friendChip}>★ Friend</Text>}
                                     </View>
-                                    <Text style={styles.dateText}>Joined {joinDate}</Text>
+                                    <Text style={styles.dateText}>{joinDateText === 'Member' ? 'Member' : joinDateText}</Text>
                                 </View>
                             </Pressable>
                             {!isSelf && (

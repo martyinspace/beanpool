@@ -597,6 +597,73 @@ export async function startHttpsServer(port: number): Promise<void> {
         }
     });
 
+    router.post('/api/local/admin/restore', async (ctx) => {
+        // Handle auth via query param for binary uploads
+        const queryPassword = ctx.query.password;
+        if (queryPassword) {
+            (ctx as any).requestBody = { password: queryPassword };
+        }
+        if (!checkAdminAuth(ctx as any)) return;
+
+        const { execSync } = await import('node:child_process');
+        const DATA_DIR = process.env.BEANPOOL_DATA_DIR || path.join(process.cwd(), 'data');
+        const tmpDir = path.join(DATA_DIR, '.restore-tmp');
+        const tarPath = path.join(DATA_DIR, 'uploaded-backup.tar.gz');
+
+        try {
+            // Read binary body to file
+            const bodyStream = ctx.req;
+            const writeStream = fs.createWriteStream(tarPath);
+            await new Promise((resolve, reject) => {
+                bodyStream.pipe(writeStream);
+                bodyStream.on('end', resolve);
+                bodyStream.on('error', reject);
+                writeStream.on('error', reject);
+            });
+
+            // Extract the tar
+            if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true });
+            fs.mkdirSync(tmpDir, { recursive: true });
+            execSync(`tar -xzf "${tarPath}" -C "${tmpDir}"`);
+
+            // Validate that state.db exists
+            if (!fs.existsSync(path.join(tmpDir, 'state.db'))) {
+                throw new Error('Invalid backup archive: state.db missing');
+            }
+
+            // Close current DB connection safely before overwriting
+            const { db } = await import('./db/db.js');
+            try { db.close(); } catch (e) { console.error('Error closing DB:', e); }
+
+            // Replace files
+            fs.copyFileSync(path.join(tmpDir, 'state.db'), path.join(DATA_DIR, 'state.db'));
+            if (fs.existsSync(path.join(tmpDir, 'node_config.json'))) {
+                fs.copyFileSync(path.join(tmpDir, 'node_config.json'), path.join(DATA_DIR, 'node_config.json'));
+            }
+
+            // Clean up
+            fs.rmSync(tmpDir, { recursive: true });
+            fs.unlinkSync(tarPath);
+
+            ctx.body = { success: true };
+            
+            // Wait 1 second then exit
+            setTimeout(() => {
+                console.log('Restore successful, rebooting node...');
+                process.exit(0);
+            }, 1000);
+
+        } catch (e: any) {
+            console.error('Restore failed:', e);
+            try {
+                if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true });
+                if (fs.existsSync(tarPath)) fs.unlinkSync(tarPath);
+            } catch { /* ignore */ }
+            ctx.status = 500;
+            ctx.body = { error: 'Restore failed: ' + e.message };
+        }
+    });
+
     router.post('/api/local/admin/inbox', async (ctx) => {
         if (!checkAdminAuth(ctx as any)) return;
         const adminPubkey = getAdminPubkey();
