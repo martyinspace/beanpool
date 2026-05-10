@@ -6,6 +6,10 @@
 
 ## ✅ Recently Completed
 
+- ✅ **Decentralized Directory Auth** — Replaced hardcoded shared API keys with node-specific Libp2p Ed25519 cryptographic signatures and UTC timestamp verification to prevent spoofing and replay attacks.
+- ✅ **Admin Node Restore** — Implemented system restoration via `.tar.gz` database upload for admins.
+- ✅ **Offline Profile Healing** — Restored offline-first profile synchronization.
+- ✅ **A11y & Stability** — Fixed P2P stream crash loops and applied accessibility improvements across components.
 - ✅ **Sanitized Syncing** — Automatic filtering of synthetic "Visitor" and escrow accounts from local databases and UI elements.
 - ✅ **Map Clustering Stabilization** — Patched `react-native-map-clustering` to prevent marker disappearance on iOS during zoom and scroll interactions.
 - ✅ **Offline Queue** — Built native SQLite capability to draft and save marketplace posts whilst offline, syncing automatically when connection restores.

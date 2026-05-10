@@ -46,8 +46,9 @@
 - ✅ **Database Migration (SQLite)** — replaced JSON engine with `better-sqlite3` with WAL mode and self-healing schema migrations
 - ✅ **FTS5 Full-Text Search** — marketplace search with synonym mapping (`synonyms.json`)
 - ✅ **Cryptographically signed APIs** — Ed25519 client-side signatures on all POST requests preventing spoofing
-- ✅ **Directory Publisher** — nodes push metadata to beanpool.org Supabase global directory (`directory-publisher.ts`)
-- ✅ **Native App (Expo)** — 7-tab React Native companion app with PWA parity: Map, Projects, Market (14 categories), Chat, People, Ledger, Settings (Build 1.0.39)
+- ✅ **Directory Publisher (Decentralized)** — nodes push metadata to beanpool.org Supabase global directory using Libp2p Ed25519 cryptographic signatures to prevent spoofing and replay attacks.
+- ✅ **Native App (Expo)** — 7-tab React Native companion app with PWA parity: Map, Projects, Market (14 categories), Chat, People, Ledger, Settings (Build 1.0.41)
+- ✅ **Admin Node Restore** — Supports offline restoration of system states via `.tar.gz` database upload.
 - ✅ **Native SQLite Persistence** — `expo-sqlite` for local data storage (posts, projects, messages, ledger)
 - ✅ **Native Background Sync** — SQLite `dbSyncLock` Mutex Queue safely handling parallel `applyDelta` and foreground Map/Inbox requests without `database is locked` panics.
 - ✅ **Live Inbox Parity** — Base64 E2E plaintext message decryption, real-time polling, and global unread notification tab badges.

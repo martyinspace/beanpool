@@ -397,7 +397,7 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ FTS5 full-text search — marketplace search with synonym mapping
 - ✅ Cryptographically signed APIs — Ed25519 client-side signatures on all POST requests to prevent spoofing
 - ✅ CI/CD pipeline — GitHub Actions auto-builds Docker image, auto-creates Releases from git tags
-- ✅ Directory Publisher — nodes push metadata to beanpool.org Supabase global directory
+- ✅ **Directory Publisher (Decentralized)** — nodes push metadata to beanpool.org Supabase global directory using Libp2p Ed25519 cryptographic signatures to prevent spoofing and replay attacks.
 - ✅ Push Notifications — Expo push tokens, DM/marketplace alerts, per-member notification preferences
 - ✅ Native Background Sync — SQLite `dbSyncLock` Mutex Queue safely handling parallel `applyDelta` and foreground Map/Inbox requests without `database is locked` panics.
 - ✅ Offline Outbox — Draft and queue marketplace posts while offline, syncs automatically when connection restores.
@@ -405,7 +405,6 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ Native Identity Flow — sovereign identity creation and 12-word recovery via Expo SecureStore
 - ✅ Community Projects Tab — native-only crowdfunding feature with progress bars and proposal creation
 - ✅ Neon-Vine Tab Bar — branded tab navigation with artwork background and dark overlay
-- ✅ Push Notifications — Expo push token registration, DM/marketplace deal alerts, per-member notification preferences. Server stores tokens and dispatches notifications on message/deal events.
 - ✅ Guest Mode — multi-node onboarding with membership probe, guest UI indicators in header and sync status
 - ✅ Native App (Expo) — 7-tab React Native companion app: Map, Projects, Market (14 cats), Chat, People, Ledger, Settings
 - ✅ Native SQLite + SecureStore — local persistence and sovereign identity on device
@@ -414,11 +413,14 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ Marketplace UX Modernization — horizontal category chips, trust badges, MyDeals sheet/modal, post author trust display
 - ✅ Community Projects — native-only crowdfunding tab with progress tracking
 - ✅ Escrow Demurrage Exemption — escrow wallets exempt from circulation decay
-- ✅ Sanitized Syncing — Synthetic "Visitor" and escrow accounts automatically filtered from local member directories and map views.
+- ✅ **Sanitized Syncing** — Synthetic "Visitor" and escrow accounts automatically filtered from local member directories and map views.
+- ✅ **Admin Node Restore** — Supports offline restoration of system states via `.tar.gz` database upload.
+- ✅ **Social Recovery (3-of-N)** — Cryptographically secure identity recovery mechanism requiring quorum approval from trusted friends.
+- ✅ **Identity Spoofing Security** — Hardened identity endpoints against impersonation attacks.
+- ✅ **A11y & Stability** — Fixed P2P yamux stream crash loops and applied accessibility enhancements across the frontend.
 
 **Coming next:**
 - Native App Polish & App Store Submission (federation parity)
-- Social Recovery (Shamir 3-of-5 secret sharing via Guardians)
 
 ---
 
@@ -426,4 +428,4 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 
 [MIT](LICENSE)
 
-_Last updated: 2026-05-09 AEST_
+_Last updated: 2026-05-11 AEST_

@@ -16,6 +16,7 @@ apps/native/
 │   ├── _layout.tsx              # Root layout — IdentityContext gate
 │   ├── IdentityContext.tsx       # Global identity provider (SecureStore)
 │   ├── welcome.tsx              # Onboarding: Create / Recover identity
+│   ├── recover-identity.tsx     # Social Recovery (3-of-N) and mnemonic restore
 │   ├── propose-project.tsx      # Propose community crowdfund project
 │   ├── edit-project.tsx         # Edit existing community project
 │   ├── project-detail.tsx       # Detailed view of a specific project

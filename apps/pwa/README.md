@@ -32,6 +32,7 @@
 | `src/components/RadiusPickerPage.tsx` | Facebook-style map radius picker (Leaflet circle + slider) |
 | `src/components/CategoryPickerModal.tsx` | Modal for selecting marketplace categories |
 | `src/components/MyDealsModal.tsx` | Modal for viewing active marketplace deals (offers/needs in escrow) |
+| `src/components/PublicProfileModal.tsx` | Reusable modal for viewing a member's public profile and social recovery status |
 | `src/components/PostAuthorTrust.tsx` | Trust badge display for post authors (ratings, join date) |
 | `src/lib/api.ts` | Typed client for all 50+ REST endpoints (incl. friends, guardians, members, push tokens, escrow, social recovery) |
 | `src/lib/identity.ts` | Ed25519 identity — mnemonic-derived keys, IndexedDB persistence |
