@@ -135,17 +135,16 @@ export async function startHttpsServer(port: number): Promise<void> {
         const isProtected = 
             ctx.path.startsWith('/api/profile/update') ||
             ctx.path.startsWith('/api/ledger/transfer') ||
-            ctx.path.startsWith('/api/marketplace/posts') ||
-            ctx.path.startsWith('/api/marketplace/accept') ||
-            ctx.path.startsWith('/api/marketplace/complete') ||
-            ctx.path.startsWith('/api/marketplace/cancel') ||
-            ctx.path.startsWith('/api/messages/conversation') ||
-            ctx.path.startsWith('/api/messages/send') ||
-            ctx.path.startsWith('/api/messages/mark-read') ||
+            ctx.path.startsWith('/api/marketplace/') ||
+            ctx.path.startsWith('/api/messages/') ||
             ctx.path.startsWith('/api/commons/projects') ||
+            ctx.path.startsWith('/api/commons/vote') ||
             ctx.path.startsWith('/api/crowdfund/projects') ||
             ctx.path.startsWith('/api/invite/generate') ||
-            ctx.path.startsWith('/api/community/register');
+            ctx.path.startsWith('/api/community/register') ||
+            ctx.path.startsWith('/api/ratings') ||
+            ctx.path.startsWith('/api/reports') ||
+            ctx.path.startsWith('/api/friends/');
 
         if (!isProtected) {
             return await next();
@@ -194,6 +193,16 @@ export async function startHttpsServer(port: number): Promise<void> {
             if (body.from && body.from !== pubKeyHex) throw new Error('Spoofed from');
             if (body.proposerPubkey && body.proposerPubkey !== pubKeyHex) throw new Error('Spoofed proposerPubkey');
             if (body.pubkey && body.pubkey !== pubKeyHex) throw new Error('Spoofed pubkey');
+
+            // Missing checks
+            if (body.creatorPubkey && body.creatorPubkey !== pubKeyHex) throw new Error('Spoofed creatorPubkey');
+            if (body.voterPubkey && body.voterPubkey !== pubKeyHex) throw new Error('Spoofed voterPubkey');
+            if (body.raterPubkey && body.raterPubkey !== pubKeyHex) throw new Error('Spoofed raterPubkey');
+            if (body.ownerPubkey && body.ownerPubkey !== pubKeyHex) throw new Error('Spoofed ownerPubkey');
+            if (body.fromPubkey && body.fromPubkey !== pubKeyHex) throw new Error('Spoofed fromPubkey');
+            if (body.reporterPubkey && body.reporterPubkey !== pubKeyHex) throw new Error('Spoofed reporterPubkey');
+            if (body.cancellerPublicKey && body.cancellerPublicKey !== pubKeyHex) throw new Error('Spoofed cancellerPublicKey');
+            if (body.confirmerPublicKey && body.confirmerPublicKey !== pubKeyHex) throw new Error('Spoofed confirmerPublicKey');
 
         } catch (err: any) {
             ctx.status = 403;
