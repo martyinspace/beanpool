@@ -135,6 +135,7 @@ export async function sendHandshake(node: Libp2p, peerId: any): Promise<Handshak
 
     // Start reading before writing (duplex stream — concurrent read/write)
     const readPromise = readFromStream(stream);
+    readPromise.catch(() => {}); // Prevent unhandled rejection if writeToStream throws or exits early
 
     // Write request
     await writeToStream(stream, request);

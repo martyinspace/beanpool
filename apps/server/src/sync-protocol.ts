@@ -133,6 +133,7 @@ export async function syncWithPeer(node: Libp2p, peerId: any): Promise<{
         });
 
         const readPromise = readFromStream(stream);
+        readPromise.catch(() => {}); // Prevent unhandled rejection if writeToStream throws or exits early
         await writeToStream(stream, request);
 
         const raw = await readPromise;

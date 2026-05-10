@@ -157,6 +157,7 @@ export async function federatedVerifyMember(node: Libp2p, targetPeerId: any, pub
     const request = JSON.stringify({ action: 'verify_member', publicKey });
     
     const readPromise = readFromStream(stream);
+    readPromise.catch(() => {}); // Prevent unhandled rejection if writeToStream throws or exits early
     await writeToStream(stream, request);
     
     const raw = await readPromise;
@@ -175,6 +176,7 @@ export async function federatedRelayMessage(
     const request = JSON.stringify({ action: 'relay_message', ...payload });
     
     const readPromise = readFromStream(stream);
+    readPromise.catch(() => {}); // Prevent unhandled rejection if writeToStream throws or exits early
     await writeToStream(stream, request);
     
     const raw = await readPromise;
