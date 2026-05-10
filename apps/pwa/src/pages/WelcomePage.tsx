@@ -323,12 +323,13 @@ export function WelcomePage({ onComplete }: Props) {
                                 ))}
                             </div>
 
-                            <label style={{
+                            <label htmlFor="seedConfirmed" style={{
                                 display: 'flex', alignItems: 'center', gap: '0.5rem',
                                 fontSize: '0.8rem', color: 'var(--text-muted)',
                                 marginBottom: '1rem', cursor: 'pointer',
                             }}>
                                 <input
+                                    id="seedConfirmed"
                                     type="checkbox"
                                     checked={seedConfirmed}
                                     onChange={(e) => setSeedConfirmed(e.target.checked)}
@@ -375,6 +376,8 @@ export function WelcomePage({ onComplete }: Props) {
                                 {recoveryWords.map((word, i) => (
                                     <input
                                         key={i}
+                                        id={`recoveryWord-${i}`}
+                                        aria-label={`Recovery word ${i + 1}`}
                                         type="text"
                                         value={word}
                                         onChange={(e) => {
@@ -400,7 +403,15 @@ export function WelcomePage({ onComplete }: Props) {
                                 ))}
                             </div>
 
+                            <label htmlFor="recoveryCallsign" style={{
+                                display: 'block', textAlign: 'left',
+                                fontSize: '0.85rem', fontWeight: 600,
+                                color: 'var(--text-secondary)', marginBottom: '0.5rem',
+                            }}>
+                                Your Callsign
+                            </label>
                             <input
+                                id="recoveryCallsign"
                                 type="text"
                                 value={recoveryCallsign}
                                 onChange={(e) => setRecoveryCallsign(e.target.value)}
@@ -534,7 +545,7 @@ export function WelcomePage({ onComplete }: Props) {
                                 Got an invite code or scanned a QR? Enter it below with your chosen callsign to join.
                             </p>
 
-                            <label style={{
+                            <label htmlFor="inviteCode" style={{
                                 display: 'block', textAlign: 'left',
                                 fontSize: '0.85rem', fontWeight: 600,
                                 color: 'var(--text-secondary)', marginBottom: '0.5rem',
@@ -542,6 +553,7 @@ export function WelcomePage({ onComplete }: Props) {
                                 Invite Code
                             </label>
                             <input
+                                id="inviteCode"
                                 type="text"
                                 value={inviteCode}
                                 onChange={(e) => setInviteCode(formatInviteCode(e.target.value))}
@@ -557,7 +569,7 @@ export function WelcomePage({ onComplete }: Props) {
                                 }}
                             />
 
-                            <label style={{
+                            <label htmlFor="callsign" style={{
                                 display: 'block', textAlign: 'left',
                                 fontSize: '0.85rem', fontWeight: 600,
                                 color: 'var(--text-secondary)', marginBottom: '0.5rem',
@@ -565,6 +577,7 @@ export function WelcomePage({ onComplete }: Props) {
                                 Choose your Callsign
                             </label>
                             <input
+                                id="callsign"
                                 type="text"
                                 value={callsign}
                                 onChange={(e) => setCallsign(e.target.value)}
@@ -763,7 +776,15 @@ export function WelcomePage({ onComplete }: Props) {
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5, textAlign: 'left' }}>
                                 Paste the transfer code from your other device and enter the PIN.
                             </p>
+                            <label htmlFor="importData" style={{
+                                display: 'block', textAlign: 'left',
+                                fontSize: '0.85rem', fontWeight: 600,
+                                color: 'var(--text-secondary)', marginBottom: '0.5rem',
+                            }}>
+                                Transfer Link
+                            </label>
                             <textarea
+                                id="importData"
                                 value={importData}
                                 onChange={(e) => setImportData(e.target.value)}
                                 placeholder="Paste the identity transfer link here"
@@ -773,9 +794,19 @@ export function WelcomePage({ onComplete }: Props) {
                                     resize: 'none',
                                     fontSize: '0.8rem',
                                     fontFamily: 'monospace',
+                                    marginBottom: '1rem'
                                 }}
                             />
+
+                            <label htmlFor="importPin" style={{
+                                display: 'block', textAlign: 'left',
+                                fontSize: '0.85rem', fontWeight: 600,
+                                color: 'var(--text-secondary)', marginBottom: '0.5rem',
+                            }}>
+                                PIN
+                            </label>
                             <input
+                                id="importPin"
                                 type="password"
                                 inputMode="numeric"
                                 value={importPin}
