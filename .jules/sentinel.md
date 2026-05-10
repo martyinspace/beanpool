@@ -1,4 +1,4 @@
-## 2024-05-18 - [Use of GET Request Method With Sensitive Query Strings]
-**Vulnerability:** A password to access admin reports was sent in the query parameter (CWE-598).
-**Learning:** Query parameters are frequently logged by web servers, proxies, and browser history, exposing sensitive authentication tokens. The frontend was constructed to use a simple URL string interpolation rather than securely transmitting credentials.
-**Prevention:** Avoid putting credentials or sensitive tokens in the query string or URL path for any HTTP method. For sensitive endpoints, consider migrating to POST requests using JSON body authentication, or use standard Authorization headers for GET requests.
+## 2025-05-10 - [Sentinel] Remove Hardcoded Secrets
+**Vulnerability:** A hardcoded dev secret was exposed as a fallback value for the `DIRECTORY_API_KEY` in `apps/server/src/directory-publisher.ts`.
+**Learning:** Hardcoded fallbacks pose significant risk if accidental production leaks occur or if external services can be invoked with a default dev key.
+**Prevention:** Always ensure configuration requires environment variables for API keys and fails securely if they are not provided, avoiding string fallbacks.

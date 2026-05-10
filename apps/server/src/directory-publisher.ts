@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 
 // The URL of the directory registry Edge Function
 const DIRECTORY_REGISTRY_URL = process.env.DIRECTORY_REGISTRY_URL || 'https://dpemwoermzkaxoctafzg.supabase.co/functions/v1/directory-register';
-const DIRECTORY_API_KEY = process.env.DIRECTORY_API_KEY || 'beanpool-dev-secret-123';
+const DIRECTORY_API_KEY = process.env.DIRECTORY_API_KEY;
 
 let pushTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -28,6 +28,11 @@ export function initDirectoryPublisher() {
 
 export async function pushDirectoryNow() {
     try {
+        if (!DIRECTORY_API_KEY) {
+            console.log(`[Directory] ℹ️ DIRECTORY_API_KEY not configured. Skipping push.`);
+            return { success: false, error: 'DIRECTORY_API_KEY is not configured' };
+        }
+
         const config = getNodeConfig();
         
         // Check if node wants to publish anything at all
