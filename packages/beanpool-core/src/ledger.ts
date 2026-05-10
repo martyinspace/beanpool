@@ -7,6 +7,14 @@ export interface LedgerAccount {
 // Global variable exported for visibility (or could be managed within the class statically)
 export let COMMONS_BALANCE = 0;
 
+/**
+ * Restore persisted commons balance on server startup.
+ * Without this, COMMONS_BALANCE resets to 0 every restart, silently destroying all accumulated demurrage.
+ */
+export function setCommonsBalance(value: number): void {
+    COMMONS_BALANCE = value;
+}
+
 export class LedgerManager {
     private accounts: Map<string, LedgerAccount>;
     private readonly DEFAULT_CREDIT_LIMIT = -100; // Legacy fallback — callers should pass dynamic floor
@@ -73,8 +81,8 @@ export class LedgerManager {
     private applyDecay(account: LedgerAccount, currentEpoch: number): LedgerAccount {
         const epochsPassed = currentEpoch - account.lastDemurrageEpoch;
 
-        // Exempt synthetic wallets (escrow, project) from demurrage decay
-        const isExempt = account.id.startsWith('escrow_') || account.id.startsWith('project_');
+        // Exempt synthetic wallets (escrow, project, commons pool) from demurrage decay
+        const isExempt = account.id.startsWith('escrow_') || account.id.startsWith('project_') || account.id === 'COMMONS_POOL';
 
         if (epochsPassed <= 0 || account.balance <= 0 || isExempt) {
             // Only positive, non-exempt balances decay

@@ -292,25 +292,35 @@ export default function LedgerScreen() {
                 </View>
             )}
 
-            <View style={styles.commonsHeader}>
-                <Text style={styles.sectionTitle}>Community Projects</Text>
-                <Pressable style={styles.proposeBtn} onPress={() => router.push('/propose-project')}>
-                    <Text style={styles.proposeBtnText}>+ Propose</Text>
-                </Pressable>
-            </View>
-
-            {projects.map(proj => (
-                <View key={proj.id} style={styles.projectCard}>
-                    <Text style={styles.projectTitle}>{proj.title}</Text>
-                    <View style={styles.progressContainer}>
-                        <View style={[styles.progressBar, { width: `${Math.min((proj.current / proj.goal) * 100, 100)}%` }]} />
+            {/* Community Projects Overview */}
+            {projects.length > 0 ? (
+                <Pressable 
+                    style={styles.projectsOverview} 
+                    onPress={() => router.push('/(tabs)/projects')}
+                >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <Text style={{ fontSize: 18 }}>🌱</Text>
+                            <View>
+                                <Text style={{ fontSize: 14, fontWeight: '700', color: '#1f2937' }}>
+                                    {projects.length} Active Project{projects.length !== 1 ? 's' : ''}
+                                </Text>
+                                <Text style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                                    <CurrencyDisplay style={{ fontSize: 12, color: '#10b981', fontWeight: '600' }} amount={`${projects.reduce((sum, p) => sum + (p.current || 0), 0)}`} /> raised of <CurrencyDisplay style={{ fontSize: 12, color: '#6b7280' }} amount={`${projects.reduce((sum, p) => sum + (p.goal || 0), 0)} goal`} />
+                                </Text>
+                            </View>
+                        </View>
+                        <MaterialCommunityIcons name="chevron-right" size={22} color="#9ca3af" />
                     </View>
-                    <View style={styles.projectStats}>
-                        <CurrencyDisplay style={styles.projectStatText} amount={`${proj.current}`} />
-                        <CurrencyDisplay style={styles.projectStatText} amount={`Goal: ${proj.goal}`} />
+                </Pressable>
+            ) : (
+                <View style={styles.projectsOverview}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={{ fontSize: 18 }}>🌱</Text>
+                        <Text style={{ fontSize: 13, color: '#9ca3af' }}>No community projects yet</Text>
                     </View>
                 </View>
-            ))}
+            )}
 
             <View style={[styles.sectionTitleContainer, { marginTop: 24 }]}>
                 <Text style={styles.sectionTitle}>Recent Transactions</Text>
@@ -428,13 +438,6 @@ const styles = StyleSheet.create({
     txnAmountCol: { alignItems: 'flex-end' },
     txnAmount: { fontSize: 16, fontWeight: 'bold' },
     commonsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginLeft: 4 },
-    proposeBtn: { backgroundColor: '#fcf3e8', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: '#fcdcb6' },
-    proposeBtnText: { color: '#c26749', fontSize: 12, fontWeight: '800' },
-    projectCard: { backgroundColor: '#ffffff', padding: 16, borderRadius: 16, marginBottom: 16, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-    projectTitle: { fontSize: 15, fontWeight: 'bold', color: '#1f2937', marginBottom: 12 },
-    progressContainer: { height: 8, backgroundColor: '#f3f4f6', borderRadius: 4, overflow: 'hidden', marginBottom: 8 },
-    progressBar: { height: '100%', backgroundColor: '#f59e0b', borderRadius: 4 },
-    projectStats: { flexDirection: 'row', justifyContent: 'space-between' },
-    projectStatText: { fontSize: 12, color: '#6b7280', fontWeight: '600' }
+    projectsOverview: { backgroundColor: '#ffffff', padding: 16, borderRadius: 16, marginBottom: 16, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
 });
 

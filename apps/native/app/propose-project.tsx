@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { createProject } from '../utils/db';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CurrencyDisplay } from '../components/CurrencyDisplay';
@@ -69,7 +70,7 @@ export default function ProposeProjectModal() {
             <StatusBar style="dark" />
             <View style={styles.header}>
                 <Pressable onPress={() => router.back()} style={styles.backButton}>
-                    <MaterialCommunityIcons name="close" size={28} color="#111827" />
+                    <MaterialCommunityIcons name="close" size={28} color="#ffffff" />
                 </Pressable>
                 <Text style={styles.headerTitle}>Propose Project</Text>
                 <View style={{ width: 40 }} />
@@ -78,7 +79,7 @@ export default function ProposeProjectModal() {
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
                 <ScrollView contentContainerStyle={styles.scroll}>
                     <View style={styles.infoBox}>
-                        <MaterialCommunityIcons name="information" size={20} color="#f59e0b" style={{ marginRight: 8 }} />
+                        <MaterialCommunityIcons name="information" size={20} color="#10b981" style={{ marginRight: 8 }} />
                         <Text style={styles.infoText}>Project proposals must be voted on and approved by the community before any funds are released.</Text>
                     </View>
 
@@ -161,10 +162,17 @@ export default function ProposeProjectModal() {
                                             allowsEditing: true,
                                             aspect: [16, 9],
                                             quality: 0.8,
-                                            base64: true,
+                                            base64: false,
                                         });
-                                        if (!res.canceled && res.assets[0].base64) {
-                                            setPhotos(prev => [...prev, `data:image/jpeg;base64,${res.assets[0].base64}`]);
+                                        if (!res.canceled && res.assets[0].uri) {
+                                            const manipResult = await ImageManipulator.manipulateAsync(
+                                                res.assets[0].uri,
+                                                [{ resize: { width: 800 } }],
+                                                { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                                            );
+                                            if (manipResult.base64) {
+                                                setPhotos(prev => [...prev, `data:image/jpeg;base64,${manipResult.base64}`]);
+                                            }
                                         }
                                     }}
                                     style={{ width: 80, height: 80, borderRadius: 12, borderWidth: 2, borderColor: '#e5e7eb', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}
@@ -205,20 +213,20 @@ export default function ProposeProjectModal() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#ffffff' },
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
+    container: { flex: 1, backgroundColor: '#f9fafb' },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#e5e7eb', backgroundColor: '#111827' },
     backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
-    headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827', letterSpacing: 1, textTransform: 'uppercase' },
-    infoBox: { flexDirection: 'row', backgroundColor: '#fffbeb', padding: 16, borderRadius: 12, marginBottom: 24, borderWidth: 1, borderColor: '#fef3c7' },
-    infoText: { flex: 1, fontSize: 15, color: '#92400e', lineHeight: 22 },
+    headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#10b981', letterSpacing: 1, textTransform: 'uppercase' },
+    infoBox: { flexDirection: 'row', backgroundColor: '#ecfdf5', padding: 16, borderRadius: 12, marginBottom: 24, borderWidth: 1, borderColor: '#a7f3d0' },
+    infoText: { flex: 1, fontSize: 14, color: '#065f46', lineHeight: 22 },
     scroll: { padding: 20 },
     field: { marginBottom: 24 },
-    label: { fontSize: 11, fontWeight: 'bold', color: '#6b7280', letterSpacing: 1, marginBottom: 8 },
-    hint: { fontSize: 12, color: '#9ca3af', marginTop: 6 },
-    input: { backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 16, fontSize: 16, color: '#1f2937' },
-    priceInput: { fontSize: 24, fontWeight: 'bold', color: '#f59e0b' },
+    label: { fontSize: 11, fontWeight: 'bold', color: '#374151', letterSpacing: 1, marginBottom: 8 },
+    hint: { fontSize: 12, color: '#6b7280', marginTop: 6 },
+    input: { backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#d1d5db', borderRadius: 12, padding: 16, fontSize: 16, color: '#1f2937' },
+    priceInput: { fontSize: 24, fontWeight: 'bold', color: '#059669' },
     textarea: { height: 160, paddingTop: 16 },
-    footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#f3f4f6', backgroundColor: '#ffffff' },
-    submitBtn: { paddingVertical: 16, borderRadius: 14, alignItems: 'center', backgroundColor: '#f59e0b', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+    footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#e5e7eb', backgroundColor: '#f9fafb' },
+    submitBtn: { paddingVertical: 16, borderRadius: 14, alignItems: 'center', backgroundColor: '#10b981', shadowColor: '#059669', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 5 },
     submitBtnText: { color: '#ffffff', fontSize: 15, fontWeight: 'bold', letterSpacing: 1 }
 });

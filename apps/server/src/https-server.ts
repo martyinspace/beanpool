@@ -64,9 +64,10 @@ import {
     getNodeConfig, updateNodeConfig, getDirectoryInfo, exportLedgerAudit,
     registerPushToken, removePushToken,
     getMemberPreferences, setMemberPreferences,
-    getMemberStats
+    getMemberStats,
+    getGuardiansOf, createRecoveryRequest, dispatchPushNotification, getPendingRecoveryRequests, approveRecovery, rejectRecovery, getRecoveryStatus, cancelRecovery
 } from './state-engine.js';
-import { getCrowdfundProjects, getCrowdfundProject, createCrowdfundProject, updateCrowdfundProject, pledgeToProject, deleteCrowdfundProject } from './db/db.js';
+import { getCrowdfundProjects, getCrowdfundProject, createCrowdfundProject, updateCrowdfundProject, pledgeToProject, deleteCrowdfundProject, db } from './db/db.js';
 import { initDirectoryPublisher, pushDirectoryNow } from './directory-publisher.js';
 
 const PUBLIC_DIR = path.resolve('public');
@@ -194,6 +195,15 @@ export async function startHttpsServer(port: number): Promise<void> {
             if (body.from && body.from !== pubKeyHex) throw new Error('Spoofed from');
             if (body.proposerPubkey && body.proposerPubkey !== pubKeyHex) throw new Error('Spoofed proposerPubkey');
             if (body.pubkey && body.pubkey !== pubKeyHex) throw new Error('Spoofed pubkey');
+            if (body.newPubkey && body.newPubkey !== pubKeyHex) throw new Error('Spoofed newPubkey');
+            if (body.creatorPubkey && body.creatorPubkey !== pubKeyHex) throw new Error('Spoofed creatorPubkey');
+            if (body.raterPubkey && body.raterPubkey !== pubKeyHex) throw new Error('Spoofed raterPubkey');
+            if (body.voterPubkey && body.voterPubkey !== pubKeyHex) throw new Error('Spoofed voterPubkey');
+            if (body.reporterPubkey && body.reporterPubkey !== pubKeyHex) throw new Error('Spoofed reporterPubkey');
+            if (body.fromPubkey && body.fromPubkey !== pubKeyHex) throw new Error('Spoofed fromPubkey');
+            if (body.ownerPubkey && body.ownerPubkey !== pubKeyHex) throw new Error('Spoofed ownerPubkey');
+            if (body.confirmerPublicKey && body.confirmerPublicKey !== pubKeyHex) throw new Error('Spoofed confirmerPublicKey');
+            if (body.cancellerPublicKey && body.cancellerPublicKey !== pubKeyHex) throw new Error('Spoofed cancellerPublicKey');
 
         } catch (err: any) {
             ctx.status = 403;
@@ -1646,10 +1656,28 @@ export async function startHttpsServer(port: number): Promise<void> {
         ctx.body = { success: true };
     });
 
-    // Admin: get all projects (including rejected)
+    // Admin: get all projects (unified — reads from crowdfund SQL table)
     router.post('/api/local/admin/commons/projects', async (ctx) => {
         if (!checkAdminAuth(ctx as any)) return;
-        ctx.body = { projects: getAllProjects(), rounds: getVotingRounds(), balance: getCommonsBalance() };
+        const crowdfundProjects = getCrowdfundProjects();
+        // Map crowdfund schema to commons admin UI shape
+        const projects = crowdfundProjects.map(p => {
+            const member = getMember(p.creator_pubkey);
+            return {
+                id: p.id,
+                title: p.title,
+                description: p.description,
+                proposerPubkey: p.creator_pubkey,
+                proposerCallsign: member?.callsign || 'Unknown',
+                requestedAmount: p.goal_amount,
+                currentAmount: p.current_amount,
+                status: (p.status || 'ACTIVE').toLowerCase(),
+                votes: [],   // voting rounds still tracked in node_config
+                createdAt: p.created_at,
+                photos: p.photos,
+            };
+        });
+        ctx.body = { projects, rounds: getVotingRounds(), balance: getCommonsBalance() };
     });
 
     // ===================== NODE CONFIG =====================
@@ -1748,14 +1776,139 @@ export async function startHttpsServer(port: number): Promise<void> {
     });
 
     router.post('/api/friends/guardian', async (ctx) => {
-        const { ownerPubkey, friendPubkey, isGuardian } = (ctx as any).requestBody || {};
-        if (!ownerPubkey || !friendPubkey) {
-            ctx.status = 400;
-            ctx.body = { error: 'ownerPubkey and friendPubkey are required' };
-            return;
+        const ownerPubkey = ctx.request.header['x-public-key'] as string;
+        const body = (ctx as any).requestBody;
+        if (!body || !body.friendPubkey || typeof body.isGuardian !== 'boolean') {
+            ctx.status = 400; ctx.body = { error: 'Invalid payload' }; return;
         }
-        const ok = setGuardian(ownerPubkey, friendPubkey, !!isGuardian);
-        ctx.body = { success: ok };
+
+        const success = setGuardian(ownerPubkey, body.friendPubkey, body.isGuardian);
+        if (success) {
+            ctx.status = 200; ctx.body = { success: true };
+        } else {
+            ctx.status = 400; ctx.body = { error: 'Could not set guardian status' };
+        }
+    });
+
+    // ======================== SOCIAL RECOVERY ========================
+
+    // 1. Lookup identities by callsign (Public, but we rate limit it in practice, handled loosely here)
+    router.get('/api/recovery/lookup/:callsign', async (ctx) => {
+        const callsign = ctx.params.callsign.trim().toLowerCase();
+        if (!callsign) { ctx.status = 400; ctx.body = { error: 'Missing callsign' }; return; }
+
+        const rows = db.prepare(`SELECT public_key, callsign, joined_at, avatar_url FROM members WHERE LOWER(callsign) = ? AND status != 'migrated'`).all(callsign) as any[];
+        
+        // Filter out those with < 3 guardians
+        const eligible = rows.filter(r => getGuardiansOf(r.public_key).length >= 3);
+        
+        ctx.status = 200;
+        ctx.body = eligible.map(r => ({
+            publicKey: r.public_key,
+            callsign: r.callsign,
+            joinedAt: r.joined_at,
+            avatarUrl: r.avatar_url
+        }));
+    });
+
+    // 2. Submit a recovery request (Signed by NEW pubkey)
+    router.post('/api/recovery/request', async (ctx) => {
+        const newPubkey = ctx.request.header['x-public-key'] as string;
+        const body = (ctx as any).requestBody;
+        
+        if (!body || !body.oldPubkey || !body.guardianGuess) {
+            ctx.status = 400; ctx.body = { error: 'Missing oldPubkey or guardianGuess' }; return;
+        }
+
+        try {
+            const req = createRecoveryRequest(body.oldPubkey, newPubkey, body.guardianGuess);
+            
+            // Push notification to guardians
+            const guardians = getGuardiansOf(body.oldPubkey);
+            const targetMember = getMember(body.oldPubkey);
+            if (targetMember) {
+                dispatchPushNotification(
+                    guardians,
+                    body.oldPubkey, // actor
+                    '🛡️ Recovery Request',
+                    `${targetMember.callsign} is requesting identity recovery. Open BeanPool to review.`,
+                    { screen: 'settings' }, // data payload
+                    'escrow' // closest matching notification category
+                );
+            }
+
+            ctx.status = 200;
+            ctx.body = req;
+        } catch (e: any) {
+            ctx.status = 400;
+            ctx.body = { error: e.message };
+        }
+    });
+
+    // 3. Get pending requests for a guardian
+    router.get('/api/recovery/pending/:guardianPubkey', async (ctx) => {
+        const guardianPubkey = ctx.params.guardianPubkey;
+        if (ctx.request.header['x-public-key'] !== guardianPubkey) {
+            ctx.status = 403; ctx.body = { error: 'Unauthorized' }; return;
+        }
+        try {
+            const reqs = getPendingRecoveryRequests(guardianPubkey);
+            ctx.status = 200;
+            ctx.body = reqs;
+        } catch (e: any) {
+            ctx.status = 400;
+            ctx.body = { error: e.message };
+        }
+    });
+
+    // 4. Approve recovery
+    router.post('/api/recovery/approve', async (ctx) => {
+        const guardianPubkey = ctx.request.header['x-public-key'] as string;
+        const body = (ctx as any).requestBody;
+        if (!body || !body.requestId) { ctx.status = 400; ctx.body = { error: 'Missing requestId' }; return; }
+
+        try {
+            approveRecovery(body.requestId, guardianPubkey);
+            ctx.status = 200; ctx.body = { success: true };
+        } catch (e: any) {
+            ctx.status = 400; ctx.body = { error: e.message };
+        }
+    });
+
+    // 5. Reject recovery
+    router.post('/api/recovery/reject', async (ctx) => {
+        const guardianPubkey = ctx.request.header['x-public-key'] as string;
+        const body = (ctx as any).requestBody;
+        if (!body || !body.requestId) { ctx.status = 400; ctx.body = { error: 'Missing requestId' }; return; }
+
+        try {
+            rejectRecovery(body.requestId, guardianPubkey);
+            ctx.status = 200; ctx.body = { success: true };
+        } catch (e: any) {
+            ctx.status = 400; ctx.body = { error: e.message };
+        }
+    });
+
+    // 6. Check recovery status
+    router.get('/api/recovery/status/:pubkey', async (ctx) => {
+        const pubkey = ctx.params.pubkey;
+        const status = getRecoveryStatus(pubkey);
+        ctx.status = 200;
+        ctx.body = status || { status: 'none' };
+    });
+
+    // 7. Cancel recovery
+    router.post('/api/recovery/cancel', async (ctx) => {
+        const cancellerPubkey = ctx.request.header['x-public-key'] as string;
+        const body = (ctx as any).requestBody;
+        if (!body || !body.requestId) { ctx.status = 400; ctx.body = { error: 'Missing requestId' }; return; }
+
+        try {
+            cancelRecovery(body.requestId, cancellerPubkey);
+            ctx.status = 200; ctx.body = { success: true };
+        } catch (e: any) {
+            ctx.status = 400; ctx.body = { error: e.message };
+        }
     });
 
     // ======================== MEMBERS LIST ========================

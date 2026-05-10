@@ -147,10 +147,24 @@ export default function ProjectsScreen() {
                 keyExtractor={item => item.id}
                 renderItem={renderItem}
                 contentContainerStyle={styles.listContainer}
+                ListHeaderComponent={
+                    <View style={styles.headerInfo}>
+                        <Text style={styles.headerTitle}>🌱 Community Projects</Text>
+                        <Text style={styles.headerDesc}>
+                            Projects are funded through direct pledges and community circulation (demurrage). Propose an idea and let the community decide.
+                        </Text>
+                    </View>
+                }
                 ListEmptyComponent={
                     <View style={styles.emptyState}>
                         <Text style={styles.emptyEmoji}>🌱</Text>
-                        <Text style={styles.emptyText}>No projects proposed yet.</Text>
+                        <Text style={styles.emptyTitle}>No projects proposed yet</Text>
+                        <Text style={styles.emptyDesc}>
+                            Got an idea that benefits the community? Propose a project and get it funded through collective contributions.
+                        </Text>
+                        <Pressable style={styles.emptyBtn} onPress={() => router.push('/propose-project')}>
+                            <Text style={styles.emptyBtnText}>+ Propose a Project</Text>
+                        </Pressable>
                     </View>
                 }
             />
@@ -165,8 +179,9 @@ const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: '#f9fafb' },
     header: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', backgroundColor: '#111827' },
     headerEmoji: { fontSize: 28, marginRight: 12 },
-    headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#ffffff', letterSpacing: -0.5 },
-    headerSubtitle: { fontSize: 13, color: '#9ca3af', marginTop: 2 },
+    headerInfo: { marginBottom: 16 },
+    headerTitle: { fontSize: 24, fontWeight: '800', color: '#1f2937', letterSpacing: -0.5, marginBottom: 8 },
+    headerDesc: { fontSize: 14, color: '#6b7280', lineHeight: 20 },
     listContainer: { padding: 16, paddingBottom: 100 },
     card: { backgroundColor: '#ffffff', borderRadius: 16, marginBottom: 16, borderWidth: 1, borderColor: '#e5e7eb', overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 },
     heroImage: { height: 120, width: '100%', justifyContent: 'flex-end', position: 'relative' },
@@ -185,9 +200,12 @@ const styles = StyleSheet.create({
     goalText: { fontSize: 13, color: '#9ca3af', fontWeight: '500' },
     progressBarBg: { height: 8, width: '100%', backgroundColor: '#f3f4f6', borderRadius: 4, overflow: 'hidden' },
     progressBarFill: { height: '100%', borderRadius: 4 },
-    emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
+    emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, paddingHorizontal: 32 },
     emptyEmoji: { fontSize: 48, opacity: 0.3, marginBottom: 16 },
-    emptyText: { color: '#9ca3af', fontSize: 15 },
+    emptyTitle: { fontSize: 18, fontWeight: '700', color: '#374151', marginBottom: 8, textAlign: 'center' },
+    emptyDesc: { fontSize: 14, color: '#9ca3af', textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+    emptyBtn: { backgroundColor: '#10b981', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12, shadowColor: '#059669', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
+    emptyBtnText: { color: '#ffffff', fontSize: 14, fontWeight: '700' },
     fab: {
         position: 'absolute',
         bottom: 24,

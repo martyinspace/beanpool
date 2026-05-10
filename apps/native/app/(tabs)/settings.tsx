@@ -5,9 +5,10 @@ import { useIdentity } from '../IdentityContext';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { updateCallsign, wipeIdentity } from '../../utils/identity';
 import { nativeExportIdentity } from '../../utils/native-crypto';
-import { updateMemberProfile, getMemberProfile } from '../../utils/db';
+import { updateMemberProfile, getMemberProfile, getPendingRecoveryRequests, approveRecoveryRequest, rejectRecoveryRequest } from '../../utils/db';
 import { getSavedNodes, SavedNode, removeSavedNode, getDatabaseFilenameForNode } from '../../utils/nodes';
 import * as FileSystem from 'expo-file-system';
 import { router } from 'expo-router';
@@ -16,7 +17,7 @@ import appConfig from '../../app.json';
 
 export default function SettingsScreen() {
     const { identity, setIdentity } = useIdentity();
-    const [mode, setMode] = useState<'menu' | 'profile' | 'export' | 'import' | 'advanced' | 'wipe' | 'notifications'>('menu');
+    const [mode, setMode] = useState<'menu' | 'profile' | 'export' | 'import' | 'seed' | 'advanced' | 'wipe' | 'notifications' | 'recovery-requests'>('menu');
 
     // Notification preference state
     const [notifChat, setNotifChat] = useState(true);
@@ -51,6 +52,8 @@ export default function SettingsScreen() {
     const [newAnchorInput, setNewAnchorInput] = useState('');
     const [changeConfirm, setChangeConfirm] = useState('');
     const [wipeConfirm, setWipeConfirm] = useState('');
+    const [seedConfirm, setSeedConfirm] = useState('');
+    const [seedVisible, setSeedVisible] = useState(false);
     const [advancedLoading, setAdvancedLoading] = useState(false);
     const [savedNodes, setSavedNodes] = useState<(SavedNode & { status: 'pinging' | 'online' | 'offline', sizeBytes: number })[]>([]);
     const [newNodeAlias, setNewNodeAlias] = useState('');
@@ -102,6 +105,20 @@ export default function SettingsScreen() {
     const [importUri, setImportUri] = useState('');
     const [importPin, setImportPin] = useState('');
 
+    // Recovery logic
+    const [recoveryReqs, setRecoveryReqs] = useState<any[]>([]);
+    const [recoveryLoading, setRecoveryLoading] = useState(false);
+
+    React.useEffect(() => {
+        if (mode === 'recovery-requests') {
+            setRecoveryLoading(true);
+            getPendingRecoveryRequests()
+                .then(setRecoveryReqs)
+                .catch(console.error)
+                .finally(() => setRecoveryLoading(false));
+        }
+    }, [mode]);
+
     if (!identity) {
         return (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f9fafb' }}>
@@ -119,20 +136,34 @@ export default function SettingsScreen() {
                     const perm = await ImagePicker.requestCameraPermissionsAsync();
                     if (!perm.granted) { Alert.alert('Permission required', 'Camera access is needed.'); return; }
                     const result = await ImagePicker.launchCameraAsync({
-                        mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true
+                        mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: false
                     });
-                    if (!result.canceled && result.assets[0].base64) {
-                        setAvatar(`data:image/jpeg;base64,${result.assets[0].base64}`);
+                    if (!result.canceled && result.assets[0].uri) {
+                        const manipResult = await ImageManipulator.manipulateAsync(
+                            result.assets[0].uri,
+                            [{ resize: { width: 400 } }],
+                            { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                        );
+                        if (manipResult.base64) {
+                            setAvatar(`data:image/jpeg;base64,${manipResult.base64}`);
+                        }
                     }
                 } catch (e) { Alert.alert('Error', 'Could not take photo.'); }
             }},
             { text: 'Gallery', onPress: async () => {
                 try {
                     const result = await ImagePicker.launchImageLibraryAsync({
-                        mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true
+                        mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: false
                     });
-                    if (!result.canceled && result.assets[0].base64) {
-                        setAvatar(`data:image/jpeg;base64,${result.assets[0].base64}`);
+                    if (!result.canceled && result.assets[0].uri) {
+                        const manipResult = await ImageManipulator.manipulateAsync(
+                            result.assets[0].uri,
+                            [{ resize: { width: 400 } }],
+                            { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                        );
+                        if (manipResult.base64) {
+                            setAvatar(`data:image/jpeg;base64,${manipResult.base64}`);
+                        }
                     }
                 } catch (e) { Alert.alert('Error', 'Could not pick image.'); }
             }},
@@ -158,6 +189,26 @@ export default function SettingsScreen() {
                 const updated = await updateCallsign(editCallsign.trim());
                 if (updated) setIdentity(updated);
             }
+
+            // Push profile (including avatar) to the server so other devices see it
+            try {
+                const url = await AsyncStorage.getItem('beanpool_anchor_url');
+                if (url) {
+                    await fetch(`${url}/api/profile/update`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            publicKey: identity.publicKey,
+                            avatar: avatar,
+                            bio: bio.trim(),
+                            contact: contact.trim() ? { value: contact.trim(), visibility: 'community' } : null,
+                        }),
+                    });
+                }
+            } catch (e) {
+                console.warn('[Profile] Server sync failed (offline?):', e);
+            }
+
             setMode('menu');
         } catch (e) {
             Alert.alert('Error', 'Could not update profile.');
@@ -369,6 +420,7 @@ export default function SettingsScreen() {
         try {
             const uri = await nativeExportIdentity(identity, pin);
             setExportUri(uri);
+            await AsyncStorage.setItem('beanpool_identity_backed_up', 'true');
         } catch (e: any) {
             Alert.alert('Export Failed', 'Could not export identity: ' + (e.message || 'Unknown error'));
         } finally {
@@ -496,6 +548,14 @@ export default function SettingsScreen() {
                 {/* ─── Account & Identity ─── */}
                 <Text style={styles.sectionHeader}>ACCOUNT & IDENTITY</Text>
                 <View style={styles.menuGroup}>
+                    <Pressable style={styles.menuBtn} onPress={() => { setMode('recovery-requests'); }}>
+                        <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>🛡️</Text></View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.menuText}>Recovery Requests</Text>
+                            <Text style={styles.menuSub}>Help a friend recover their identity</Text>
+                        </View>
+                        <Text style={styles.menuChevron}>›</Text>
+                    </Pressable>
                     <Pressable style={styles.menuBtn} onPress={() => { setMode('export'); setPin(''); setExportUri(''); }}>
                         <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>📤</Text></View>
                         <View style={{ flex: 1 }}>
@@ -504,11 +564,19 @@ export default function SettingsScreen() {
                         </View>
                         <Text style={styles.menuChevron}>›</Text>
                     </Pressable>
-                    <Pressable style={[styles.menuBtn, styles.menuBtnLast]} onPress={() => { setMode('import'); setImportUri(''); setImportPin(''); }}>
+                    <Pressable style={styles.menuBtn} onPress={() => { setMode('import'); setImportUri(''); setImportPin(''); }}>
                         <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>📥</Text></View>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.menuText}>Import Identity</Text>
                             <Text style={styles.menuSub}>Merge from another device</Text>
+                        </View>
+                        <Text style={styles.menuChevron}>›</Text>
+                    </Pressable>
+                    <Pressable style={[styles.menuBtn, styles.menuBtnLast]} onPress={() => { setMode('seed'); setSeedConfirm(''); setSeedVisible(false); }}>
+                        <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>🔑</Text></View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.menuText}>View Recovery Phrase</Text>
+                            <Text style={styles.menuSub}>View your 12-word backup seed</Text>
                         </View>
                         <Text style={styles.menuChevron}>›</Text>
                     </Pressable>
@@ -609,6 +677,71 @@ export default function SettingsScreen() {
                     BEANPOOL OS {appConfig.expo.version}
                 </Text>
                 </>
+            )}
+
+            {mode === 'recovery-requests' && (
+                <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>🛡️ Recovery Requests</Text>
+                    <Text style={styles.infoText}>These friends have requested to recover their identity on a new device. Verify it's really them before approving.</Text>
+                    
+                    {recoveryLoading ? (
+                        <ActivityIndicator color="#059669" style={{ marginVertical: 20 }} />
+                    ) : recoveryReqs.length === 0 ? (
+                        <View style={{ padding: 20, alignItems: 'center' }}>
+                            <Text style={{ fontSize: 32, marginBottom: 8 }}>✨</Text>
+                            <Text style={{ color: '#9ca3af' }}>No pending requests.</Text>
+                        </View>
+                    ) : (
+                        recoveryReqs.map(req => (
+                            <View key={req.id} style={{ backgroundColor: '#262626', padding: 16, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: '#404040' }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#3f3f46', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                                        <Text style={{ fontSize: 18 }}>👤</Text>
+                                    </View>
+                                    <View>
+                                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{req.old_callsign}</Text>
+                                        <Text style={{ color: '#9ca3af', fontSize: 12 }}>Requested: {new Date(req.created_at).toLocaleDateString()}</Text>
+                                    </View>
+                                </View>
+                                
+                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    <Pressable 
+                                        style={[styles.primaryBtn, { flex: 1, backgroundColor: '#ef4444' }]}
+                                        onPress={async () => {
+                                            try {
+                                                await rejectRecoveryRequest(req.id);
+                                                setRecoveryReqs(prev => prev.filter(r => r.id !== req.id));
+                                                Alert.alert('Rejected', 'Request has been rejected.');
+                                            } catch(e) {
+                                                Alert.alert('Error', 'Failed to reject request.');
+                                            }
+                                        }}
+                                    >
+                                        <Text style={styles.primaryBtnText}>Reject</Text>
+                                    </Pressable>
+                                    <Pressable 
+                                        style={[styles.primaryBtn, { flex: 1, backgroundColor: '#10b981' }]}
+                                        onPress={async () => {
+                                            try {
+                                                await approveRecoveryRequest(req.id);
+                                                setRecoveryReqs(prev => prev.filter(r => r.id !== req.id));
+                                                Alert.alert('Approved', 'Request has been approved.');
+                                            } catch(e) {
+                                                Alert.alert('Error', 'Failed to approve request.');
+                                            }
+                                        }}
+                                    >
+                                        <Text style={styles.primaryBtnText}>Approve</Text>
+                                    </Pressable>
+                                </View>
+                            </View>
+                        ))
+                    )}
+                    
+                    <Pressable style={styles.backBtn} onPress={() => setMode('menu')}>
+                        <Text style={styles.backBtnText}>← Back</Text>
+                    </Pressable>
+                </View>
             )}
 
             {mode === 'profile' && (
@@ -909,6 +1042,63 @@ export default function SettingsScreen() {
                 </View>
             )}
 
+            {mode === 'seed' && (
+                <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>🔑 Recovery Phrase</Text>
+                    {!identity?.mnemonic ? (
+                        <Text style={styles.infoText}>
+                            This identity was created before seed phrase support. Use "Export Identity" to back up your keys to another device.
+                        </Text>
+                    ) : (
+                        <>
+                            {!seedVisible ? (
+                                <>
+                                    <Text style={styles.infoText}>
+                                        Your 12-word recovery phrase allows you to restore your identity on any device. Anyone with these words can control your account.
+                                    </Text>
+                                    <Text style={styles.label}>TYPE 'CONFIRM' TO VIEW SEED</Text>
+                                    <TextInput 
+                                        style={[styles.input, { textAlign: 'center', fontWeight: 'bold' }]}
+                                        value={seedConfirm}
+                                        onChangeText={setSeedConfirm}
+                                        placeholder="CONFIRM"
+                                        autoCapitalize="characters"
+                                        autoCorrect={false}
+                                    />
+                                    <Pressable 
+                                        style={[styles.primaryBtn, seedConfirm !== 'CONFIRM' && { opacity: 0.5 }]} 
+                                        onPress={async () => {
+                                            setSeedVisible(true);
+                                            await AsyncStorage.setItem('beanpool_identity_backed_up', 'true');
+                                        }} 
+                                        disabled={seedConfirm !== 'CONFIRM'}
+                                    >
+                                        <Text style={styles.primaryBtnText}>Show Recovery Phrase</Text>
+                                    </Pressable>
+                                </>
+                            ) : (
+                                <>
+                                    <Text style={[styles.infoText, { color: '#ef4444', fontWeight: 'bold' }]}>
+                                        Never share this phrase with anyone. Write it down on paper and keep it secure.
+                                    </Text>
+                                    <View style={styles.seedGrid}>
+                                        {identity.mnemonic.map((word, i) => (
+                                            <View key={i} style={styles.seedWord}>
+                                                <Text style={styles.seedWordNum}>{i + 1}.</Text>
+                                                <Text style={styles.seedWordText}>{word}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                </>
+                            )}
+                        </>
+                    )}
+                    <Pressable style={[styles.backBtn, { marginTop: 24 }]} onPress={() => setMode('menu')}>
+                        <Text style={styles.backBtnText}>← Back</Text>
+                    </Pressable>
+                </View>
+            )}
+
             {mode === 'wipe' && (
                 <View style={styles.card}>
                     <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#ef4444', marginBottom: 8 }}>Danger Zone</Text>
@@ -1059,7 +1249,14 @@ const styles = StyleSheet.create({
     backBtnText: { color: '#6b7280', fontSize: 14, fontWeight: '600' },
     dangerBtn: { backgroundColor: '#fee2e2', padding: 16, borderRadius: 10, alignItems: 'center', marginTop: 16, borderWidth: 1, borderColor: '#fca5a5' },
     dangerBtnText: { color: '#b91c1c', fontSize: 14, fontWeight: 'bold' },
-    infoText: { fontSize: 14, color: '#6b7280', lineHeight: 20, marginBottom: 16 },
+    infoText: { fontSize: 14, color: '#6b7280', marginBottom: 16, lineHeight: 20 },
+    errorText: { color: '#ef4444', marginBottom: 16, textAlign: 'center' },
+    
+    // Seed UI
+    seedGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 16 },
+    seedWord: { width: '48%', backgroundColor: '#f3f4f6', padding: 12, borderRadius: 8, marginBottom: 12, flexDirection: 'row', alignItems: 'center' },
+    seedWordNum: { color: '#9ca3af', fontSize: 12, marginRight: 8, width: 20, textAlign: 'right' },
+    seedWordText: { fontSize: 16, fontWeight: '600', color: '#1f2937' },
     uriBox: { backgroundColor: '#f1f5f9', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 16, maxHeight: 100 },
     uriText: { fontSize: 12, fontFamily: 'monospace', color: '#475569' },
 });

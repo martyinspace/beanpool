@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Image, Pressable, ScrollView, TextInput, Alert,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { Picker } from '@react-native-picker/picker';
 import * as Crypto from 'expo-crypto';
 import { 
@@ -248,12 +249,30 @@ export default function PostDetailModal() {
             { text: 'Camera', onPress: async () => {
                 const perm = await ImagePicker.requestCameraPermissionsAsync();
                 if (!perm.granted) return;
-                const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7 });
-                if (!result.canceled && result.assets[0]) setEditPhotos(prev => [...prev, result.assets[0].uri]);
+                const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, base64: false });
+                if (!result.canceled && result.assets[0].uri) {
+                    const manipResult = await ImageManipulator.manipulateAsync(
+                        result.assets[0].uri,
+                        [{ resize: { width: 800 } }],
+                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                    );
+                    if (manipResult.base64) {
+                        setEditPhotos(prev => [...prev, `data:image/jpeg;base64,${manipResult.base64}`]);
+                    }
+                }
             }},
             { text: 'Gallery', onPress: async () => {
-                const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
-                if (!result.canceled && result.assets[0]) setEditPhotos(prev => [...prev, result.assets[0].uri]);
+                const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, base64: false });
+                if (!result.canceled && result.assets[0].uri) {
+                    const manipResult = await ImageManipulator.manipulateAsync(
+                        result.assets[0].uri,
+                        [{ resize: { width: 800 } }],
+                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                    );
+                    if (manipResult.base64) {
+                        setEditPhotos(prev => [...prev, `data:image/jpeg;base64,${manipResult.base64}`]);
+                    }
+                }
             }},
             { text: 'Cancel', style: 'cancel' },
         ]);

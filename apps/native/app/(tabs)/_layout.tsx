@@ -4,14 +4,35 @@ import { View, Image, StyleSheet, Text } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useIdentity } from '../IdentityContext';
 import { getGlobalUnreadCount, syncMessages, getPosts } from '../../utils/db';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function TabLayout() {
     const { identity } = useIdentity();
     const [unread, setUnread] = useState(0);
     const [dealsCount, setDealsCount] = useState(0);
+    const [needsBackup, setNeedsBackup] = useState(false);
 
     useEffect(() => {
         if (!identity?.publicKey) return;
+
+        const checkBackup = async () => {
+            try {
+                const backedUp = await AsyncStorage.getItem('beanpool_identity_backed_up');
+                if (backedUp !== 'true') {
+                    // Check if identity is older than 24 hours
+                    const createdAt = new Date(identity.createdAt).getTime();
+                    const now = new Date().getTime();
+                    if (now - createdAt > 24 * 60 * 60 * 1000) {
+                        setNeedsBackup(true);
+                    } else {
+                        setNeedsBackup(false);
+                    }
+                } else {
+                    setNeedsBackup(false);
+                }
+            } catch (e) {}
+        };
+        checkBackup();
         const checkUnread = async () => {
             try {
                 // Discover new messages across active threads globally
@@ -110,7 +131,14 @@ export default function TabLayout() {
                 options={{ 
                     title: 'Settings',
                     href: null,
-                    tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>⚙️</Text> 
+                    tabBarIcon: ({ focused }) => (
+                        <View>
+                            <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>⚙️</Text>
+                            {needsBackup && (
+                                <View style={{ position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: '#1a2e1a' }} />
+                            )}
+                        </View>
+                    )
                 }} 
             />
         </Tabs>

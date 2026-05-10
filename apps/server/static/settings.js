@@ -802,32 +802,30 @@
                     completed: '🎉 Completed',
                 }[p.status] || p.status;
                 const votes = p.votes?.length || 0;
+                const currentAmt = p.currentAmount || 0;
                 const exceeds = (p.status === 'active' || p.status === 'proposed') && p.requestedAmount > commonsData.balance;
-                const amountText = `<span style="color:${exceeds ? '#ef4444' : 'inherit'}; font-weight:${exceeds ? 'bold' : 'normal'};" title="${exceeds ? '⚠️ Exceeds available Commons balance' : ''}">${p.requestedAmount.toFixed(2)}B${exceeds ? ' ⚠️' : ''}</span>`;
+                const progress = p.requestedAmount > 0 ? Math.min(100, (currentAmt / p.requestedAmount) * 100) : 0;
+                const progressColor = progress >= 100 ? '#10b981' : '#8b5cf6';
                 
-                return `<div style="padding:0.6rem 0.75rem;border-bottom:1px solid #1e293b;display:flex;justify-content:space-between;align-items:center;">
-                    <div>
-                        <strong style="font-size:0.85rem;">${p.title}</strong>
-                        <div style="font-size:0.7rem;color:#64748b;margin-top:2px;">${p.proposerCallsign} · ${amountText} · ${votes} vote${votes !== 1 ? 's' : ''}</div>
+                return `<div style="padding:0.6rem 0.75rem;border-bottom:1px solid #1e293b;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">
+                        <div>
+                            <strong style="font-size:0.85rem;">${p.title}</strong>
+                            <div style="font-size:0.7rem;color:#64748b;margin-top:2px;">${p.proposerCallsign} · ${votes} vote${votes !== 1 ? 's' : ''}</div>
+                        </div>
+                        <div style="display:flex;gap:0.4rem;align-items:center;">
+                            <span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:${p.status === 'funded' ? '#10b98122' : p.status === 'rejected' ? '#ef444422' : '#2563eb22'};color:${p.status === 'funded' ? '#10b981' : p.status === 'rejected' ? '#ef4444' : '#60a5fa'};">${statusBadge}</span>
+                            ${p.status === 'proposed' || p.status === 'active' ? `<button onclick="rejectProject('${p.id}')" style="padding:2px 6px;border-radius:4px;background:#ef444422;color:#ef4444;border:none;cursor:pointer;font-size:0.7rem;">✕</button>` : ''}
+                        </div>
                     </div>
-                    <div style="display:flex;gap:0.4rem;align-items:center;">
-                        <span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:${p.status === 'funded' ? '#10b98122' : p.status === 'rejected' ? '#ef444422' : '#2563eb22'};color:${p.status === 'funded' ? '#10b981' : p.status === 'rejected' ? '#ef4444' : '#60a5fa'};">${statusBadge}</span>
-                        ${p.status === 'proposed' || p.status === 'active' ? `<button onclick="rejectProject('${p.id}')" style="padding:2px 6px;border-radius:4px;background:#ef444422;color:#ef4444;border:none;cursor:pointer;font-size:0.7rem;">✕</button>` : ''}
+                    <div style="display:flex;align-items:center;gap:0.5rem;">
+                        <div style="flex:1;height:4px;background:#1e293b;border-radius:2px;overflow:hidden;">
+                            <div style="height:100%;width:${progress}%;background:${progressColor};border-radius:2px;"></div>
+                        </div>
+                        <span style="font-size:0.7rem;color:${exceeds ? '#ef4444' : '#94a3b8'};white-space:nowrap;font-weight:${exceeds ? 'bold' : 'normal'};" title="${exceeds ? '⚠️ Goal exceeds available Commons balance' : ''}">${currentAmt.toFixed(0)} / ${p.requestedAmount.toFixed(0)}B${exceeds ? ' ⚠️' : ''}</span>
                     </div>
                 </div>`;
             }).join('');
-
-            // Update radius info display
-            fetch('/api/node/config').then(r => r.json()).then(config => {
-                const el = document.getElementById('commons-radius-info');
-                if (config.serviceRadius && config.serviceRadius.radiusKm > 0) {
-                    el.textContent = `${config.serviceRadius.radiusKm} km radius · ${config.publishToDirectory !== false ? '📡 Published on beanpool.org' : '🔒 Not published'}`;
-                    el.style.color = '#10b981';
-                } else {
-                    el.textContent = 'Not configured — set it on the Identity tab.';
-                    el.style.color = '#94a3b8';
-                }
-            }).catch(() => {});
         }
 
         async function createRound() {

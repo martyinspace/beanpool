@@ -222,3 +222,24 @@ CREATE TRIGGER IF NOT EXISTS posts_au AFTER UPDATE ON posts BEGIN
     INSERT INTO posts_fts(rowid, title, description, search_keywords)
     VALUES (new.rowid, new.title, new.description, new.search_keywords);
 END;
+
+-- 14. Social Recovery
+CREATE TABLE IF NOT EXISTS recovery_requests (
+    id TEXT PRIMARY KEY,
+    old_pubkey TEXT NOT NULL REFERENCES members(public_key),
+    new_pubkey TEXT NOT NULL,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'cancelled', 'expired', 'executed')),
+    quorum_required INTEGER DEFAULT 3,
+    created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    cooldown_until DATETIME,
+    executed_at DATETIME,
+    expires_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS recovery_approvals (
+    request_id TEXT NOT NULL REFERENCES recovery_requests(id) ON DELETE CASCADE,
+    guardian_pubkey TEXT NOT NULL REFERENCES members(public_key),
+    decision TEXT NOT NULL CHECK (decision IN ('approve', 'reject')),
+    created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (request_id, guardian_pubkey)
+);

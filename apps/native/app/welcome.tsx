@@ -6,7 +6,7 @@ import { importIdentity } from '../utils/identity';
 import { useIdentity } from './IdentityContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
-import { useGlobalSearchParams } from 'expo-router';
+import { useGlobalSearchParams, router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 
@@ -417,6 +417,10 @@ export default function WelcomeScreen() {
                             <Text style={styles.recoverBtnText}>🔑 Recover with 12 Words</Text>
                         </Pressable>
 
+                        <Pressable style={styles.socialRecoverBtn} onPress={() => { router.push('/recover-identity'); }}>
+                            <Text style={styles.socialRecoverBtnText}>🛡️ Recover via Guardians</Text>
+                        </Pressable>
+
                         <Pressable style={styles.backBtn} onPress={goBack}>
                             <Text style={styles.backBtnText}>← Back</Text>
                         </Pressable>
@@ -575,6 +579,8 @@ const styles = StyleSheet.create({
     transferBtnText: { color: '#93bbfc', fontSize: 16, fontWeight: '700' },
     recoverBtn: { width: '100%', padding: 16, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)', backgroundColor: 'rgba(245,158,11,0.15)', alignItems: 'center', marginBottom: 10 },
     recoverBtnText: { color: '#fcd171', fontSize: 16, fontWeight: '700' },
+    socialRecoverBtn: { width: '100%', padding: 16, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(16,185,129,0.4)', backgroundColor: 'rgba(16,185,129,0.15)', alignItems: 'center', marginBottom: 10 },
+    socialRecoverBtnText: { color: '#6ee7b7', fontSize: 16, fontWeight: '700' },
 
     primaryBtn: { backgroundColor: '#2563eb', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
     primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },

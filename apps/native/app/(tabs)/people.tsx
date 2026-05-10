@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image, ActivityIndicator } from 'react-native';
-import { getDb, getFriendsLocal, addFriendLocal, removeFriendLocal, createConversationApi } from '../../utils/db';
+import { getDb, getFriendsLocal, addFriendLocal, removeFriendLocal, createConversationApi, setGuardianApi } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
 import { hexToBytes, encodeUtf8, encodeBase64, signData } from '../../utils/crypto';
 import QRCode from 'react-native-qrcode-svg';
@@ -35,6 +35,7 @@ export default function PeopleScreen() {
     const [page, setPage] = useState(0);
     const [loadingMore, setLoadingMore] = useState(false);
     const [hasMore, setHasMore] = useState(true);
+    const [guardianSyncing, setGuardianSyncing] = useState<string | null>(null);
     const PAGE_SIZE = 20;
 
     const [friends, setFriends] = useState<any[]>([]);
@@ -298,7 +299,7 @@ export default function PeopleScreen() {
                 ) : (
                     <FlatList
                         data={friends}
-                        keyExtractor={item => item.publicKey}
+                        keyExtractor={(item, index) => `${item.publicKey}_${index}`}
                         contentContainerStyle={styles.list}
                         renderItem={({ item }) => (
                             <View style={styles.card}>
@@ -544,11 +545,74 @@ export default function PeopleScreen() {
             )}
 
             {view === 'guardians' && (
-                <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyEmoji}>🛡️</Text>
-                    <Text style={styles.emptyTitle}>Social Recovery Ready</Text>
-                    <Text style={styles.emptyDesc}>Add some friends first, then come back here to choose your guardians.</Text>
-                </View>
+                <ScrollView contentContainerStyle={styles.list}>
+                    {friends.length === 0 ? (
+                        <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyEmoji}>🛡️</Text>
+                            <Text style={styles.emptyTitle}>Social Recovery Ready</Text>
+                            <Text style={styles.emptyDesc}>Add some friends first, then come back here to choose your guardians.</Text>
+                        </View>
+                    ) : (
+                        <>
+                            <Text style={styles.sectionHeader}>🛡️ Choose Guardians</Text>
+                            <Text style={styles.sectionDesc}>
+                                Select 3 to 5 trusted friends to act as your guardians. If you lose your device, they can help you recover your identity.
+                            </Text>
+
+                            {friends.filter(f => f.isGuardian).length >= 3 && (
+                                <View style={styles.infoBanner}>
+                                    <Text style={styles.infoText}>
+                                        <Text style={styles.boldGreen}>✅ Social Recovery Ready.</Text> You have enough guardians selected to recover your account if you lose access.
+                                    </Text>
+                                </View>
+                            )}
+
+                            <View style={{ marginBottom: 16 }}>
+                                <Text style={{ fontSize: 13, fontWeight: '700', color: '#6b7280', textTransform: 'uppercase' }}>
+                                    Selected ({friends.filter(f => f.isGuardian).length}/5)
+                                </Text>
+                            </View>
+
+                            {friends.map((friend) => (
+                                <View key={friend.publicKey} style={styles.card}>
+                                    <View style={styles.cardHeader}>
+                                        <View style={styles.avatar}>
+                                            <Text style={styles.avatarEmoji}>👤</Text>
+                                        </View>
+                                        <View style={styles.textStack}>
+                                            <Text style={styles.callsign}>{friend.callsign}</Text>
+                                            <Text style={styles.dateText}>Friend</Text>
+                                        </View>
+                                    </View>
+                                    
+                                    <Pressable 
+                                        style={[styles.addBtn, friend.isGuardian && styles.addBtnFriended]}
+                                        disabled={guardianSyncing === friend.publicKey || (!friend.isGuardian && friends.filter(f => f.isGuardian).length >= 5)}
+                                        onPress={async () => {
+                                            setGuardianSyncing(friend.publicKey);
+                                            const newStatus = !friend.isGuardian;
+                                            const success = await setGuardianApi(friend.publicKey, newStatus);
+                                            if (success) {
+                                                setFriends(prev => prev.map(f => f.publicKey === friend.publicKey ? { ...f, isGuardian: newStatus } : f));
+                                            } else {
+                                                Alert.alert('Error', 'Failed to update guardian status. Check your connection.');
+                                            }
+                                            setGuardianSyncing(null);
+                                        }}
+                                    >
+                                        {guardianSyncing === friend.publicKey ? (
+                                            <ActivityIndicator size="small" color={friend.isGuardian ? "#059669" : "#fff"} />
+                                        ) : (
+                                            <Text style={[styles.addBtnText, friend.isGuardian && styles.addBtnTextFriended]}>
+                                                {friend.isGuardian ? 'Remove' : 'Make Guardian'}
+                                            </Text>
+                                        )}
+                                    </Pressable>
+                                </View>
+                            ))}
+                        </>
+                    )}
+                </ScrollView>
             )}
 
         </SafeAreaView>

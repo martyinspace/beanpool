@@ -1998,3 +1998,152 @@ export async function getRecentChatMembers(myPubkey: string, limit = 10): Promis
         [myPubkey, myPubkey, limit]
     );
 }
+
+// ======================== SOCIAL RECOVERY & GUARDIANS ========================
+
+export async function setGuardianApi(friendPubkey: string, isGuardian: boolean): Promise<boolean> {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) return false;
+    const identity = await loadIdentity();
+    if (!identity) return false;
+
+    // Locally update DB first
+    const database = await getDb();
+    await database.runAsync(`UPDATE friends SET is_guardian=? WHERE owner_pubkey=? AND friend_pubkey=?`, 
+        [isGuardian ? 1 : 0, identity.publicKey, friendPubkey]);
+
+    try {
+        const res = await fetch(`${anchorUrl}/api/friends/guardian`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Public-Key': identity.publicKey,
+            },
+            body: JSON.stringify({ friendPubkey, isGuardian })
+        });
+        return res.ok;
+    } catch (e) {
+        console.warn('[Guardians] Server sync failed:', e);
+        return false;
+    }
+}
+
+export async function lookupRecoveryCallsign(callsign: string): Promise<any[]> {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) throw new Error('Not connected');
+    const res = await fetch(`${anchorUrl}/api/recovery/lookup/${encodeURIComponent(callsign)}`);
+    if (!res.ok) throw new Error('Lookup failed');
+    return res.json();
+}
+
+export async function createRecoveryRequest(oldPubkey: string, guardianGuess: string, newIdentity: any): Promise<any> {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) throw new Error('Not connected');
+
+    const bodyObj = { oldPubkey, guardianGuess, newPubkey: newIdentity.publicKey };
+    const bodyStr = JSON.stringify(bodyObj);
+    const privateKeyBytes = hexToBytes(newIdentity.privateKey);
+    const messageBytes = encodeUtf8(bodyStr);
+    const signatureBytes = await signData(messageBytes, privateKeyBytes);
+    const signatureBase64 = encodeBase64(signatureBytes);
+
+    const res = await fetch(`${anchorUrl}/api/recovery/request`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Public-Key': newIdentity.publicKey,
+            'X-Signature': signatureBase64,
+        },
+        body: bodyStr,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Request failed');
+    return data;
+}
+
+export async function getPendingRecoveryRequests(): Promise<any[]> {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) return [];
+    const identity = await loadIdentity();
+    if (!identity) return [];
+
+    const res = await fetch(`${anchorUrl}/api/recovery/pending/${identity.publicKey}`, {
+        headers: { 'X-Public-Key': identity.publicKey }
+    });
+    if (!res.ok) throw new Error('Failed to fetch requests');
+    return res.json();
+}
+
+export async function approveRecoveryRequest(requestId: string): Promise<void> {
+    await sendRecoveryDecision(requestId, 'approve');
+}
+
+export async function rejectRecoveryRequest(requestId: string): Promise<void> {
+    await sendRecoveryDecision(requestId, 'reject');
+}
+
+async function sendRecoveryDecision(requestId: string, decision: 'approve' | 'reject' | 'cancel'): Promise<void> {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) throw new Error('Not connected');
+    const identity = await loadIdentity();
+    if (!identity) throw new Error('No identity');
+
+    const bodyStr = JSON.stringify({ requestId });
+    const privateKeyBytes = hexToBytes(identity.privateKey);
+    const messageBytes = encodeUtf8(bodyStr);
+    const signatureBytes = await signData(messageBytes, privateKeyBytes);
+    const signatureBase64 = encodeBase64(signatureBytes);
+
+    const res = await fetch(`${anchorUrl}/api/recovery/${decision}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Public-Key': identity.publicKey,
+            'X-Signature': signatureBase64,
+        },
+        body: bodyStr,
+    });
+    if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `Failed to ${decision} request`);
+    }
+}
+
+export async function cancelRecoveryRequest(requestId: string, identityToUse?: any): Promise<void> {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) throw new Error('Not connected');
+    const identity = identityToUse || await loadIdentity();
+    if (!identity) throw new Error('No identity');
+
+    const bodyStr = JSON.stringify({ requestId });
+    const privateKeyBytes = hexToBytes(identity.privateKey);
+    const messageBytes = encodeUtf8(bodyStr);
+    const signatureBytes = await signData(messageBytes, privateKeyBytes);
+    const signatureBase64 = encodeBase64(signatureBytes);
+
+    const res = await fetch(`${anchorUrl}/api/recovery/cancel`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Public-Key': identity.publicKey,
+            'X-Signature': signatureBase64,
+        },
+        body: bodyStr,
+    });
+    if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to cancel request');
+    }
+}
+
+export async function getRecoveryStatus(pubkey: string): Promise<any> {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) return { status: 'none' };
+    try {
+        const res = await fetch(`${anchorUrl}/api/recovery/status/${pubkey}`);
+        if (!res.ok) return { status: 'none' };
+        return res.json();
+    } catch {
+        return { status: 'none' };
+    }
+}

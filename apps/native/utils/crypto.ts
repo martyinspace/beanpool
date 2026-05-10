@@ -7,6 +7,7 @@ if (typeof global.crypto !== 'object') {
     (global as any).crypto = {};
 }
 if (typeof global.crypto.getRandomValues !== 'function') {
+    // @ts-expect-error - React Native global polyfill type mismatch
     global.crypto.getRandomValues = (array: Uint8Array) => {
         const randomBytes = Crypto.getRandomBytes(array.length);
         array.set(randomBytes);
