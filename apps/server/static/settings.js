@@ -815,7 +815,7 @@
                         </div>
                         <div style="display:flex;gap:0.4rem;align-items:center;">
                             <span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:${p.status === 'funded' ? '#10b98122' : p.status === 'rejected' ? '#ef444422' : '#2563eb22'};color:${p.status === 'funded' ? '#10b981' : p.status === 'rejected' ? '#ef4444' : '#60a5fa'};">${statusBadge}</span>
-                            ${p.status === 'proposed' || p.status === 'active' ? `<button onclick="rejectProject('${p.id}')" style="padding:2px 6px;border-radius:4px;background:#ef444422;color:#ef4444;border:none;cursor:pointer;font-size:0.7rem;">✕</button>` : ''}
+                            ${p.status === 'proposed' || p.status === 'active' ? `<button onclick="rejectProject('${p.id}')" style="padding:2px 6px;border-radius:4px;background:#ef444422;color:#ef4444;border:none;cursor:pointer;font-size:0.7rem;" aria-label="Reject project" title="Reject project">✕</button>` : ''}
                         </div>
                     </div>
                     <div style="display:flex;align-items:center;gap:0.5rem;">
@@ -1174,7 +1174,7 @@
                     </div>
                     <div style="display:flex;gap:0.3rem;">
                         <button class="btn btn-sm btn-outline" onclick="viewMemberPosts('${p.authorPublicKey}')" title="View all posts by this author" style="padding:2px 6px;font-size:0.7rem;">👤</button>
-                        <button class="btn btn-sm btn-danger" onclick="adminAction('/posts/${p.id}/delete')" style="padding:2px 6px;font-size:0.7rem;">🗑️</button>
+                        <button class="btn btn-sm btn-danger" onclick="adminAction('/posts/${p.id}/delete')" style="padding:2px 6px;font-size:0.7rem;" aria-label="Delete post" title="Delete post">🗑️</button>
                     </div>
                 </div>`;
             }).join('');

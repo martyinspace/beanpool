@@ -544,6 +544,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             <div className="absolute bottom-[6.5rem] left-3 flex flex-col items-center bg-white/95 dark:bg-nature-900/95 backdrop-blur-md shadow-[0_8px_30px_rgb(0,0,0,0.15)] border border-nature-200 dark:border-nature-700 rounded-2xl z-[100] overflow-hidden">
                 <button
                     onClick={handleLocate}
+                    aria-label="My location"
                     className={`w-12 h-12 flex items-center justify-center transition-colors ${
                         locating 
                             ? 'text-blue-600 bg-blue-50/80 dark:bg-blue-900/30' 
@@ -565,6 +566,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                 <div className="w-8 h-[1px] bg-nature-200 dark:bg-nature-700" />
                 <button
                     onClick={() => mapRef.current?.zoomIn()}
+                    aria-label="Zoom in"
                     className="w-12 h-10 flex items-center justify-center text-nature-800 dark:text-oat-50 text-xl font-bold hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                     title="Zoom in"
                 >
@@ -573,6 +575,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                 <div className="w-8 h-[1px] bg-nature-200 dark:bg-nature-700" />
                 <button
                     onClick={() => mapRef.current?.zoomOut()}
+                    aria-label="Zoom out"
                     className="w-12 h-10 flex items-center justify-center text-nature-800 dark:text-oat-50 text-xl font-bold hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                     title="Zoom out"
                 >
@@ -581,6 +584,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                 <div className="w-8 h-[1px] bg-nature-200 dark:bg-nature-700" />
                 <button 
                     onClick={toggleDarkMode} 
+                    aria-label="Toggle map style"
                     className="w-12 h-10 flex items-center justify-center text-nature-700 dark:text-oat-50 text-lg hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                     title="Toggle map style"
                 >
@@ -592,6 +596,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             {!showNewPost && (
                 <button
                     onClick={() => setShowNewPost(true)}
+                    aria-label="New Post"
                     className="fixed bottom-[5.5rem] right-3 w-14 h-14 rounded-full bg-terra-500 hover:bg-terra-600 text-white text-3xl font-light z-[101] shadow-[0_8px_30px_rgb(226,114,91,0.4)] flex items-center justify-center transition-transform transform hover:scale-105 border-2 border-white/20"
                     title="New Post"
                 >
@@ -606,6 +611,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                 <div className="bg-white dark:bg-nature-900 m-4 rounded-[24px] p-4 flex flex-row shadow-[0_10px_20px_rgba(0,0,0,0.15)] pointer-events-auto relative border border-nature-200 dark:border-nature-800 transition-colors">
                     <button 
                         onClick={() => setPreviewPost(null)}
+                        aria-label="Close preview"
                         className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center border-none text-xs font-extrabold text-gray-500 dark:text-gray-400 cursor-pointer hover:bg-black/10 dark:hover:bg-white/20 transition-colors"
                     >
                         ✕
@@ -659,7 +665,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                             pinDropMarkerRef.current.remove();
                             pinDropMarkerRef.current = null;
                         }
-                    }} className="bg-transparent border-none text-nature-400 hover:text-nature-600 text-2xl cursor-pointer transition-colors leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-nature-50">
+                    }} aria-label="Close new post" className="bg-transparent border-none text-nature-400 hover:text-nature-600 text-2xl cursor-pointer transition-colors leading-none w-8 h-8 flex items-center justify-center rounded-full hover:bg-nature-50">
                         ✕
                     </button>
                 </div>
@@ -778,6 +784,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                                 <img src={photo} alt={`photo ${i+1}`} className="w-16 h-16 object-cover rounded-xl border border-nature-200 shadow-sm" />
                                 <button
                                     onClick={() => setNewPostPhotos(prev => prev.filter((_, j) => j !== i))}
+                                    aria-label="Remove photo"
                                     className="absolute -top-1.5 -right-1.5 w-6 h-6 bg-red-500 border-none rounded-full text-white text-[11px] font-bold cursor-pointer flex items-center justify-center shadow-md hover:bg-red-600 transition-colors transform hover:scale-110"
                                 >
                                     ✕
