@@ -1,3 +1,5 @@
+        const esc = s => String(s||'').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+
         const API = '/api/local';
         let authToken = null;
         let settingsMap, settingsMarker;
@@ -1050,11 +1052,11 @@
                 <div style="padding:0.6rem 0.75rem;border-bottom:1px solid #1e293b;background:${r.status === 'pending' ? '#1a0a0a' : 'transparent'};">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.3rem;">
                         <div style="flex:1;">
-                            <span style="font-size:0.8rem;font-weight:600;color:${statusColor};">${statusIcon} ${r.reason}</span>
+                            <span style="font-size:0.8rem;font-weight:600;color:${statusColor};">${statusIcon} ${esc(r.reason)}</span>
                             <div style="font-size:0.75rem;color:#94a3b8;margin-top:0.2rem;">
-                                <span style="color:#60a5fa;">${r.reporterCallsign}</span> → <span style="color:#f87171;">${r.targetCallsign}</span>
+                                <span style="color:#60a5fa;">${esc(r.reporterCallsign)}</span> → <span style="color:#f87171;">${esc(r.targetCallsign)}</span>
                             </div>
-                            ${r.postTitle ? `<div style="font-size:0.7rem;color:#64748b;margin-top:0.1rem;">📦 "${r.postTitle}"</div>` : '<div style="font-size:0.7rem;color:#64748b;margin-top:0.1rem;">👤 User report (no specific post)</div>'}
+                            ${r.postTitle ? `<div style="font-size:0.7rem;color:#64748b;margin-top:0.1rem;">📦 "${esc(r.postTitle)}"</div>` : '<div style="font-size:0.7rem;color:#64748b;margin-top:0.1rem;">👤 User report (no specific post)</div>'}
                         </div>
                         <div style="display:flex;flex-direction:column;gap:0.25rem;align-items:flex-end;">
                             <span style="font-size:0.65rem;color:#64748b;">${new Date(r.createdAt).toLocaleDateString()}</span>
@@ -1166,10 +1168,10 @@
                         <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="togglePostSelect('${p.id}')" style="accent-color:#f59e0b;cursor:pointer;">
                         <div style="min-width:0;flex:1;">
                             <div style="font-size:0.85rem;font-weight:600;color:${p.status==='active'?'#10b981':'#64748b'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                                ${p.title || 'Untitled'}
+                                ${esc(p.title) || 'Untitled'}
                                 ${reportCount > 0 ? `<span style="background:#ef4444;color:#fff;font-size:0.6rem;padding:1px 4px;border-radius:6px;margin-left:4px;">🚩 ${reportCount}</span>` : ''}
                             </div>
-                            <div style="font-size:0.7rem;color:#94a3b8;">${p.authorCallsign || 'Anon'} · ${p.type} · ${p.category || 'general'} · ${new Date(p.createdAt).toLocaleDateString()}</div>
+                            <div style="font-size:0.7rem;color:#94a3b8;">${esc(p.authorCallsign) || 'Anon'} · ${p.type} · ${p.category || 'general'} · ${new Date(p.createdAt).toLocaleDateString()}</div>
                         </div>
                     </div>
                     <div style="display:flex;gap:0.3rem;">
@@ -1407,7 +1409,7 @@
                         <summary style="margin-bottom:0.4rem; padding:0.4rem; background:#1e293b; border-left:2px solid ${isPruned ? '#475569' : isActive ? '#10b981' : '#f59e0b'}; border-radius:0 8px 8px 0; cursor:${hasChildren ? 'pointer' : 'default'};">
                             <div style="display:inline-flex; width: calc(100% - 20px); justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; vertical-align: top;">
                                 <div>
-                                    <strong style="font-size:0.85rem;color:${isPruned ? '#64748b' : isActive ? '#f8fafc' : '#f59e0b'}">${isPruned ? '🗑️ ' : !isActive ? '⏸️ ' : ''}${member.callsign} <span style="font-size:0.6rem;font-family:monospace;color:#475569;">(${pubkey.substring(0,8)})</span></strong>
+                                    <strong style="font-size:0.85rem;color:${isPruned ? '#64748b' : isActive ? '#f8fafc' : '#f59e0b'}">${isPruned ? '🗑️ ' : !isActive ? '⏸️ ' : ''}${esc(member.callsign)} <span style="font-size:0.6rem;font-family:monospace;color:#475569;">(${pubkey.substring(0,8)})</span></strong>
                                     ${flagPill}${reportPill}${chipHtml}
                                     <div style="font-size:0.7rem;color:#94a3b8;">Active: ${profile?.lastActiveAt ? new Date(profile.lastActiveAt).toLocaleString() : 'Never'}</div>
                                 </div>
@@ -1557,9 +1559,9 @@
             let html = users.map(u => `
                 <div class="inbox-user-item" onclick="selectInboxUser('${u.publicKey}')" style="padding: 0.75rem; border-bottom: 1px solid #1e293b; cursor: pointer; background: ${inboxSelectedUser?.publicKey === u.publicKey ? '#1e293b' : 'transparent'}; transition: background 0.2s; display:flex; justify-content:space-between; align-items:center;">
                     <div style="flex:1;min-width:0;">
-                        <div style="font-weight: ${u.unreadCount > 0 ? '700' : '600'}; font-size: 0.85rem; color: #f8fafc;">${u.callsign}</div>
+                        <div style="font-weight: ${u.unreadCount > 0 ? '700' : '600'}; font-size: 0.85rem; color: #f8fafc;">${esc(u.callsign)}</div>
                         <div style="font-size: 0.7rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.2rem;">
-                            ${u.lastMessage ? decodePlaintext(u.lastMessage.ciphertext, u.lastMessage.nonce) : '<em>No messages yet</em>'}
+                            ${u.lastMessage ? esc(decodePlaintext(u.lastMessage.ciphertext, u.lastMessage.nonce)) : '<em>No messages yet</em>'}
                         </div>
                     </div>
                     ${u.unreadCount > 0 ? `<span style="background:#ef4444;color:#fff;font-size:0.6rem;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px;margin-left:0.5rem;box-shadow:0 0 6px rgba(239,68,68,0.6);">${u.unreadCount > 99 ? '99+' : u.unreadCount}</span>` : ''}
@@ -1629,7 +1631,7 @@
                 return `
                     <div style="align-self: ${isAdmin ? 'flex-end' : 'flex-start'}; max-width: 80%;">
                         <div style="background: ${isAdmin ? '#2563eb' : '#1e293b'}; border-radius: ${isAdmin ? '12px 12px 2px 12px' : '12px 12px 12px 2px'}; padding: 0.5rem 0.8rem; font-size: 0.85rem; color: #f8fafc; word-break: break-word;">
-                            ${decodePlaintext(msg.ciphertext, msg.nonce)}
+                            ${esc(decodePlaintext(msg.ciphertext, msg.nonce))}
                         </div>
                         <div style="font-size: 0.65rem; color: #64748b; margin-top: 0.2rem; text-align: ${isAdmin ? 'right' : 'left'};">
                             ${new Date(msg.timestamp).toLocaleString()}
