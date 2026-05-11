@@ -1023,7 +1023,8 @@ export function getTransactions(publicKey?: string, limit = 50, offset = 0): Tra
 }
 // ===================== MARKETPLACE =====================
 
-function rowToPost(row: any, photos: any[]): MarketplacePost {
+function rowToPost(row: any, photosByPost: Map<string, any[]>): MarketplacePost {
+    const postPhotos = photosByPost.get(row.id) || [];
     return {
         id: row.id,
         type: row.type,
@@ -1046,7 +1047,7 @@ function rowToPost(row: any, photos: any[]): MarketplacePost {
         completedAt: row.completed_at,
         lat: row.lat,
         lng: row.lng,
-        photos: photos.filter((p: any) => p.post_id === row.id).sort((a: any, b: any) => a.order_num - b.order_num).map((p: any) => p.photo_data),
+        photos: postPhotos.sort((a: any, b: any) => a.order_num - b.order_num).map((p: any) => p.photo_data),
         originNode: row.origin_node,
         authorEnergyCycled: row.author_energy_cycled ?? 0
     };
@@ -1139,7 +1140,16 @@ export function getPosts(filter?: { id?: string; type?: string; category?: strin
 
     const photos = (postIds.length > 0) ? db.prepare(photosQuery).all(...postIds) : [];
 
-    return rows.map(r => rowToPost(r, photos));
+    // ⚡ Bolt: Group photos by post_id to avoid O(N²) nested filtering, turning it to O(N) lookup.
+    const photosByPost = new Map<string, any[]>();
+    for (const p of photos as any[]) {
+        if (!photosByPost.has(p.post_id)) {
+            photosByPost.set(p.post_id, []);
+        }
+        photosByPost.get(p.post_id)!.push(p);
+    }
+
+    return rows.map(r => rowToPost(r, photosByPost));
 }
 
 export function removePost(id: string, authorPublicKey: string): boolean {
@@ -1543,8 +1553,18 @@ export function getMarketplaceTransactions(publicKey: string, filter?: { status?
     const postIds = Array.from(new Set(rows.map(r => r.post_id)));
     const photos = postIds.length > 0 ? db.prepare(`SELECT * FROM post_photos WHERE post_id IN (${postIds.map(() => '?').join(',')})`).all(...postIds) as any[] : [];
 
+    // ⚡ Bolt: Group photos by post_id to avoid O(N²) nested searching
+    const photosByPost = new Map<string, any[]>();
+    for (const p of photos as any[]) {
+        if (!photosByPost.has(p.post_id)) {
+            photosByPost.set(p.post_id, []);
+        }
+        photosByPost.get(p.post_id)!.push(p);
+    }
+
     return rows.map(r => {
-        const coverImageRow = photos.find(p => p.post_id === r.post_id && p.order_num === 0) || photos.find(p => p.post_id === r.post_id);
+        const postPhotos = photosByPost.get(r.post_id) || [];
+        const coverImageRow = postPhotos.find(p => p.order_num === 0) || postPhotos[0];
         const coverImage = coverImageRow ? coverImageRow.photo_data : null;
         return {
             id: r.id, postId: r.post_id, postTitle: r.postTitle, buyerPublicKey: r.buyer_pubkey, buyerCallsign: r.buyerCallsign, sellerPublicKey: r.seller_pubkey, sellerCallsign: r.sellerCallsign, credits: r.credits, status: r.status, createdAt: r.created_at, completedAt: r.completed_at, ratedByBuyer: !!r.ratedByBuyer, ratedBySeller: !!r.ratedBySeller, coverImage
