@@ -242,7 +242,7 @@ export default function PeopleScreen() {
         if (loadingMore || (!hasMore && !reset)) return;
         
         try {
-            if (!reset) setLoadingMore(true);
+            setLoadingMore(true);
             const database = await getDb();
             
             let sql = 'SELECT * FROM members WHERE public_key NOT LIKE \'escrow_%\' AND public_key NOT LIKE \'project_%\'';
@@ -261,7 +261,11 @@ export default function PeopleScreen() {
             
             if (rows.length < PAGE_SIZE) setHasMore(false);
             
-            setMembers(prev => reset ? rows : [...prev, ...rows]);
+            setMembers(prev => {
+                if (reset) return rows;
+                const newRows = rows.filter(r => !prev.some(p => p.public_key === r.public_key));
+                return [...prev, ...newRows];
+            });
             setPage(pageIndex + 1);
         } catch (e) {
             console.error('Error loading members:', e);
@@ -402,7 +406,7 @@ export default function PeopleScreen() {
                             </View>
                         }
                         ListFooterComponent={
-                            loadingMore ? (
+                            (loadingMore && members.length > 0) ? (
                                 <View style={{ padding: 20, alignItems: 'center' }}>
                                     <Text style={{ color: '#9ca3af' }}>Loading more...</Text>
                                 </View>
