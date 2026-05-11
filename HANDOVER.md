@@ -6,7 +6,7 @@
 ---
 ## Current State (2026-05-09)
 
-**BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🪶 bean reputation system, abuse reporting, **moderation centre** (batch post management, wash-trading detection, member audit), **update notifications** (Docker Desktop-style header badge with auto-check), community health dashboard, and federation protocol — deployed on **3 sovereign nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity.
+**BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🪶 bean reputation system, abuse reporting, **moderation centre** (batch post management, wash-trading detection, member audit), **update notifications** (Docker Desktop-style header badge with auto-check), community health dashboard, and federation protocol — deployed on **3 sovereign nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity. A new automated security journaling process using the `.jules` directory has been established to harden the codebase.
 
 ### What's Working
 - ✅ **Dynamic Map Root** — Leaflet map defaults coordinate center to the node's `serviceRadius` config (e.g. Mullumbimby) instead of hardcoding, and handles location cleanly without async ghost-pin drops.
@@ -71,6 +71,9 @@
 - ✅ **CI/CD Release Pipeline** — `docker-publish.yml` triggers on `v*` tags, extracts version from git tag (no manual package.json bumps), tags GHCR image with semver, auto-creates GitHub Releases.
 - ✅ **Deploy Model Change** — `deploy.sh` now runs `docker compose pull` instead of `docker compose build`, eliminating 2-5 min server-side compilation per deploy.
 - ✅ **Version Management** — `getVersion()` priority chain: `APP_VERSION` env var (from CI) → `.version` file → `package.json`. Eliminates forgotten version bumps.
+- ✅ **Security Hardening & Sentinel Journaling** — Mitigated Stored XSS vulnerabilities across the Admin Dashboard and fixed Command Injection in server backup routines. Established `.jules/sentinel.md` as an automated security audit trail.
+- ✅ **Relational Data Optimization** — Fixed an O(N^2) array filtering bottleneck, improving overall performance for heavily relational data lookups.
+- ✅ **PWA Accessibility** — Added missing labels and ARIA attributes to `WelcomePage` inputs for improved screen reader support.
 
 ---
 

@@ -6,6 +6,9 @@
 
 ## ✅ Recently Completed
 
+- ✅ **Sentinel Security Hardening** — Mitigated Stored XSS vulnerabilities across the Admin Dashboard and fixed Command Injection in server backup routines. Established `.jules/sentinel.md` as a continuous security audit journal.
+- ✅ **Relational Filtering Optimization** — Fixed an O(N^2) performance bottleneck for array filtering on relational data elements.
+- ✅ **PWA Accessibility** — Added missing ARIA attributes and labels to the WelcomePage inputs.
 - ✅ **Decentralized Directory Auth** — Replaced hardcoded shared API keys with node-specific Libp2p Ed25519 cryptographic signatures and UTC timestamp verification to prevent spoofing and replay attacks.
 - ✅ **Admin Node Restore** — Implemented system restoration via `.tar.gz` database upload for admins.
 - ✅ **Offline Profile Healing** — Restored offline-first profile synchronization.

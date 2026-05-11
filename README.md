@@ -418,6 +418,8 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ **Social Recovery (3-of-N)** — Cryptographically secure identity recovery mechanism requiring quorum approval from trusted friends.
 - ✅ **Identity Spoofing Security** — Hardened identity endpoints against impersonation attacks.
 - ✅ **A11y & Stability** — Fixed P2P yamux stream crash loops and applied accessibility enhancements across the frontend.
+- ✅ **Security Hardening (Sentinel)** — Mitigated Stored XSS vulnerabilities across the Admin Dashboard and fixed Command Injection in server backup routines. Established automated security auditing via `.jules/sentinel.md`.
+- ✅ **Performance & Accessibility** — Fixed an O(N^2) array filtering bottleneck for relational data and added ARIA labels to the PWA WelcomePage.
 
 **Coming next:**
 - Native App Polish & App Store Submission (federation parity)
