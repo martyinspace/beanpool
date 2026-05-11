@@ -558,7 +558,7 @@
                 const wEl = document.getElementById('health-widest');
                 if (h.tree.widestBranch.children > 0) {
                     wEl.style.display = '';
-                    wEl.innerHTML = `<div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.2rem;">Widest Branch</div><div style="font-size:0.95rem;font-weight:600;">🌿 ${h.tree.widestBranch.callsign} — ${h.tree.widestBranch.children} invitee${h.tree.widestBranch.children !== 1 ? 's' : ''}</div>`;
+                    wEl.innerHTML = `<div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.2rem;">Widest Branch</div><div style="font-size:0.95rem;font-weight:600;">🌿 ${esc(h.tree.widestBranch.callsign)} — ${h.tree.widestBranch.children} invitee${h.tree.widestBranch.children !== 1 ? 's' : ''}</div>`;
                 } else {
                     wEl.style.display = 'none';
                 }
@@ -573,7 +573,7 @@
                         const borderColor = f.severity === 'alert' ? '#ef444466' : '#f59e0b44';
                         const bgColor = f.severity === 'alert' ? 'rgba(239,68,68,0.05)' : 'rgba(245,158,11,0.05)';
                         const labelColor = f.severity === 'alert' ? '#ef4444' : '#f59e0b';
-                        return `<div style="border:1px solid ${borderColor};background:${bgColor};border-radius:10px;padding:0.75rem;margin-bottom:0.5rem;"><div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.2rem;"><span>${icon}</span><span style="font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:${labelColor};">${f.type.replace(/_/g, ' ')}</span></div><div style="font-size:0.8rem;color:#cbd5e1;">${f.description}</div></div>`;
+                        return `<div style="border:1px solid ${borderColor};background:${bgColor};border-radius:10px;padding:0.75rem;margin-bottom:0.5rem;"><div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.2rem;"><span>${icon}</span><span style="font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:${labelColor};">${f.type.replace(/_/g, ' ')}</span></div><div style="font-size:0.8rem;color:#cbd5e1;">${esc(f.description)}</div></div>`;
                     }).join('');
                 }
             } catch { /* offline */ }
@@ -812,8 +812,8 @@
                 return `<div style="padding:0.6rem 0.75rem;border-bottom:1px solid #1e293b;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">
                         <div>
-                            <strong style="font-size:0.85rem;">${p.title}</strong>
-                            <div style="font-size:0.7rem;color:#64748b;margin-top:2px;">${p.proposerCallsign} · ${votes} vote${votes !== 1 ? 's' : ''}</div>
+                            <strong style="font-size:0.85rem;">${esc(p.title)}</strong>
+                            <div style="font-size:0.7rem;color:#64748b;margin-top:2px;">${esc(p.proposerCallsign)} · ${votes} vote${votes !== 1 ? 's' : ''}</div>
                         </div>
                         <div style="display:flex;gap:0.4rem;align-items:center;">
                             <span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:${p.status === 'funded' ? '#10b98122' : p.status === 'rejected' ? '#ef444422' : '#2563eb22'};color:${p.status === 'funded' ? '#10b981' : p.status === 'rejected' ? '#ef4444' : '#60a5fa'};">${statusBadge}</span>
@@ -1100,8 +1100,8 @@
                 <div style="padding:0.5rem 0.75rem;border-bottom:1px solid #1e293b;display:flex;gap:0.5rem;align-items:flex-start;">
                     <span style="font-size:1rem;">${icons[f.type] || '⚠️'}</span>
                     <div>
-                        <div style="font-size:0.8rem;font-weight:600;color:${f.severity === 'alert' ? '#ef4444' : '#f59e0b'};">${f.description}</div>
-                        <div style="font-size:0.7rem;color:#64748b;margin-top:0.15rem;">${f.members.join(', ')}</div>
+                        <div style="font-size:0.8rem;font-weight:600;color:${f.severity === 'alert' ? '#ef4444' : '#f59e0b'};">${esc(f.description)}</div>
+                        <div style="font-size:0.7rem;color:#64748b;margin-top:0.15rem;">${esc(f.members.join(', '))}</div>
                     </div>
                 </div>
             `).join('');
