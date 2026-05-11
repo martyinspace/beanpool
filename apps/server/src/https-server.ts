@@ -17,7 +17,7 @@
 import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import Koa from 'koa';
 import Router from '@koa/router';
@@ -544,7 +544,7 @@ export async function startHttpsServer(port: number): Promise<void> {
 
     router.post('/api/local/admin/backup', async (ctx) => {
         if (!checkAdminAuth(ctx as any)) return;
-        const { execSync } = await import('node:child_process');
+        const { execFileSync } = await import('node:child_process');
         const DATA_DIR = process.env.BEANPOOL_DATA_DIR || path.join(process.cwd(), 'data');
         const tmpDir = path.join(DATA_DIR, '.backup-tmp');
         const tarPath = path.join(DATA_DIR, '.backup-tmp.tar.gz');
@@ -571,7 +571,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             }
 
             // Create tar.gz
-            execSync(`tar -czf "${tarPath}" -C "${tmpDir}" .`);
+            execFileSync('tar', ['-czf', tarPath, '-C', tmpDir, '.']);
 
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
             ctx.set('Content-Type', 'application/gzip');
@@ -605,7 +605,7 @@ export async function startHttpsServer(port: number): Promise<void> {
         }
         if (!checkAdminAuth(ctx as any)) return;
 
-        const { execSync } = await import('node:child_process');
+        const { execFileSync } = await import('node:child_process');
         const DATA_DIR = process.env.BEANPOOL_DATA_DIR || path.join(process.cwd(), 'data');
         const tmpDir = path.join(DATA_DIR, '.restore-tmp');
         const tarPath = path.join(DATA_DIR, 'uploaded-backup.tar.gz');
@@ -624,7 +624,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             // Extract the tar
             if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true });
             fs.mkdirSync(tmpDir, { recursive: true });
-            execSync(`tar -xzf "${tarPath}" -C "${tmpDir}"`);
+            execFileSync('tar', ['-xzf', tarPath, '-C', tmpDir]);
 
             // Validate that state.db exists
             if (!fs.existsSync(path.join(tmpDir, 'state.db'))) {
@@ -2020,7 +2020,7 @@ export async function startHttpsServer(port: number): Promise<void> {
     // Get git commit hash
     function getCommitHash(): string {
         try {
-            return execSync('git rev-parse --short HEAD 2>/dev/null').toString().trim();
+            return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
         } catch { return 'unknown'; }
     }
 
