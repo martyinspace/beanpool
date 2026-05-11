@@ -153,8 +153,8 @@
                     const data = await res.json();
                     searchResults.innerHTML = data.map(r => `
                         <div class="item" data-lat="${r.lat}" data-lng="${r.lon}">
-                            <div style="color:#e2e8f0">${r.display_name}</div>
-                            <div class="type">${r.type}</div>
+                            <div style="color:#e2e8f0">${esc(r.display_name)}</div>
+                            <div class="type">${esc(r.type)}</div>
                         </div>
                     `).join('');
                     searchResults.classList.add('active');
@@ -260,8 +260,8 @@
                     <div class="connector-card">
                         <div class="header">
                             <div>
-                                <div class="name">${c.callsign || c.address}</div>
-                                <div class="addr">${c.address}</div>
+                                <div class="name">${esc(c.callsign || c.address)}</div>
+                                <div class="addr">${esc(c.address)}</div>
                             </div>
                             ${badge}
                         </div>
@@ -272,10 +272,10 @@
                         </div>
                         <div class="actions">
                             ${c.connected
-                        ? `<button class="btn btn-outline btn-sm" onclick="doDisconnect('${c.address}')">Disconnect</button>`
-                        : `<button class="btn btn-outline btn-sm" onclick="doConnect('${c.address}')">Connect</button>`
+                        ? `<button class="btn btn-outline btn-sm" onclick="doDisconnect('${esc(c.address)}')">Disconnect</button>`
+                        : `<button class="btn btn-outline btn-sm" onclick="doConnect('${esc(c.address)}')">Connect</button>`
                     }
-                            <button class="btn btn-danger btn-sm" onclick="doRemove('${c.address}')">Remove</button>
+                            <button class="btn btn-danger btn-sm" onclick="doRemove('${esc(c.address)}')">Remove</button>
                         </div>
                     </div>
                 `;
@@ -573,7 +573,7 @@
                         const borderColor = f.severity === 'alert' ? '#ef444466' : '#f59e0b44';
                         const bgColor = f.severity === 'alert' ? 'rgba(239,68,68,0.05)' : 'rgba(245,158,11,0.05)';
                         const labelColor = f.severity === 'alert' ? '#ef4444' : '#f59e0b';
-                        return `<div style="border:1px solid ${borderColor};background:${bgColor};border-radius:10px;padding:0.75rem;margin-bottom:0.5rem;"><div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.2rem;"><span>${icon}</span><span style="font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:${labelColor};">${f.type.replace(/_/g, ' ')}</span></div><div style="font-size:0.8rem;color:#cbd5e1;">${esc(f.description)}</div></div>`;
+                        return `<div style="border:1px solid ${borderColor};background:${bgColor};border-radius:10px;padding:0.75rem;margin-bottom:0.5rem;"><div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.2rem;"><span>${icon}</span><span style="font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:${labelColor};">${esc(f.type.replace(/_/g, ' '))}</span></div><div style="font-size:0.8rem;color:#cbd5e1;">${esc(f.description)}</div></div>`;
                     }).join('');
                 }
             } catch { /* offline */ }
@@ -817,7 +817,7 @@
                         </div>
                         <div style="display:flex;gap:0.4rem;align-items:center;">
                             <span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:${p.status === 'funded' ? '#10b98122' : p.status === 'rejected' ? '#ef444422' : '#2563eb22'};color:${p.status === 'funded' ? '#10b981' : p.status === 'rejected' ? '#ef4444' : '#60a5fa'};">${statusBadge}</span>
-                            ${p.status === 'proposed' || p.status === 'active' ? `<button onclick="rejectProject('${p.id}')" style="padding:2px 6px;border-radius:4px;background:#ef444422;color:#ef4444;border:none;cursor:pointer;font-size:0.7rem;" aria-label="Reject project" title="Reject project">✕</button>` : ''}
+                            ${p.status === 'proposed' || p.status === 'active' ? `<button onclick="rejectProject('${esc(p.id)}')" style="padding:2px 6px;border-radius:4px;background:#ef444422;color:#ef4444;border:none;cursor:pointer;font-size:0.7rem;" aria-label="Reject project" title="Reject project">✕</button>` : ''}
                         </div>
                     </div>
                     <div style="display:flex;align-items:center;gap:0.5rem;">
@@ -1165,18 +1165,18 @@
                 return `
                 <div style="padding:0.5rem 0.75rem;border-bottom:1px solid #1e293b;display:flex;justify-content:space-between;align-items:center;background:${isSelected ? '#1e293b' : 'transparent'};">
                     <div style="display:flex;align-items:center;gap:0.5rem;flex:1;min-width:0;">
-                        <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="togglePostSelect('${p.id}')" style="accent-color:#f59e0b;cursor:pointer;">
+                        <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="togglePostSelect('${esc(p.id)}')" style="accent-color:#f59e0b;cursor:pointer;">
                         <div style="min-width:0;flex:1;">
                             <div style="font-size:0.85rem;font-weight:600;color:${p.status==='active'?'#10b981':'#64748b'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                                 ${esc(p.title) || 'Untitled'}
                                 ${reportCount > 0 ? `<span style="background:#ef4444;color:#fff;font-size:0.6rem;padding:1px 4px;border-radius:6px;margin-left:4px;">🚩 ${reportCount}</span>` : ''}
                             </div>
-                            <div style="font-size:0.7rem;color:#94a3b8;">${esc(p.authorCallsign) || 'Anon'} · ${p.type} · ${p.category || 'general'} · ${new Date(p.createdAt).toLocaleDateString()}</div>
+                            <div style="font-size:0.7rem;color:#94a3b8;">${esc(p.authorCallsign) || 'Anon'} · ${esc(p.type)} · ${esc(p.category || 'general')} · ${new Date(p.createdAt).toLocaleDateString()}</div>
                         </div>
                     </div>
                     <div style="display:flex;gap:0.3rem;">
-                        <button class="btn btn-sm btn-outline" onclick="viewMemberPosts('${p.authorPublicKey}')" title="View all posts by this author" style="padding:2px 6px;font-size:0.7rem;">👤</button>
-                        <button class="btn btn-sm btn-danger" onclick="adminAction('/posts/${p.id}/delete')" style="padding:2px 6px;font-size:0.7rem;" aria-label="Delete post" title="Delete post">🗑️</button>
+                        <button class="btn btn-sm btn-outline" onclick="viewMemberPosts('${esc(p.authorPublicKey)}')" title="View all posts by this author" style="padding:2px 6px;font-size:0.7rem;">👤</button>
+                        <button class="btn btn-sm btn-danger" onclick="adminAction('/posts/${esc(p.id)}/delete')" style="padding:2px 6px;font-size:0.7rem;" aria-label="Delete post" title="Delete post">🗑️</button>
                     </div>
                 </div>`;
             }).join('');
@@ -1363,7 +1363,7 @@
                 
                 let flagPill = '';
                 if (hasFlags) {
-                    flagPill = `<span style="background:${isAlert ? '#ef4444' : '#f59e0b'};color:#fff;font-size:0.65rem;padding:0.1rem 0.4rem;border-radius:12px;margin-left:0.4rem;font-weight:700;" title="${bFlags.map(f => f.type.replace('_',' ')).join(', ')}">${bFlags.length} ⚠️</span>`;
+                    flagPill = `<span style="background:${isAlert ? '#ef4444' : '#f59e0b'};color:#fff;font-size:0.65rem;padding:0.1rem 0.4rem;border-radius:12px;margin-left:0.4rem;font-weight:700;" title="${bFlags.map(f => esc(f.type.replace('_',' '))).join(', ')}">${bFlags.length} ⚠️</span>`;
                 }
                 let reportPill = '';
                 if (memberReportCount > 0) {
@@ -1478,12 +1478,12 @@
                         const parsed = JSON.parse(text);
                         if (parsed.type === 'marketplace_request') {
                             const icons = { request: '📨', accept: '🤝', complete: '✅', reject: '❌', cancel: '🚫' };
-                            return `<em>${icons[parsed.stage] || '🔄'} [Escrow System Event: ${parsed.stage.toUpperCase()}]</em>`;
+                            return `<em>${icons[parsed.stage] || '🔄'} [Escrow System Event: ${esc(parsed.stage.toUpperCase())}]</em>`;
                         }
                     } catch {}
-                    return text;
+                    return esc(text);
                 }
-                return `<em>[Encrypted ${nonce}]</em>`;
+                return `<em>[Encrypted ${esc(nonce)}]</em>`;
             } catch { return '<em>[Encrypted]</em>'; }
         }
 
@@ -1561,7 +1561,7 @@
                     <div style="flex:1;min-width:0;">
                         <div style="font-weight: ${u.unreadCount > 0 ? '700' : '600'}; font-size: 0.85rem; color: #f8fafc;">${esc(u.callsign)}</div>
                         <div style="font-size: 0.7rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.2rem;">
-                            ${u.lastMessage ? esc(decodePlaintext(u.lastMessage.ciphertext, u.lastMessage.nonce)) : '<em>No messages yet</em>'}
+                            ${u.lastMessage ? decodePlaintext(u.lastMessage.ciphertext, u.lastMessage.nonce) : '<em>No messages yet</em>'}
                         </div>
                     </div>
                     ${u.unreadCount > 0 ? `<span style="background:#ef4444;color:#fff;font-size:0.6rem;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px;margin-left:0.5rem;box-shadow:0 0 6px rgba(239,68,68,0.6);">${u.unreadCount > 99 ? '99+' : u.unreadCount}</span>` : ''}
@@ -1631,7 +1631,7 @@
                 return `
                     <div style="align-self: ${isAdmin ? 'flex-end' : 'flex-start'}; max-width: 80%;">
                         <div style="background: ${isAdmin ? '#2563eb' : '#1e293b'}; border-radius: ${isAdmin ? '12px 12px 2px 12px' : '12px 12px 12px 2px'}; padding: 0.5rem 0.8rem; font-size: 0.85rem; color: #f8fafc; word-break: break-word;">
-                            ${esc(decodePlaintext(msg.ciphertext, msg.nonce))}
+                            ${decodePlaintext(msg.ciphertext, msg.nonce)}
                         </div>
                         <div style="font-size: 0.65rem; color: #64748b; margin-top: 0.2rem; text-align: ${isAdmin ? 'right' : 'left'};">
                             ${new Date(msg.timestamp).toLocaleString()}
