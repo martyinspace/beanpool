@@ -176,6 +176,7 @@ export async function performSync(): Promise<SyncResult> {
                             avatar: profile.avatar_url,
                             bio: profile.bio,
                             contact: profile.contact_value ? { value: profile.contact_value, visibility: profile.contact_visibility || 'community' } : null,
+                            callsign: profile.callsign,
                         };
                         const bodyString = JSON.stringify(payloadObj);
                         const signatureBytes = await signData(encodeUtf8(bodyString), hexToBytes(id.privateKey));
@@ -228,7 +229,7 @@ export async function performSync(): Promise<SyncResult> {
                 headers: { 'Accept': 'application/json' },
                 signal: balanceController.signal
             }) : Promise.resolve(null),
-            fetch(`${anchorUrl}/api/members`, {
+            fetch(`${anchorUrl}/api/members?_t=${Date.now()}`, {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' },
                 signal: postsController.signal

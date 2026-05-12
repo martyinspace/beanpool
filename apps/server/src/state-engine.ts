@@ -147,6 +147,7 @@ export interface MemberProfile {
         value: string;
         visibility: 'hidden' | 'trade_partners' | 'community' | 'friends';
     } | null;
+    callsign?: string;
     lastActiveAt?: string;
     status?: 'active' | 'disabled' | 'pruned';
 }
@@ -534,7 +535,8 @@ function rowToProfile(row: any): MemberProfile {
         bio: row.bio || '',
         contact: row.contact_value ? { value: row.contact_value, visibility: row.contact_visibility } : null,
         status: row.status,
-        lastActiveAt: row.last_active_at
+        lastActiveAt: row.last_active_at,
+        callsign: row.callsign
     };
 }
 
@@ -567,6 +569,7 @@ function registerMemberInternal(publicKey: string, callsign: string, invitedBy: 
     const existing = db.prepare("SELECT * FROM members WHERE public_key = ?").get(publicKey) as any;
     if (existing) {
         db.prepare("UPDATE members SET callsign = ? WHERE public_key = ?").run(callsign, publicKey);
+        broadcast({ type: 'profile_updated', publicKey });
         return getMember(publicKey)!;
     }
 
@@ -817,6 +820,7 @@ export function updateProfile(publicKey: string, update: {
     avatar?: string | null;
     bio?: string;
     contact?: { value: string; visibility: 'hidden' | 'trade_partners' | 'community' | 'friends' } | null;
+    callsign?: string;
 }): MemberProfile | null {
     if (!getMember(publicKey)) return null;
     recordActivity(publicKey);
@@ -824,6 +828,7 @@ export function updateProfile(publicKey: string, update: {
     const existing = db.prepare("SELECT * FROM members WHERE public_key = ?").get(publicKey) as any;
     const avatar = update.avatar !== undefined ? update.avatar : existing.avatar_url;
     const bio = update.bio !== undefined ? update.bio.slice(0, 200) : existing.bio;
+    const callsign = update.callsign !== undefined ? update.callsign.slice(0, 32) : existing.callsign;
     let contact_value = existing.contact_value;
     let contact_visibility = existing.contact_visibility;
     if (update.contact !== undefined) {
@@ -831,8 +836,8 @@ export function updateProfile(publicKey: string, update: {
         contact_visibility = update.contact?.visibility || null;
     }
 
-    db.prepare(`UPDATE members SET avatar_url=?, bio=?, contact_value=?, contact_visibility=? WHERE public_key=?`)
-      .run(avatar, bio, contact_value, contact_visibility, publicKey);
+    db.prepare(`UPDATE members SET avatar_url=?, bio=?, contact_value=?, contact_visibility=?, callsign=? WHERE public_key=?`)
+      .run(avatar, bio, contact_value, contact_visibility, callsign, publicKey);
       
     broadcast({ type: 'profile_updated', publicKey });
     return getProfile(publicKey);

@@ -91,7 +91,7 @@ export async function getCommunityInfo(): Promise<CommunityInfo> {
 }
 
 export async function getMembers(): Promise<Member[]> {
-    return request('GET', '/api/community/members');
+    return request('GET', `/api/community/members?_t=${Date.now()}`);
 }
 
 export async function registerMember(publicKey: string, callsign: string): Promise<{ success: boolean; member: Member }> {
@@ -130,7 +130,7 @@ export async function getCommunityHealth(): Promise<any> {
 }
 
 export async function checkMembership(publicKey: string): Promise<{ isMember: boolean; callsign: string | null }> {
-    return request('GET', `/api/community/membership/${encodeURIComponent(publicKey)}`);
+    return request('GET', `/api/community/membership/${encodeURIComponent(publicKey)}?_t=${Date.now()}`);
 }
 
 export async function getMyInvites(publicKey: string): Promise<{ invites: InviteCode[] }> {
@@ -147,6 +147,7 @@ export interface MemberProfile {
         value: string;
         visibility: 'hidden' | 'trade_partners' | 'community' | 'friends';
     } | null;
+    callsign?: string;
 }
 
 export async function updateMemberProfile(publicKey: string, update: {
@@ -158,8 +159,10 @@ export async function updateMemberProfile(publicKey: string, update: {
 }
 
 export async function getMemberProfile(publicKey: string, requester?: string): Promise<MemberProfile> {
-    const params = requester ? `?requester=${encodeURIComponent(requester)}` : '';
-    return request('GET', `/api/profile/${encodeURIComponent(publicKey)}${params}`);
+    const params = new URLSearchParams();
+    if (requester) params.set('requester', requester);
+    params.set('_t', Date.now().toString());
+    return request('GET', `/api/profile/${encodeURIComponent(publicKey)}?${params}`);
 }
 
 // ===================== MESSAGING =====================
@@ -500,7 +503,7 @@ export interface MemberSummary {
 }
 
 export async function getAllMembers(): Promise<MemberSummary[]> {
-    return request('GET', '/api/members');
+    return request('GET', `/api/members?_t=${Date.now()}`);
 }
 
 // ===================== FEDERATION =====================
