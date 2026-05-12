@@ -1746,8 +1746,22 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
         ORDER BY COALESCE(last_msg_time, c.created_at) DESC
     `).all(pubkey) as any[];
 
+    const convIds = rows.map(r => r.id);
+    const allParts = convIds.length > 0
+        ? db.prepare(`SELECT conversation_id, public_key FROM conversation_participants WHERE conversation_id IN (${convIds.map(() => '?').join(',')})`).all(...convIds) as any[]
+        : [];
+
+    // ⚡ Bolt: Group participants by conversation_id to avoid N+1 queries (O(N²) -> O(N))
+    const partsByConv = new Map<string, string[]>();
+    for (const p of allParts) {
+        if (!partsByConv.has(p.conversation_id)) {
+            partsByConv.set(p.conversation_id, []);
+        }
+        partsByConv.get(p.conversation_id)!.push(p.public_key);
+    }
+
     return rows.map(r => {
-        const parts = db.prepare("SELECT public_key FROM conversation_participants WHERE conversation_id=?").all(r.id) as any[];
+        const participants = partsByConv.get(r.id) || [];
         return { 
             id: r.id, 
             type: r.type, 
@@ -1759,7 +1773,7 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
             name: r.name, 
             createdBy: r.created_by, 
             createdAt: r.created_at, 
-            participants: parts.map(p => p.public_key) 
+            participants
         };
     });
 }
