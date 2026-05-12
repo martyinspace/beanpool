@@ -68,6 +68,8 @@ export function initSchema() {
     try { db.prepare(`ALTER TABLE invite_codes ADD COLUMN genesis_type TEXT DEFAULT 'standard'`).run(); } catch { }
     // Protocol v1: Track pre-seeded earned credit for dynamic floor formula
     try { db.prepare(`ALTER TABLE members ADD COLUMN earned_credit REAL DEFAULT 0`).run(); } catch { }
+    // Profile sync: Track profile mutation timestamp for cache-busting
+    try { db.prepare(`ALTER TABLE members ADD COLUMN profile_updated_at DATETIME`).run(); } catch { }
     // FTS5 Search: Add search_keywords column to posts
     try { db.prepare(`ALTER TABLE posts ADD COLUMN search_keywords TEXT DEFAULT ''`).run(); } catch { }
     // Moderation: Add status tracking to abuse reports

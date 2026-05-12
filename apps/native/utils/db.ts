@@ -122,7 +122,8 @@ async function _doInitDB() {
             contact_value TEXT,
             contact_visibility TEXT,
             status TEXT DEFAULT 'active',
-            last_active_at DATETIME
+            last_active_at DATETIME,
+            profile_updated_at DATETIME
         );
 
         -- 2. Ledger Accounts & Transactions
@@ -312,6 +313,8 @@ async function _doInitDB() {
         try { await database.execAsync(`ALTER TABLE posts ADD COLUMN accepted_at DATETIME;`); } catch (e) {}
         try { await database.execAsync(`ALTER TABLE posts ADD COLUMN pending_transaction_id TEXT;`); } catch (e) {}
         try { await database.execAsync(`ALTER TABLE posts ADD COLUMN completed_at DATETIME;`); } catch (e) {}
+        // Profile sync: track when a profile was last updated for cache-busting
+        try { await database.execAsync(`ALTER TABLE members ADD COLUMN profile_updated_at DATETIME;`); } catch (e) {}
         // Ratings table migration for legacy setups where Schema wasn't ran
         try { 
             await database.execAsync(`
@@ -1128,12 +1131,16 @@ export async function applyDelta(delta: any) {
             serverMemberSet.add(pk);
             const cs = m.callsign || '';
             const av = m.avatarUrl || m.avatar_url || null;
+            const joinedAt = m.joinedAt || m.joined_at || null;
+            const profileUpdatedAt = m.profileUpdatedAt || m.profile_updated_at || null;
             await database.runAsync(
-                `INSERT INTO members (public_key, callsign, avatar_url) VALUES (?, ?, ?)
+                `INSERT INTO members (public_key, callsign, avatar_url, joined_at, profile_updated_at) VALUES (?, ?, ?, ?, ?)
                  ON CONFLICT(public_key) DO UPDATE SET
                    callsign = excluded.callsign,
-                   avatar_url = COALESCE(excluded.avatar_url, members.avatar_url)`,
-                [pk, cs, av]
+                   avatar_url = COALESCE(excluded.avatar_url, members.avatar_url),
+                   joined_at = COALESCE(excluded.joined_at, members.joined_at),
+                   profile_updated_at = COALESCE(excluded.profile_updated_at, members.profile_updated_at)`,
+                [pk, cs, av, joinedAt, profileUpdatedAt]
             );
         }
 

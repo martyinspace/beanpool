@@ -1988,6 +1988,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             callsign: m.callsign,
             joinedAt: m.joinedAt,
             avatarUrl: m.avatarUrl,
+            profileUpdatedAt: m.profileUpdatedAt,
         }));
     });
 

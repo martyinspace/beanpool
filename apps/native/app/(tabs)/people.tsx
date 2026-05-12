@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image, ActivityIndicator, Platform } from 'react-native';
 import { getDb, getFriendsLocal, addFriendLocal, removeFriendLocal, createConversationApi, setGuardianApi } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
 import { hexToBytes, encodeUtf8, encodeBase64, signData } from '../../utils/crypto';
@@ -11,6 +11,17 @@ import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
 
 type SubView = 'friends' | 'community' | 'invites' | 'guardians';
+
+const MEMBER_ROW_HEIGHT = 76;
+
+/** Cache-busting avatar URI keyed to profile timestamp */
+function avatarUri(url: string | null | undefined, pubkey: string, updatedAt?: string | null): string | null {
+    if (!url) return null;
+    if (url.startsWith('data:')) return url;
+    const cacheKey = updatedAt ? new Date(updatedAt).getTime() : pubkey.slice(0, 8);
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}_v=${cacheKey}`;
+}
 
 function formatJoinDate(dateStr: string | null) {
     if (!dateStr) return 'Member';
@@ -320,14 +331,20 @@ export default function PeopleScreen() {
                         data={friends}
                         keyExtractor={(item, index) => `${item.publicKey}_${index}`}
                         contentContainerStyle={styles.list}
-                        renderItem={({ item }) => (
+                        renderItem={({ item }) => {
+                            const uri = avatarUri(item.avatar_url, item.publicKey);
+                            return (
                             <View style={styles.card}>
                                 <View style={styles.cardHeader}>
                                     <View style={styles.avatar}>
-                                        {item.avatar_url ? (
-                                            <Image source={{ uri: item.avatar_url }} style={{ width: 44, height: 44, borderRadius: 22 }} />
+                                        {uri ? (
+                                            <Image source={{ uri }} style={{ width: 44, height: 44, borderRadius: 22 }} />
                                         ) : (
-                                            <Text style={styles.avatarEmoji}>👤</Text>
+                                            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center' }}>
+                                                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#6b7280' }}>
+                                                    {(item.callsign || '?').charAt(0).toUpperCase()}
+                                                </Text>
+                                            </View>
                                         )}
                                     </View>
                                     <View style={styles.textStack}>
@@ -369,7 +386,7 @@ export default function PeopleScreen() {
                                     </Pressable>
                                 </View>
                             </View>
-                        )}
+                        );}}
                     />
                 )
             )}
@@ -383,6 +400,8 @@ export default function PeopleScreen() {
                             value={searchQuery}
                             onChangeText={setSearchQuery}
                             placeholderTextColor="#9ca3af"
+                            autoCapitalize="none"
+                            autoCorrect={false}
                         />
                     </View>
                     <FlatList
@@ -391,24 +410,35 @@ export default function PeopleScreen() {
                         contentContainerStyle={styles.list}
                         onEndReached={handleLoadMore}
                         onEndReachedThreshold={0.5}
+                        getItemLayout={(_data, index) => ({
+                            length: MEMBER_ROW_HEIGHT,
+                            offset: MEMBER_ROW_HEIGHT * index,
+                            index,
+                        })}
+                        initialNumToRender={15}
+                        maxToRenderPerBatch={20}
+                        windowSize={7}
+                        removeClippedSubviews={Platform.OS !== 'web'}
+                        keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode="on-drag"
                         ListHeaderComponent={
                             <View style={styles.infoBanner}>
                                 <Text style={styles.infoText}>
-                                    All members on this node. Tap <Text style={styles.boldGreen}>+ Add</Text> to add someone as a friend.
+                                    {members.length} members on this node. Tap <Text style={styles.boldGreen}>+ Add</Text> to follow as a friend.
                                 </Text>
                             </View>
                         }
                         ListEmptyComponent={
                             <View style={{ padding: 40, alignItems: 'center' }}>
-                                <Text style={{ color: '#9ca3af' }}>
-                                    {searchQuery ? 'No members found matching search.' : 'Loading community...'}
+                                <Text style={{ color: '#9ca3af', fontSize: 15, fontWeight: '500' }}>
+                                    {searchQuery ? 'No members match your search.' : 'Loading community...'}
                                 </Text>
                             </View>
                         }
                         ListFooterComponent={
                             (loadingMore && members.length > 0) ? (
                                 <View style={{ padding: 20, alignItems: 'center' }}>
-                                    <Text style={{ color: '#9ca3af' }}>Loading more...</Text>
+                                    <ActivityIndicator size="small" color="#059669" />
                                 </View>
                             ) : null
                         }
@@ -416,25 +446,37 @@ export default function PeopleScreen() {
                         const isFriend = friendPubkeys.has(item.public_key);
                         const isSelf = item.public_key === identity?.publicKey;
                         const joinDateText = formatJoinDate(item.joined_at);
+                        const uri = avatarUri(item.avatar_url, item.public_key);
                         return (
-                        <View style={styles.card}>
+                        <View style={styles.communityRow}>
                             <Pressable 
                                 style={styles.cardHeader}
                                 onPress={() => router.push(`/public-profile?publicKey=${item.public_key}`)}
                             >
                                 <View style={styles.avatar}>
-                                    {item.avatar_url ? (
-                                        <Image source={{ uri: item.avatar_url }} style={{ width: 44, height: 44, borderRadius: 22 }} />
+                                    {uri ? (
+                                        <Image source={{ uri }} style={{ width: 44, height: 44, borderRadius: 22 }} />
                                     ) : (
-                                        <Text style={styles.avatarEmoji}>👤</Text>
+                                        <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center' }}>
+                                            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#6b7280' }}>
+                                                {(item.callsign || '?').charAt(0).toUpperCase()}
+                                            </Text>
+                                        </View>
+                                    )}
+                                    {isFriend && (
+                                        <View style={styles.communityFriendDot}>
+                                            <Text style={{ fontSize: 8, color: '#fff', fontWeight: '800' }}>★</Text>
+                                        </View>
                                     )}
                                 </View>
                                 <View style={styles.textStack}>
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                        <Text style={styles.callsign}>{item.callsign}</Text>
-                                        {isFriend && <Text style={styles.friendChip}>★ Friend</Text>}
+                                        <Text style={styles.callsign} numberOfLines={1}>{item.callsign}</Text>
+                                        {isFriend && <Text style={styles.friendChip}>Friend</Text>}
                                     </View>
-                                    <Text style={styles.dateText}>{joinDateText === 'Member' ? 'Member' : joinDateText}</Text>
+                                    <Text style={styles.dateText} numberOfLines={1}>
+                                        {item.public_key?.substring(0, 8).toUpperCase()} · {joinDateText}
+                                    </Text>
                                 </View>
                             </Pressable>
                             {!isSelf && (
@@ -694,5 +736,19 @@ const styles = StyleSheet.create({
     msgBtn: { backgroundColor: '#f0fdf4', width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#dcfce7' },
     msgBtnText: { fontSize: 18 },
     removeFriendBtn: { backgroundColor: '#fef2f2', width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#fecaca' },
-    removeFriendBtnText: { fontSize: 16, color: '#ef4444', fontWeight: '700' }
+    removeFriendBtnText: { fontSize: 16, color: '#ef4444', fontWeight: '700' },
+
+    // Community virtualized row (fixed height)
+    communityRow: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        height: MEMBER_ROW_HEIGHT,
+        paddingHorizontal: 16,
+        borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f3f4f6',
+        backgroundColor: '#ffffff',
+    },
+    communityFriendDot: {
+        position: 'absolute', bottom: -2, right: -2, width: 16, height: 16, borderRadius: 8,
+        backgroundColor: '#f59e0b', justifyContent: 'center', alignItems: 'center',
+        borderWidth: 2, borderColor: '#fff',
+    },
 });

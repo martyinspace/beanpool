@@ -29,6 +29,7 @@ export default function SettingsScreen() {
     const [avatar, setAvatar] = useState<string | null>(null);
     const [bio, setBio] = useState('');
     const [contact, setContact] = useState('');
+    const [contactVisibility, setContactVisibility] = useState<'hidden' | 'trade_partners' | 'friends' | 'community'>('community');
     const [loading, setLoading] = useState(false);
     const [anchorUrl, setAnchorUrl] = useState<string>('Detecting...');
     const [useModernMarkers, setUseModernMarkers] = useState(true);
@@ -44,6 +45,7 @@ export default function SettingsScreen() {
                     if (profile.avatar_url) setAvatar(profile.avatar_url);
                     if (profile.bio) setBio(profile.bio);
                     if (profile.contact_value) setContact(profile.contact_value);
+                    if (profile.contact_visibility) setContactVisibility(profile.contact_visibility);
                 }
             }).catch(() => {});
         }
@@ -130,6 +132,33 @@ export default function SettingsScreen() {
 
 
 
+    /**
+     * Crash-proof 2-pass image pipeline:
+     * Pass 1: Pre-crop downscale to 1024px — prevents OOM when the native cropper
+     *         loads a 48MP camera image into memory on low-RAM devices/emulators.
+     * Pass 2: Post-crop compress to 400px, 70% JPEG — network-optimal base64 avatar.
+     */
+    async function processPickedImage(uri: string): Promise<string | null> {
+        try {
+            // Pass 1: Downscale to max 1024px before crop (prevents memory crash)
+            const preCrop = await ImageManipulator.manipulateAsync(
+                uri,
+                [{ resize: { width: 1024 } }],
+                { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
+            );
+            // Pass 2: Final compress to 400px for transfer
+            const final = await ImageManipulator.manipulateAsync(
+                preCrop.uri,
+                [{ resize: { width: 400 } }],
+                { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+            );
+            return final.base64 ? `data:image/jpeg;base64,${final.base64}` : null;
+        } catch (e) {
+            console.error('[Profile] Image processing failed:', e);
+            return null;
+        }
+    }
+
     async function handlePickImage() {
         Alert.alert('Profile Photo', 'Choose a source', [
             { text: 'Camera', onPress: async () => {
@@ -137,36 +166,30 @@ export default function SettingsScreen() {
                     const perm = await ImagePicker.requestCameraPermissionsAsync();
                     if (!perm.granted) { Alert.alert('Permission required', 'Camera access is needed.'); return; }
                     const result = await ImagePicker.launchCameraAsync({
-                        mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: false
+                        mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.5, base64: false
                     });
                     if (!result.canceled && result.assets[0].uri) {
-                        const manipResult = await ImageManipulator.manipulateAsync(
-                            result.assets[0].uri,
-                            [{ resize: { width: 400 } }],
-                            { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-                        );
-                        if (manipResult.base64) {
-                            setAvatar(`data:image/jpeg;base64,${manipResult.base64}`);
-                        }
+                        setLoading(true);
+                        const dataUri = await processPickedImage(result.assets[0].uri);
+                        if (dataUri) setAvatar(dataUri);
+                        else Alert.alert('Error', 'Could not process photo.');
+                        setLoading(false);
                     }
-                } catch (e) { Alert.alert('Error', 'Could not take photo.'); }
+                } catch (e) { setLoading(false); Alert.alert('Error', 'Could not take photo.'); }
             }},
             { text: 'Gallery', onPress: async () => {
                 try {
                     const result = await ImagePicker.launchImageLibraryAsync({
-                        mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: false
+                        mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.5, base64: false
                     });
                     if (!result.canceled && result.assets[0].uri) {
-                        const manipResult = await ImageManipulator.manipulateAsync(
-                            result.assets[0].uri,
-                            [{ resize: { width: 400 } }],
-                            { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-                        );
-                        if (manipResult.base64) {
-                            setAvatar(`data:image/jpeg;base64,${manipResult.base64}`);
-                        }
+                        setLoading(true);
+                        const dataUri = await processPickedImage(result.assets[0].uri);
+                        if (dataUri) setAvatar(dataUri);
+                        else Alert.alert('Error', 'Could not process photo.');
+                        setLoading(false);
                     }
-                } catch (e) { Alert.alert('Error', 'Could not pick image.'); }
+                } catch (e) { setLoading(false); Alert.alert('Error', 'Could not pick image.'); }
             }},
             { text: 'Cancel', style: 'cancel' },
         ]);
@@ -184,7 +207,8 @@ export default function SettingsScreen() {
                 callsign: editCallsign.trim(),
                 avatar_url: avatar,
                 bio: bio.trim(),
-                contact_value: contact.trim()
+                contact_value: contact.trim(),
+                contact_visibility: contact.trim() ? contactVisibility : 'hidden'
             });
             if (editCallsign.trim() !== identity.callsign) {
                 const updated = await updateCallsign(editCallsign.trim());
@@ -199,7 +223,7 @@ export default function SettingsScreen() {
                         publicKey: identity.publicKey,
                         avatar: avatar,
                         bio: bio.trim(),
-                        contact: contact.trim() ? { value: contact.trim(), visibility: 'community' } : null,
+                        contact: contact.trim() ? { value: contact.trim(), visibility: contactVisibility } : null,
                         callsign: editCallsign.trim(),
                     };
                     const bodyString = JSON.stringify(payloadObj);
@@ -809,6 +833,34 @@ export default function SettingsScreen() {
                         placeholder="Phone, email, or WhatsApp"
                     />
 
+                    {contact.trim().length > 0 && (
+                        <View style={styles.visibilitySection}>
+                            <Text style={styles.visibilityLabel}>Who can see this?</Text>
+                            {([
+                                { value: 'hidden' as const, emoji: '🔒', label: 'Hidden', desc: 'Only you can see it' },
+                                { value: 'trade_partners' as const, emoji: '🤝', label: 'Trade Partners', desc: 'Visible when you enter a trade' },
+                                { value: 'friends' as const, emoji: '👥', label: 'Friends', desc: 'People you have added as friends' },
+                                { value: 'community' as const, emoji: '🌍', label: 'Community', desc: 'Anyone on this node' },
+                            ]).map(opt => {
+                                const isActive = contactVisibility === opt.value;
+                                return (
+                                    <Pressable
+                                        key={opt.value}
+                                        style={[styles.visibilityOption, isActive && styles.visibilityOptionActive]}
+                                        onPress={() => setContactVisibility(opt.value)}
+                                    >
+                                        <Text style={styles.visibilityEmoji}>{opt.emoji}</Text>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.visibilityOptionLabel, isActive && styles.visibilityOptionLabelActive]}>{opt.label}</Text>
+                                            <Text style={[styles.visibilityOptionDesc, isActive && styles.visibilityOptionDescActive]}>{opt.desc}</Text>
+                                        </View>
+                                        {isActive && <Text style={styles.visibilityCheck}>✓</Text>}
+                                    </Pressable>
+                                );
+                            })}
+                        </View>
+                    )}
+
                     <Pressable style={styles.primaryBtn} onPress={handleUpdateCallsign} disabled={loading}>
                         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save Profile</Text>}
                     </Pressable>
@@ -1279,4 +1331,25 @@ const styles = StyleSheet.create({
     seedWordText: { fontSize: 16, fontWeight: '600', color: '#1f2937' },
     uriBox: { backgroundColor: '#f1f5f9', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 16, maxHeight: 100 },
     uriText: { fontSize: 12, fontFamily: 'monospace', color: '#475569' },
+
+    // Contact visibility picker
+    visibilitySection: { marginTop: 4, marginBottom: 16 },
+    visibilityLabel: { fontSize: 13, fontWeight: '700', color: '#6b7280', marginBottom: 8 },
+    visibilityOption: {
+        flexDirection: 'row', alignItems: 'center', gap: 12,
+        padding: 14, borderRadius: 12, borderWidth: 1.5,
+        borderColor: '#e5e7eb', backgroundColor: '#ffffff',
+        marginBottom: 8,
+    },
+    visibilityOptionActive: {
+        borderColor: '#3b82f6', backgroundColor: '#eff6ff',
+        shadowColor: '#3b82f6', shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15, shadowRadius: 4, elevation: 3,
+    },
+    visibilityEmoji: { fontSize: 20 },
+    visibilityOptionLabel: { fontSize: 15, fontWeight: '700', color: '#111827' },
+    visibilityOptionLabelActive: { color: '#1e40af' },
+    visibilityOptionDesc: { fontSize: 12, color: '#9ca3af', marginTop: 1 },
+    visibilityOptionDescActive: { color: '#3b82f6' },
+    visibilityCheck: { fontSize: 18, fontWeight: '800', color: '#3b82f6' },
 });

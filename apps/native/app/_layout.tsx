@@ -92,6 +92,7 @@ function RootLayoutNav() {
             <Stack.Screen name="post/[id]" options={{ presentation: 'modal' }} />
             <Stack.Screen name="propose-project" options={{ presentation: 'modal' }} />
             <Stack.Screen name="public-profile" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="new-message" options={{ headerShown: false, animation: 'slide_from_right' }} />
             <Stack.Screen name="chat/[id]" />
         </Stack>
     );

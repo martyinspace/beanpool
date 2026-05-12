@@ -1,47 +1,107 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, TextInput,
-    KeyboardAvoidingView, Platform, Image, ActivityIndicator
+    KeyboardAvoidingView, Platform, Image, ActivityIndicator, Animated
 } from 'react-native';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIdentity } from './IdentityContext';
-import { getDb, createConversationApi, getRecentChatMembers, getFriendsLocal } from '../utils/db';
+import { getDb, createConversationApi, getRecentChatMembers, getFriendsLocal, addFriendLocal, removeFriendLocal } from '../utils/db';
+
+// ── Fixed Row Height for getItemLayout ──────────────────────────────────────
+const MEMBER_ROW_HEIGHT = 72;
+const SEPARATOR_HEIGHT = 0;
+const ITEM_HEIGHT = MEMBER_ROW_HEIGHT + SEPARATOR_HEIGHT;
+
+// ── Shimmer Placeholder ─────────────────────────────────────────────────────
+function ShimmerRow({ index }: { index: number }) {
+    const anim = useRef(new Animated.Value(0.3)).current;
+    useEffect(() => {
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(anim, { toValue: 1, duration: 800, delay: index * 60, useNativeDriver: true }),
+                Animated.timing(anim, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+            ])
+        ).start();
+    }, []);
+    return (
+        <Animated.View style={[styles.shimmerRow, { opacity: anim }]}>
+            <View style={styles.shimmerAvatar} />
+            <View style={styles.shimmerTextGroup}>
+                <View style={[styles.shimmerLine, { width: '55%' }]} />
+                <View style={[styles.shimmerLine, { width: '35%', marginTop: 6 }]} />
+            </View>
+        </Animated.View>
+    );
+}
+
+// ── Utilities ───────────────────────────────────────────────────────────────
+function formatJoinDate(dateStr: string | null) {
+    if (!dateStr) return 'Member';
+    try {
+        const d = new Date(dateStr);
+        const now = new Date();
+        const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays < 1) return 'Joined today';
+        if (diffDays < 7) return `Joined ${diffDays}d ago`;
+        if (diffDays < 30) return `Joined ${Math.floor(diffDays / 7)}w ago`;
+        return `Joined ${d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`;
+    } catch {
+        return 'Member';
+    }
+}
+
+/** Build a cache-busting URI for avatar images so updates propagate immediately. */
+function avatarUri(url: string | null, pubkey: string, updatedAt?: string | null): string | null {
+    if (!url) return null;
+    // data: URIs are already unique by content
+    if (url.startsWith('data:')) return url;
+    // Use profile_updated_at for precise cache-busting, fall back to pubkey slice
+    const cacheKey = updatedAt ? new Date(updatedAt).getTime() : pubkey.slice(0, 8);
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}_v=${cacheKey}`;
+}
 
 export default function NewMessageScreen() {
     const { identity } = useIdentity();
     const [searchQuery, setSearchQuery] = useState('');
+    const searchRef = useRef<TextInput>(null);
+
+    // ── Data state ──────────────────────────────────────────────────────────
     const [allMembers, setAllMembers] = useState<any[]>([]);
     const [friendPubkeys, setFriendPubkeys] = useState<Set<string>>(new Set());
     const [recents, setRecents] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [creating, setCreating] = useState<string | null>(null);
 
-    // Load members, friends, and recents on mount
+    // ── Load on mount ───────────────────────────────────────────────────────
     useEffect(() => {
         if (!identity?.publicKey) return;
-        
+
         const load = async () => {
             setLoading(true);
             try {
                 const database = await getDb();
-                
-                // Load all community members (excluding self)
+
+                // Paginated initial load — pull all non-pruned members
                 const members = await database.getAllAsync<any>(
-                    `SELECT public_key, callsign, avatar_url, joined_at 
-                     FROM members 
-                     WHERE public_key != ? AND (status IS NULL OR status != 'pruned')
-                       AND public_key NOT LIKE 'escrow_%' AND public_key NOT LIKE 'project_%'
+                    `SELECT public_key, callsign, avatar_url, joined_at
+                     FROM members
+                     WHERE public_key != ?
+                       AND (status IS NULL OR status != 'pruned')
+                       AND public_key NOT LIKE 'escrow_%'
+                       AND public_key NOT LIKE 'project_%'
+                       AND public_key != 'SYSTEM'
                      ORDER BY callsign COLLATE NOCASE ASC`,
                     [identity.publicKey]
                 );
                 setAllMembers(members);
 
-                // Load friends set
+                // Friends
                 const friends = await getFriendsLocal(identity.publicKey);
                 setFriendPubkeys(new Set(friends.map((f: any) => f.publicKey)));
 
-                // Load recents
+                // Recents
                 const recentMembers = await getRecentChatMembers(identity.publicKey, 8);
                 setRecents(recentMembers);
             } catch (e) {
@@ -53,28 +113,28 @@ export default function NewMessageScreen() {
         load();
     }, [identity?.publicKey]);
 
-    // Debounced filtered + sorted results
+    // ── Search / sort (memo) ────────────────────────────────────────────────
     const filteredMembers = useMemo(() => {
         let list = allMembers;
 
-        // Apply search filter
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase().trim();
-            list = list.filter(m => 
-                m.callsign?.toLowerCase().includes(q) || 
+            list = list.filter(m =>
+                m.callsign?.toLowerCase().includes(q) ||
                 m.public_key?.toLowerCase().includes(q)
             );
         }
 
-        // Sort: friends first, then alphabetical
-        return list.sort((a, b) => {
-            const aFriend = friendPubkeys.has(a.public_key) ? 0 : 1;
-            const bFriend = friendPubkeys.has(b.public_key) ? 0 : 1;
-            if (aFriend !== bFriend) return aFriend - bFriend;
+        // Friends-first sort, then alphabetical
+        return [...list].sort((a, b) => {
+            const aF = friendPubkeys.has(a.public_key) ? 0 : 1;
+            const bF = friendPubkeys.has(b.public_key) ? 0 : 1;
+            if (aF !== bF) return aF - bF;
             return (a.callsign || '').localeCompare(b.callsign || '');
         });
     }, [allMembers, searchQuery, friendPubkeys]);
 
+    // ── Handlers ────────────────────────────────────────────────────────────
     const handleSelectMember = useCallback(async (pubkey: string) => {
         if (!identity?.publicKey || creating) return;
         setCreating(pubkey);
@@ -87,38 +147,46 @@ export default function NewMessageScreen() {
         }
     }, [identity?.publicKey, creating]);
 
-    const formatJoinDate = (dateStr: string | null) => {
-        if (!dateStr) return 'Member';
-        try {
-            const d = new Date(dateStr);
-            const now = new Date();
-            const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-            if (diffDays < 1) return 'Joined today';
-            if (diffDays < 7) return `Joined ${diffDays}d ago`;
-            if (diffDays < 30) return `Joined ${Math.floor(diffDays / 7)}w ago`;
-            return `Joined ${d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`;
-        } catch {
-            return 'Member';
+    const toggleFriend = useCallback(async (pubkey: string) => {
+        if (!identity?.publicKey) return;
+        const isFriend = friendPubkeys.has(pubkey);
+        if (isFriend) {
+            await removeFriendLocal(identity.publicKey, pubkey);
+            setFriendPubkeys(prev => { const n = new Set(prev); n.delete(pubkey); return n; });
+        } else {
+            await addFriendLocal(identity.publicKey, pubkey);
+            setFriendPubkeys(prev => new Set(prev).add(pubkey));
         }
-    };
+    }, [identity?.publicKey, friendPubkeys]);
 
-    const renderMemberCard = ({ item }: { item: any }) => {
+    // ── getItemLayout for zero-measurement scrolling ────────────────────────
+    const getItemLayout = useCallback((_data: any, index: number) => ({
+        length: ITEM_HEIGHT,
+        offset: ITEM_HEIGHT * index,
+        index,
+    }), []);
+
+    // ── Render: Member Row ──────────────────────────────────────────────────
+    const renderMemberCard = useCallback(({ item }: { item: any }) => {
         const isFriend = friendPubkeys.has(item.public_key);
         const isCreating = creating === item.public_key;
-        
+        const uri = avatarUri(item.avatar_url, item.public_key);
+
         return (
-            <Pressable 
+            <Pressable
                 style={[styles.memberCard, isCreating && styles.memberCardActive]}
                 onPress={() => handleSelectMember(item.public_key)}
                 disabled={!!creating}
             >
-                <View style={styles.memberAvatar}>
-                    {item.avatar_url ? (
-                        <Image source={{ uri: item.avatar_url }} style={styles.avatarImage} />
+                <View style={styles.memberAvatarWrap}>
+                    {uri ? (
+                        <Image source={{ uri }} style={styles.avatarImage} />
                     ) : (
-                        <Text style={styles.avatarInitial}>
-                            {(item.callsign || '?').charAt(0).toUpperCase()}
-                        </Text>
+                        <View style={styles.avatarFallback}>
+                            <Text style={styles.avatarInitial}>
+                                {(item.callsign || '?').charAt(0).toUpperCase()}
+                            </Text>
+                        </View>
                     )}
                     {isFriend && (
                         <View style={styles.friendBadge}>
@@ -126,6 +194,7 @@ export default function NewMessageScreen() {
                         </View>
                     )}
                 </View>
+
                 <View style={styles.memberInfo}>
                     <View style={styles.memberNameRow}>
                         <Text style={styles.memberName} numberOfLines={1}>{item.callsign || 'Unknown'}</Text>
@@ -135,28 +204,43 @@ export default function NewMessageScreen() {
                         {item.public_key?.substring(0, 8).toUpperCase()} · {formatJoinDate(item.joined_at)}
                     </Text>
                 </View>
+
+                {/* Friend toggle */}
+                <Pressable
+                    style={[styles.friendToggle, isFriend && styles.friendToggleActive]}
+                    onPress={() => toggleFriend(item.public_key)}
+                    hitSlop={8}
+                >
+                    <MaterialCommunityIcons
+                        name={isFriend ? 'account-check' : 'account-plus-outline'}
+                        size={18}
+                        color={isFriend ? '#059669' : '#9ca3af'}
+                    />
+                </Pressable>
+
                 {isCreating ? (
-                    <ActivityIndicator size="small" color="#8b5cf6" />
+                    <ActivityIndicator size="small" color="#8b5cf6" style={{ marginLeft: 8 }} />
                 ) : (
-                    <MaterialCommunityIcons name="chevron-right" size={20} color="#d1d5db" />
+                    <MaterialCommunityIcons name="chevron-right" size={20} color="#d1d5db" style={{ marginLeft: 4 }} />
                 )}
             </Pressable>
         );
-    };
+    }, [friendPubkeys, creating, handleSelectMember, toggleFriend]);
 
-    const renderRecentCard = ({ item }: { item: any }) => {
+    // ── Render: Recents Chip ────────────────────────────────────────────────
+    const renderRecentCard = useCallback(({ item }: { item: any }) => {
         const isFriend = friendPubkeys.has(item.publicKey);
-        const isCreating = creating === item.publicKey;
-        
+        const uri = avatarUri(item.avatar_url, item.publicKey);
+
         return (
-            <Pressable 
+            <Pressable
                 style={styles.recentChip}
                 onPress={() => handleSelectMember(item.publicKey)}
                 disabled={!!creating}
             >
                 <View style={styles.recentAvatar}>
-                    {item.avatar_url ? (
-                        <Image source={{ uri: item.avatar_url }} style={styles.recentAvatarImage} />
+                    {uri ? (
+                        <Image source={{ uri }} style={styles.recentAvatarImage} />
                     ) : (
                         <Text style={styles.recentAvatarText}>
                             {(item.callsign || '?').charAt(0).toUpperCase()}
@@ -167,18 +251,49 @@ export default function NewMessageScreen() {
                 {isFriend && <Text style={styles.recentStar}>★</Text>}
             </Pressable>
         );
-    };
+    }, [friendPubkeys, creating, handleSelectMember]);
 
     const showRecents = !searchQuery.trim() && recents.length > 0;
 
+    // ── Header component (Recents + Directory label) ────────────────────────
+    const ListHeader = useMemo(() => (
+        <>
+            {/* Recents */}
+            {showRecents && (
+                <View style={styles.recentsSection}>
+                    <Text style={styles.sectionTitle}>💬 Recently Chatted</Text>
+                    <FlatList
+                        data={recents}
+                        keyExtractor={item => item.publicKey}
+                        renderItem={renderRecentCard}
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.recentsList}
+                    />
+                </View>
+            )}
+
+            {/* Directory Header */}
+            <View style={styles.directoryHeader}>
+                <Text style={styles.sectionTitle}>
+                    {searchQuery ? '🔍 Results' : '🏘️ Community Directory'}
+                </Text>
+                <Text style={styles.memberCount}>
+                    {filteredMembers.length} {filteredMembers.length === 1 ? 'member' : 'members'}
+                </Text>
+            </View>
+        </>
+    ), [showRecents, recents, searchQuery, filteredMembers.length, renderRecentCard]);
+
+    // ── Main Return ─────────────────────────────────────────────────────────
     return (
         <SafeAreaView style={styles.safeArea}>
-            <KeyboardAvoidingView 
-                style={styles.container} 
+            <KeyboardAvoidingView
+                style={styles.container}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
             >
-                {/* Header */}
+                {/* Header Bar */}
                 <View style={styles.header}>
                     <Pressable style={styles.backBtn} onPress={() => router.back()}>
                         <MaterialCommunityIcons name="arrow-left" size={24} color="#1f2937" />
@@ -187,10 +302,11 @@ export default function NewMessageScreen() {
                     <View style={{ width: 40 }} />
                 </View>
 
-                {/* Search Input — at the TOP, autoFocus */}
+                {/* Search Input — pinned at the top */}
                 <View style={styles.searchContainer}>
                     <MaterialCommunityIcons name="magnify" size={20} color="#9ca3af" style={styles.searchIcon} />
                     <TextInput
+                        ref={searchRef}
                         style={styles.searchInput}
                         placeholder="Search by callsign or public key..."
                         placeholderTextColor="#9ca3af"
@@ -208,52 +324,36 @@ export default function NewMessageScreen() {
                     )}
                 </View>
 
+                {/* Body */}
                 {loading ? (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color="#8b5cf6" />
-                        <Text style={styles.loadingText}>Loading community...</Text>
+                    <View style={styles.shimmerContainer}>
+                        {Array.from({ length: 8 }).map((_, i) => <ShimmerRow key={i} index={i} />)}
                     </View>
                 ) : (
                     <FlatList
                         data={filteredMembers}
                         keyExtractor={item => item.public_key}
                         renderItem={renderMemberCard}
+                        getItemLayout={getItemLayout}
                         contentContainerStyle={styles.list}
                         keyboardShouldPersistTaps="handled"
                         keyboardDismissMode="on-drag"
-                        ListHeaderComponent={
-                            <>
-                                {/* Recents Section */}
-                                {showRecents && (
-                                    <View style={styles.recentsSection}>
-                                        <Text style={styles.sectionTitle}>💬 Recent Conversations</Text>
-                                        <FlatList
-                                            data={recents}
-                                            keyExtractor={item => item.publicKey}
-                                            renderItem={renderRecentCard}
-                                            horizontal
-                                            showsHorizontalScrollIndicator={false}
-                                            contentContainerStyle={styles.recentsList}
-                                        />
-                                    </View>
-                                )}
-
-                                {/* Directory Header */}
-                                <View style={styles.directoryHeader}>
-                                    <Text style={styles.sectionTitle}>
-                                        {searchQuery ? `🔍 Results` : '🏘️ Community'}
-                                    </Text>
-                                    <Text style={styles.memberCount}>
-                                        {filteredMembers.length} {filteredMembers.length === 1 ? 'member' : 'members'}
-                                    </Text>
-                                </View>
-                            </>
-                        }
+                        // ── Performance tuning for 1,000+ rows ──
+                        initialNumToRender={15}
+                        maxToRenderPerBatch={20}
+                        windowSize={7}
+                        removeClippedSubviews={Platform.OS !== 'web'}
+                        ListHeaderComponent={ListHeader}
                         ListEmptyComponent={
                             <View style={styles.emptyContainer}>
                                 <MaterialCommunityIcons name="account-search-outline" size={48} color="#d1d5db" />
-                                <Text style={styles.emptyText}>
-                                    {searchQuery ? 'No members match your search.' : 'No community members found.'}
+                                <Text style={styles.emptyTitle}>
+                                    {searchQuery ? 'No members match your search' : 'No community members found'}
+                                </Text>
+                                <Text style={styles.emptySubtitle}>
+                                    {searchQuery
+                                        ? 'Try a different callsign or public key.'
+                                        : 'Sync with a node to populate your directory.'}
                                 </Text>
                             </View>
                         }
@@ -264,75 +364,105 @@ export default function NewMessageScreen() {
     );
 }
 
+// ── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: '#ffffff' },
     container: { flex: 1 },
-    header: { 
-        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
-        paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' 
+
+    // Header
+    header: {
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        paddingHorizontal: 16, paddingVertical: 12,
+        borderBottomWidth: 1, borderBottomColor: '#f3f4f6',
     },
     backBtn: { padding: 8, borderRadius: 12, backgroundColor: '#f3f4f6' },
     title: { fontSize: 18, fontWeight: '800', color: '#1f2937', letterSpacing: -0.3 },
 
-    searchContainer: { 
-        flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginVertical: 12, 
-        backgroundColor: '#f3f4f6', borderRadius: 14, paddingHorizontal: 14, borderWidth: 1, borderColor: '#e5e7eb'
+    // Search
+    searchContainer: {
+        flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginVertical: 12,
+        backgroundColor: '#f3f4f6', borderRadius: 14, paddingHorizontal: 14,
+        borderWidth: 1, borderColor: '#e5e7eb',
     },
     searchIcon: { marginRight: 8 },
     searchInput: { flex: 1, paddingVertical: 14, fontSize: 16, color: '#1f2937', fontWeight: '500' },
     clearBtn: { padding: 4 },
 
-    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-    loadingText: { color: '#9ca3af', fontSize: 14, fontWeight: '500' },
+    // Shimmer loading
+    shimmerContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 16 },
+    shimmerRow: {
+        flexDirection: 'row', alignItems: 'center', height: MEMBER_ROW_HEIGHT,
+        paddingHorizontal: 16, paddingVertical: 14,
+    },
+    shimmerAvatar: {
+        width: 44, height: 44, borderRadius: 22, backgroundColor: '#e5e7eb', marginRight: 14,
+    },
+    shimmerTextGroup: { flex: 1 },
+    shimmerLine: { height: 12, borderRadius: 6, backgroundColor: '#e5e7eb' },
 
+    // List
     list: { paddingBottom: 100 },
 
     // Recents
     recentsSection: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
     recentsList: { gap: 12, paddingTop: 12 },
     recentChip: { alignItems: 'center', width: 72 },
-    recentAvatar: { 
-        width: 52, height: 52, borderRadius: 26, backgroundColor: '#f3f4f6', 
+    recentAvatar: {
+        width: 52, height: 52, borderRadius: 26, backgroundColor: '#f3f4f6',
         justifyContent: 'center', alignItems: 'center', marginBottom: 6,
-        borderWidth: 2, borderColor: '#e5e7eb'
+        borderWidth: 2, borderColor: '#e5e7eb',
     },
     recentAvatarImage: { width: 52, height: 52, borderRadius: 26 },
     recentAvatarText: { fontSize: 20, fontWeight: 'bold', color: '#6b7280' },
     recentName: { fontSize: 11, fontWeight: '600', color: '#4b5563', textAlign: 'center' },
     recentStar: { fontSize: 10, color: '#f59e0b', marginTop: 1 },
 
-    // Directory
-    directoryHeader: { 
-        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
-        paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 
+    // Directory header
+    directoryHeader: {
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8,
     },
-    sectionTitle: { fontSize: 14, fontWeight: '800', color: '#6b7280', letterSpacing: 0.3, textTransform: 'uppercase' },
+    sectionTitle: { fontSize: 13, fontWeight: '800', color: '#6b7280', letterSpacing: 0.3, textTransform: 'uppercase' },
     memberCount: { fontSize: 12, fontWeight: '600', color: '#9ca3af' },
 
-    // Member Cards
-    memberCard: { 
-        flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, 
-        borderBottomWidth: 1, borderBottomColor: '#f9fafb' 
+    // Member Cards (fixed height)
+    memberCard: {
+        flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,
+        height: MEMBER_ROW_HEIGHT,
+        borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f3f4f6',
     },
     memberCardActive: { backgroundColor: '#f5f3ff' },
-    memberAvatar: { position: 'relative', marginRight: 14 },
-    avatarImage: { width: 48, height: 48, borderRadius: 24 },
-    avatarInitial: { 
-        width: 48, height: 48, borderRadius: 24, backgroundColor: '#f3f4f6', 
-        textAlign: 'center', lineHeight: 48, fontSize: 20, fontWeight: 'bold', color: '#6b7280',
-        overflow: 'hidden'
+    memberAvatarWrap: { position: 'relative', marginRight: 14 },
+    avatarImage: { width: 44, height: 44, borderRadius: 22 },
+    avatarFallback: {
+        width: 44, height: 44, borderRadius: 22, backgroundColor: '#f3f4f6',
+        justifyContent: 'center', alignItems: 'center',
     },
-    friendBadge: { 
-        position: 'absolute', bottom: -2, right: -2, width: 20, height: 20, borderRadius: 10, 
-        backgroundColor: '#f59e0b', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff' 
+    avatarInitial: { fontSize: 18, fontWeight: 'bold', color: '#6b7280' },
+    friendBadge: {
+        position: 'absolute', bottom: -2, right: -2, width: 18, height: 18, borderRadius: 9,
+        backgroundColor: '#f59e0b', justifyContent: 'center', alignItems: 'center',
+        borderWidth: 2, borderColor: '#fff',
     },
-    friendBadgeText: { fontSize: 10, color: '#fff', fontWeight: '800' },
-    memberInfo: { flex: 1 },
+    friendBadgeText: { fontSize: 9, color: '#fff', fontWeight: '800' },
+    memberInfo: { flex: 1, justifyContent: 'center' },
     memberNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    memberName: { fontSize: 16, fontWeight: '700', color: '#1f2937' },
-    friendLabel: { fontSize: 10, fontWeight: '800', color: '#f59e0b', backgroundColor: '#fffbeb', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
+    memberName: { fontSize: 15, fontWeight: '700', color: '#1f2937', flexShrink: 1 },
+    friendLabel: {
+        fontSize: 10, fontWeight: '800', color: '#f59e0b', backgroundColor: '#fffbeb',
+        paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, overflow: 'hidden',
+    },
     memberMeta: { fontSize: 12, color: '#9ca3af', marginTop: 2, fontWeight: '500' },
 
+    // Friend toggle button
+    friendToggle: {
+        width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center',
+        backgroundColor: '#f3f4f6', marginLeft: 6,
+    },
+    friendToggleActive: { backgroundColor: '#d1fae5' },
+
+    // Empty state
     emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-    emptyText: { marginTop: 12, fontSize: 14, color: '#9ca3af', fontWeight: '500' },
+    emptyTitle: { marginTop: 12, fontSize: 15, color: '#6b7280', fontWeight: '700' },
+    emptySubtitle: { marginTop: 4, fontSize: 13, color: '#9ca3af', fontWeight: '500', textAlign: 'center', paddingHorizontal: 32 },
 });

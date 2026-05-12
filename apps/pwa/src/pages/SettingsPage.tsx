@@ -5,9 +5,10 @@
  * tools for transferring identity between devices.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { type BeanPoolIdentity } from '../lib/identity';
 import { exportIdentity } from '../lib/identity-transfer';
+import { getMemberProfile, type MemberProfile } from '../lib/api';
 import { ProfilePage } from './ProfilePage';
 import { type Theme } from '../lib/useTheme';
 import pkg from '../../package.json';
@@ -39,6 +40,12 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+    const [profile, setProfile] = useState<MemberProfile | null>(null);
+
+    // Fetch profile (avatar) on mount and when returning from profile editor
+    useEffect(() => {
+        getMemberProfile(identity.publicKey).then(setProfile).catch(() => {});
+    }, [identity.publicKey, mode]);
 
     const fingerprint = identity.publicKey.slice(0, 16) + '…';
 
@@ -108,6 +115,18 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
 
                 {/* Identity Card */}
                 <div className="bg-white dark:bg-nature-900 rounded-2xl p-6 mb-4 shadow-soft border border-nature-200 dark:border-nature-800 transition-colors">
+                    {/* Avatar */}
+                    <div className="flex justify-center mb-4">
+                        <div className="w-20 h-20 rounded-full border-4 border-terra-300 dark:border-terra-600 flex items-center justify-center text-3xl bg-oat-50 dark:bg-nature-800 shadow-inner overflow-hidden transition-colors">
+                            {profile?.avatar ? (
+                                <img src={profile.avatar} className="w-full h-full object-cover" alt={identity.callsign} />
+                            ) : (
+                                <span className="text-2xl font-bold text-nature-400 dark:text-nature-500 select-none">
+                                    {identity.callsign.charAt(0).toUpperCase()}
+                                </span>
+                            )}
+                        </div>
+                    </div>
                     <div className="text-xs font-semibold uppercase tracking-wider text-nature-500 dark:text-nature-400 mb-1">Callsign</div>
                     <div className="text-xl font-bold text-nature-950 dark:text-white mb-4 transition-colors">{identity.callsign}</div>
                     <div className="text-xs font-semibold uppercase tracking-wider text-nature-500 dark:text-nature-400 mb-1">Public Key</div>

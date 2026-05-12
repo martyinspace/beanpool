@@ -524,6 +524,7 @@ function rowToMember(row: any): Member {
         inviteCode: row.invite_code,
         homeNodeUrl: row.home_node_url,
         avatarUrl: row.avatar_url || null,
+        profileUpdatedAt: row.profile_updated_at || null,
     };
 }
 
@@ -836,10 +837,12 @@ export function updateProfile(publicKey: string, update: {
         contact_visibility = update.contact?.visibility || null;
     }
 
-    db.prepare(`UPDATE members SET avatar_url=?, bio=?, contact_value=?, contact_visibility=?, callsign=? WHERE public_key=?`)
-      .run(avatar, bio, contact_value, contact_visibility, callsign, publicKey);
+    const profileUpdatedAt = new Date().toISOString();
+
+    db.prepare(`UPDATE members SET avatar_url=?, bio=?, contact_value=?, contact_visibility=?, callsign=?, profile_updated_at=? WHERE public_key=?`)
+      .run(avatar, bio, contact_value, contact_visibility, callsign, profileUpdatedAt, publicKey);
       
-    broadcast({ type: 'profile_updated', publicKey });
+    broadcast({ type: 'profile_updated', publicKey, profileUpdatedAt });
     return getProfile(publicKey);
 }
 
