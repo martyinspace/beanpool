@@ -200,6 +200,7 @@ export default function SettingsScreen() {
                         avatar: avatar,
                         bio: bio.trim(),
                         contact: contact.trim() ? { value: contact.trim(), visibility: 'community' } : null,
+                        callsign: editCallsign.trim(),
                     };
                     const bodyString = JSON.stringify(payloadObj);
                     const privateKeyBytes = hexToBytes(identity.privateKey);

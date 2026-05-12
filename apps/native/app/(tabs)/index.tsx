@@ -436,10 +436,10 @@ export default function MapScreen() {
                 customMapStyle={isDarkMap ? darkMapStyle : hidePoisStyle}
                 userInterfaceStyle={isDarkMap ? "dark" : "light"}
                 showsUserLocation={true}
-                onRegionChangeComplete={(r) => {
+                onRegionChangeComplete={(r: any) => {
                     setCurrentRegion(r);
                 }}
-                onPress={(e) => {
+                onPress={(e: any) => {
                     handleMapPress(e);
                     if (selectedPostPreview) setSelectedPostPreview(null);
                 }}

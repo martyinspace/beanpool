@@ -952,13 +952,13 @@ export async function startHttpsServer(port: number): Promise<void> {
     // ===================== PROFILE API (PUBLIC) =====================
 
     router.post('/api/profile/update', async (ctx) => {
-        const { publicKey, avatar, bio, contact } = (ctx as any).requestBody || {};
+        const { publicKey, avatar, bio, contact, callsign } = (ctx as any).requestBody || {};
         if (!publicKey) {
             ctx.status = 400;
             ctx.body = { error: 'publicKey is required' };
             return;
         }
-        const profile = updateProfile(publicKey, { avatar, bio, contact });
+        const profile = updateProfile(publicKey, { avatar, bio, contact, callsign });
         if (!profile) {
             ctx.status = 404;
             ctx.body = { error: 'Member not found' };
@@ -1987,6 +1987,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             publicKey: m.publicKey,
             callsign: m.callsign,
             joinedAt: m.joinedAt,
+            avatarUrl: m.avatarUrl,
         }));
     });
 
