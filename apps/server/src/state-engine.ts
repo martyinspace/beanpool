@@ -77,6 +77,7 @@ export interface Member {
     homeNodeUrl?: string;
     avatarUrl?: string | null;
     status?: 'active' | 'migrated';
+    profileUpdatedAt?: number | null;
 }
 
 export interface InviteCode {
