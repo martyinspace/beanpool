@@ -22,7 +22,7 @@ const BUNDLED_MAP: Record<string, string> = {
 export function resolveAvatarUrl(url: string | null | undefined): string | null {
     if (!url) return null;
     if (url.startsWith('bundled://')) {
-        const id = url.replace('bundled://', '');
+        const id = url.replace('bundled://', '').split('?')[0];
         return BUNDLED_MAP[id] || null;
     }
     return url;

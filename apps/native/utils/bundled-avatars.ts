@@ -34,7 +34,7 @@ export const BUNDLED_AVATARS: BundledAvatar[] = [
  * Returns null if the ID doesn't match any bundled avatar.
  */
 export function resolveBundledAvatar(id: string): ImageSourcePropType | null {
-    const cleaned = id.replace('bundled://', '');
+    const cleaned = id.replace('bundled://', '').split('?')[0];
     const avatar = BUNDLED_AVATARS.find(a => a.id === cleaned);
     return avatar?.source ?? null;
 }
