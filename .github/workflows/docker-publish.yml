@@ -59,11 +59,41 @@ jobs:
           build-args: |
             APP_VERSION=${{ steps.version.outputs.version }}
 
+      - name: Generate Release Notes
+        if: steps.version.outputs.is_release == 'true'
+        run: |
+          cat << 'EOF' > release_notes.md
+          ## 📦 How to Install / Upgrade
+          
+          BeanPool is distributed as a Docker container. You can pull the latest version directly from the GitHub Container Registry.
+          
+          **Using Docker Compose:**
+          ```yaml
+          services:
+            beanpool:
+              image: ghcr.io/martyinspace/beanpool-node:${{ steps.version.outputs.version }}
+              restart: unless-stopped
+              ports:
+                - "80:8080"
+                - "443:8443"
+                - "4001:4001"
+                - "4002:4002"
+              volumes:
+                - ./data:/app/data
+          ```
+          
+          **Using Docker CLI:**
+          ```bash
+          docker pull ghcr.io/martyinspace/beanpool-node:latest
+          ```
+          EOF
+
       - name: Create GitHub Release
         if: steps.version.outputs.is_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          body_path: release_notes.md
           tag_name: ${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
