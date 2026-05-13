@@ -16,12 +16,13 @@ interface Props {
     post: MarketplacePost;
     authorRating?: { average: number; count: number };
     authorEnergy?: number;
+    authorAvatarUrl?: string | null;
     remoteNode?: string;
     onTrade?: (post: MarketplacePost) => void;
     viewMode?: 'grid' | 'list';
 }
 
-export function MarketplaceCard({ post, authorRating, authorEnergy = 0, remoteNode, viewMode = 'grid' }: Props) {
+export function MarketplaceCard({ post, authorRating, authorEnergy = 0, authorAvatarUrl, remoteNode, viewMode = 'grid' }: Props) {
     const categoryConfig = MARKETPLACE_CATEGORIES.find((c) => c.id === post.category);
     const typeColor = POST_TYPE_COLORS[post.type];
     const emoji = categoryConfig?.emoji ?? '📦';
@@ -92,6 +93,8 @@ export function MarketplaceCard({ post, authorRating, authorEnergy = 0, remoteNo
                         callsign={post.authorCallsign || 'Anonymous'}
                         energyCycled={authorEnergy}
                         rating={authorRating}
+                        avatarUrl={authorAvatarUrl}
+                        publicKey={post.authorPublicKey}
                         mode="full"
                     />
                 </div>
@@ -118,6 +121,8 @@ export function MarketplaceCard({ post, authorRating, authorEnergy = 0, remoteNo
                         callsign={post.authorCallsign || 'Anonymous'}
                         energyCycled={authorEnergy}
                         rating={authorRating}
+                        avatarUrl={authorAvatarUrl}
+                        publicKey={post.authorPublicKey}
                         mode="compact"
                         className="mb-1"
                     />

@@ -7,12 +7,14 @@
 ## 📱 Features
 
 - **Map:** Leaflet/OSM map with marketplace pins, dynamic root locations, pin clustering, and post form with photo upload.
-- **Marketplace:** 13-category Deals Hub with "My Market" segment controls, radius filters, MyDeals modal, category picker, trust badges, and unread inbound request counters.
+- **Marketplace:** 13-category Deals Hub with "My Market" segment controls, radius filters, MyDeals modal, category picker, trust badges, unread inbound request counters, **synonym-expanded search** (417-entry map), and **blocked user filtering**.
 - **Messaging (Chat):** Direct messages and group chats representing Transactional CRM (smart mapping to parent marketplace posts).
-- **People:** Community browser with search + infinite scroll, Friends, Invites (hierarchical code management), and Guardians.
+- **People:** Community browser with **search filter**, avatar circles, relative date formatting, 💬 message button on friends, Invites (hierarchical code management), and Guardians.
 - **Ledger:** Mutual credit balances, raw transactions, fund transfers, and CSV export.
 - **Profile:** Editable profiles with camera/gallery avatar uploads, callsigns, bios, and 3-tier visibility settings.
 - **Identity:** Deterministic Ed25519 identity generation and 12-word seed phrase recovery locally stored in IndexedDB.
+- **Security:** Private key viewer (reveal/hide + copy), identity wipe with double-confirm, and backup reminder.
+- **Community Status:** Health popover on header tap showing node online/offline status, member count, and membership badge.
 - **Guest Mode:** UI indicators when visiting a node you're not a member of (header badge + sync status).
 
 ---
@@ -40,6 +42,8 @@
 | `src/lib/e2e-crypto.ts` | Plaintext v1 encoding (E2E-ready data model) |
 | `src/lib/marketplace.ts` | 13-category config, MarketplacePost type |
 | `src/lib/geo.ts` | Haversine distance, radius settings persistence |
+| `src/lib/search.ts` | Synonym-expanded marketplace search (expandSearchTerms, matchesExpandedSearch) |
+| `src/lib/synonyms.json` | 417-entry synonym map (food, trades, tools, goods, plants, etc.) |
 
 ---
 

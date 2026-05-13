@@ -10,7 +10,7 @@
 import { useState, useEffect } from 'react';
 import { loadIdentity, type BeanPoolIdentity } from './lib/identity';
 import { connectToAnchor, onSystemAnnouncement } from './lib/sync';
-import { checkMembership, getConversations, getMarketplacePosts, getMyMarketplaceTransactions } from './lib/api';
+import { checkMembership, getConversations, getMarketplacePosts, getMyMarketplaceTransactions, getCommunityHealth } from './lib/api';
 import { useTheme } from './lib/useTheme';
 import pkg from '../package.json';
 import { SyncStatus } from './components/SyncStatus';
@@ -116,6 +116,8 @@ export function App() {
     const [pendingDealsCount, setPendingDealsCount] = useState(0);
     const [marketClickCount, setMarketClickCount] = useState(0);
     const [isGuest, setIsGuest] = useState(false);
+    const [showCommunityStatus, setShowCommunityStatus] = useState(false);
+    const [communityHealth, setCommunityHealth] = useState<{ memberCount?: number; postCount?: number; callsign?: string; online?: boolean } | null>(null);
 
     function navigateToTab(tab: string, contextId?: string) {
         if (tab === 'map-post') {
@@ -248,15 +250,84 @@ export function App() {
                 </div>
 
                 {/* Dynamic Page Title or Map Banner (Absolutely Centered) */}
-                <div className="absolute left-1/2 -translate-x-1/2 flex justify-center items-center pointer-events-none z-10">
+                <div className="absolute left-1/2 -translate-x-1/2 flex justify-center items-center z-10">
                     {activeTab !== 'map' || showSettings ? (
-                        <span className="font-extrabold text-[1.4rem] tracking-tight text-rainbow drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] pointer-events-auto text-center" style={{ marginTop: '8px' }}>
+                        <span 
+                            className="font-extrabold text-[1.4rem] tracking-tight text-rainbow drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] pointer-events-auto text-center cursor-pointer" 
+                            style={{ marginTop: '8px' }}
+                            onClick={() => {
+                                if (!communityHealth) {
+                                    getCommunityHealth()
+                                        .then(h => { setCommunityHealth({ ...h, online: true }); setShowCommunityStatus(true); })
+                                        .catch(() => { setCommunityHealth({ online: false }); setShowCommunityStatus(true); });
+                                } else {
+                                    setShowCommunityStatus(!showCommunityStatus);
+                                }
+                            }}
+                        >
                             {TABS.find(t => t.id === activeTab)?.label === 'Market' ? 'Marketplace' : TABS.find(t => t.id === activeTab)?.label}
                         </span>
                     ) : (
-                        <div className="relative flex items-center pointer-events-auto" style={{ transform: 'translateX(-12px) translateY(-8px)' }}>
+                        <div 
+                            className="relative flex items-center pointer-events-auto cursor-pointer" 
+                            style={{ transform: 'translateX(-12px) translateY(-8px)' }}
+                            onClick={() => {
+                                if (!communityHealth) {
+                                    getCommunityHealth()
+                                        .then(h => { setCommunityHealth({ ...h, online: true }); setShowCommunityStatus(true); })
+                                        .catch(() => { setCommunityHealth({ online: false }); setShowCommunityStatus(true); });
+                                } else {
+                                    setShowCommunityStatus(!showCommunityStatus);
+                                }
+                            }}
+                        >
                             <img src="/logo.png" alt="BeanPool" style={{ width: '280px', height: '76px', marginTop: '-8px', marginBottom: '-12px', objectFit: 'contain' }} className="drop-shadow-sm" />
                             <span className="absolute -right-4 bottom-2 text-[10px] font-bold text-amber-500 tracking-wider">v{pkg.version}</span>
+                        </div>
+                    )}
+
+                    {/* Community Status Popover */}
+                    {showCommunityStatus && communityHealth && (
+                        <div 
+                            className="absolute top-full mt-2 bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-700 rounded-xl shadow-xl p-4 min-w-[220px] z-50 pointer-events-auto"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="flex items-center gap-2 mb-3">
+                                <span className={`w-2.5 h-2.5 rounded-full ${communityHealth.online ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]' : 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]'}`} />
+                                <span className="font-bold text-sm text-nature-900 dark:text-white">
+                                    {communityHealth.online ? 'Online' : 'Offline'}
+                                </span>
+                            </div>
+                            <div className="space-y-1.5 text-[12px]">
+                                <div className="flex justify-between">
+                                    <span className="text-nature-500 dark:text-nature-400">Node</span>
+                                    <span className="font-semibold text-nature-800 dark:text-nature-200">{window.location.hostname}</span>
+                                </div>
+                                {communityHealth.memberCount !== undefined && (
+                                    <div className="flex justify-between">
+                                        <span className="text-nature-500 dark:text-nature-400">Members</span>
+                                        <span className="font-semibold text-nature-800 dark:text-nature-200">{communityHealth.memberCount}</span>
+                                    </div>
+                                )}
+                                {communityHealth.postCount !== undefined && (
+                                    <div className="flex justify-between">
+                                        <span className="text-nature-500 dark:text-nature-400">Posts</span>
+                                        <span className="font-semibold text-nature-800 dark:text-nature-200">{communityHealth.postCount}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between">
+                                    <span className="text-nature-500 dark:text-nature-400">Status</span>
+                                    <span className={`font-bold ${isGuest ? 'text-amber-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                        {isGuest ? '👤 Guest' : '✅ Member'}
+                                    </span>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setShowCommunityStatus(false)}
+                                className="mt-3 w-full text-center text-[11px] font-semibold text-nature-400 hover:text-nature-600 dark:hover:text-nature-300 cursor-pointer bg-transparent border-none"
+                            >
+                                Dismiss
+                            </button>
                         </div>
                     )}
                 </div>
@@ -264,13 +335,22 @@ export function App() {
                 <div className="relative z-10" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '12px' }}>
                     <button
                         onClick={() => { setActiveTab('people'); setPeopleSubView('invites'); setShowSettings(false); }}
-                        className={`flex items-center justify-center px-3 border rounded-full shadow-sm cursor-pointer transition-transform hover:scale-105 ${
+                        className={`flex items-center justify-center gap-1 px-3 border rounded-full shadow-sm cursor-pointer transition-transform hover:scale-105 ${
                             isGuest 
                                 ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700' 
                                 : 'bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-700'
                         }`}
                         style={{ height: '26px' }}
                     >
+                        {isGuest ? (
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                        ) : (
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
+                            </svg>
+                        )}
                         <span className={`font-semibold text-[11px] tracking-wide uppercase ${
                             isGuest 
                                 ? 'text-amber-600 dark:text-amber-400' 
@@ -304,7 +384,7 @@ export function App() {
                         {activeTab === 'map' && <Suspense fallback={<div className="flex-1 flex items-center justify-center">Loading map...</div>}><MapPage identity={identity} openNewPost={openNewPost} onOpenNewPostHandled={() => setOpenNewPost(false)} onNavigate={(tab, ctxId) => navigateToTab(tab, ctxId)} /></Suspense>}
                         {activeTab === 'marketplace' && <MarketplacePage identity={identity} marketClickCount={marketClickCount} openPostId={openMarketPostId} onPostOpened={() => setOpenMarketPostId(null)} onNavigate={(tab, ctxId) => navigateToTab(tab, ctxId)} />}
                         {activeTab === 'messages' && <MessagesPage identity={identity} openConversationId={openConversationId} onConversationOpened={() => setOpenConversationId(null)} />}
-                        {activeTab === 'people' && <PeoplePage identity={identity} initialView={peopleSubView} />}
+                        {activeTab === 'people' && <PeoplePage identity={identity} initialView={peopleSubView} onNavigate={(tab, ctxId) => navigateToTab(tab, ctxId)} />}
                         {activeTab === 'ledger' && <LedgerPage identity={identity} />}
                         {activeTab === 'projects' && <ProjectsPage identity={identity} />}
                     </>
@@ -365,7 +445,7 @@ export function App() {
                             color: isActive ? undefined : '#fefefe',
                             transition: 'all 0.2s',
                         }}>
-                            <span className="text-dark-aura" style={{ fontSize: '1.2rem', position: 'relative' }}>
+                            <span className="text-dark-aura" style={{ fontSize: '1.5rem', position: 'relative' }}>
                                 {tab.emoji}
                                 {tab.id === 'messages' && totalUnread > 0 && (
                                     <span style={{
@@ -414,7 +494,7 @@ export function App() {
                                     </span>
                                 )}
                             </span>
-                            <span className={isActive ? 'text-rainbow text-dark-aura' : 'text-dark-aura'} style={{ fontSize: '0.65rem', fontWeight: isActive ? 800 : 500 }}>
+                            <span className={isActive ? 'text-rainbow text-dark-aura' : 'text-dark-aura'} style={{ fontSize: '0.65rem', fontWeight: isActive ? 800 : 600 }}>
                                 {tab.label}
                             </span>
                         </div>

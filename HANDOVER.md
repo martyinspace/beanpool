@@ -76,6 +76,13 @@
 - ✅ **Security Hardening & Sentinel Journaling** — Mitigated Stored XSS vulnerabilities across the Admin Dashboard and fixed Command Injection in server backup routines. Established `.jules/sentinel.md` as an automated security audit trail.
 - ✅ **Relational Data Optimization** — Fixed an O(N^2) array filtering bottleneck, improving overall performance for heavily relational data lookups.
 - ✅ **PWA Accessibility** — Added missing labels and ARIA attributes to `WelcomePage` inputs for improved screen reader support.
+- ✅ **PWA Community Status Indicator** — Tapping the header logo/title reveals a health popover showing node online/offline status, hostname, member count, post count, and Guest/Member badge. Powered by `getCommunityHealth()` API.
+- ✅ **PWA Avatar Trust Badges** — `PostAuthorTrust` component now renders avatar circles (with initials fallback) and navigates to `PublicProfileModal` on click. Marketplace cards pass avatar URLs from a members cache.
+- ✅ **PWA People Page Parity** — Community member list now features search filter, avatar circles, relative date formatting ("3d ago"), and a 💬 message button on friend rows.
+- ✅ **PWA Synonym Search** — Marketplace search expanded using a 417-entry `synonyms.json` map (copied from native). Searching "lemon" now matches "fruit", "citrus", "produce" etc. Bidirectional lookup.
+- ✅ **PWA Blocked User Filtering** — Marketplace posts from blocked users (stored in `localStorage` as `bp_blocked_users`) are automatically hidden.
+- ✅ **PWA Security Settings** — Settings page now includes: backup reminder (amber warning), private key viewer (reveal/hide + copy), and wipe identity (double-confirm → localStorage clear → reload).
+- ✅ **Native Invite Share Fix** — Invite share text now explicitly includes the Node URL alongside the invite code for manual redemption.
 
 ---
 
@@ -221,7 +228,6 @@ gh run list --limit 3
 - [ ] **Server-Side Photo Compression Pipeline** — Implementing backend logic to strictly resize/compress payloads independent of client checks.
 - [ ] **Offline PWA caching** via Service Worker
 - [ ] **Federated credit verification** (`/beanpool/verify/1.0.0`)
-- [ ] **Social Recovery** (Shamir 3-of-5 Guardian Protocol implementation)
 
 ---
 

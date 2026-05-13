@@ -54,10 +54,14 @@ apps/native/
 │   ├── db.ts                    # SQLite database (expo-sqlite) with FTS5 search
 │   ├── identity.ts              # Ed25519 keypair + BIP-39 mnemonic
 │   ├── crypto.ts                # Crypto utilities (SHA-256, SHA-512, Ed25519 signing) with iOS polyfill
-│   └── identity-transfer.ts     # Cross-device identity transfer
-└── assets/
-    └── images/
-        └── neon-vines-banner.png  # Tab bar background artwork
+│   ├── identity-transfer.ts     # Cross-device identity transfer
+│   ├── synonyms.json            # 417-entry marketplace synonym map
+│   ├── bundled-avatars.ts       # Pre-bundled avatar image registry
+│   └── image-processing.ts      # Photo resize/crop utilities
+├── assets/
+│   └── images/
+│       ├── neon-vines-banner.png  # Tab bar background artwork
+│       └── avatars/               # 10 bundled avatar images (bean, crystal, fire, etc.)
 ```
 
 ## Tabs
@@ -169,6 +173,11 @@ npx expo start                      # Native dev client
 | Offline Outbox | — | ✅ | Native-only offline draft queuing |
 | Sanitized Syncing | ✅ | ✅ | Filtering of synthetic visitor accounts |
 | Social Recovery | — | ✅ | 3-of-N quorum-based Guardian identity restoration |
+| Synonym search | ✅ | ✅ | FTS5 on native, client-side on PWA (417-entry map) |
+| Blocked user filtering | ✅ | ✅ | localStorage (PWA) / SecureStore (native) |
+| Wipe identity | ✅ | ✅ | Double-confirm on both platforms |
+| Community search | ✅ | ✅ | Search filter on People/Community member list |
+| Community status | ✅ | — | PWA-only header health popover |
 | Federation (remote markets) | ✅ | 🔜 | Planned |
 
 ---

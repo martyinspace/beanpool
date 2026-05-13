@@ -212,7 +212,8 @@ export default function PeopleScreen() {
         
         let message = `Join my private BeanPool Node! ✨\n\n`;
         message += `Click this secure link to join automatically:\n${magicLink}\n\n`;
-        message += `Or if you prefer, you can download the BeanPool App at https://beanpool.org and enter this Invite Code manually:\n${codeToShare}`;
+        message += `Or if you prefer, you can download the BeanPool App at https://beanpool.org and enter this Invite Code manually:\n${codeToShare}\n\n`;
+        message += `Node URL: ${anchorUrl}`;
 
         await Share.share({ message });
     };

@@ -23,10 +23,12 @@ import {
     acceptMarketplacePost, completeMarketplaceTransaction,
     cancelMarketplaceTransaction, getMyMarketplaceTransactions, getNodeConfig,
     requestMarketplacePost, approveMarketplaceRequest, rejectMarketplaceRequest, cancelMarketplaceRequest,
+    getMembers,
     type MarketplacePost, type MemberProfile, type NodeInfo, type MarketplaceTransaction, type NodeConfig,
 } from '../lib/api';
 import { type BeanPoolIdentity } from '../lib/identity';
 import { PublicProfileModal } from '../components/PublicProfileModal';
+import { matchesExpandedSearch } from '../lib/search';
 
 interface Props {
     identity: BeanPoolIdentity | null;
@@ -169,6 +171,9 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
     // Author ratings cache for tiles
     const [authorRatingsCache, setAuthorRatingsCache] = useState<Record<string, { average: number; count: number }>>({}); 
 
+    // Author avatar cache for tiles
+    const [authorAvatarCache, setAuthorAvatarCache] = useState<Record<string, string | null>>({});
+
     const refresh = useCallback(async () => {
         try {
             const filter: any = {};
@@ -239,6 +244,19 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
             setAuthorRatingsCache(cache);
         });
     }, [posts]);
+
+    // Fetch avatar cache from members list
+    useEffect(() => {
+        getMembers()
+            .then(members => {
+                const cache: Record<string, string | null> = {};
+                for (const m of members) {
+                    if (m.avatarUrl) cache[m.publicKey] = m.avatarUrl;
+                }
+                setAuthorAvatarCache(cache);
+            })
+            .catch(() => {});
+    }, []);
 
     // Load author profile + ratings when detail view opens
     useEffect(() => {
@@ -1410,14 +1428,24 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
             ) : (() => {
                 let filtered = posts.filter(p => p.status === 'active' && (!identity || p.authorPublicKey !== identity.publicKey));
 
-                // Text search
+                // Text search (synonym-expanded)
                 if (searchQuery.trim()) {
-                    const q = searchQuery.toLowerCase().trim();
                     filtered = filtered.filter(p =>
-                        p.title.toLowerCase().includes(q) ||
-                        p.description.toLowerCase().includes(q)
+                        matchesExpandedSearch(searchQuery, p.title, p.description)
                     );
                 }
+
+                // Blocked user filtering
+                try {
+                    const blockedJson = localStorage.getItem('bp_blocked_users');
+                    if (blockedJson) {
+                        const blocked: string[] = JSON.parse(blockedJson);
+                        if (blocked.length > 0) {
+                            const blockedSet = new Set(blocked);
+                            filtered = filtered.filter(p => !blockedSet.has(p.authorPublicKey));
+                        }
+                    }
+                } catch { /* ignore malformed blocklist */ }
 
                 // Radius filter
                 if (radiusSettings) {
@@ -1448,6 +1476,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                     post={post as any}
                                     authorRating={authorRatingsCache[post.authorPublicKey]}
                                     authorEnergy={(post as any).authorEnergyCycled || 0}
+                                    authorAvatarUrl={authorAvatarCache[post.authorPublicKey] || null}
                                     remoteNode={(post as any)._remoteNode}
                                     viewMode={viewMode}
                                 />

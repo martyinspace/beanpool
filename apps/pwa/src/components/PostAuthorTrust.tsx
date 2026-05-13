@@ -1,8 +1,9 @@
 /**
  * PostAuthorTrust — Hybrid Trust Display for PWA
  *
- * Shows a 4-tier energy badge + star rating.
- * Tier badge always shows. Star rating only shows when count > 0.
+ * Shows an avatar + 4-tier energy badge + star rating.
+ * Avatar shows initials fallback or real image.
+ * Clicking the component opens the PublicProfileModal.
  *
  * Trust Tier Thresholds (based on Energy Cycled):
  *   0+     → 🌱 New      (gray)
@@ -10,6 +11,9 @@
  *   5000+  → 🌳 Trusted  (emerald)
  *   10000+ → ✨ Elder    (gold)
  */
+
+import { useState } from 'react';
+import { PublicProfileModal } from './PublicProfileModal';
 
 const TRUST_TIERS = [
     { min: 10000, emoji: '✨', label: 'Elder',   color: 'text-amber-500',   bg: 'bg-amber-500/15',   border: 'border-amber-500/30' },
@@ -36,58 +40,113 @@ interface PostAuthorTrustProps {
     /** 'compact' = grid cards, 'full' = list cards */
     mode?: 'compact' | 'full';
     className?: string;
+    /** Avatar URL (image) — shows initials fallback if missing */
+    avatarUrl?: string | null;
+    /** Public key for profile navigation */
+    publicKey?: string;
+}
+
+/** Small avatar circle with initials fallback */
+function MiniAvatar({ callsign, avatarUrl, size }: { callsign: string; avatarUrl?: string | null; size: number }) {
+    const initial = callsign.charAt(0).toUpperCase();
+    const sizeClass = size === 18 ? 'w-[18px] h-[18px] text-[8px]' : 'w-[24px] h-[24px] text-[10px]';
+
+    if (avatarUrl) {
+        return (
+            <img 
+                src={avatarUrl} 
+                alt={callsign} 
+                className={`${sizeClass} rounded-full object-cover flex-shrink-0 border border-nature-200 dark:border-nature-700`}
+            />
+        );
+    }
+
+    return (
+        <span className={`${sizeClass} rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-500 flex items-center justify-center font-bold flex-shrink-0 border border-amber-200 dark:border-amber-800`}>
+            {initial}
+        </span>
+    );
 }
 
 /**
- * Hybrid Trust Display: Tier Badge + Star Rating
+ * Hybrid Trust Display: Avatar + Tier Badge + Star Rating
  * Tier badge always shows. Star rating only shows when count > 0.
+ * Clicking opens the public profile modal.
  */
-export function PostAuthorTrust({ callsign, energyCycled = 0, rating, mode = 'full', className = '' }: PostAuthorTrustProps) {
+export function PostAuthorTrust({ callsign, energyCycled = 0, rating, mode = 'full', className = '', avatarUrl, publicKey }: PostAuthorTrustProps) {
     const tier = getTrustTier(energyCycled);
+    const [showProfile, setShowProfile] = useState(false);
+
+    const handleClick = (e: React.MouseEvent) => {
+        if (publicKey) {
+            e.stopPropagation();
+            setShowProfile(true);
+        }
+    };
 
     if (mode === 'compact') {
         return (
-            <div className={`flex items-center gap-1 ${className}`}>
-                {/* Tier badge */}
-                <span className={`w-[18px] h-[18px] rounded-full border flex items-center justify-center text-[10px] ${tier.bg} ${tier.border}`}>
-                    {tier.emoji}
-                </span>
-                {/* Callsign */}
-                <span className="text-xs text-nature-500 dark:text-nature-400 font-medium truncate flex-1">
-                    {callsign}
-                </span>
-                {/* Stars (only if rated) */}
-                {rating && rating.count > 0 && (
-                    <span className="text-[9px] text-amber-400 tracking-tighter">
-                        {'★'.repeat(Math.min(Math.round(rating.average), 5))}
+            <>
+                <div 
+                    className={`flex items-center gap-1 ${publicKey ? 'cursor-pointer hover:opacity-80' : ''} ${className}`}
+                    onClick={handleClick}
+                >
+                    {/* Avatar */}
+                    <MiniAvatar callsign={callsign} avatarUrl={avatarUrl} size={18} />
+                    {/* Tier badge */}
+                    <span className={`w-[18px] h-[18px] rounded-full border flex items-center justify-center text-[10px] ${tier.bg} ${tier.border}`}>
+                        {tier.emoji}
                     </span>
+                    {/* Callsign */}
+                    <span className="text-xs text-nature-500 dark:text-nature-400 font-medium truncate flex-1">
+                        {callsign}
+                    </span>
+                    {/* Stars (only if rated) */}
+                    {rating && rating.count > 0 && (
+                        <span className="text-[9px] text-amber-400 tracking-tighter">
+                            {'★'.repeat(Math.min(Math.round(rating.average), 5))}
+                        </span>
+                    )}
+                </div>
+                {showProfile && publicKey && (
+                    <PublicProfileModal publicKey={publicKey} callsign={callsign} onClose={() => setShowProfile(false)} />
                 )}
-            </div>
+            </>
         );
     }
 
     // Full mode (list cards)
     return (
-        <div className={`flex items-center gap-1.5 ${className}`}>
-            {/* Tier badge with label */}
-            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[10px] font-extrabold ${tier.bg} ${tier.border} ${tier.color}`}>
-                <span className="text-[11px]">{tier.emoji}</span>
-                {tier.label}
-            </span>
-            {/* Callsign */}
-            <span className="text-[13px] text-nature-600 dark:text-nature-400 font-semibold truncate flex-shrink">
-                {callsign}
-            </span>
-            {/* Star rating (only when rated) */}
-            {rating && rating.count > 0 && (
-                <span className="flex items-center gap-0.5 flex-shrink-0">
-                    <span className="text-[11px] text-amber-400 tracking-tighter">
-                        {'★'.repeat(Math.min(Math.round(rating.average), 5))}
-                        {'☆'.repeat(Math.max(0, 5 - Math.round(rating.average)))}
-                    </span>
-                    <span className="text-[10px] text-nature-400 font-semibold">({rating.count})</span>
+        <>
+            <div 
+                className={`flex items-center gap-1.5 ${publicKey ? 'cursor-pointer hover:opacity-80' : ''} ${className}`}
+                onClick={handleClick}
+            >
+                {/* Avatar */}
+                <MiniAvatar callsign={callsign} avatarUrl={avatarUrl} size={24} />
+                {/* Tier badge with label */}
+                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[10px] font-extrabold ${tier.bg} ${tier.border} ${tier.color}`}>
+                    <span className="text-[11px]">{tier.emoji}</span>
+                    {tier.label}
                 </span>
+                {/* Callsign */}
+                <span className="text-[13px] text-nature-600 dark:text-nature-400 font-semibold truncate flex-shrink">
+                    {callsign}
+                </span>
+                {/* Star rating (only when rated) */}
+                {rating && rating.count > 0 && (
+                    <span className="flex items-center gap-0.5 flex-shrink-0">
+                        <span className="text-[11px] text-amber-400 tracking-tighter">
+                            {'★'.repeat(Math.min(Math.round(rating.average), 5))}
+                            {'☆'.repeat(Math.max(0, 5 - Math.round(rating.average)))}
+                        </span>
+                        <span className="text-[10px] text-nature-400 font-semibold">({rating.count})</span>
+                    </span>
+                )}
+            </div>
+            {showProfile && publicKey && (
+                <PublicProfileModal publicKey={publicKey} callsign={callsign} onClose={() => setShowProfile(false)} />
             )}
-        </div>
+        </>
     );
 }

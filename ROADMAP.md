@@ -9,6 +9,13 @@
 - ✅ **Sentinel Security Hardening** — Mitigated Stored XSS vulnerabilities across the Admin Dashboard and fixed Command Injection in server backup routines. Established `.jules/sentinel.md` as a continuous security audit journal.
 - ✅ **Relational Filtering Optimization** — Fixed an O(N^2) performance bottleneck for array filtering on relational data elements.
 - ✅ **PWA Accessibility** — Added missing ARIA attributes and labels to the WelcomePage inputs.
+- ✅ **PWA Community Status Indicator** — Health popover on header tap showing node status, member count, and membership badge.
+- ✅ **PWA Avatar Trust Badges** — Author avatars with initials fallback on marketplace cards and posts, navigating to public profile on click.
+- ✅ **PWA People Page Parity** — Search filter, avatar circles, relative dates ("3d ago"), and 💬 message button on friend rows.
+- ✅ **PWA Synonym-Expanded Search** — 417-entry synonym map enables marketplace discovery across related terms (e.g., "lemon" → fruit, citrus, produce).
+- ✅ **PWA Blocked User Filtering** — Posts from blocked users hidden via `localStorage` blocklist.
+- ✅ **PWA Security Settings** — Backup reminder card, private key viewer (reveal/hide + copy), wipe identity with double-confirm.
+- ✅ **Native Invite Share Fix** — Share text now includes Node URL for manual invite code entry.
 - ✅ **Decentralized Directory Auth** — Replaced hardcoded shared API keys with node-specific Libp2p Ed25519 cryptographic signatures and UTC timestamp verification to prevent spoofing and replay attacks.
 - ✅ **Admin Node Restore** — Implemented system restoration via `.tar.gz` database upload for admins.
 - ✅ **Offline Profile Healing** — Restored offline-first profile synchronization.
@@ -59,8 +66,8 @@
 
 ### Identity & Security
 
-- [ ] 🔴 **View Recovery Phrase** — Show stored 12-word phrase in Settings for existing mnemonic-based identities. _Users currently have no way to see their seed words after initial creation. If they didn't write them down, identity loss is permanent on device failure._
-- [ ] 🔴 **Identity Backup Reminder** — Prompt users to export their identity if they haven't yet. _Without this, users who lose their device lose everything with no warning._
+- [ ] 🔴 **View Recovery Phrase** — Show stored 12-word phrase in Settings for existing mnemonic-based identities. _Users currently have no way to see their seed words after initial creation. If they didn't write them down, identity loss is permanent on device failure._ **Note:** PWA now has a private key viewer as a partial mitigation.
+- [x] 🔴 **Identity Backup Reminder** — Prompt users to export their identity if they haven't yet. _Implemented in PWA Settings as an amber warning card._
 - [ ] 🔴 **Ban / Revoke Member (Enforcement)** — `adminSetUserStatus('disabled')` exists but doesn't actually block transactions or posting. Disabled members can still transact. _Need to enforce status checks in transfer/post/messaging pathways._
 - [ ] **Visitor Account Audit** — Investigate signup flow for ghost/unnamed accounts; consider enforcing mandatory profile info or redirecting to profile settings on first login.
 
@@ -84,7 +91,7 @@
 
 ### Identity & Security
 
-- [x] **Sign Out / Wipe Identity** — `wipeIdentity()` implemented in native app Settings with type-to-confirm safeguard and full state cleanup.
+- [x] **Sign Out / Wipe Identity** — `wipeIdentity()` implemented in native app Settings with type-to-confirm safeguard and full state cleanup. PWA equivalent added with double-confirm → `localStorage` clear → page reload.
 
 ---
 

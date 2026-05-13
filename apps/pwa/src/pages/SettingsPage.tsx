@@ -41,6 +41,8 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
     const [success, setSuccess] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
     const [profile, setProfile] = useState<MemberProfile | null>(null);
+    const [showPrivateKey, setShowPrivateKey] = useState(false);
+    const [wipeConfirmStep, setWipeConfirmStep] = useState(0); // 0=idle, 1=first confirm, 2=wiped
 
     // Fetch profile (avatar) on mount and when returning from profile editor
     useEffect(() => {
@@ -197,6 +199,108 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                             <span>📥 Import Identity</span>
                             <span className="text-nature-400 dark:text-nature-500 group-hover:text-nature-600 dark:group-hover:text-nature-300 transition-colors">→</span>
                         </button>
+                    </div>
+                )}
+
+                {/* Security Section */}
+                {mode === 'menu' && (
+                    <div className="mt-6">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-nature-400 dark:text-nature-500 mb-3 px-1">Security</h3>
+                        <div className="space-y-3">
+                            {/* Backup Reminder */}
+                            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-2xl px-5 py-4 border border-amber-200 dark:border-amber-800 shadow-sm">
+                                <div className="flex items-start gap-3">
+                                    <span className="text-xl mt-0.5">⚠️</span>
+                                    <div>
+                                        <div className="font-bold text-amber-900 dark:text-amber-400 text-[13px] mb-1">Backup Your Identity</div>
+                                        <p className="text-amber-800 dark:text-amber-300/70 text-[12px] leading-relaxed m-0">
+                                            Your identity keys live in this browser only. Use <strong>Export Identity</strong> to transfer them to another device, or save your private key somewhere safe. If you clear browser data, your identity will be lost forever.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* View Private Key */}
+                            <div className="bg-white dark:bg-nature-900 rounded-2xl px-5 py-4 border border-nature-200 dark:border-nature-800 shadow-sm">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="font-bold text-[15px] text-nature-900 dark:text-white">🔑 Private Key</span>
+                                    <button
+                                        onClick={() => setShowPrivateKey(!showPrivateKey)}
+                                        className="text-xs font-bold text-terra-600 dark:text-terra-400 bg-terra-50 dark:bg-terra-900/30 px-3 py-1.5 rounded-lg border border-terra-200 dark:border-terra-800 cursor-pointer hover:bg-terra-100 dark:hover:bg-terra-900/50 transition-colors"
+                                    >
+                                        {showPrivateKey ? 'Hide' : 'Reveal'}
+                                    </button>
+                                </div>
+                                {showPrivateKey ? (
+                                    <div className="relative">
+                                        <div className="text-[10px] font-mono text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800 break-all select-all">
+                                            {identity.privateKey}
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(identity.privateKey);
+                                                setCopied(true);
+                                                setTimeout(() => setCopied(false), 2000);
+                                            }}
+                                            className="absolute top-1 right-1 text-[10px] font-bold bg-white dark:bg-nature-800 text-nature-600 dark:text-nature-300 px-2 py-1 rounded border border-nature-200 dark:border-nature-700 cursor-pointer hover:bg-nature-50 transition-colors"
+                                        >
+                                            {copied ? '✅ Copied' : '📋 Copy'}
+                                        </button>
+                                        <p className="text-red-500 dark:text-red-400 text-[10px] mt-1.5 font-semibold m-0">
+                                            ⚠️ Never share this key. Anyone with it controls your identity.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="text-[11px] text-nature-500 dark:text-nature-400 font-medium">
+                                        Tap "Reveal" to view your private key. Keep it secret.
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Wipe Identity */}
+                            {wipeConfirmStep === 0 && (
+                                <button
+                                    onClick={() => setWipeConfirmStep(1)}
+                                    className="w-full py-4 px-5 rounded-2xl bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 font-bold border border-red-200 dark:border-red-800 shadow-sm hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-left flex items-center justify-between group cursor-pointer"
+                                >
+                                    <span>🗑️ Wipe Identity</span>
+                                    <span className="text-red-300 dark:text-red-600 group-hover:text-red-500 transition-colors">→</span>
+                                </button>
+                            )}
+                            {wipeConfirmStep === 1 && (
+                                <div className="bg-red-50 dark:bg-red-900/20 rounded-2xl p-5 border-2 border-red-300 dark:border-red-700 shadow-md animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                    <h4 className="text-red-800 dark:text-red-400 font-bold text-[15px] mb-2 m-0">⚠️ Are you absolutely sure?</h4>
+                                    <p className="text-red-700 dark:text-red-300/70 text-[12px] mb-4 leading-relaxed m-0">
+                                        This will permanently delete your identity from this browser. You will lose access to your callsign, balance, and friends unless you have a backup.
+                                    </p>
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => setWipeConfirmStep(0)}
+                                            className="flex-1 py-2.5 rounded-xl bg-white dark:bg-nature-900 text-nature-700 dark:text-nature-300 font-bold border border-nature-200 dark:border-nature-700 cursor-pointer hover:bg-nature-50 transition-colors text-sm"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                localStorage.removeItem('beanpool_identity');
+                                                localStorage.removeItem('beanpool_modern_markers');
+                                                setWipeConfirmStep(2);
+                                                setTimeout(() => window.location.reload(), 1500);
+                                            }}
+                                            className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold border-none cursor-pointer hover:bg-red-700 transition-colors text-sm shadow-sm"
+                                        >
+                                            🗑️ Wipe Forever
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                            {wipeConfirmStep === 2 && (
+                                <div className="bg-red-100 dark:bg-red-900/30 rounded-2xl p-5 text-center border border-red-200 dark:border-red-800">
+                                    <span className="text-3xl">💨</span>
+                                    <p className="text-red-800 dark:text-red-400 font-bold text-sm mt-2 mb-0">Identity wiped. Reloading...</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 

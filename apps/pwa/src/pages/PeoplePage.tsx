@@ -1,15 +1,14 @@
 /**
  * PeoplePage — Friends, Community, Invites, Guardians
  *
- * Replaces the old InvitePage with a multi-view People tab.
- * Sub-views are switched via horizontal pill buttons.
+ * Multi-view People tab with search, avatars, and relative dates.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     getFriends, addFriendApi, removeFriendApi, setGuardianApi,
-    getAllMembers,
-    type FriendEntry, type MemberSummary,
+    getMembers,
+    type FriendEntry, type Member,
 } from '../lib/api';
 import { type BeanPoolIdentity } from '../lib/identity';
 import { InvitePage } from './InvitePage';
@@ -17,15 +16,67 @@ import { InvitePage } from './InvitePage';
 interface Props {
     identity: BeanPoolIdentity;
     initialView?: SubView;
+    onNavigate?: (tab: string, conversationId?: string) => void;
 }
 
 type SubView = 'friends' | 'community' | 'invites' | 'guardians';
 
-export function PeoplePage({ identity, initialView = 'friends' }: Props) {
+/** Convert a date to a relative "Xd ago" / "Xw ago" string */
+function relativeDate(dateStr: string): string {
+    const now = Date.now();
+    const then = new Date(dateStr).getTime();
+    const diffMs = now - then;
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    const diffDays = Math.floor(diffHr / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    const diffWeeks = Math.floor(diffDays / 7);
+    if (diffWeeks < 5) return `${diffWeeks}w ago`;
+    const diffMonths = Math.floor(diffDays / 30);
+    if (diffMonths < 12) return `${diffMonths}mo ago`;
+    const diffYears = Math.floor(diffDays / 365);
+    return `${diffYears}y ago`;
+}
+
+/** Avatar circle with image or initials fallback */
+function Avatar({ callsign, avatarUrl, isGuardian, size = 40 }: { callsign: string; avatarUrl?: string | null; isGuardian?: boolean; size?: number }) {
+    const initial = callsign.charAt(0).toUpperCase();
+    const sizeStyle = { width: size, height: size, minWidth: size };
+
+    if (avatarUrl) {
+        return (
+            <img 
+                src={avatarUrl} 
+                alt={callsign}
+                className="rounded-full object-cover border border-nature-200 dark:border-nature-700"
+                style={sizeStyle}
+            />
+        );
+    }
+
+    return (
+        <div 
+            className={`rounded-full flex items-center justify-center font-bold text-lg border ${
+                isGuardian 
+                    ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-500 border-amber-200 dark:border-amber-800'
+                    : 'bg-oat-100 dark:bg-nature-800 text-nature-600 dark:text-nature-400 border-nature-200 dark:border-nature-700'
+            }`}
+            style={sizeStyle}
+        >
+            {initial}
+        </div>
+    );
+}
+
+export function PeoplePage({ identity, initialView = 'friends', onNavigate }: Props) {
     const [view, setView] = useState<SubView>(initialView);
     const [friends, setFriends] = useState<FriendEntry[]>([]);
-    const [members, setMembers] = useState<MemberSummary[]>([]);
+    const [members, setMembers] = useState<Member[]>([]);
     const [loading, setLoading] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => { loadFriends(); }, []);
     useEffect(() => { if (view === 'community') loadMembers(); }, [view]);
@@ -41,7 +92,7 @@ export function PeoplePage({ identity, initialView = 'friends' }: Props) {
     async function loadMembers() {
         setLoading(true);
         try {
-            const data = await getAllMembers();
+            const data = await getMembers();
             setMembers(data);
         } catch { /* offline */ }
         setLoading(false);
@@ -70,8 +121,32 @@ export function PeoplePage({ identity, initialView = 'friends' }: Props) {
         } catch { /* error */ }
     }
 
+    async function handleMessage(friendPubkey: string) {
+        if (onNavigate) {
+            // Navigate to messages tab and open conversation with this friend
+            onNavigate('messages', friendPubkey);
+        }
+    }
+
     const friendPubkeys = new Set(friends.map(f => f.publicKey));
     const guardians = friends.filter(f => f.isGuardian);
+
+    // Build avatar lookup from members for friends view
+    const memberAvatarMap = useMemo(() => {
+        const map: Record<string, string | null> = {};
+        for (const m of members) {
+            if (m.avatarUrl) map[m.publicKey] = m.avatarUrl;
+        }
+        return map;
+    }, [members]);
+
+    // Filtered community members
+    const filteredMembers = useMemo(() => {
+        const base = members.filter(m => m.publicKey !== identity.publicKey);
+        if (!searchQuery.trim()) return base;
+        const q = searchQuery.trim().toLowerCase();
+        return base.filter(m => m.callsign.toLowerCase().includes(q));
+    }, [members, searchQuery, identity.publicKey]);
 
     return (
         <div className="p-4 max-w-[480px] mx-auto">
@@ -111,25 +186,38 @@ export function PeoplePage({ identity, initialView = 'friends' }: Props) {
                             {friends.map(f => (
                                 <div key={f.publicKey} className="bg-white dark:bg-nature-900 rounded-2xl p-4 flex items-center justify-between border border-nature-200 dark:border-nature-800 shadow-sm transition-transform hover:-translate-y-0.5">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-oat-100 dark:bg-nature-800 border border-nature-200 dark:border-nature-700 flex items-center justify-center text-lg">
-                                            {f.isGuardian ? '🛡️' : '👤'}
-                                        </div>
+                                        <Avatar 
+                                            callsign={f.callsign} 
+                                            avatarUrl={memberAvatarMap[f.publicKey]} 
+                                            isGuardian={f.isGuardian} 
+                                        />
                                         <div>
                                             <div className="font-bold text-[15px] text-nature-900 dark:text-white flex items-center gap-1.5">
                                                 {f.callsign}
                                                 {f.isGuardian && <span className="text-xs text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/40 border border-amber-100 dark:border-amber-800 px-1.5 py-0.5 rounded-md">Guardian</span>}
                                             </div>
                                             <div className="text-xs text-nature-400 dark:text-nature-500 font-medium mt-0.5">
-                                                Added {new Date(f.addedAt).toLocaleDateString()}
+                                                Added {relativeDate(f.addedAt)}
                                             </div>
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={() => handleRemoveFriend(f.publicKey)}
-                                        className="bg-transparent border-none text-red-500 text-xs font-semibold cursor-pointer px-3 py-2 rounded-lg hover:bg-red-50 transition-colors"
-                                    >
-                                        Remove
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        {onNavigate && (
+                                            <button
+                                                onClick={() => handleMessage(f.publicKey)}
+                                                className="bg-emerald-600 border-none text-white rounded-lg px-3 py-1.5 text-xs font-bold cursor-pointer hover:bg-emerald-700 shadow-sm transition-all"
+                                                title="Message"
+                                            >
+                                                💬
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => handleRemoveFriend(f.publicKey)}
+                                            className="bg-transparent border-none text-red-500 text-xs font-semibold cursor-pointer px-3 py-2 rounded-lg hover:bg-red-50 transition-colors"
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -143,22 +231,35 @@ export function PeoplePage({ identity, initialView = 'friends' }: Props) {
                     <p className="text-[13px] font-medium text-nature-500 dark:text-nature-400 mb-4 bg-oat-50 dark:bg-nature-900 p-3 rounded-xl border border-nature-200 dark:border-nature-800 shadow-sm">
                         All members on this node. Tap <strong className="text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded shadow-sm border border-emerald-100 dark:border-emerald-800">+ Add</strong> to add someone as a friend.
                     </p>
+
+                    {/* Search */}
+                    <div className="mb-4">
+                        <input
+                            type="text"
+                            placeholder="🔍 Search members..."
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="w-full p-3 rounded-xl border border-nature-200 dark:border-nature-700 bg-white dark:bg-nature-900 text-nature-900 dark:text-white text-[14px] font-medium focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none shadow-sm transition-all placeholder:text-nature-400"
+                        />
+                        {searchQuery && (
+                            <div className="text-xs text-nature-400 mt-1.5 font-medium">
+                                {filteredMembers.length} member{filteredMembers.length !== 1 ? 's' : ''} found
+                            </div>
+                        )}
+                    </div>
+
                     {loading ? (
                         <p className="text-center text-nature-500 p-8 font-medium animate-pulse">Loading community...</p>
                     ) : (
                         <div className="flex flex-col gap-3">
-                            {members
-                                .filter(m => m.publicKey !== identity.publicKey)
-                                .map(m => (
+                            {filteredMembers.map(m => (
                                     <div key={m.publicKey} className="bg-white dark:bg-nature-900 rounded-2xl p-4 flex items-center justify-between border border-nature-200 dark:border-nature-800 shadow-sm transition-transform hover:-translate-y-0.5">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-oat-100 dark:bg-nature-800 border border-nature-200 dark:border-nature-700 flex items-center justify-center text-lg shadow-inner">
-                                                👤
-                                            </div>
+                                            <Avatar callsign={m.callsign} avatarUrl={m.avatarUrl} />
                                             <div>
                                                 <div className="font-bold text-[15px] text-nature-900 dark:text-white">{m.callsign}</div>
                                                 <div className="text-xs text-nature-400 dark:text-nature-500 font-medium mt-0.5">
-                                                    Joined {new Date(m.joinedAt).toLocaleDateString()}
+                                                    Joined {relativeDate(m.joinedAt)}
                                                 </div>
                                             </div>
                                         </div>
@@ -220,9 +321,11 @@ export function PeoplePage({ identity, initialView = 'friends' }: Props) {
                                             : 'bg-oat-50 border-nature-200'
                                     }`}>
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-white border border-nature-200 flex items-center justify-center text-lg shadow-sm">
-                                                {f.isGuardian ? '🛡️' : '👤'}
-                                            </div>
+                                            <Avatar 
+                                                callsign={f.callsign} 
+                                                avatarUrl={memberAvatarMap[f.publicKey]} 
+                                                isGuardian={f.isGuardian} 
+                                            />
                                             <div className={`font-bold text-[15px] ${f.isGuardian ? 'text-amber-900' : 'text-nature-900'}`}>
                                                 {f.callsign}
                                             </div>

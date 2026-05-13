@@ -17,6 +17,12 @@ BeanPool is an open protocol for building a **post-extraction economy**. It conn
 
 ## Features
 
+### 💚 Community Status Indicator
+Tap the header logo/title in the PWA to reveal a health popover:
+- **Online/Offline** status (green/red pulse) fetched from `/api/community/health`
+- **Node hostname**, member count, post count
+- **Membership status** — Guest or Member badge
+
 ### 🗺️ Community Map
 Full-screen Leaflet/OSM map as the landing page:
 - **Light mode** (default) with dark mode toggle 🌙
@@ -71,8 +77,8 @@ Invite-only membership with hierarchical accountability:
 
 ### 👥 People & Friends
 Community connections and guardians:
-- **Friends** — add/remove friends from the community browser
-- **Community** — browse all node members, tap "+ Add" to friend them
+- **Friends** — add/remove friends from the community browser, with avatar circles and 💬 message button
+- **Community** — browse all node members with **search filter**, avatar circles, and relative date formatting ("3d ago")
 - **Invites** — generate and share invite codes (moved from standalone tab)
 - **Guardians** — select up to 5 trusted friends as recovery guardians
 
@@ -425,6 +431,8 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ **A11y & Stability** — Fixed P2P yamux stream crash loops and applied accessibility enhancements across the frontend.
 - ✅ **Security Hardening (Sentinel)** — Mitigated Stored XSS vulnerabilities across the Admin Dashboard and fixed Command Injection in server backup routines. Established automated security auditing via `.jules/sentinel.md`.
 - ✅ **Performance & Accessibility** — Fixed an O(N^2) array filtering bottleneck for relational data and added ARIA labels to the PWA WelcomePage.
+- ✅ **PWA Parity Phase 1-4** — Community status indicator, avatar trust badges with profile navigation, People page search/avatars/relative dates/message button, synonym-expanded marketplace search (417-entry map), localStorage-based blocked user filtering, Settings security section (backup reminder, private key viewer, wipe identity).
+- ✅ **Native Invite Fix** — Updated invite share text to include Node URL for manual code entry.
 
 **Coming next:**
 - Native App Polish & App Store Submission (federation parity)
@@ -435,4 +443,4 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 
 [MIT](LICENSE)
 
-_Last updated: 2026-05-11 AEST_
+_Last updated: 2026-05-13 AEST_
