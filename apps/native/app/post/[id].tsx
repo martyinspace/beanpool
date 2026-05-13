@@ -147,6 +147,9 @@ export default function PostDetailModal() {
     const targetPeerCallsign = activeTx 
         ? (isPayer ? activeTx.seller_callsign || 'Peer' : activeTx.buyer_callsign || 'Peer')
         : (isOwnPost ? (post.accepted_by_callsign || 'Peer') : (post.author_callsign || post.author_pubkey?.slice(0, 6) || 'Unknown'));
+    const targetPeerPubkey = activeTx
+        ? (isPayer ? activeTx.seller_pubkey : activeTx.buyer_pubkey)
+        : (isOwnPost ? post.accepted_by : post.author_pubkey);
 
     const isOffer = post.type === 'offer';
     const catObj = CATEGORIES.find(c => c.id === post.category);
@@ -324,8 +327,8 @@ export default function PostDetailModal() {
                 {/* Price Card */}
                 <View style={styles.priceCard}>
                     <Text style={styles.priceLabel}>{priceLabel}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap' }}>
-                        <CurrencyDisplay amount={post.credits} style={styles.priceValue} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                        <CurrencyDisplay amount={post.credits} style={styles.priceValue} asView={true} />
                         <Text style={[styles.priceCurrency, { marginLeft: 2 }]}>{
                             { fixed: '', hourly: ' / Hr', daily: ' / Dy', weekly: ' / Wk', monthly: ' / Mo' }[post.price_type as string] || ''
                         }</Text>
@@ -337,7 +340,11 @@ export default function PostDetailModal() {
                     <Text style={styles.authorCardLabel}>POSTED BY</Text>
                     <View style={styles.authorRow}>
                         <View style={styles.avatar}>
-                            <Text style={styles.avatarLetter}>{cardAuthor.charAt(0).toUpperCase()}</Text>
+                            {post.author_avatar ? (
+                                <Image source={{ uri: post.author_avatar.startsWith('data:') ? post.author_avatar : `${post.author_avatar}${post.author_avatar.includes('?') ? '&' : '?'}_v=${post.author_pubkey?.slice(0, 8) || '0'}` }} style={{ width: 48, height: 48, borderRadius: 24 }} />
+                            ) : (
+                                <Text style={styles.avatarLetter}>{cardAuthor.charAt(0).toUpperCase()}</Text>
+                            )}
                         </View>
                         <View style={styles.authorInfo}>
                             <Text style={styles.authorName}>🤝 {cardAuthor}</Text>
@@ -681,24 +688,26 @@ export default function PostDetailModal() {
                 )}
 
                 {/* 4. Universal Actions for Peer (Message, Rate, Report) */}
-                {!isOwnPost && (
+                {(!isOwnPost || post.status === 'pending' || post.status === 'completed' || activeTx) && (
                     <View style={[styles.otherPostActions, { marginTop: post.status === 'pending' || post.status === 'active' ? 10 : 0 }]}>
-                        <Pressable style={styles.messageBtn} onPress={async () => {
-                            if (!identity) return;
-                            try {
-                                const conv = await createConversationApi('dm', [post.author_pubkey, identity.publicKey], identity.publicKey, undefined, post.id);
-                                if (conv) router.push(`/chat/${conv.id}`);
-                            } catch (e: any) {
-                                Alert.alert("Error", e.message || "Failed to start chat.");
-                            }
-                        }}>
-                            <Text style={styles.messageBtnText}>💬 Message</Text>
-                        </Pressable>
+                        {targetPeerPubkey && (
+                            <Pressable style={styles.messageBtn} onPress={async () => {
+                                if (!identity) return;
+                                try {
+                                    const conv = await createConversationApi('dm', [targetPeerPubkey, identity.publicKey], identity.publicKey, undefined, post.id);
+                                    if (conv) router.push(`/chat/${conv.id}`);
+                                } catch (e: any) {
+                                    Alert.alert("Error", e.message || "Failed to start chat.");
+                                }
+                            }}>
+                                <Text style={styles.messageBtnText}>💬 Message {isOwnPost ? targetPeerCallsign : ''}</Text>
+                            </Pressable>
+                        )}
                         
-                        {identity && (post.status === 'completed' || activeTx?.status === 'completed') && (activeTx?.id || post.pending_transaction_id) && (
+                        {identity && (post.status === 'completed' || activeTx?.status === 'completed') && (activeTx?.id || post.pending_transaction_id) && targetPeerPubkey && (
                             <View style={{ marginTop: 16 }}>
                                 <Pressable style={[styles.messageBtn, { borderColor: 'rgba(245,158,11,0.3)', backgroundColor: 'rgba(245,158,11,0.05)' }]} onPress={() => setShowRatingForm(!showRatingForm)}>
-                                    <Text style={[styles.messageBtnText, { color: '#f59e0b' }]}>★ Rate {post.author_callsign || 'Author'}</Text>
+                                    <Text style={[styles.messageBtnText, { color: '#f59e0b' }]}>★ Rate {targetPeerCallsign}</Text>
                                 </Pressable>
                                 {showRatingForm && (
                                     <View style={[styles.confirmBox, { marginTop: 8 }]}>
@@ -715,7 +724,7 @@ export default function PostDetailModal() {
                                             try {
                                                 const txToRate = activeTx?.id || post.pending_transaction_id;
                                                 setSubmittingRating(true);
-                                                await submitRating(identity.publicKey, post.author_pubkey, myRating, ratingComment, txToRate);
+                                                await submitRating(identity.publicKey, targetPeerPubkey, myRating, ratingComment, txToRate);
                                                 setShowRatingForm(false);
                                                 Alert.alert('Success', 'Rating submitted!');
                                             } catch(e:any) { Alert.alert('Error', e.message); } finally { setSubmittingRating(false); }

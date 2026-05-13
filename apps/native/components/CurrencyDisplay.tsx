@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Text, Image, StyleSheet } from 'react-native';
+import { Text, View, Image, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSavedNodes } from '../utils/nodes';
 
@@ -34,9 +34,10 @@ interface Props {
     amount?: number | string;
     style?: any;
     hideAmount?: boolean;
+    asView?: boolean;
 }
 
-export function CurrencyDisplay({ amount, style, hideAmount = false }: Props) {
+export function CurrencyDisplay({ amount, style, hideAmount = false, asView = false }: Props) {
     const [cType, setCType] = useState<'text' | 'image'>('image');
     const [cVal, setCVal] = useState<string>('bean');
 
@@ -63,6 +64,17 @@ export function CurrencyDisplay({ amount, style, hideAmount = false }: Props) {
     const translateY = Math.max(2, fontSize * 0.15);
 
     if (cType === 'image' && cVal === 'bean') {
+        if (asView) {
+            return (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {!!amtStr && <Text style={style}>{amtStr}</Text>}
+                    <Image 
+                        source={require('../assets/images/bean.png')} 
+                        style={{ width: fontSize, height: fontSize, resizeMode: 'contain', marginLeft: hideAmount ? 0 : 2 }} 
+                    />
+                </View>
+            );
+        }
         return (
             <Text style={[style, { textAlignVertical: 'center' }]}>
                 {amtStr}
@@ -76,6 +88,15 @@ export function CurrencyDisplay({ amount, style, hideAmount = false }: Props) {
 
     // Fallback or explicit text node (e.g., 'Ʀ' or 'rocks')
     const displayVal = cType === 'text' ? (cVal || 'Ʀ') : 'Ʀ';
+    if (asView) {
+        return (
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={style}>
+                    {amtStr}{displayVal}
+                </Text>
+            </View>
+        );
+    }
     return (
         <Text style={style}>
             {amtStr}{displayVal}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, Alert, Image, FlatList } from 'react-native';
 import { createIdentity, createIdentityFromMnemonic, BeanPoolIdentity } from '../utils/identity';
 import { nativeDecryptIdentity } from '../utils/native-crypto';
 import { importIdentity } from '../utils/identity';
@@ -9,6 +9,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useGlobalSearchParams, router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
+import * as ImagePicker from 'expo-image-picker';
+import { BUNDLED_AVATARS, BundledAvatar } from '../utils/bundled-avatars';
+import { AvatarPickerSheet } from '../components/AvatarPickerSheet';
+import { updateMemberProfile } from '../utils/db';
+import { hexToBytes } from '@noble/hashes/utils';
+import { sign } from '@noble/ed25519';
 
 function extractNodeOrigin(raw: string): string | null {
     const trimmed = raw.trim();
@@ -74,7 +80,7 @@ export default function WelcomeScreen() {
     const params = useGlobalSearchParams();
     const incomingUrl = Linking.useURL();
     const { setIdentity } = useIdentity();
-    const [mode, setMode] = useState<'home' | 'member' | 'create' | 'recover' | 'import'>('home');
+    const [mode, setMode] = useState<'home' | 'member' | 'create' | 'recover' | 'import' | 'profileSetup'>('home');
     const [callsign, setCallsign] = useState('');
     const [recoveryWords, setRecoveryWords] = useState<string[]>(Array(12).fill(''));
     const [recoveryCallsign, setRecoveryCallsign] = useState('');
@@ -89,6 +95,8 @@ export default function WelcomeScreen() {
     const [inviteCode, setInviteCode] = useState('');
     const [pendingInviteCode, setPendingInviteCode] = useState('');
     const [processingMagicLink, setProcessingMagicLink] = useState(false);
+    const [pendingAvatar, setPendingAvatar] = useState<string | null>(null);
+    const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
     React.useEffect(() => {
         AsyncStorage.getItem('beanpool_anchor_url').then(val => {
@@ -226,8 +234,8 @@ export default function WelcomeScreen() {
                 const { redeemInvite } = await import('../utils/db');
                 await redeemInvite(pendingInviteCode, pendingIdentity.callsign, pendingIdentity);
             }
-            // Once redeemed (or if no code), enter the app
-            setIdentity(pendingIdentity);
+            // Transition to profile setup gate instead of entering the app
+            setMode('profileSetup');
         } catch (err: any) {
             setError(err.message || 'Failed to redeem invite code.');
         } finally {
@@ -290,6 +298,140 @@ export default function WelcomeScreen() {
     function goBack() {
         setMode('home');
         setError(null);
+    }
+
+    // --- Profile image picker helpers for "Who Are You?" gate ---
+    // Moved to AvatarPickerSheet component
+
+    async function handleCompleteProfile() {
+        if (!pendingIdentity || !pendingAvatar) return;
+        setLoading(true);
+        setError(null);
+        try {
+            // 1. Write avatar to local SQLite
+            await updateMemberProfile(pendingIdentity.publicKey, {
+                callsign: pendingIdentity.callsign,
+                avatar_url: pendingAvatar,
+            });
+
+            // 2. Sign and publish to anchor server (Initial Profile Delta)
+            try {
+                const url = await AsyncStorage.getItem('beanpool_anchor_url');
+                if (url && pendingIdentity) {
+                    const payloadObj = {
+                        publicKey: pendingIdentity.publicKey,
+                        avatar: pendingAvatar,
+                        callsign: pendingIdentity.callsign,
+                    };
+                    const bodyString = JSON.stringify(payloadObj);
+                    const privateKeyBytes = hexToBytes(pendingIdentity.privateKey);
+                    const msgBytes = new TextEncoder().encode(bodyString);
+                    const sigBytes = await sign(msgBytes, privateKeyBytes);
+                    const sigHex = Array.from(sigBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+
+                    await fetch(`${url}/api/profile`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-signature': sigHex,
+                            'x-pubkey': pendingIdentity.publicKey,
+                        },
+                        body: bodyString,
+                    }).catch(() => {}); // Don't block on network failure
+                }
+            } catch (publishErr) {
+                console.warn('[Welcome] Profile publish failed (non-blocking):', publishErr);
+            }
+
+            // 3. Gate passes — enter the app
+            setIdentity(pendingIdentity);
+        } catch (err: any) {
+            setError(err.message || 'Failed to save profile.');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    // --- PROFILE SETUP GATE ("Who Are You?") ---
+    if (mode === 'profileSetup' && pendingIdentity) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <StatusBar style="light" />
+                <ScrollView contentContainerStyle={styles.scroll}>
+                    <View style={styles.card}>
+                        <Text style={styles.title}>🌱 Who are you?</Text>
+                        <Text style={styles.subtitle}>
+                            Pick a profile picture so your community knows you.
+                        </Text>
+
+                        {/* Preview circle */}
+                        <View style={profileStyles.previewContainer}>
+                            {pendingAvatar ? (
+                                <Image
+                                    source={{ uri: pendingAvatar }}
+                                    style={profileStyles.previewImage}
+                                />
+                            ) : (
+                                <View style={profileStyles.previewPlaceholder}>
+                                    <Text style={profileStyles.previewPlaceholderText}>
+                                        {pendingIdentity.callsign.charAt(0).toUpperCase()}
+                                    </Text>
+                                </View>
+                            )}
+                            <Text style={profileStyles.previewCallsign}>
+                                {pendingIdentity.callsign}
+                            </Text>
+                        </View>
+
+                        {/* Choose Photo Button */}
+                        <Pressable 
+                            style={styles.secondaryBtn} 
+                            onPress={() => setShowAvatarPicker(true)}
+                            disabled={loading}
+                        >
+                            <Text style={styles.secondaryBtnText}>
+                                {pendingAvatar ? 'Change Photo' : 'Choose Photo'}
+                            </Text>
+                        </Pressable>
+
+                        {loading && (
+                            <View style={{ alignItems: 'center', marginVertical: 12 }}>
+                                <ActivityIndicator color="#2563eb" />
+                                <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>Processing image...</Text>
+                            </View>
+                        )}
+
+                        {error && <Text style={styles.error}>{error}</Text>}
+
+                        <Pressable
+                            style={[styles.primaryBtn, !pendingAvatar && styles.disabledBtn]}
+                            disabled={!pendingAvatar || loading}
+                            onPress={handleCompleteProfile}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="#fff" />
+                            ) : (
+                                <Text style={styles.primaryBtnText}>Let's Go →</Text>
+                            )}
+                        </Pressable>
+
+                        <Pressable
+                            style={styles.backBtn}
+                            onPress={() => { setMode('home'); setPendingIdentity(null); setPendingAvatar(null); setShowAvatarPicker(false); setError(null); }}
+                            disabled={loading}
+                        >
+                            <Text style={styles.backBtnText}>← Start Over</Text>
+                        </Pressable>
+                    </View>
+                </ScrollView>
+                
+                <AvatarPickerSheet
+                    visible={showAvatarPicker}
+                    onClose={() => setShowAvatarPicker(false)}
+                    onSelectImage={(uri) => setPendingAvatar(uri)}
+                />
+            </SafeAreaView>
+        );
     }
 
     // --- SEED PHRASE CONFIRMATION (after create) ---
@@ -597,4 +739,102 @@ const styles = StyleSheet.create({
     seedWord: { color: '#fff', fontSize: 14, fontWeight: 'bold', minHeight: 20 },
     recoveryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 16 },
     recoveryInput: { width: '31%', backgroundColor: '#262626', borderWidth: 1, borderColor: '#404040', borderRadius: 8, padding: 8, color: '#fff', fontSize: 12, marginBottom: 8, textAlign: 'center' }
+});
+
+// Styles for the "Who Are You?" profile setup gate
+const profileStyles = StyleSheet.create({
+    previewContainer: {
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    previewImage: {
+        width: 96,
+        height: 96,
+        borderRadius: 48,
+        borderWidth: 3,
+        borderColor: '#2563eb',
+    },
+    previewPlaceholder: {
+        width: 96,
+        height: 96,
+        borderRadius: 48,
+        backgroundColor: '#262626',
+        borderWidth: 2,
+        borderColor: '#404040',
+        borderStyle: 'dashed',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    previewPlaceholderText: {
+        fontSize: 36,
+        fontWeight: '800',
+        color: '#64748b',
+    },
+    previewCallsign: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#e2e8f0',
+        marginTop: 8,
+    },
+    trinityRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 10,
+        marginBottom: 20,
+    },
+    trinityCard: {
+        flex: 1,
+        backgroundColor: '#262626',
+        borderWidth: 1,
+        borderColor: '#404040',
+        borderRadius: 14,
+        paddingVertical: 16,
+        alignItems: 'center',
+        gap: 6,
+    },
+    trinityCardActive: {
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+    },
+    trinityEmoji: {
+        fontSize: 28,
+    },
+    trinityLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#94a3b8',
+    },
+    avatarGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        gap: 10,
+        marginBottom: 20,
+        paddingVertical: 12,
+        paddingHorizontal: 4,
+        backgroundColor: '#1e1e1e',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#333',
+    },
+    avatarGridItem: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        overflow: 'hidden',
+        borderWidth: 2,
+        borderColor: 'transparent',
+    },
+    avatarGridItemSelected: {
+        borderColor: '#2563eb',
+        shadowColor: '#2563eb',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.6,
+        shadowRadius: 8,
+        elevation: 6,
+    },
+    avatarGridImage: {
+        width: '100%',
+        height: '100%',
+    },
 });

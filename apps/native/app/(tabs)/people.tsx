@@ -451,7 +451,7 @@ export default function PeopleScreen() {
                         <View style={styles.communityRow}>
                             <Pressable 
                                 style={styles.cardHeader}
-                                onPress={() => router.push(`/public-profile?publicKey=${item.public_key}`)}
+                                onPress={() => router.push({ pathname: '/public-profile', params: { publicKey: item.public_key, callsign: item.callsign || 'Unknown' } })}
                             >
                                 <View style={styles.avatar}>
                                     {uri ? (

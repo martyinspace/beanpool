@@ -84,6 +84,8 @@ export interface Member {
     invitedBy: string;
     inviteCode: string;
     homeNodeUrl?: string;   // for federation visitors: their home node URL
+    avatarUrl?: string | null;
+    profileUpdatedAt?: string | null;
 }
 
 export async function getCommunityInfo(): Promise<CommunityInfo> {
@@ -177,9 +179,12 @@ export interface Conversation {
     postId?: string;
     postTitle?: string;
     postStatus?: string;
+    postPhoto?: string | null;
     lastMsgType?: string;
     lastSysType?: string;
     unreadCount?: number;
+    peerCallsign?: string;
+    peerAvatar?: string | null;
 }
 
 export enum SystemMessageType {

@@ -4,8 +4,8 @@ import * as Clipboard from 'expo-clipboard';
 import { useIdentity } from '../IdentityContext';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
+import { processProfileImage } from '../../utils/image-processing';
+import { AvatarPickerSheet } from '../../components/AvatarPickerSheet';
 import { updateCallsign, wipeIdentity } from '../../utils/identity';
 import { nativeExportIdentity } from '../../utils/native-crypto';
 import { encodeBase64, encodeUtf8, hexToBytes, signData } from '../../utils/crypto';
@@ -31,13 +31,10 @@ export default function SettingsScreen() {
     const [contact, setContact] = useState('');
     const [contactVisibility, setContactVisibility] = useState<'hidden' | 'trade_partners' | 'friends' | 'community'>('community');
     const [loading, setLoading] = useState(false);
+    const [showAvatarPicker, setShowAvatarPicker] = useState(false);
     const [anchorUrl, setAnchorUrl] = useState<string>('Detecting...');
-    const [useModernMarkers, setUseModernMarkers] = useState(true);
     
     React.useEffect(() => {
-        AsyncStorage.getItem('beanpool_modern_markers').then(val => {
-            if (val !== null) setUseModernMarkers(val === 'true');
-        });
         // Load profile data on mount
         if (identity?.publicKey) {
             getMemberProfile(identity.publicKey).then(profile => {
@@ -132,67 +129,9 @@ export default function SettingsScreen() {
 
 
 
-    /**
-     * Crash-proof 2-pass image pipeline:
-     * Pass 1: Pre-crop downscale to 1024px — prevents OOM when the native cropper
-     *         loads a 48MP camera image into memory on low-RAM devices/emulators.
-     * Pass 2: Post-crop compress to 400px, 70% JPEG — network-optimal base64 avatar.
-     */
-    async function processPickedImage(uri: string): Promise<string | null> {
-        try {
-            // Pass 1: Downscale to max 1024px before crop (prevents memory crash)
-            const preCrop = await ImageManipulator.manipulateAsync(
-                uri,
-                [{ resize: { width: 1024 } }],
-                { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
-            );
-            // Pass 2: Final compress to 400px for transfer
-            const final = await ImageManipulator.manipulateAsync(
-                preCrop.uri,
-                [{ resize: { width: 400 } }],
-                { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-            );
-            return final.base64 ? `data:image/jpeg;base64,${final.base64}` : null;
-        } catch (e) {
-            console.error('[Profile] Image processing failed:', e);
-            return null;
-        }
-    }
 
     async function handlePickImage() {
-        Alert.alert('Profile Photo', 'Choose a source', [
-            { text: 'Camera', onPress: async () => {
-                try {
-                    const perm = await ImagePicker.requestCameraPermissionsAsync();
-                    if (!perm.granted) { Alert.alert('Permission required', 'Camera access is needed.'); return; }
-                    const result = await ImagePicker.launchCameraAsync({
-                        mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.5, base64: false
-                    });
-                    if (!result.canceled && result.assets[0].uri) {
-                        setLoading(true);
-                        const dataUri = await processPickedImage(result.assets[0].uri);
-                        if (dataUri) setAvatar(dataUri);
-                        else Alert.alert('Error', 'Could not process photo.');
-                        setLoading(false);
-                    }
-                } catch (e) { setLoading(false); Alert.alert('Error', 'Could not take photo.'); }
-            }},
-            { text: 'Gallery', onPress: async () => {
-                try {
-                    const result = await ImagePicker.launchImageLibraryAsync({
-                        mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.5, base64: false
-                    });
-                    if (!result.canceled && result.assets[0].uri) {
-                        setLoading(true);
-                        const dataUri = await processPickedImage(result.assets[0].uri);
-                        if (dataUri) setAvatar(dataUri);
-                        else Alert.alert('Error', 'Could not process photo.');
-                        setLoading(false);
-                    }
-                } catch (e) { setLoading(false); Alert.alert('Error', 'Could not pick image.'); }
-            }},
-            { text: 'Cancel', style: 'cancel' },
-        ]);
+        setShowAvatarPicker(true);
     }
 
     async function handleUpdateCallsign() {
@@ -629,23 +568,6 @@ export default function SettingsScreen() {
                 {/* ─── App Settings ─── */}
                 <Text style={styles.sectionHeader}>APP SETTINGS</Text>
                 <View style={styles.menuGroup}>
-                    <View style={styles.menuBtn}>
-                        <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>🗺️</Text></View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.menuText}>Modern Map Pins</Text>
-                            <Text style={styles.menuSub}>Toggle standard vs custom pin styles</Text>
-                        </View>
-                        <Pressable 
-                            style={[styles.toggle, useModernMarkers && styles.toggleOn]}
-                            onPress={async () => {
-                                const next = !useModernMarkers;
-                                setUseModernMarkers(next);
-                                await AsyncStorage.setItem('beanpool_modern_markers', next ? 'true' : 'false');
-                            }}
-                        >
-                            <View style={[styles.toggleThumb, useModernMarkers && styles.toggleThumbOn]} />
-                        </Pressable>
-                    </View>
                     <Pressable style={[styles.menuBtn, styles.menuBtnLast]} onPress={async () => {
                         setMode('notifications');
                         setNotifLoading(true);
@@ -794,17 +716,16 @@ export default function SettingsScreen() {
                     
                     {/* Avatar Picker */}
                     <View style={{ alignItems: 'center', marginBottom: 20 }}>
-                        <Pressable 
-                            onPress={handlePickImage} 
-                            style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#e5e7eb', overflow: 'hidden' }}
-                        >
-                            {avatar ? (
-                                <Image source={{ uri: avatar }} style={{ width: '100%', height: '100%' }} />
-                            ) : (
-                                <Text style={{ fontSize: 32 }}>📷</Text>
-                            )}
+                        <Pressable onPress={handlePickImage} style={{ alignItems: 'center' }}>
+                            <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#e5e7eb', overflow: 'hidden' }}>
+                                {avatar ? (
+                                    <Image source={{ uri: avatar }} style={{ width: '100%', height: '100%' }} />
+                                ) : (
+                                    <Text style={{ fontSize: 32 }}>📷</Text>
+                                )}
+                            </View>
+                            <Text style={{ color: '#6b7280', fontSize: 12, marginTop: 8 }}>Tap to change photo</Text>
                         </Pressable>
-                        <Text style={{ color: '#6b7280', fontSize: 12, marginTop: 8 }}>Tap to change photo</Text>
                     </View>
 
                     <Text style={styles.label}>CALLSIGN</Text>
@@ -1195,6 +1116,12 @@ export default function SettingsScreen() {
                     </Pressable>
                 </View>
             )}
+
+            <AvatarPickerSheet
+                visible={showAvatarPicker}
+                onClose={() => setShowAvatarPicker(false)}
+                onSelectImage={(uri) => setAvatar(uri)}
+            />
         </ScrollView>
     );
 }

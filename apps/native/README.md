@@ -26,7 +26,7 @@ apps/native/
 │   ├── i/[hash].tsx             # Shortlink redirection router
 │   └── (tabs)/
 │       ├── _layout.tsx          # Tab navigator — neon-vine branded bar
-│       ├── index.tsx            # 🗺️ Map — Leaflet/OSM via WebView
+│       ├── index.tsx            # 🗺️ Map — Google Maps with native markers + clustering
 │       ├── projects.tsx         # 🌱 Projects — community crowdfunding
 │       ├── market.tsx           # 🤝 Market — 14-category marketplace
 │       ├── chats.tsx            # 💬 Chat — conversations list
@@ -37,7 +37,8 @@ apps/native/
 │   ├── GlobalHeader.tsx         # Shared header with branding + guest mode indicator
 │   ├── Map.tsx                  # Native map stub (placeholder)
 │   ├── Map.web.tsx              # Web-only Leaflet map
-│   ├── MapPinTail.tsx           # Custom map marker with tail
+│   ├── UnifiedMapPin.tsx        # SVG pin renderer + off-screen image capture pipeline
+│   ├── MemberAvatar.tsx         # Avatar display with fallback initials
 │   ├── SyncStatus.tsx           # Background sync status indicator + guest mode badge
 │   ├── CurrencyDisplay.tsx      # Formatted display for Bean credits
 │   ├── RadiusPickerModal.tsx    # Modal for filtering by distance
@@ -63,7 +64,7 @@ apps/native/
 
 | Tab | Emoji | Screen | Purpose |
 |-----|-------|--------|---------|
-| Map | 🗺️ | `index.tsx` | Community map with marketplace pins (Leaflet via WebView) |
+| Map | 🗺️ | `index.tsx` | Community map with pre-rendered markers + clustering (Google Maps native) |
 | Projects | 🌱 | `projects.tsx` | Community crowdfunding — propose and fund shared goals with Beans |
 | Market | 🤝 | `market.tsx` | 14-category marketplace — grid/list view, search, category filter, block users |
 | Chat | 💬 | `chats.tsx` | DM and group conversations |
@@ -79,6 +80,8 @@ apps/native/
 - **Marketplace UX Modernization** — horizontal category chips via `CategoryPickerSheet`, author trust badges (`PostAuthorTrust`), and active deals tracking (`MyDealsSheet`)
 - **Map Clustering (Phase 6)** — pin clustering for dense areas, modern markers with category icons, elder glow effects for founding members
 - **Map Clustering Stabilization** — Patched `react-native-map-clustering` to prevent marker disappearance on iOS scroll/zoom
+- **Android Marker Pipeline** — All map pins and clusters are pre-rendered to PNG via `react-native-view-shot` and served through the Google Maps `BitmapDescriptor` pipeline (`image={{ uri }}` prop), bypassing Android's restrictive JSX bitmap snapshot window. Cluster counts are pre-rendered for 2–99 with a "99+" overflow pattern for high-density areas.
+- **Profile Navigation** — Author names and avatars are tappable across all marketplace surfaces (cards, map preview, community list, projects), navigating to the Trust Profile page with correct data params
 - **Offline Outbox** — Native SQLite capability allowing users to draft and queue marketplace posts whilst offline, with automatic syncing upon reconnection
 - **Sanitized Syncing** — The native SQLite `applyDelta` daemon and map automatically filter out synthetic visitor/guest accounts and escrow wallets
 - **Push Notifications** — DM and marketplace deal alerts via Expo Push, per-member notification preferences, token registration
@@ -170,4 +173,4 @@ npx expo start                      # Native dev client
 
 ---
 
-_Last updated: 2026-05-10 AEST_
+_Last updated: 2026-05-13 AEST_

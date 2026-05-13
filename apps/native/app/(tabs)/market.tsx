@@ -433,7 +433,7 @@ export default function MarketScreen() {
                     </View>
                     <View style={styles.gridTextContent}>
                         <Text style={styles.gridCardTitle} numberOfLines={1}>{item.title}</Text>
-                        <PostAuthorTrust pubkey={item.author_pubkey} callsign={cardAuthor} energyCycled={item.author_energy_cycled} mode="compact" />
+                        <PostAuthorTrust pubkey={item.author_pubkey} callsign={cardAuthor} energyCycled={item.author_energy_cycled} avatarUrl={item.author_avatar} mode="compact" />
                     </View>
                 </Pressable>
             );
@@ -478,7 +478,7 @@ export default function MarketScreen() {
                                 {item.title}
                             </Text>
                             
-                            <PostAuthorTrust pubkey={item.author_pubkey} callsign={cardAuthor} energyCycled={item.author_energy_cycled} mode="full" />
+                            <PostAuthorTrust pubkey={item.author_pubkey} callsign={cardAuthor} energyCycled={item.author_energy_cycled} avatarUrl={item.author_avatar} mode="full" />
                         </View>
                     </View>
                 </View>

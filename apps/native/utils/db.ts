@@ -407,10 +407,18 @@ export async function getPost(id: string) {
 export async function getConversations(myPubkey: string) {
     const database = await getDb();
     const rows = await database.getAllAsync<any>(`
-        SELECT c.id, c.name, c.post_id, p.title as postTitle, p.status as postStatus, p.credits as postCredits, m.ciphertext as lastMessage, m.nonce as lastNonce, m.type as lastMsgType, m.system_type as lastSysType, MAX(m.timestamp) as timestamp,
+        SELECT c.id, c.name, c.post_id, p.title as postTitle, p.status as postStatus, p.credits as postCredits, p.photos as postPhotos, m.ciphertext as lastMessage, m.nonce as lastNonce, m.type as lastMsgType, m.system_type as lastSysType, MAX(m.timestamp) as timestamp,
         (SELECT memb.callsign FROM conversation_participants cp 
          LEFT JOIN members memb ON memb.public_key = cp.public_key
          WHERE cp.conversation_id = c.id AND cp.public_key != ? LIMIT 1) as otherCallsign,
+        (SELECT memb.avatar_url FROM conversation_participants cp 
+         LEFT JOIN members memb ON memb.public_key = cp.public_key
+         WHERE cp.conversation_id = c.id AND cp.public_key != ? LIMIT 1) as otherAvatar,
+        (SELECT memb.profile_updated_at FROM conversation_participants cp 
+         LEFT JOIN members memb ON memb.public_key = cp.public_key
+         WHERE cp.conversation_id = c.id AND cp.public_key != ? LIMIT 1) as otherProfileUpdatedAt,
+        (SELECT cp.public_key FROM conversation_participants cp 
+         WHERE cp.conversation_id = c.id AND cp.public_key != ? LIMIT 1) as otherPubkey,
         (SELECT COUNT(msg.id) FROM messages msg 
          WHERE msg.conversation_id = c.id 
          AND msg.author_pubkey != ?
@@ -435,7 +443,7 @@ export async function getConversations(myPubkey: string) {
         WHERE c.id IN (SELECT conversation_id FROM conversation_participants WHERE public_key = ?)
         GROUP BY c.id
         ORDER BY timestamp DESC
-    `, [myPubkey, myPubkey, myPubkey, myPubkey, myPubkey, myPubkey]);
+    `, [myPubkey, myPubkey, myPubkey, myPubkey, myPubkey, myPubkey, myPubkey, myPubkey, myPubkey]);
     
     return rows.map(row => {
         let displayMsg = row.lastMessage ? '[Encrypted Message]' : 'Started conversation';
@@ -452,13 +460,26 @@ export async function getConversations(myPubkey: string) {
         const isPayer = row.txBuyerPubkey === myPubkey;
         const isPayee = row.txSellerPubkey === myPubkey;
 
+        // Extract first photo from post photos JSON
+        let postPhoto: string | null = null;
+        if (row.postPhotos) {
+            try {
+                const arr = Array.isArray(row.postPhotos) ? row.postPhotos : JSON.parse(row.postPhotos);
+                if (arr.length > 0) postPhoto = arr[0];
+            } catch {}
+        }
+
         return {
             id: row.id,
             postId: row.post_id,
             postTitle: row.postTitle,
             postStatus: row.postStatus,
             postCredits: row.postCredits,
+            postPhoto,
             peer: row.name || row.otherCallsign || row.id.slice(0, 8),
+            peerAvatar: row.otherAvatar || null,
+            peerUpdatedAt: row.otherProfileUpdatedAt || null,
+            peerPubkey: row.otherPubkey || null,
             lastMessage: displayMsg,
             lastMsgType: row.lastMsgType,
             lastSysType: row.lastSysType,
@@ -692,7 +713,7 @@ export async function updateMemberProfile(pubkey: string, data: { callsign: stri
 export async function getProjects() {
     const database = await getDb();
     const rows = await database.getAllAsync<any>(`
-        SELECT p.*, m.callsign as creator_callsign
+        SELECT p.*, m.callsign as creator_callsign, m.avatar_url as creator_avatar
         FROM projects p
         LEFT JOIN members m ON p.creator_pubkey = m.public_key
         ORDER BY p.created_at DESC
@@ -715,7 +736,7 @@ export async function getProjects() {
 export async function getProjectById(id: string) {
     const database = await getDb();
     const row = await database.getFirstAsync<any>(`
-        SELECT p.*, m.callsign as creator_callsign
+        SELECT p.*, m.callsign as creator_callsign, m.avatar_url as creator_avatar
         FROM projects p
         LEFT JOIN members m ON p.creator_pubkey = m.public_key
         WHERE p.id = ?;
@@ -1879,7 +1900,7 @@ export async function getMemberRatings(publicKey: string): Promise<{ ratings: an
 export async function getMarketplaceTransactions(publicKey: string, filter?: { status?: string }, limit = 50, offset = 0) {
     const database = await getDb();
     let query = `
-        SELECT mt.*, p.title as postTitle, p.photos as postPhotos, m1.callsign as buyerCallsign, m2.callsign as sellerCallsign,
+        SELECT mt.*, p.title as postTitle, p.photos as postPhotos, m1.callsign as buyerCallsign, m1.avatar_url as buyerAvatar, m2.callsign as sellerCallsign, m2.avatar_url as sellerAvatar,
                EXISTS(SELECT 1 FROM ratings r WHERE r.transaction_id = mt.id AND r.rater_pubkey = mt.buyer_pubkey) as ratedByBuyer,
                EXISTS(SELECT 1 FROM ratings r WHERE r.transaction_id = mt.id AND r.rater_pubkey = mt.seller_pubkey) as ratedBySeller
         FROM marketplace_transactions mt
@@ -1918,6 +1939,8 @@ export async function getMarketplaceTransactions(publicKey: string, filter?: { s
             createdAt: r.created_at, 
             completedAt: r.completed_at,
             coverImage: coverImg,
+            buyerAvatar: r.buyerAvatar || null,
+            sellerAvatar: r.sellerAvatar || null,
             ratedByBuyer: !!r.ratedByBuyer,
             ratedBySeller: !!r.ratedBySeller
         };

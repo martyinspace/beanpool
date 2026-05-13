@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { StyleSheet, View, Text, Platform, Alert, TouchableOpacity, ScrollView, TextInput, Pressable, Switch, KeyboardAvoidingView, Dimensions, Image as RNImage, Keyboard, Linking, DeviceEventEmitter, Animated, Modal, FlatList } from 'react-native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
@@ -8,6 +8,7 @@ import { Picker } from '@react-native-picker/picker';
 import MapView, { Marker, PROVIDER_DEFAULT } from '../../components/Map';
 import { useFocusEffect, router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MemberAvatar } from '../../components/MemberAvatar';
 import { getPosts, createPost } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
 import { useCurrencyString } from '../../components/CurrencyDisplay';
@@ -15,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { CategoryPickerSheet } from '../../components/CategoryPickerSheet';
+import { PinVisual, MapMarkerManager, getCachedMarkerImage, buildVariantList, PIN_ANCHOR, PIN_RENDER_W, PIN_RENDER_H, pinCacheKey, ClusterCaptureManager, getCachedClusterImage, CLUSTER_ANCHOR } from '../../components/UnifiedMapPin';
 
 const CATEGORIES = [
     { id: 'food', emoji: '🥕', label: 'Food & Produce' },
@@ -62,20 +64,36 @@ const darkMapStyle = [
   { featureType: "water", elementType: "labels.text.stroke", stylers: [{ color: "#17263c" }] }
 ];
 
-const getClusterStyle = (points: number) => {
-    if (points >= 50) return { size: 64, glow: 80, fontSize: 20 };
-    if (points >= 25) return { size: 56, glow: 72, fontSize: 19 };
-    if (points >= 15) return { size: 50, glow: 66, fontSize: 18 };
-    if (points >= 10) return { size: 46, glow: 60, fontSize: 17 };
-    if (points >= 5)  return { size: 42, glow: 54, fontSize: 16 };
-    return { size: 36, glow: 48, fontSize: 15 };
-};
-
-const ClusterMarker = ({ cluster }: any) => {
+const ClusterMarker = ({ cluster, clustersReady }: any) => {
     const { geometry, onPress, properties } = cluster;
     const points = properties.point_count;
-    const { size, glow, fontSize } = getClusterStyle(points);
+    // Cap at 99 for image lookup — counts ≥100 use the "99+" image
+    const displayCount = Math.min(points, 99);
 
+    const cachedImage = clustersReady ? getCachedClusterImage(displayCount) : null;
+
+    if (cachedImage && Platform.OS !== 'web') {
+        return (
+            <Marker
+                coordinate={{ longitude: geometry.coordinates[0], latitude: geometry.coordinates[1] }}
+                onPress={onPress}
+                tracksViewChanges={false}
+                anchor={CLUSTER_ANCHOR}
+                image={{ uri: cachedImage }}
+            />
+        );
+    }
+
+    // Fallback (web, or while capturing)
+    const getCS = (p: number) => {
+        if (p >= 50) return { size: 64, glow: 80, fontSize: 20 };
+        if (p >= 25) return { size: 56, glow: 72, fontSize: 19 };
+        if (p >= 15) return { size: 50, glow: 66, fontSize: 18 };
+        if (p >= 10) return { size: 46, glow: 60, fontSize: 17 };
+        if (p >= 5)  return { size: 42, glow: 54, fontSize: 16 };
+        return { size: 36, glow: 48, fontSize: 15 };
+    };
+    const { size, glow, fontSize } = getCS(points);
     return (
         <Marker
             coordinate={{ longitude: geometry.coordinates[0], latitude: geometry.coordinates[1] }}
@@ -84,10 +102,8 @@ const ClusterMarker = ({ cluster }: any) => {
             style={{ zIndex: points + 1 }}
         >
             <View collapsable={false} style={{ width: glow, height: glow, justifyContent: 'center', alignItems: 'center' }}>
-                {/* Outer glow ring */}
                 <View style={{ position: 'absolute', width: glow, height: glow, borderRadius: glow / 2, backgroundColor: 'rgba(59, 130, 246, 0.25)' }} />
-                {/* Inner solid circle */}
-                <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', borderColor: '#ffffff', borderWidth: 3, shadowColor: '#2563eb', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 6, elevation: 8 }}>
+                <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', borderColor: '#ffffff', borderWidth: 3 }}>
                     <Text style={{ color: '#ffffff', fontWeight: '800', fontSize }}>{points}</Text>
                 </View>
             </View>
@@ -95,43 +111,42 @@ const ClusterMarker = ({ cluster }: any) => {
     );
 };
 
-const CustomMapMarker = React.memo(({ coordinate, post, catObj, useModernMarkers, isSelected, onPress, opacity = 1 }: any) => {
+const CustomMapMarker = React.memo(({ coordinate, post, catObj, isSelected, onPress, opacity = 1, markersReady = false }: any) => {
 
     const isOffer = post.type === 'offer';
     const bgColor = isOffer ? '#10b981' : '#ea580c';
     const markerEmoji = catObj?.emoji || (isOffer ? '📦' : '❤️');
-    
-    // Elder Glow (Energy Cycled > 10000)
     const isElder = (post.author_energy_cycled || 0) >= 10000;
-    const elderStyle = isElder ? { borderColor: '#fbbf24', borderWidth: 2, shadowColor: '#fbbf24', shadowOpacity: 0.8, shadowRadius: 6, shadowOffset: { width: 0, height: 0 } } : {};
+    const cachedImage = markersReady ? getCachedMarkerImage(markerEmoji, bgColor, isElder) : null;
 
+    if (cachedImage && Platform.OS !== 'web') {
+        return (
+            <Marker
+                coordinate={coordinate}
+                tracksViewChanges={false}
+                opacity={opacity}
+                anchor={PIN_ANCHOR}
+                image={{ uri: cachedImage }}
+                onPress={(e) => { e.stopPropagation(); onPress(post); }}
+            />
+        );
+    }
+
+    // Fallback: inline SVG (web, or while images are still being captured)
     return (
         <Marker
             coordinate={coordinate}
-            tracksViewChanges={true}
+            tracksViewChanges={false}
             opacity={opacity}
-            anchor={{ x: 0.5, y: 1 }}
+            anchor={PIN_ANCHOR}
             onPress={(e) => { e.stopPropagation(); onPress(post); }}
         >
-            <View collapsable={false} style={styles.pinContainer}>
-                {useModernMarkers ? (
-                    <>
-                        <View style={[styles.modernPin, { backgroundColor: bgColor }, isElder && { borderColor: '#fbbf24', borderWidth: 2 }, isSelected && { transform: [{ scale: 1.15 }] }]}>
-                            {isElder && <View style={[StyleSheet.absoluteFill, styles.elderGlow]} />}
-                            <View style={styles.modernPinEmojiBg}>
-                                <Text style={styles.modernPinEmoji}>{markerEmoji}</Text>
-                            </View>
-                        </View>
-                        <View style={[styles.modernPinTail, { borderTopColor: isElder ? '#fbbf24' : bgColor }]} />
-                    </>
-                ) : (
-                    <>
-                        <View style={[styles.pinCircle, { borderColor: bgColor }, elderStyle, isSelected && { transform: [{ scale: 1.15 }] }]}>
-                            <Text style={styles.pinEmoji}>{markerEmoji}</Text>
-                        </View>
-                        <View style={[styles.pinArrow, { borderTopColor: isElder ? '#fbbf24' : bgColor }]} />
-                    </>
-                )}
+            <View collapsable={false} style={{ width: PIN_RENDER_W, height: PIN_RENDER_H }}>
+                <PinVisual
+                    emoji={markerEmoji}
+                    bgColor={bgColor}
+                    isElder={isElder}
+                />
             </View>
         </Marker>
     );
@@ -182,8 +197,21 @@ export default function MapScreen() {
     const pickerRef = useRef<any>(null);
 
     // Map UI State
-    const [useModernMarkers, setUseModernMarkers] = useState(true);
     const [selectedPostPreview, setSelectedPostPreview] = useState<any>(null);
+    const [markersReady, setMarkersReady] = useState(false);
+    const [clustersReady, setClustersReady] = useState(false);
+
+    // Pre-compute unique marker variants for off-screen capture
+    const markerVariants = useMemo(
+        () => buildVariantList(posts, CATEGORIES),
+        [posts]
+    );
+
+    // Pre-compute cluster counts to capture (2 through 99, plus a "99+" variant)
+    const clusterCounts = useMemo(
+        () => Array.from({ length: 98 }, (_, i) => i + 2),
+        []
+    );
 
     // Filter state
     const [mapTypeFilter, setMapTypeFilter] = useState<'all' | 'offers' | 'needs'>('all');
@@ -193,9 +221,6 @@ export default function MapScreen() {
     useFocusEffect(
         React.useCallback(() => { 
             loadPosts(); 
-            AsyncStorage.getItem('beanpool_modern_markers').then(val => {
-                if (val !== null) setUseModernMarkers(val === 'true');
-            });
         }, [])
     );
 
@@ -424,11 +449,31 @@ export default function MapScreen() {
     const submitDisabled = posting || postLat == null || !postTitle.trim() || !postDescription.trim() || postCredits === '' || !postCategory || postPhotos.length < 1;
 
     const renderCluster = (cluster: any) => {
-        return <ClusterMarker key={`cluster-${cluster.id}`} cluster={cluster} />;
+        return <ClusterMarker key={`cluster-${cluster.id}-${clustersReady}`} cluster={cluster} clustersReady={clustersReady} />;
     };
 
     return (
         <View style={styles.container}>
+            {/* Off-screen pin capture layer */}
+            {Platform.OS !== 'web' && markerVariants.length > 0 && (
+                <MapMarkerManager
+                    variants={markerVariants}
+                    onReady={() => {
+                        console.log('[MapScreen] ✅ All marker images captured!');
+                        setMarkersReady(true);
+                    }}
+                />
+            )}
+            {/* Off-screen cluster capture layer */}
+            {Platform.OS !== 'web' && !clustersReady && (
+                <ClusterCaptureManager
+                    counts={clusterCounts}
+                    onReady={() => {
+                        console.log('[MapScreen] ✅ All cluster images captured!');
+                        setClustersReady(true);
+                    }}
+                />
+            )}
             <MapView
                 ref={mapRef}
                 style={styles.map}
@@ -468,13 +513,14 @@ export default function MapScreen() {
                     const isSelected = selectedPostPreview?.id === post.id;
                     return (
                         <CustomMapMarker
-                            key={`${post.id}-${isSelected}`}
+                            key={`${post.id}-${isSelected}-${markersReady}`}
                             coordinate={{ latitude: safePost.lat, longitude: safePost.lng }}
                             post={safePost}
                             catObj={catObj}
-                            useModernMarkers={useModernMarkers}
+
                             isSelected={isSelected}
                             onPress={setSelectedPostPreview}
+                            markersReady={markersReady}
                         />
                     );
                 })}
@@ -566,10 +612,21 @@ export default function MapScreen() {
                             <Text style={styles.previewTitle} numberOfLines={1}>
                                 {selectedPostPreview.title}
                             </Text>
-                            <Text style={styles.previewAuthor} numberOfLines={1}>
-                                {selectedPostPreview.author_callsign || selectedPostPreview.author_pubkey?.slice(0, 6) || 'Unknown'}
-                                {selectedPostPreview.author_energy_cycled && selectedPostPreview.author_energy_cycled >= 10000 ? ' ✨ Elder' : ''}
-                            </Text>
+                            <Pressable 
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                                onPress={() => router.push({ pathname: '/public-profile', params: { publicKey: selectedPostPreview.author_pubkey, callsign: selectedPostPreview.author_callsign || 'Unknown' } })}
+                            >
+                                <MemberAvatar 
+                                    avatarUrl={selectedPostPreview.author_avatar}
+                                    pubkey={selectedPostPreview.author_pubkey || ''}
+                                    callsign={selectedPostPreview.author_callsign || '?'}
+                                    size={20}
+                                />
+                                <Text style={[styles.previewAuthor, { color: '#10b981' }]} numberOfLines={1}>
+                                    {selectedPostPreview.author_callsign || selectedPostPreview.author_pubkey?.slice(0, 6) || 'Unknown'}
+                                    {selectedPostPreview.author_energy_cycled && selectedPostPreview.author_energy_cycled >= 10000 ? ' ✨ Elder' : ''}
+                                </Text>
+                            </Pressable>
                             <Pressable 
                                 style={[styles.previewActionBtn, { backgroundColor: selectedPostPreview.type === 'offer' ? '#10b981' : '#ea580c' }]}
                                 onPress={() => {
@@ -865,18 +922,7 @@ const styles = StyleSheet.create({
     pillBtnEmoji: { fontSize: 20 },
     pillBtnIcon: { fontSize: 22, fontWeight: '300', color: '#374151' },
 
-    // Map Pins (Classic)
-    pinContainer: { width: 44, height: 52, alignItems: 'center', justifyContent: 'flex-start' },
-    pinCircle: { width: 34, height: 34, borderRadius: 17, borderWidth: 3, backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
-    pinEmoji: { fontSize: 18 },
-    pinArrow: { width: 0, height: 0, borderLeftWidth: 4, borderRightWidth: 4, borderTopWidth: 9, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
-
-    // Map Pins (Modern Bean)
-    modernPin: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 5 },
-    modernPinEmojiBg: { backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 12, width: 26, height: 26, justifyContent: 'center', alignItems: 'center' },
-    modernPinEmoji: { fontSize: 16 },
-    modernPinTail: { width: 0, height: 0, borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -2 },
-    elderGlow: { borderRadius: 20, borderWidth: 2, borderColor: '#fbbf24', shadowColor: '#fbbf24', shadowOpacity: 0.8, shadowRadius: 6, shadowOffset: { width: 0, height: 0 } },
+    // Map Pins — now rendered via UnifiedMapPin (SVG). Legacy styles removed.
 
     // Map Preview Card
     previewCardWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 150, justifyContent: 'flex-end' },

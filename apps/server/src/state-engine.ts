@@ -159,10 +159,13 @@ export interface Conversation {
     postId?: string;
     postTitle?: string;
     postStatus?: string;
+    postPhoto?: string | null;
     lastMsgType?: string;
     lastSysType?: string;
     name: string | null;
     participants: string[];
+    peerCallsign?: string;
+    peerAvatar?: string | null;
     createdBy: string;
     createdAt: string;
 }
@@ -1757,18 +1760,46 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
 
     return rows.map(r => {
         const parts = db.prepare("SELECT public_key FROM conversation_participants WHERE conversation_id=?").all(r.id) as any[];
+        
+        // Look up peer member data (avatar + callsign) for the other participant
+        const peerPubkey = parts.find(p => p.public_key !== pubkey)?.public_key;
+        let peerCallsign: string | undefined;
+        let peerAvatar: string | null = null;
+        if (peerPubkey) {
+            const peerMember = db.prepare("SELECT callsign, avatar_url FROM members WHERE public_key=?").get(peerPubkey) as any;
+            if (peerMember) {
+                peerCallsign = peerMember.callsign;
+                peerAvatar = peerMember.avatar_url || null;
+            }
+        }
+
+        // Extract first photo from post
+        let postPhoto: string | null = null;
+        if (r.post_id) {
+            const postRow = db.prepare("SELECT photos FROM posts WHERE id=?").get(r.post_id) as any;
+            if (postRow?.photos) {
+                try {
+                    const arr = JSON.parse(postRow.photos);
+                    if (Array.isArray(arr) && arr.length > 0) postPhoto = arr[0];
+                } catch {}
+            }
+        }
+
         return { 
             id: r.id, 
             type: r.type, 
             postId: r.post_id, 
             postTitle: r.post_title,
             postStatus: r.post_status,
+            postPhoto,
             lastMsgType: r.last_msg_type,
             lastSysType: r.last_sys_type,
             name: r.name, 
             createdBy: r.created_by, 
             createdAt: r.created_at, 
-            participants: parts.map(p => p.public_key) 
+            participants: parts.map(p => p.public_key),
+            peerCallsign,
+            peerAvatar,
         };
     });
 }

@@ -6,7 +6,7 @@
 ---
 ## Current State (2026-05-09)
 
-**BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🪶 bean reputation system, abuse reporting, **moderation centre** (batch post management, wash-trading detection, member audit), **update notifications** (Docker Desktop-style header badge with auto-check), community health dashboard, and federation protocol — deployed on **3 sovereign nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity. A new automated security journaling process using the `.jules` directory has been established to harden the codebase.
+**BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🪶 bean reputation system, abuse reporting, **moderation centre** (batch post management, wash-trading detection, member audit), **update notifications** (Docker Desktop-style header badge with auto-check), community health dashboard, and federation protocol — deployed on **3 sovereign nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity including a custom Android map marker rendering pipeline. A new automated security journaling process using the `.jules` directory has been established to harden the codebase.
 
 ### What's Working
 - ✅ **Dynamic Map Root** — Leaflet map defaults coordinate center to the node's `serviceRadius` config (e.g. Mullumbimby) instead of hardcoding, and handles location cleanly without async ghost-pin drops.
@@ -47,7 +47,7 @@
 - ✅ **FTS5 Full-Text Search** — marketplace search with synonym mapping (`synonyms.json`)
 - ✅ **Cryptographically signed APIs** — Ed25519 client-side signatures on all POST requests preventing spoofing
 - ✅ **Directory Publisher (Decentralized)** — nodes push metadata to beanpool.org Supabase global directory using Libp2p Ed25519 cryptographic signatures to prevent spoofing and replay attacks.
-- ✅ **Native App (Expo)** — 7-tab React Native companion app with PWA parity: Map, Projects, Market (14 categories), Chat, People, Ledger, Settings (Build 1.0.41)
+- ✅ **Native App (Expo)** — 7-tab React Native companion app with PWA parity: Map, Projects, Market (14 categories), Chat, People, Ledger, Settings (Build 1.0.44)
 - ✅ **Admin Node Restore** — Supports offline restoration of system states via `.tar.gz` database upload.
 - ✅ **Native SQLite Persistence** — `expo-sqlite` for local data storage (posts, projects, messages, ledger)
 - ✅ **Native Background Sync** — SQLite `dbSyncLock` Mutex Queue safely handling parallel `applyDelta` and foreground Map/Inbox requests without `database is locked` panics.
@@ -59,6 +59,8 @@
 - ✅ **Push Notifications** — Expo push token registration, DM/marketplace deal alerts, per-member notification preferences. Server stores tokens and dispatches notifications on message/deal events.
 - ✅ **Guest Mode** — multi-node onboarding with `/api/community/membership/:publicKey` probe. Guest indicators in native `GlobalHeader` + `SyncStatus` and PWA header/sync status.
 - ✅ **Map Phase 6 & Clustering Stabilization** — pin clustering for dense areas with modern markers. Custom patched `react-native-map-clustering` to eliminate iOS marker disappearance on bounds changes.
+- ✅ **Android Marker Pipeline** — All map pins and clusters pre-rendered to PNG via `react-native-view-shot` and delivered through Google Maps `BitmapDescriptor` pipeline (`image={{ uri }}` prop), bypassing Android's restrictive JSX bitmap snapshot window (~40×30dp). Cluster counts pre-rendered for 2–99 with a "99+" overflow pattern.
+- ✅ **Profile Navigation Consistency** — Author names and avatars are tappable across all marketplace surfaces (cards, map preview, community list, projects), navigating to the Trust Profile page with correct data params.
 - ✅ **Marketplace UX Modernization** — horizontal category chips (`CategoryPickerSheet`/`CategoryPickerModal`), author trust badges (`PostAuthorTrust`), active deals tracking (`MyDealsSheet`/`MyDealsModal`). Both PWA and Native.
 - ✅ **Community Search** — search and infinite scroll on the People/Community member list (native).
 - ✅ **Escrow Demurrage Exemption** — `escrow_*` synthetic wallets exempt from circulation decay, with DB persistence fix.
@@ -223,4 +225,4 @@ gh run list --limit 3
 
 ---
 
-_Last updated: 2026-05-08_
+_Last updated: 2026-05-13_

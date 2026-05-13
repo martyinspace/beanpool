@@ -2,8 +2,9 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import { getProjects } from '../../utils/db'; // Currently mapped { id, title, goal, current }
+import { getProjects } from '../../utils/db';
 import { loadIdentity } from '../../utils/identity';
+import { MemberAvatar } from '../../components/MemberAvatar';
 
 export default function ProjectsScreen() {
     const [projects, setProjects] = useState<any[]>([]);
@@ -113,9 +114,18 @@ export default function ProjectsScreen() {
                         {item.description || 'No description provided.'}
                     </Text>
 
-                    <Text style={{ fontSize: 12, color: '#6b7280', fontWeight: '500', marginBottom: 12 }}>
-                        Proposed by <Text style={{ color: '#10b981', fontWeight: 'bold' }}>{item.creator_callsign || 'Unknown'}</Text>
-                    </Text>
+                    <Pressable 
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}
+                        onPress={(e) => {
+                            e.stopPropagation();
+                            router.push({ pathname: '/public-profile', params: { publicKey: item.creator_pubkey, callsign: item.creator_callsign || 'Unknown' } });
+                        }}
+                    >
+                        <MemberAvatar avatarUrl={item.creator_avatar} pubkey={item.creator_pubkey || ''} callsign={item.creator_callsign || '?'} size={20} />
+                        <Text style={{ fontSize: 12, color: '#6b7280', fontWeight: '500' }}>
+                            Proposed by <Text style={{ color: '#10b981', fontWeight: 'bold' }}>{item.creator_callsign || 'Unknown'}</Text>
+                        </Text>
+                    </Pressable>
 
                     <View style={styles.progressSection}>
                         <View style={styles.progressHeader}>

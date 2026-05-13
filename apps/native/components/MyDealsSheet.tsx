@@ -3,6 +3,7 @@ import { View, Text, Pressable, Modal, FlatList, Image, StyleSheet, Dimensions }
 import { router } from 'expo-router';
 import { getMarketplaceTransactions, getPosts } from '../utils/db';
 import { ReviewModal } from './ReviewModal';
+import { MemberAvatar } from './MemberAvatar';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -87,6 +88,7 @@ export function MyDealsSheet({ visible, identity, onClose, initialTab = 'active'
             const needsReview = isCompleted && ((isBuyer && !item.ratedByBuyer) || (!isBuyer && !item.ratedBySeller));
             const partnerCallsign = isBuyer ? item.sellerCallsign : item.buyerCallsign;
             const partnerPubkey = isBuyer ? item.sellerPublicKey : item.buyerPublicKey;
+            const partnerAvatar = isBuyer ? item.sellerAvatar : item.buyerAvatar;
 
             const card = (
                 <View style={[
@@ -126,10 +128,13 @@ export function MyDealsSheet({ visible, identity, onClose, initialTab = 'active'
                     </View>
 
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                        <Text style={styles.partnerText}>
-                            {isBuyer ? 'Bought from ' : 'Sold to '}
-                            <Text style={styles.partnerName}>{partnerCallsign}</Text>
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <MemberAvatar avatarUrl={partnerAvatar} pubkey={partnerPubkey || ''} callsign={partnerCallsign || '?'} size={22} />
+                            <Text style={styles.partnerText}>
+                                {isBuyer ? 'Bought from ' : 'Sold to '}
+                                <Text style={styles.partnerName}>{partnerCallsign}</Text>
+                            </Text>
+                        </View>
                         {needsReview && (
                             <Pressable
                                 style={styles.reviewBtn}

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Platform, Image } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIdentity } from '../IdentityContext';
 import { getConversations, createConversationApi, syncMessages } from '../../utils/db';
+import { MemberAvatar } from '../../components/MemberAvatar';
 
 export default function ChatsScreen() {
     const { identity } = useIdentity();
@@ -69,7 +70,7 @@ export default function ChatsScreen() {
         >
             <View style={styles.actionCardHeader}>
                 <View style={styles.actionIconContainer}>
-                    <MaterialCommunityIcons name="lock-outline" size={20} color="#fff" />
+                    <MemberAvatar avatarUrl={item.peerAvatar} pubkey={item.peerPubkey || ''} callsign={item.peer} size={28} />
                 </View>
                 <View style={styles.actionCardInfo}>
                     <Text style={styles.actionCardTitle} numberOfLines={1}>{item.postTitle || 'Transaction'}</Text>
@@ -99,21 +100,26 @@ export default function ChatsScreen() {
                 style={[styles.chatRow, needsAction && styles.chatRowActionNeeded]}
                 onPress={() => router.push(`/chat/${item.id}`)}
             >
-                {activeTab === 'transactions' && item.postId ? (
-                    <View style={[styles.avatar, styles.avatarMarketplace]}>
-                        <MaterialCommunityIcons name="shopping-outline" size={24} color="#059669" />
-                        <View style={styles.overlayAvatar}>
-                            <Text style={styles.overlayAvatarText}>{item.peer.charAt(0).toUpperCase()}</Text>
+                {item.postId && item.postPhoto ? (
+                    <View style={styles.avatarComposite}>
+                        {/* Post photo as primary (rounded square) */}
+                        <Image source={{ uri: item.postPhoto }} style={styles.postPhotoAvatar} />
+                        {/* Peer profile overlay (small circle) */}
+                        <View style={styles.overlayAvatarWrap}>
+                            <MemberAvatar avatarUrl={item.peerAvatar} pubkey={item.peerPubkey || ''} callsign={item.peer} size={20} />
+                        </View>
+                    </View>
+                ) : item.postId ? (
+                    <View style={styles.avatarComposite}>
+                        <View style={[styles.avatar, styles.avatarMarketplace]}>
+                            <MaterialCommunityIcons name="shopping-outline" size={24} color="#059669" />
+                        </View>
+                        <View style={styles.overlayAvatarWrap}>
+                            <MemberAvatar avatarUrl={item.peerAvatar} pubkey={item.peerPubkey || ''} callsign={item.peer} size={20} />
                         </View>
                     </View>
                 ) : (
-                    <View style={[styles.avatar, item.postId && styles.avatarMarketplace]}>
-                        {item.postId ? (
-                            <MaterialCommunityIcons name="shopping-outline" size={24} color="#059669" />
-                        ) : (
-                            <Text style={styles.avatarText}>{item.peer.charAt(0).toUpperCase()}</Text>
-                        )}
-                    </View>
+                    <MemberAvatar avatarUrl={item.peerAvatar} pubkey={item.peerPubkey || ''} callsign={item.peer} size={44} />
                 )}
                 
                 <View style={styles.chatDetails}>
@@ -279,6 +285,9 @@ const styles = StyleSheet.create({
     statusPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
     statusPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
     avatarMarketplace: { backgroundColor: '#d1fae5' },
+    avatarComposite: { width: 50, height: 50, marginRight: 16 },
+    postPhotoAvatar: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#e5e7eb' },
+    overlayAvatarWrap: { position: 'absolute', bottom: -3, right: -3, borderWidth: 2, borderColor: '#fff', borderRadius: 12, overflow: 'hidden' },
     tabContainer: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', gap: 8 },
     tabBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: '#f3f4f6' },
     tabBtnActive: { backgroundColor: '#1f2937' },

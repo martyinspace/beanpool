@@ -1,6 +1,6 @@
 # 🗺️ BeanPool Roadmap
 
-> Planned features and future work. Updated: 2026-05-10
+> Planned features and future work. Updated: 2026-05-13
 
 ---
 
@@ -48,6 +48,8 @@
 - ✅ **Commons Demurrage Persistence** — COMMONS_BALANCE now persists to `accounts` table, restored on startup, saved every 5 min + on every transfer.
 - ✅ **Project System Unification** — Admin Commons UI now reads from the live `projects` SQL table instead of deprecated JSON config blob.
 - ✅ **Profile Photo Server Sync** — Profile updates (including avatar) now push to server and propagate to all devices via sync.
+- ✅ **Android Marker Pipeline** — Pre-rendered PNG map markers via `react-native-view-shot` delivered through Google Maps `BitmapDescriptor`, eliminating Android JSX snapshot clipping. Cluster counts pre-rendered 2–99 with "99+" overflow.
+- ✅ **Profile Navigation Consistency** — Author names and avatars are tappable across all marketplace surfaces (cards, map preview, community list, projects), navigating to Trust Profile with correct data params.
 
 ---
 

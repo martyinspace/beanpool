@@ -156,10 +156,37 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
 
     function getConversationTitle(conv: Conversation): string {
         if (conv.type === 'group') return conv.name || 'Group';
-        // DM: show the other participant's name
+        // Prefer server-provided peerCallsign, fall back to member lookup
+        if (conv.peerCallsign) return conv.peerCallsign;
         const otherPubkey = conv.participants.find(p => p !== identity.publicKey) || '';
         const member = members.find(m => m.publicKey === otherPubkey);
         return member?.callsign || otherPubkey.substring(0, 12) + '…';
+    }
+
+    /** Render an avatar circle — shows image if avatarUrl present, letter fallback otherwise */
+    function renderAvatar(avatarUrl: string | null | undefined, fallbackChar: string, size = 40, style?: React.CSSProperties) {
+        if (avatarUrl) {
+            return (
+                <img
+                    src={avatarUrl}
+                    alt=""
+                    style={{
+                        width: `${size}px`, height: `${size}px`, borderRadius: '50%',
+                        objectFit: 'cover', flexShrink: 0, ...style,
+                    }}
+                />
+            );
+        }
+        return (
+            <div style={{
+                width: `${size}px`, height: `${size}px`, borderRadius: '50%',
+                background: 'var(--bg-hover)', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontSize: `${size * 0.45}px`, fontWeight: 700,
+                color: 'var(--text-muted)', flexShrink: 0, ...style,
+            }}>
+                {fallbackChar.charAt(0).toUpperCase()}
+            </div>
+        );
     }
 
     function toggleMemberSelection(pubkey: string) {
@@ -237,10 +264,9 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                     >
                         <div style={{
                             width: '36px', height: '36px', borderRadius: '50%',
-                            background: 'var(--bg-hover)', display: 'flex', alignItems: 'center',
-                            justifyContent: 'center', fontSize: '1.1rem',
+                            overflow: 'hidden', flexShrink: 0,
                         }}>
-                            {m.callsign.charAt(0).toUpperCase()}
+                            {renderAvatar(m.avatarUrl, m.callsign, 36)}
                         </div>
                         <span style={{ fontWeight: 600 }}>{m.callsign}</span>
                         {showNewGroup && selectedMembers.includes(m.publicKey) && (
@@ -286,6 +312,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                     >
                         ←
                     </button>
+                    {renderAvatar(activeConv.peerAvatar, getConversationTitle(activeConv), 32)}
                     <div>
                         <div style={{ fontWeight: 600, fontSize: '1rem' }}>
                             {getConversationTitle(activeConv)}
@@ -567,20 +594,26 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                             }}
                         >
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            {activeTab === 'transactions' && conv.postId ? (
+                            {conv.postId ? (
                                 <div style={{
-                                    width: '40px', height: '40px', borderRadius: '50%',
-                                    background: '#d1fae5', border: '1px solid #10b981',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontSize: '1.2rem', flexShrink: 0, position: 'relative',
+                                    width: '44px', height: '44px', borderRadius: '12px',
+                                    overflow: 'hidden', flexShrink: 0, position: 'relative',
+                                    background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 }}>
-                                    🛍️
+                                    {conv.postPhoto ? (
+                                        <img src={conv.postPhoto} alt="" style={{
+                                            width: '44px', height: '44px', objectFit: 'cover', borderRadius: '12px',
+                                        }} />
+                                    ) : (
+                                        <span style={{ fontSize: '1.3rem' }}>🛍️</span>
+                                    )}
+                                    {/* Peer profile overlay */}
                                     <div style={{
-                                        position: 'absolute', bottom: '-4px', right: '-4px', width: '20px', height: '20px', borderRadius: '50%',
-                                        background: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontSize: '0.6rem', color: '#fff', fontWeight: 'bold', border: '2px solid var(--bg-primary)'
+                                        position: 'absolute', bottom: '-3px', right: '-3px',
+                                        width: '22px', height: '22px', borderRadius: '50%',
+                                        border: '2px solid var(--bg-primary)', overflow: 'hidden',
                                     }}>
-                                        {getConversationTitle(conv).charAt(0)}
+                                        {renderAvatar(conv.peerAvatar, getConversationTitle(conv), 22)}
                                     </div>
                                     {(conv.unreadCount || 0) > 0 && (
                                         <span style={{
@@ -592,15 +625,19 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                     )}
                                 </div>
                             ) : (
-                                <div style={{
-                                    width: '40px', height: '40px', borderRadius: '50%',
-                                    background: conv.type === 'group' ? 'var(--bg-card)' : 'var(--bg-hover)',
-                                    border: '1px solid var(--border-primary)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontSize: '1.1rem', flexShrink: 0,
-                                    position: 'relative',
-                                }}>
-                                    {conv.type === 'group' ? '👥' : '💬'}
+                                <div style={{ position: 'relative', flexShrink: 0 }}>
+                                    {conv.type === 'group' ? (
+                                        <div style={{
+                                            width: '44px', height: '44px', borderRadius: '50%',
+                                            background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: '1.1rem',
+                                        }}>
+                                            👥
+                                        </div>
+                                    ) : (
+                                        renderAvatar(conv.peerAvatar, getConversationTitle(conv), 44)
+                                    )}
                                     {(conv.unreadCount || 0) > 0 && (
                                         <span style={{
                                             position: 'absolute', top: '-4px', right: '-4px',

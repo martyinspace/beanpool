@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { getMemberRatings } from '../utils/db';
 import { router } from 'expo-router';
+import { MemberAvatar } from './MemberAvatar';
 
 /**
  * Trust Tier Thresholds (based on Energy Cycled)
@@ -29,6 +30,7 @@ interface PostAuthorTrustProps {
     pubkey: string;
     callsign: string;
     energyCycled?: number;
+    avatarUrl?: string | null;
     /** 'compact' = grid cards, 'full' = list cards */
     mode?: 'compact' | 'full';
     /** Whether to show navigation to public profile */
@@ -39,7 +41,7 @@ interface PostAuthorTrustProps {
  * Hybrid Trust Display: Tier Badge + Star Rating
  * Tier badge always shows. Star rating only shows when count > 0.
  */
-export function PostAuthorTrust({ pubkey, callsign, energyCycled = 0, mode = 'full', navigable = true }: PostAuthorTrustProps) {
+export function PostAuthorTrust({ pubkey, callsign, energyCycled = 0, avatarUrl, mode = 'full', navigable = true }: PostAuthorTrustProps) {
     const [ratingInfo, setRatingInfo] = useState<{ average: number; count: number } | null>(null);
     const tier = getTrustTier(energyCycled);
 
@@ -52,7 +54,7 @@ export function PostAuthorTrust({ pubkey, callsign, energyCycled = 0, mode = 'fu
 
     const handlePress = () => {
         if (navigable && pubkey) {
-            router.push({ pathname: '/public-profile', params: { pubkey } });
+            router.push({ pathname: '/public-profile', params: { publicKey: pubkey, callsign } });
         }
     };
 
@@ -61,6 +63,8 @@ export function PostAuthorTrust({ pubkey, callsign, energyCycled = 0, mode = 'fu
     if (mode === 'compact') {
         return (
             <Wrapper {...(navigable ? { onPress: handlePress } : {})} style={styles.compactContainer}>
+                {/* Avatar */}
+                <MemberAvatar avatarUrl={avatarUrl} pubkey={pubkey} callsign={callsign} size={18} />
                 {/* Tier badge */}
                 <View style={[styles.tierBadgeCompact, { backgroundColor: tier.bgColor, borderColor: tier.borderColor }]}>
                     <Text style={styles.tierEmojiCompact}>{tier.emoji}</Text>
@@ -80,6 +84,8 @@ export function PostAuthorTrust({ pubkey, callsign, energyCycled = 0, mode = 'fu
     // Full mode (list cards)
     return (
         <Wrapper {...(navigable ? { onPress: handlePress } : {})} style={styles.fullContainer}>
+            {/* Avatar */}
+            <MemberAvatar avatarUrl={avatarUrl} pubkey={pubkey} callsign={callsign} size={24} />
             {/* Tier badge with label */}
             <View style={[styles.tierBadgeFull, { backgroundColor: tier.bgColor, borderColor: tier.borderColor }]}>
                 <Text style={styles.tierEmojiFull}>{tier.emoji}</Text>
