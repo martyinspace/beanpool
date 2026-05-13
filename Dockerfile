@@ -83,6 +83,11 @@ RUN apk add --no-cache su-exec
 # Clean up build tools to reduce image size
 RUN apk del python3 make g++
 
+# Link to GitHub repository to inherit README on GHCR package page
+LABEL org.opencontainers.image.source="https://github.com/martyinspace/beanpool"
+LABEL org.opencontainers.image.description="A decentralized mutual credit protocol for sovereign communities."
+LABEL org.opencontainers.image.licenses="MIT"
+
 # Expose the 4-port layout
 EXPOSE 8080 8443 4001 4002
 
