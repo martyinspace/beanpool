@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, ScrollView, SafeAreaView, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { MemberAvatar } from '../components/MemberAvatar';
 import { getMemberProfile, getMemberRatings } from '../utils/db'; // Make sure these are exported correctly
 import { useIdentity } from './IdentityContext';
 

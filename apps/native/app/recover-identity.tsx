@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, SafeAreaView, ScrollView, Image } from 'react-native';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { MemberAvatar } from '../components/MemberAvatar';
 import { lookupRecoveryCallsign, createRecoveryRequest, getRecoveryStatus } from '../utils/db';
 import { createIdentity } from '../utils/identity';
 
@@ -117,11 +118,7 @@ export default function RecoverIdentityScreen() {
                             {lookupResults.map(p => (
                                 <Pressable key={p.publicKey} style={styles.profileBtn} onPress={() => handleSelect(p)}>
                                     <View style={styles.avatar}>
-                                        {p.avatarUrl ? (
-                                            <Image source={{uri: p.avatarUrl}} style={{width: 44, height: 44, borderRadius: 22}}/>
-                                        ) : (
-                                            <Text style={{fontSize: 20}}>👤</Text>
-                                        )}
+                                        <MemberAvatar avatarUrl={p.avatarUrl} pubkey={p.publicKey} callsign={p.callsign || '?'} size={44} />
                                     </View>
                                     <View>
                                         <Text style={styles.callsign}>{p.callsign}</Text>
