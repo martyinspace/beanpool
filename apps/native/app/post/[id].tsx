@@ -15,6 +15,7 @@ import {
 import { useIdentity } from '../IdentityContext';
 import { ReviewModal } from '../../components/ReviewModal';
 import { CurrencyDisplay } from '../../components/CurrencyDisplay';
+import { MemberAvatar } from '../../components/MemberAvatar';
 
 const CATEGORIES = [
     { id: 'food', emoji: '🥕', label: 'Food' },
@@ -340,11 +341,7 @@ export default function PostDetailModal() {
                     <Text style={styles.authorCardLabel}>POSTED BY</Text>
                     <View style={styles.authorRow}>
                         <View style={styles.avatar}>
-                            {post.author_avatar ? (
-                                <Image source={{ uri: post.author_avatar.startsWith('data:') ? post.author_avatar : `${post.author_avatar}${post.author_avatar.includes('?') ? '&' : '?'}_v=${post.author_pubkey?.slice(0, 8) || '0'}` }} style={{ width: 48, height: 48, borderRadius: 24 }} />
-                            ) : (
-                                <Text style={styles.avatarLetter}>{cardAuthor.charAt(0).toUpperCase()}</Text>
-                            )}
+                            <MemberAvatar avatarUrl={post.author_avatar} pubkey={post.author_pubkey} callsign={cardAuthor} size={48} borderRadius={24} />
                         </View>
                         <View style={styles.authorInfo}>
                             <Text style={styles.authorName}>🤝 {cardAuthor}</Text>

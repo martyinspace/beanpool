@@ -7,6 +7,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { getBalance, getTransactions, getProjects, getMemberProfile, getAllCommunityMembers, sendTransfer } from '../../utils/db';
 import { CurrencyDisplay } from '../../components/CurrencyDisplay';
+import { MemberAvatar } from '../../components/MemberAvatar';
 
 export default function LedgerScreen() {
     const { identity } = useIdentity();
@@ -97,11 +98,7 @@ export default function LedgerScreen() {
             {/* Identity Card */}
             <View style={styles.identityCard}>
                 <View style={styles.avatar}>
-                    {avatarUrl ? (
-                        <Image source={{ uri: avatarUrl }} style={{ width: 72, height: 72, borderRadius: 36 }} />
-                    ) : (
-                        <Text style={styles.avatarEmoji}>🛡️</Text>
-                    )}
+                    <MemberAvatar avatarUrl={avatarUrl} pubkey={identity?.publicKey || ''} callsign={identity?.callsign || 'GUEST'} size={72} />
                 </View>
                 <Text style={styles.callsign}>{identity?.callsign || 'GUEST'}</Text>
                 <Text style={styles.pubkey}>{identity?.publicKey?.substring(0, 16) || '...'}...</Text>

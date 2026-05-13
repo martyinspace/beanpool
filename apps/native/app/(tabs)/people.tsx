@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { MemberAvatar } from '../../components/MemberAvatar';
 import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image, ActivityIndicator, Platform } from 'react-native';
 import { getDb, getFriendsLocal, addFriendLocal, removeFriendLocal, createConversationApi, setGuardianApi } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
@@ -338,15 +339,7 @@ export default function PeopleScreen() {
                             <View style={styles.card}>
                                 <View style={styles.cardHeader}>
                                     <View style={styles.avatar}>
-                                        {uri ? (
-                                            <Image source={{ uri }} style={{ width: 44, height: 44, borderRadius: 22 }} />
-                                        ) : (
-                                            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center' }}>
-                                                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#6b7280' }}>
-                                                    {(item.callsign || '?').charAt(0).toUpperCase()}
-                                                </Text>
-                                            </View>
-                                        )}
+                                        <MemberAvatar avatarUrl={item.avatar_url} pubkey={item.publicKey} callsign={item.callsign || '?'} size={44} />
                                     </View>
                                     <View style={styles.textStack}>
                                         <Text style={styles.callsign}>{item.callsign}</Text>
@@ -455,15 +448,7 @@ export default function PeopleScreen() {
                                 onPress={() => router.push({ pathname: '/public-profile', params: { publicKey: item.public_key, callsign: item.callsign || 'Unknown' } })}
                             >
                                 <View style={styles.avatar}>
-                                    {uri ? (
-                                        <Image source={{ uri }} style={{ width: 44, height: 44, borderRadius: 22 }} />
-                                    ) : (
-                                        <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center' }}>
-                                            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#6b7280' }}>
-                                                {(item.callsign || '?').charAt(0).toUpperCase()}
-                                            </Text>
-                                        </View>
-                                    )}
+                                    <MemberAvatar avatarUrl={item.avatar_url} pubkey={item.public_key} callsign={item.callsign || '?'} size={44} />
                                     {isFriend && (
                                         <View style={styles.communityFriendDot}>
                                             <Text style={{ fontSize: 8, color: '#fff', fontWeight: '800' }}>★</Text>

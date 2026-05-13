@@ -52,13 +52,9 @@ export default function PublicProfileScreen() {
             <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
                 {/* Banner Profile */}
                 <View style={styles.banner}>
-                    {profile?.avatar_url ? (
-                        <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
-                    ) : (
-                        <View style={styles.avatarPlaceholder}>
-                            <Text style={styles.avatarInitial}>{(callsignStr || '?').charAt(0).toUpperCase()}</Text>
-                        </View>
-                    )}
+                    <View style={{ width: 80, height: 80, borderRadius: 40, overflow: 'hidden', marginBottom: 12 }}>
+                        <MemberAvatar avatarUrl={profile?.avatar_url} pubkey={pubKeyStr} callsign={callsignStr || '?'} size={80} />
+                    </View>
                     <Text style={styles.callsignText}>{callsignStr} <Text style={{ color: '#10b981' }}>✓</Text></Text>
                     <Text style={styles.pubkeyText}>{pubKeyStr?.slice(0, 16)}...</Text>
 
