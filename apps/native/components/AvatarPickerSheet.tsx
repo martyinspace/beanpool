@@ -67,12 +67,9 @@ export function AvatarPickerSheet({ visible, onClose, onSelectImage }: AvatarPic
 
     const handleSelectBundled = () => {
         if (!selectedAvatarId) return;
-        const avatar = BUNDLED_AVATARS.find(a => a.id === selectedAvatarId);
-        if (avatar) {
-            const resolved = Image.resolveAssetSource(avatar.source);
-            onSelectImage(resolved.uri);
-            onClose();
-        }
+        // Store as bundled:// protocol reference — universally resolvable on all devices
+        onSelectImage(`bundled://${selectedAvatarId}`);
+        onClose();
     };
 
     return (

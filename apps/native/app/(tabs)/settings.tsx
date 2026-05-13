@@ -6,6 +6,7 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { processProfileImage } from '../../utils/image-processing';
 import { AvatarPickerSheet } from '../../components/AvatarPickerSheet';
+import { resolveBundledAvatar } from '../../utils/bundled-avatars';
 import { updateCallsign, wipeIdentity } from '../../utils/identity';
 import { nativeExportIdentity } from '../../utils/native-crypto';
 import { encodeBase64, encodeUtf8, hexToBytes, signData } from '../../utils/crypto';
@@ -487,7 +488,7 @@ export default function SettingsScreen() {
                     {/* Avatar */}
                     <Pressable onPress={() => setMode('profile')} style={styles.avatarWrap}>
                         {avatar ? (
-                            <Image source={{ uri: avatar }} style={styles.avatarImg} />
+                            <Image source={avatar.startsWith('bundled://') ? resolveBundledAvatar(avatar)! : { uri: avatar }} style={styles.avatarImg} />
                         ) : (
                             <View style={styles.avatarPlaceholder}>
                                 <Text style={{ fontSize: 42 }}>👤</Text>
@@ -640,7 +641,7 @@ export default function SettingsScreen() {
 
                 {/* ─── Version Footer ─── */}
                 <Text style={styles.versionText}>
-                    BEANPOOL OS {appConfig.expo.version}
+                    BEANPOOL OS {appConfig.expo.version} (Build {appConfig.expo.ios.buildNumber})
                 </Text>
                 </>
             )}
@@ -719,7 +720,7 @@ export default function SettingsScreen() {
                         <Pressable onPress={handlePickImage} style={{ alignItems: 'center' }}>
                             <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#e5e7eb', overflow: 'hidden' }}>
                                 {avatar ? (
-                                    <Image source={{ uri: avatar }} style={{ width: '100%', height: '100%' }} />
+                                    <Image source={avatar.startsWith('bundled://') ? resolveBundledAvatar(avatar)! : { uri: avatar }} style={{ width: '100%', height: '100%' }} />
                                 ) : (
                                     <Text style={{ fontSize: 32 }}>📷</Text>
                                 )}

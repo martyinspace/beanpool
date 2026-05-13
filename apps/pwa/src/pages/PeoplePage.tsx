@@ -11,6 +11,7 @@ import {
     type FriendEntry, type Member,
 } from '../lib/api';
 import { type BeanPoolIdentity } from '../lib/identity';
+import { resolveAvatarUrl } from '../lib/avatar';
 import { InvitePage } from './InvitePage';
 
 interface Props {
@@ -46,10 +47,12 @@ function Avatar({ callsign, avatarUrl, isGuardian, size = 40 }: { callsign: stri
     const initial = callsign.charAt(0).toUpperCase();
     const sizeStyle = { width: size, height: size, minWidth: size };
 
-    if (avatarUrl) {
+    const resolved = resolveAvatarUrl(avatarUrl);
+
+    if (resolved) {
         return (
             <img 
-                src={avatarUrl} 
+                src={resolved} 
                 alt={callsign}
                 className="rounded-full object-cover border border-nature-200 dark:border-nature-700"
                 style={sizeStyle}

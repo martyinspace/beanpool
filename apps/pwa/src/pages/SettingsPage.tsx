@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react';
 import { type BeanPoolIdentity } from '../lib/identity';
 import { exportIdentity } from '../lib/identity-transfer';
 import { getMemberProfile, type MemberProfile } from '../lib/api';
+import { resolveAvatarUrl } from '../lib/avatar';
 import { ProfilePage } from './ProfilePage';
 import { type Theme } from '../lib/useTheme';
 import pkg from '../../package.json';
@@ -121,7 +122,7 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                     <div className="flex justify-center mb-4">
                         <div className="w-20 h-20 rounded-full border-4 border-terra-300 dark:border-terra-600 flex items-center justify-center text-3xl bg-oat-50 dark:bg-nature-800 shadow-inner overflow-hidden transition-colors">
                             {profile?.avatar ? (
-                                <img src={profile.avatar} className="w-full h-full object-cover" alt={identity.callsign} />
+                                <img src={resolveAvatarUrl(profile.avatar)!} className="w-full h-full object-cover" alt={identity.callsign} />
                             ) : (
                                 <span className="text-2xl font-bold text-nature-400 dark:text-nature-500 select-none">
                                     {identity.callsign.charAt(0).toUpperCase()}
@@ -136,7 +137,7 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                     <div className="text-xs font-semibold uppercase tracking-wider text-nature-500 dark:text-nature-400 mb-1">Community Node</div>
                     <div className="text-sm font-mono text-nature-600 dark:text-nature-400 bg-nature-50 dark:bg-nature-900/30 px-3 py-2 rounded-lg border border-nature-100 dark:border-nature-800/50 transition-colors break-all mb-4">{window.location.origin}</div>
                     <div className="text-xs font-semibold uppercase tracking-wider text-nature-500 dark:text-nature-400 mb-1">App Version</div>
-                    <div className="text-sm font-mono text-nature-600 dark:text-nature-400 bg-nature-50 dark:bg-nature-900/30 px-3 py-2 rounded-lg border border-nature-100 dark:border-nature-800/50 transition-colors break-all">v{pkg.version}</div>
+                    <div className="text-sm font-mono text-nature-600 dark:text-nature-400 bg-nature-50 dark:bg-nature-900/30 px-3 py-2 rounded-lg border border-nature-100 dark:border-nature-800/50 transition-colors break-all">v{pkg.version} (Build 61)</div>
                 </div>
 
                 {/* Theme Toggle */}

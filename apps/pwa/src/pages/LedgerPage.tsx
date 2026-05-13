@@ -13,6 +13,7 @@ import {
     type BalanceInfo, type TierInfo, type Transaction, type Member,
     type CommunityProject, type VotingRound, type MemberProfile,
 } from '../lib/api';
+import { resolveAvatarUrl } from '../lib/avatar';
 
 interface Props {
     identity: BeanPoolIdentity;
@@ -110,7 +111,7 @@ export function LedgerPage({ identity }: Props) {
             <div className="text-center mb-6 p-6 bg-white dark:bg-nature-900 rounded-2xl border border-nature-200 dark:border-nature-800 shadow-sm transition-transform hover:-translate-y-0.5">
                 <div className="w-20 h-20 rounded-full border-4 border-emerald-500 flex items-center justify-center text-3xl mx-auto mb-4 bg-emerald-50 dark:bg-nature-800 shadow-inner overflow-hidden">
                     {profile?.avatar ? (
-                        <img src={profile.avatar} className="w-full h-full object-cover" alt="Identity" />
+                        <img src={resolveAvatarUrl(profile.avatar)!} className="w-full h-full object-cover" alt="Identity" />
                     ) : (
                         <img src="/assets/logo-192x192.png" className="w-[70%] h-[70%] object-contain" alt="Identity" />
                     )}

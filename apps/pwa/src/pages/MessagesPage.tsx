@@ -15,6 +15,7 @@ import {
 } from '../lib/api';
 import { encodePlaintext, decodePlaintext } from '../lib/e2e-crypto';
 import { type BeanPoolIdentity } from '../lib/identity';
+import { resolveAvatarUrl } from '../lib/avatar';
 
 interface Props {
     identity: BeanPoolIdentity;
@@ -165,10 +166,11 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
 
     /** Render an avatar circle — shows image if avatarUrl present, letter fallback otherwise */
     function renderAvatar(avatarUrl: string | null | undefined, fallbackChar: string, size = 40, style?: React.CSSProperties) {
-        if (avatarUrl) {
+        const resolved = resolveAvatarUrl(avatarUrl);
+        if (resolved) {
             return (
                 <img
-                    src={avatarUrl}
+                    src={resolved}
                     alt=""
                     style={{
                         width: `${size}px`, height: `${size}px`, borderRadius: '50%',

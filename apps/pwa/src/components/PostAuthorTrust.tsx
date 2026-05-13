@@ -14,6 +14,7 @@
 
 import { useState } from 'react';
 import { PublicProfileModal } from './PublicProfileModal';
+import { resolveAvatarUrl } from '../lib/avatar';
 
 const TRUST_TIERS = [
     { min: 10000, emoji: '✨', label: 'Elder',   color: 'text-amber-500',   bg: 'bg-amber-500/15',   border: 'border-amber-500/30' },
@@ -51,10 +52,12 @@ function MiniAvatar({ callsign, avatarUrl, size }: { callsign: string; avatarUrl
     const initial = callsign.charAt(0).toUpperCase();
     const sizeClass = size === 18 ? 'w-[18px] h-[18px] text-[8px]' : 'w-[24px] h-[24px] text-[10px]';
 
-    if (avatarUrl) {
+    const resolved = resolveAvatarUrl(avatarUrl);
+
+    if (resolved) {
         return (
             <img 
-                src={avatarUrl} 
+                src={resolved} 
                 alt={callsign} 
                 className={`${sizeClass} rounded-full object-cover flex-shrink-0 border border-nature-200 dark:border-nature-700`}
             />

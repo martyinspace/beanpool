@@ -13,6 +13,7 @@
 import React from 'react';
 import { View, Image, Text, StyleSheet } from 'react-native';
 import { avatarUri } from '../utils/image-processing';
+import { resolveBundledAvatar } from '../utils/bundled-avatars';
 
 // Consistent color palette for letter-initial fallbacks
 const FALLBACK_COLORS = [
@@ -51,6 +52,22 @@ export function MemberAvatar({
     const radius = borderRadius ?? size / 2;
     const uri = avatarUri(avatarUrl, pubkey, updatedAt);
     const fontSize = Math.max(Math.round(size * 0.42), 10);
+
+    // Resolve bundled:// references to require() image sources
+    if (uri && uri.startsWith('bundled://')) {
+        const bundledSource = resolveBundledAvatar(uri);
+        if (bundledSource) {
+            return (
+                <Image
+                    source={bundledSource}
+                    style={[
+                        styles.image,
+                        { width: size, height: size, borderRadius: radius },
+                    ]}
+                />
+            );
+        }
+    }
 
     if (uri) {
         return (

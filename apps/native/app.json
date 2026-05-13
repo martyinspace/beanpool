@@ -7,7 +7,6 @@
     "icon": "./assets/images/app-icon.png",
     "scheme": "beanpool",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
     "splash": {
       "backgroundColor": "#ffffff",
       "image": "./assets/images/logo.png",
@@ -16,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "org.beanpool.pillar",
-      "buildNumber": "60",
+      "buildNumber": "61",
       "associatedDomains": [
         "applinks:beanpool.org",
         "applinks:*.beanpool.org"
@@ -31,7 +30,7 @@
       }
     },
     "android": {
-      "versionCode": 60,
+      "versionCode": 61,
       "package": "org.beanpool.pillar",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
@@ -98,17 +97,14 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-sharing"
     ],
     "extra": {
       "router": {},
       "eas": {
         "projectId": "17a2a61a-9cbe-457e-bb10-84d8a666e6eb"
       }
-    },
-    "runtimeVersion": "1.0.0",
-    "updates": {
-      "url": "https://u.expo.dev/17a2a61a-9cbe-457e-bb10-84d8a666e6eb"
     }
   }
 }

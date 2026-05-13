@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getMemberProfile, getMemberRatings, type Rating } from '../lib/api';
+import { resolveAvatarUrl } from '../lib/avatar';
 
 export function PublicProfileModal({ 
     publicKey, 
@@ -58,7 +59,7 @@ export function PublicProfileModal({
                     
                     {profile?.avatar ? (
                         <img 
-                            src={profile.avatar} 
+                            src={resolveAvatarUrl(profile.avatar)!} 
                             alt={callsign} 
                             className="w-24 h-24 rounded-full border-4 border-white dark:border-nature-900 shadow-md mb-4 relative z-10 object-cover bg-nature-100"
                         />

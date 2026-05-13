@@ -10,7 +10,7 @@ import { useGlobalSearchParams, router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import * as ImagePicker from 'expo-image-picker';
-import { BUNDLED_AVATARS, BundledAvatar } from '../utils/bundled-avatars';
+import { BUNDLED_AVATARS, BundledAvatar, resolveBundledAvatar } from '../utils/bundled-avatars';
 import { AvatarPickerSheet } from '../components/AvatarPickerSheet';
 import { updateMemberProfile } from '../utils/db';
 import { hexToBytes } from '@noble/hashes/utils';
@@ -368,7 +368,7 @@ export default function WelcomeScreen() {
                         <View style={profileStyles.previewContainer}>
                             {pendingAvatar ? (
                                 <Image
-                                    source={{ uri: pendingAvatar }}
+                                    source={pendingAvatar.startsWith('bundled://') ? resolveBundledAvatar(pendingAvatar)! : { uri: pendingAvatar }}
                                     style={profileStyles.previewImage}
                                 />
                             ) : (
