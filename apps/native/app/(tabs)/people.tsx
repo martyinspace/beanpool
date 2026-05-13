@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 
 import { router, useLocalSearchParams } from 'expo-router';
+import { extractNodeOrigin, normaliseInviteCode } from '../../utils/invite-parser';
 
 type SubView = 'friends' | 'community' | 'invites' | 'guardians';
 
@@ -40,23 +41,22 @@ function formatJoinDate(dateStr: string | null) {
 };
 
 export default function PeopleScreen() {
-    const { view: pView } = useLocalSearchParams<{ view: string }>();
-    const [view, setView] = useState<SubView>('friends');
-
-    useEffect(() => {
-        if (pView === 'invites') setView('invites');
-    }, [pView]);
-    const [members, setMembers] = useState<any[]>([]);
-    const { identity } = useIdentity();
-    const [generating, setGenerating] = useState(false);
-    const [newCode, setNewCode] = useState('');
-    const [intendedFor, setIntendedFor] = useState('');
+    const params = useLocalSearchParams<{ view: string }>();
+    const [view, setView] = useState<SubView>((params.view as SubView) || 'community');
     const [invites, setInvites] = useState<any[]>([]);
+    const [generating, setGenerating] = useState(false);
+    const [intendedFor, setIntendedFor] = useState('');
+    const [newCode, setNewCode] = useState('');
+    
     const [redeemCode, setRedeemCode] = useState('');
+    const [redeemNodeUrl, setRedeemNodeUrl] = useState('');
     const [redeeming, setRedeeming] = useState(false);
     const [anchorUrl, setAnchorUrl] = useState('');
     const [canInvite, setCanInvite] = useState(true);
     const [tierName, setTierName] = useState('');
+
+    const [members, setMembers] = useState<any[]>([]);
+    const { identity } = useIdentity();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [page, setPage] = useState(0);
@@ -220,18 +220,70 @@ export default function PeopleScreen() {
     };
 
     const handleRedeem = async () => {
-        if (!redeemCode.trim()) return;
+        const rawInvite = redeemCode.trim();
+        if (!rawInvite) return;
         setRedeeming(true);
         try {
-            const { redeemInvite } = await import('../../utils/db');
-            await redeemInvite(redeemCode.trim(), identity?.callsign || 'Unknown', identity);
-            
-            const { performSync } = await import('../../services/pillar-sync');
-            performSync().catch(console.error);
+            const extractedOrigin = extractNodeOrigin(rawInvite);
+            let targetNodeUrl = anchorUrl;
 
-            Alert.alert('Success', 'Invite redeemed! You are now a member of this community.');
-            setRedeemCode('');
-            router.replace('/');
+            if (extractedOrigin) {
+                targetNodeUrl = extractedOrigin;
+            } else {
+                let nodeUrl = redeemNodeUrl.trim();
+                if (nodeUrl && !nodeUrl.startsWith('http')) {
+                    const isIpOrLocal = /^(?:\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(nodeUrl) || nodeUrl.startsWith('localhost');
+                    nodeUrl = (isIpOrLocal ? 'http://' : 'https://') + nodeUrl;
+                }
+                if (nodeUrl) targetNodeUrl = nodeUrl;
+            }
+
+            if (targetNodeUrl === anchorUrl) {
+                Alert.alert('Already a Member', 'You are already a member of this community node.');
+                setRedeeming(false);
+                return;
+            }
+
+            const parsedCode = normaliseInviteCode(rawInvite);
+
+            const { closeDB, initDB, redeemInvite } = await import('../../utils/db');
+            
+            // Switch DB context temporarily or permanently
+            await closeDB();
+            await AsyncStorage.setItem('beanpool_anchor_url', targetNodeUrl);
+            await initDB();
+
+            try {
+                await redeemInvite(parsedCode, identity?.callsign || 'Unknown', identity);
+                
+                const { performSync } = await import('../../services/pillar-sync');
+                performSync().catch(console.error);
+
+                try {
+                    const healthRes = await fetch(`${targetNodeUrl}/api/community/health`, { method: 'GET' });
+                    if (healthRes.ok) {
+                        const healthData = await healthRes.json();
+                        const remoteName = healthData.nodeName || healthData.name || targetNodeUrl;
+                        const cType = healthData.currency?.type || 'image';
+                        const cVal = healthData.currency?.value || 'bean';
+                        const { addSavedNode } = await import('../../utils/nodes');
+                        await addSavedNode(targetNodeUrl, remoteName, cType, cVal);
+                    }
+                } catch (e) {
+                    console.warn('Failed to fetch node details for saving', e);
+                }
+
+                Alert.alert('Success', 'Invite redeemed! You have successfully switched to the new community.');
+                setRedeemCode('');
+                setRedeemNodeUrl('');
+                router.replace('/');
+            } catch (err: any) {
+                // Revert DB on failure
+                await closeDB();
+                await AsyncStorage.setItem('beanpool_anchor_url', anchorUrl);
+                await initDB();
+                throw err;
+            }
         } catch (e: any) {
             Alert.alert('Redemption Failed', e.message);
         } finally {
@@ -337,7 +389,10 @@ export default function PeopleScreen() {
                             const uri = avatarUri(item.avatar_url, item.publicKey);
                             return (
                             <View style={styles.card}>
-                                <View style={styles.cardHeader}>
+                                <Pressable 
+                                    style={styles.cardHeader}
+                                    onPress={() => router.push({ pathname: '/public-profile', params: { publicKey: item.publicKey, callsign: item.callsign || 'Unknown' } })}
+                                >
                                     <View style={styles.avatar}>
                                         <MemberAvatar avatarUrl={item.avatar_url} pubkey={item.publicKey} callsign={item.callsign || '?'} size={44} />
                                     </View>
@@ -347,7 +402,7 @@ export default function PeopleScreen() {
                                             Added {item.addedAt ? new Date(item.addedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'recently'}
                                         </Text>
                                     </View>
-                                </View>
+                                </Pressable>
                                 <View style={styles.friendActions}>
                                     <Pressable 
                                         style={styles.msgBtn}
@@ -492,29 +547,6 @@ export default function PeopleScreen() {
 
             {view === 'invites' && (
                 <ScrollView contentContainerStyle={styles.list}>
-                    {/* REDEEM INVITE SECTION */}
-                    <Text style={styles.sectionHeader}>🎟️ Join Community</Text>
-                    <Text style={styles.sectionDesc}>Enter an invite code from an existing member to register your identity on this node.</Text>
-                    
-                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 32 }}>
-                        <TextInput 
-                            style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                            placeholder="Invite Code (e.g. INV-...)"
-                            value={redeemCode}
-                            onChangeText={setRedeemCode}
-                            autoCapitalize="characters"
-                        />
-                        <Pressable 
-                            style={{ backgroundColor: '#10b981', paddingHorizontal: 16, borderRadius: 12, justifyContent: 'center' }}
-                            onPress={handleRedeem}
-                            disabled={redeeming || !redeemCode.trim()}
-                        >
-                            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 15 }}>{redeeming ? '...' : 'Redeem'}</Text>
-                        </Pressable>
-                    </View>
-
-                    <View style={{ height: 1, backgroundColor: '#e5e7eb', marginBottom: 24 }} />
-
                     {/* GENERATE INVITE SECTION */}
                     <Text style={styles.sectionHeader}>📤 Invite Someone</Text>
                     <Text style={styles.sectionDesc}>Each offline ticket can only be used once. Generate a cryptographic payload directly on this device.</Text>
@@ -586,6 +618,43 @@ export default function PeopleScreen() {
                             ))}
                         </View>
                     )}
+
+                    <View style={{ height: 1, backgroundColor: '#e5e7eb', marginVertical: 32 }} />
+
+                    {/* REDEEM INVITE SECTION */}
+                    <Text style={styles.sectionHeader}>🎟️ Join Another Community</Text>
+                    <Text style={styles.sectionDesc}>Enter an invite code to join a different node. Once registered, you can switch between your accounts by tapping the title in the top banner.</Text>
+                    
+                    <View style={{ flexDirection: 'column', gap: 8, marginBottom: 32 }}>
+                        <TextInput 
+                            style={[styles.input, { marginBottom: 0 }]}
+                            placeholder="Invite URL or token"
+                            placeholderTextColor="#9ca3af"
+                            value={redeemCode}
+                            onChangeText={setRedeemCode}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                        />
+                        {redeemCode && !redeemCode.startsWith('http') && (
+                            <TextInput
+                                style={[styles.input, { marginBottom: 0 }]}
+                                placeholder="Community Node URL (Optional)"
+                                placeholderTextColor="#9ca3af"
+                                value={redeemNodeUrl}
+                                onChangeText={setRedeemNodeUrl}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                keyboardType="url"
+                            />
+                        )}
+                        <Pressable 
+                            style={{ backgroundColor: '#10b981', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 8 }}
+                            onPress={handleRedeem}
+                            disabled={redeeming || !redeemCode.trim()}
+                        >
+                            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>{redeeming ? 'Joining...' : 'Join Community'}</Text>
+                        </Pressable>
+                    </View>
                 </ScrollView>
             )}
 
@@ -620,15 +689,18 @@ export default function PeopleScreen() {
 
                             {friends.map((friend) => (
                                 <View key={friend.publicKey} style={styles.card}>
-                                    <View style={styles.cardHeader}>
+                                    <Pressable 
+                                        style={styles.cardHeader}
+                                        onPress={() => router.push({ pathname: '/public-profile', params: { publicKey: friend.publicKey, callsign: friend.callsign || 'Unknown' } })}
+                                    >
                                         <View style={styles.avatar}>
-                                            <Text style={styles.avatarEmoji}>👤</Text>
+                                            <MemberAvatar avatarUrl={friend.avatar_url} pubkey={friend.publicKey} callsign={friend.callsign || '?'} size={44} />
                                         </View>
                                         <View style={styles.textStack}>
                                             <Text style={styles.callsign}>{friend.callsign}</Text>
                                             <Text style={styles.dateText}>Friend</Text>
                                         </View>
-                                    </View>
+                                    </Pressable>
                                     
                                     <Pressable 
                                         style={[styles.addBtn, friend.isGuardian && styles.addBtnFriended]}

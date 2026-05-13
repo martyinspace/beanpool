@@ -50,7 +50,7 @@ export function MemberAvatar({
     borderRadius,
 }: MemberAvatarProps) {
     const radius = borderRadius ?? size / 2;
-    const uri = avatarUri(avatarUrl, pubkey, updatedAt);
+    let uri = avatarUri(avatarUrl, pubkey, updatedAt);
     const fontSize = Math.max(Math.round(size * 0.42), 10);
 
     // Resolve bundled:// references to require() image sources

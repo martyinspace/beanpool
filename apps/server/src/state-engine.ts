@@ -252,7 +252,7 @@ export interface CommunityProject {
     proposerCallsign: string;
     requestedAmount: number;
     status: 'proposed' | 'active' | 'funded' | 'rejected' | 'completed';
-    votes: { pubkey: string; weight: 1 }[];
+    votes: { pubkey: string; weight: number; creditsUsed?: number }[];
     createdAt: string;
     fundedAt?: string;
 }
@@ -1094,7 +1094,7 @@ export function createPost(
     return post;
 }
 
-export function getPosts(filter?: { id?: string; type?: string; category?: string; status?: string; offset?: number; limit?: number; updatedAfter?: string; query?: string }): MarketplacePost[] {
+export function getPosts(filter?: { id?: string; type?: string; category?: string; status?: string; offset?: number; limit?: number; updatedAfter?: string; query?: string; authorPubkey?: string }): MarketplacePost[] {
     let query = `
         SELECT p.*, m.callsign as author_callsign, a.callsign as accepted_callsign,
                COALESCE((SELECT SUM(amount) FROM transactions WHERE from_pubkey = m.public_key), 0) as author_energy_cycled
@@ -1118,6 +1118,7 @@ export function getPosts(filter?: { id?: string; type?: string; category?: strin
     if (filter?.type && filter.type !== 'all') { query += " AND p.type = ?"; params.push(filter.type); }
     if (filter?.category && filter.category !== 'all') { query += " AND p.category = ?"; params.push(filter.category); }
     if (filter?.status) { query += " AND p.status = ?"; params.push(filter.status); }
+    if (filter?.authorPubkey) { query += " AND p.author_pubkey = ?"; params.push(filter.authorPubkey); }
 
     // FTS5 full-text search with synonym-expanded keywords
     if (filter?.query && filter.query.trim()) {
@@ -2658,8 +2659,9 @@ export function deleteProject(proposerPubkey: string, projectId: string): boolea
     return true;
 }
 
-export function voteForProject(voterPubkey: string, projectId: string): { success: boolean; error?: string } {
+export function voteForProject(voterPubkey: string, projectId: string, voteCount: number = 1): { success: boolean; creditsUsed?: number; error?: string } {
     if (!getMember(voterPubkey)) return { success: false, error: 'Not a member' };
+    if (voteCount < 1 || !Number.isInteger(voteCount)) return { success: false, error: 'Vote count must be a positive integer' };
 
     const projects = getAllProjects();
     const project = projects.find(p => p.id === projectId);
@@ -2668,16 +2670,54 @@ export function voteForProject(voterPubkey: string, projectId: string): { succes
     const activeRound = getActiveRound();
     if (!activeRound || !activeRound.projectIds.includes(projectId)) return { success: false, error: 'No active voting round for this project' };
 
+    // QV: Cost = N²
+    const creditCost = voteCount * voteCount;
+
+    // Derive governance credits from energyCycled (total beans transacted by this member)
+    const credits = getGovernanceCredits(voterPubkey);
+    if (creditCost > credits.availableCredits) {
+        return { success: false, error: `Insufficient credits: ${voteCount} votes costs ${creditCost} credits, but you have ${credits.availableCredits.toFixed(0)} available` };
+    }
+
+    // Remove any existing votes from this voter in this round (they are re-allocating)
     for (const p of projects) {
         if (activeRound.projectIds.includes(p.id)) {
             p.votes = p.votes.filter(v => v.pubkey !== voterPubkey);
         }
     }
-    project.votes.push({ pubkey: voterPubkey, weight: 1 });
+    project.votes.push({ pubkey: voterPubkey, weight: voteCount, creditsUsed: creditCost });
     
     db.prepare(`UPDATE node_config SET value=? WHERE key='commons_projects'`).run(JSON.stringify(projects));
-    broadcast({ type: 'vote_cast', projectId, voterPubkey, totalVotes: project.votes.length });
-    return { success: true };
+    broadcast({ type: 'vote_cast', projectId, voterPubkey, voteCount, creditCost, totalVotes: project.votes.reduce((sum, v) => sum + (v.weight || 1), 0) });
+    return { success: true, creditsUsed: creditCost };
+}
+
+/**
+ * Returns governance credits for a member based on their energyCycled history.
+ * Credits = total beans sent (energyCycled). Used credits are the sum of all QV costs in the active round.
+ */
+export function getGovernanceCredits(pubkey: string): { totalCredits: number; usedCredits: number; availableCredits: number } {
+    // Total credits = total amount sent (energy cycled through this member)
+    const row = db.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE from_pubkey = ?`).get(pubkey) as any;
+    const totalCredits = Math.round((row?.total || 0) * 100) / 100;
+
+    // Used credits = sum of creditsUsed in the active voting round
+    let usedCredits = 0;
+    const activeRound = getActiveRound();
+    if (activeRound) {
+        const projects = getAllProjects();
+        for (const p of projects) {
+            if (activeRound.projectIds.includes(p.id)) {
+                for (const v of p.votes) {
+                    if (v.pubkey === pubkey) {
+                        usedCredits += v.creditsUsed || (v.weight * v.weight) || 1;
+                    }
+                }
+            }
+        }
+    }
+
+    return { totalCredits, usedCredits, availableCredits: Math.max(0, totalCredits - usedCredits) };
 }
 
 export function createVotingRound(adminPubkey: string, projectIds: string[], closesAt: string): VotingRound | null {

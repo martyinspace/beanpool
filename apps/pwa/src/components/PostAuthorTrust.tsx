@@ -13,7 +13,7 @@
  */
 
 import { useState } from 'react';
-import { PublicProfileModal } from './PublicProfileModal';
+
 import { resolveAvatarUrl } from '../lib/avatar';
 
 const TRUST_TIERS = [
@@ -45,6 +45,7 @@ interface PostAuthorTrustProps {
     avatarUrl?: string | null;
     /** Public key for profile navigation */
     publicKey?: string;
+    onOpenProfile?: (pubkey: string) => void;
 }
 
 /** Small avatar circle with initials fallback */
@@ -76,14 +77,13 @@ function MiniAvatar({ callsign, avatarUrl, size }: { callsign: string; avatarUrl
  * Tier badge always shows. Star rating only shows when count > 0.
  * Clicking opens the public profile modal.
  */
-export function PostAuthorTrust({ callsign, energyCycled = 0, rating, mode = 'full', className = '', avatarUrl, publicKey }: PostAuthorTrustProps) {
+export function PostAuthorTrust({ callsign, energyCycled = 0, rating, mode = 'full', className = '', avatarUrl, publicKey, onOpenProfile }: PostAuthorTrustProps) {
     const tier = getTrustTier(energyCycled);
-    const [showProfile, setShowProfile] = useState(false);
 
     const handleClick = (e: React.MouseEvent) => {
-        if (publicKey) {
+        if (publicKey && onOpenProfile) {
             e.stopPropagation();
-            setShowProfile(true);
+            onOpenProfile(publicKey);
         }
     };
 
@@ -111,9 +111,6 @@ export function PostAuthorTrust({ callsign, energyCycled = 0, rating, mode = 'fu
                         </span>
                     )}
                 </div>
-                {showProfile && publicKey && (
-                    <PublicProfileModal publicKey={publicKey} callsign={callsign} onClose={() => setShowProfile(false)} />
-                )}
             </>
         );
     }
@@ -147,9 +144,6 @@ export function PostAuthorTrust({ callsign, energyCycled = 0, rating, mode = 'fu
                     </span>
                 )}
             </div>
-            {showProfile && publicKey && (
-                <PublicProfileModal publicKey={publicKey} callsign={callsign} onClose={() => setShowProfile(false)} />
-            )}
         </>
     );
 }

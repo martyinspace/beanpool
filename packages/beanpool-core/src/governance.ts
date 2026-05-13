@@ -65,34 +65,64 @@ export class GovernanceManager {
     }
 
     /**
-     * Casts a quadratic vote based on the voter's standing.
+     * Calculates the Quadratic Voting credit cost for a given number of votes.
+     * QV Formula: Cost = N² (e.g., 3 votes costs 9 credits)
      */
-    castVote(proposalId: string, voterPassport: Passport): boolean {
+    static calculateQVCost(voteCount: number): number {
+        return voteCount * voteCount;
+    }
+
+    /**
+     * Casts a quadratic vote. The cost of N votes is N² governance credits.
+     * Credits are derived from the voter's energyCycled (total beans transacted).
+     *
+     * @param proposalId The proposal to vote on
+     * @param voterPassport The voter's passport
+     * @param voteCount Number of votes to allocate (1+)
+     * @param availableCredits The voter's remaining governance credits
+     * @returns Object with success flag and creditsUsed
+     */
+    castVote(
+        proposalId: string,
+        voterPassport: Passport,
+        voteCount: number = 1,
+        availableCredits: number = Infinity
+    ): { success: boolean; creditsUsed: number; error?: string } {
         const proposal = this.proposals.get(proposalId);
 
         if (!proposal || proposal.status !== 'Active') {
-            console.error(`Vote failed: Proposal ${proposalId} not found or inactive.`);
-            return false;
+            return { success: false, creditsUsed: 0, error: 'Proposal not found or inactive' };
+        }
+
+        if (voteCount < 1 || !Number.isInteger(voteCount)) {
+            return { success: false, creditsUsed: 0, error: 'Vote count must be a positive integer' };
         }
 
         const voters = this.votesLedger.get(proposalId);
         if (voters?.has(voterPassport.id)) {
-            console.error(`Vote failed: Voter ${voterPassport.id} already voted on proposal ${proposalId}.`);
-            return false;
+            return { success: false, creditsUsed: 0, error: 'Already voted on this proposal' };
         }
 
-        // Quadratic Voting Math: voteWeight = Math.sqrt(standing)
-        const voteWeight = Math.sqrt(Math.max(0, voterPassport.standing));
+        // Quadratic Voting: Cost = N²
+        const creditCost = GovernanceManager.calculateQVCost(voteCount);
 
-        proposal.currentVotes += voteWeight;
+        if (creditCost > availableCredits) {
+            return {
+                success: false,
+                creditsUsed: 0,
+                error: `Insufficient credits: ${voteCount} votes costs ${creditCost} credits, but you have ${availableCredits}`
+            };
+        }
+
+        proposal.currentVotes += voteCount;
         voters?.add(voterPassport.id);
 
-        console.log(`Vote cast: ${voterPassport.id} added ${voteWeight.toFixed(2)} votes to proposal ${proposalId}. New total: ${proposal.currentVotes.toFixed(2)}`);
+        console.log(`QV cast: ${voterPassport.id} allocated ${voteCount} votes (${creditCost} credits) to proposal ${proposalId}. New total: ${proposal.currentVotes}`);
 
         // Check if the proposal has passed after this vote
         this.finalizeProposal(proposalId);
 
-        return true;
+        return { success: true, creditsUsed: creditCost };
     }
 
     /**

@@ -59,7 +59,7 @@ import {
     getAdminPubkey, recordActivity,
     markConversationRead, getUnreadCounts,
     createProject, updateProject, deleteProject, voteForProject, createVotingRound, closeVotingRound,
-    getProjects, getAllProjects, getVotingRounds, getActiveRound, getCommonsBalance,
+    getProjects, getAllProjects, getVotingRounds, getActiveRound, getCommonsBalance, getGovernanceCredits,
     adminRejectProject,
     getNodeConfig, updateNodeConfig, getDirectoryInfo, exportLedgerAudit,
     registerPushToken, removePushToken,
@@ -1219,11 +1219,12 @@ export async function startHttpsServer(port: number): Promise<void> {
     router.get('/api/marketplace/posts', async (ctx) => {
         const type = ctx.query.type as string | undefined;
         const category = ctx.query.category as string | undefined;
+        const author = ctx.query.author as string | undefined;
         const q = ctx.query.q as string | undefined;
         const limit = Number(ctx.query.limit) || 50;
         const offset = Number(ctx.query.offset) || 0;
         const updatedAfter = ctx.query.updatedAfter as string | undefined;
-        ctx.body = getPosts({ type, category, query: q, limit, offset, updatedAfter });
+        ctx.body = getPosts({ type, category, query: q, limit, offset, updatedAfter, authorPubkey: author });
     });
 
     router.post('/api/marketplace/posts', async (ctx) => {
@@ -1518,19 +1519,29 @@ export async function startHttpsServer(port: number): Promise<void> {
     });
 
     router.post('/api/commons/vote', async (ctx) => {
-        const { voterPubkey, projectId } = (ctx as any).requestBody || {};
+        const { voterPubkey, projectId, voteCount } = (ctx as any).requestBody || {};
         if (!voterPubkey || !projectId) {
             ctx.status = 400;
             ctx.body = { error: 'voterPubkey and projectId are required' };
             return;
         }
-        const result = voteForProject(voterPubkey, projectId);
+        const result = voteForProject(voterPubkey, projectId, voteCount ? Number(voteCount) : 1);
         if (!result.success) {
             ctx.status = 400;
             ctx.body = { error: result.error };
             return;
         }
-        ctx.body = { success: true };
+        ctx.body = { success: true, creditsUsed: result.creditsUsed };
+    });
+
+    router.get('/api/commons/my-credits/:pubkey', async (ctx) => {
+        const { pubkey } = ctx.params;
+        if (!pubkey) {
+            ctx.status = 400;
+            ctx.body = { error: 'pubkey is required' };
+            return;
+        }
+        ctx.body = getGovernanceCredits(pubkey);
     });
 
     router.get('/api/commons/rounds', async (ctx) => {

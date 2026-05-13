@@ -251,7 +251,11 @@ export function ProjectsPage({ identity }: Props) {
             ) : (
                 <div className="p-4 flex flex-col gap-4">
                     {projects.map(project => {
+                        const commonsAlloc = project.commons_allocation || 0;
+                        const pledgeAmount = project.current_amount - commonsAlloc;
                         const progress = getProgress(project.current_amount, project.goal_amount);
+                        const pledgeProgress = getProgress(pledgeAmount, project.goal_amount);
+                        const commonsProgress = getProgress(commonsAlloc, project.goal_amount);
                         const isFunded = project.current_amount >= project.goal_amount;
                         const callsign = profiles[project.creator_pubkey]?.callsign || 'Unknown';
                         
@@ -307,12 +311,26 @@ export function ProjectsPage({ identity }: Props) {
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="h-2 w-full bg-nature-200 dark:bg-nature-800 rounded-full overflow-hidden">
+                                        <div className="h-2 w-full bg-nature-200 dark:bg-nature-800 rounded-full overflow-hidden flex">
                                             <div 
-                                                className={`h-full transition-all duration-1000 ${isFunded ? 'bg-emerald-500' : 'bg-accent'}`}
-                                                style={{ width: `${progress}%` }}
+                                                className={`h-full transition-all duration-1000 ${isFunded ? 'bg-emerald-500' : 'bg-emerald-400'}`}
+                                                style={{ width: `${pledgeProgress}%` }}
+                                                title={`Pledges: ${pledgeAmount.toFixed(0)} B`}
                                             />
+                                            {commonsAlloc > 0 && (
+                                                <div 
+                                                    className="h-full transition-all duration-1000 bg-blue-500"
+                                                    style={{ width: `${commonsProgress}%` }}
+                                                    title={`Commons: ${commonsAlloc.toFixed(0)} B`}
+                                                />
+                                            )}
                                         </div>
+                                        {commonsAlloc > 0 && (
+                                            <div className="flex items-center gap-3 mt-1.5 text-[10px] font-bold">
+                                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />Pledges</span>
+                                                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />Commons</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -666,14 +684,16 @@ export function ProjectsPage({ identity }: Props) {
                                         value={pledgeAmount}
                                         onChange={e => setPledgeAmount(e.target.value ? Number(e.target.value) : '')}
                                         placeholder="Amount"
-                                        className="w-24 bg-bg-input border border-border-secondary rounded-xl text-center font-black text-lg focus:border-accent outline-none shadow-inner"
+                                        className="w-24 bg-bg-input border border-border-secondary rounded-xl text-center font-black text-lg focus:border-accent outline-none shadow-inner text-nature-900 dark:text-white p-2.5"
+                                        style={{ color: '#1a1a1a' }}
                                     />
                                     <input 
                                         type="text"
                                         value={pledgeMemo}
                                         onChange={e => setPledgeMemo(e.target.value)}
                                         placeholder="Optional memo..."
-                                        className="flex-1 bg-bg-input border border-border-secondary rounded-xl px-3 focus:border-accent outline-none text-sm"
+                                        className="flex-1 bg-bg-input border border-border-secondary rounded-xl px-3 py-2.5 focus:border-accent outline-none text-sm text-nature-900 dark:text-white"
+                                        style={{ color: '#1a1a1a' }}
                                     />
                                 </div>
                                 <button

@@ -24,6 +24,7 @@ import { PeoplePage } from './pages/PeoplePage';
 import { MessagesPage } from './pages/MessagesPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { InstallPrompt } from './components/InstallPrompt';
+import { PublicProfilePage } from './pages/PublicProfilePage';
 
 function HeaderControls({ showSettings, setShowSettings }: { showSettings: boolean, setShowSettings: (v: boolean) => void }) {
     const [locationEnabled, setLocationEnabled] = useState(() => {
@@ -110,6 +111,7 @@ export function App() {
     const [openConversationId, setOpenConversationId] = useState<string | null>(null);
     const [openMarketPostId, setOpenMarketPostId] = useState<string | null>(null);
     const [openNewPost, setOpenNewPost] = useState(false);
+    const [openProfilePubkey, setOpenProfilePubkey] = useState<string | null>(null);
     const [theme, toggleTheme] = useTheme();
     const [sysAnnouncement, setSysAnnouncement] = useState<{ title: string, body: string, severity: string } | null>(null);
     const [totalUnread, setTotalUnread] = useState(0);
@@ -371,29 +373,51 @@ export function App() {
                 paddingBottom: (activeTab === 'map' && !showSettings) ? '0' : '4rem',
                 position: 'relative',
             }}>
-                {showSettings ? (
-                    <SettingsPage
-                        identity={identity}
-                        onIdentityUpdated={(updated) => { setIdentity(updated); setShowSettings(false); }}
-                        onBack={() => setShowSettings(false)}
-                        theme={theme}
-                        onToggleTheme={toggleTheme}
-                    />
-                ) : (
+                {showSettings && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 60 }}>
+                        <SettingsPage
+                            identity={identity}
+                            onIdentityUpdated={(updated) => { setIdentity(updated); setShowSettings(false); }}
+                            onBack={() => setShowSettings(false)}
+                            theme={theme}
+                            onToggleTheme={toggleTheme}
+                        />
+                    </div>
+                )}
+
+                {/* Tab content — always mounted when not in settings (preserves scroll/state) */}
+                {!showSettings && (
                     <>
                         {activeTab === 'map' && <Suspense fallback={<div className="flex-1 flex items-center justify-center">Loading map...</div>}><MapPage identity={identity} openNewPost={openNewPost} onOpenNewPostHandled={() => setOpenNewPost(false)} onNavigate={(tab, ctxId) => navigateToTab(tab, ctxId)} /></Suspense>}
-                        {activeTab === 'marketplace' && <MarketplacePage identity={identity} marketClickCount={marketClickCount} openPostId={openMarketPostId} onPostOpened={() => setOpenMarketPostId(null)} onNavigate={(tab, ctxId) => navigateToTab(tab, ctxId)} />}
+                        {activeTab === 'marketplace' && <MarketplacePage identity={identity} marketClickCount={marketClickCount} openPostId={openMarketPostId} onPostOpened={() => setOpenMarketPostId(null)} onNavigate={(tab, ctxId) => navigateToTab(tab, ctxId)} onOpenProfile={(pubkey) => setOpenProfilePubkey(pubkey)} />}
                         {activeTab === 'messages' && <MessagesPage identity={identity} openConversationId={openConversationId} onConversationOpened={() => setOpenConversationId(null)} />}
-                        {activeTab === 'people' && <PeoplePage identity={identity} initialView={peopleSubView} onNavigate={(tab, ctxId) => navigateToTab(tab, ctxId)} />}
+                        {activeTab === 'people' && <PeoplePage identity={identity} initialView={peopleSubView} onNavigate={(tab, ctxId) => navigateToTab(tab, ctxId)} onOpenProfile={(pubkey) => setOpenProfilePubkey(pubkey)} />}
                         {activeTab === 'ledger' && <LedgerPage identity={identity} />}
                         {activeTab === 'projects' && <ProjectsPage identity={identity} />}
                     </>
                 )}
+
+                {/* Public Profile Overlay — layers on top of preserved tab content */}
+                {openProfilePubkey && (
+                    <PublicProfilePage
+                        identity={identity}
+                        pubkey={openProfilePubkey}
+                        onBack={() => setOpenProfilePubkey(null)}
+                        onMessage={(pubkey) => {
+                            setOpenProfilePubkey(null);
+                            navigateToTab('messages', pubkey);
+                        }}
+                        onNavigatePost={(postId) => {
+                            setOpenProfilePubkey(null);
+                            navigateToTab('marketplace', postId);
+                        }}
+                    />
+                )}
             </main>
 
-            {/* Bottom nav */}
+            {/* Bottom nav — hidden when profile overlay is active */}
             <nav className="relative" style={{
-                display: 'flex',
+                display: openProfilePubkey ? 'none' : 'flex',
                 position: 'fixed',
                 bottom: 0,
                 left: 0,
@@ -421,6 +445,7 @@ export function App() {
                             }
                             setActiveTab(tab.id);
                             setShowSettings(false);
+                            setOpenProfilePubkey(null);
                         }}
                         style={{
                             flex: 1,

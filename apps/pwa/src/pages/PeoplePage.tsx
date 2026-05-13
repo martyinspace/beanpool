@@ -18,6 +18,7 @@ interface Props {
     identity: BeanPoolIdentity;
     initialView?: SubView;
     onNavigate?: (tab: string, conversationId?: string) => void;
+    onOpenProfile?: (pubkey: string) => void;
 }
 
 type SubView = 'friends' | 'community' | 'invites' | 'guardians';
@@ -74,7 +75,7 @@ function Avatar({ callsign, avatarUrl, isGuardian, size = 40 }: { callsign: stri
     );
 }
 
-export function PeoplePage({ identity, initialView = 'friends', onNavigate }: Props) {
+export function PeoplePage({ identity, initialView = 'friends', onNavigate, onOpenProfile }: Props) {
     const [view, setView] = useState<SubView>(initialView);
     const [friends, setFriends] = useState<FriendEntry[]>([]);
     const [members, setMembers] = useState<Member[]>([]);
@@ -189,16 +190,24 @@ export function PeoplePage({ identity, initialView = 'friends', onNavigate }: Pr
                             {friends.map(f => (
                                 <div key={f.publicKey} className="bg-white dark:bg-nature-900 rounded-2xl p-4 flex items-center justify-between border border-nature-200 dark:border-nature-800 shadow-sm transition-transform hover:-translate-y-0.5">
                                     <div className="flex items-center gap-3">
-                                        <Avatar 
-                                            callsign={f.callsign} 
-                                            avatarUrl={memberAvatarMap[f.publicKey]} 
-                                            isGuardian={f.isGuardian} 
-                                        />
+                                        <button 
+                                            className="bg-transparent border-none p-0 cursor-pointer text-left hover:opacity-80 transition-opacity" 
+                                            onClick={() => onOpenProfile && onOpenProfile(f.publicKey)}
+                                        >
+                                            <Avatar 
+                                                callsign={f.callsign} 
+                                                avatarUrl={memberAvatarMap[f.publicKey]} 
+                                                isGuardian={f.isGuardian} 
+                                            />
+                                        </button>
                                         <div>
-                                            <div className="font-bold text-[15px] text-nature-900 dark:text-white flex items-center gap-1.5">
+                                            <button 
+                                                className="font-bold text-[15px] text-nature-900 dark:text-white flex items-center gap-1.5 bg-transparent border-none p-0 cursor-pointer hover:underline text-left"
+                                                onClick={() => onOpenProfile && onOpenProfile(f.publicKey)}
+                                            >
                                                 {f.callsign}
-                                                {f.isGuardian && <span className="text-xs text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/40 border border-amber-100 dark:border-amber-800 px-1.5 py-0.5 rounded-md">Guardian</span>}
-                                            </div>
+                                                {f.isGuardian && <span className="text-xs text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/40 border border-amber-100 dark:border-amber-800 px-1.5 py-0.5 rounded-md no-underline">Guardian</span>}
+                                            </button>
                                             <div className="text-xs text-nature-400 dark:text-nature-500 font-medium mt-0.5">
                                                 Added {relativeDate(f.addedAt)}
                                             </div>
@@ -258,9 +267,19 @@ export function PeoplePage({ identity, initialView = 'friends', onNavigate }: Pr
                             {filteredMembers.map(m => (
                                     <div key={m.publicKey} className="bg-white dark:bg-nature-900 rounded-2xl p-4 flex items-center justify-between border border-nature-200 dark:border-nature-800 shadow-sm transition-transform hover:-translate-y-0.5">
                                         <div className="flex items-center gap-3">
-                                            <Avatar callsign={m.callsign} avatarUrl={m.avatarUrl} />
+                                            <button 
+                                                className="bg-transparent border-none p-0 cursor-pointer text-left hover:opacity-80 transition-opacity"
+                                                onClick={() => onOpenProfile && onOpenProfile(m.publicKey)}
+                                            >
+                                                <Avatar callsign={m.callsign} avatarUrl={m.avatarUrl} size={36} />
+                                            </button>
                                             <div>
-                                                <div className="font-bold text-[15px] text-nature-900 dark:text-white">{m.callsign}</div>
+                                                <button 
+                                                    className="font-bold text-[15px] text-nature-900 dark:text-white flex items-center gap-1.5 bg-transparent border-none p-0 cursor-pointer hover:underline text-left"
+                                                    onClick={() => onOpenProfile && onOpenProfile(m.publicKey)}
+                                                >
+                                                    {m.callsign}
+                                                </button>
                                                 <div className="text-xs text-nature-400 dark:text-nature-500 font-medium mt-0.5">
                                                     Joined {relativeDate(m.joinedAt)}
                                                 </div>

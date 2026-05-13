@@ -336,11 +336,12 @@ export interface MarketplaceTransaction {
     ratedBySeller?: boolean;
 }
 
-export async function getMarketplacePosts(filter?: { id?: string; type?: string; category?: string }): Promise<MarketplacePost[]> {
+export async function getMarketplacePosts(filter?: { id?: string; type?: string; category?: string; author?: string }): Promise<MarketplacePost[]> {
     const params = new URLSearchParams();
     if (filter?.id) params.set('id', filter.id);
     if (filter?.type) params.set('type', filter.type);
     if (filter?.category) params.set('category', filter.category);
+    if (filter?.author) params.set('author', filter.author);
     return request('GET', `/api/marketplace/posts?${params}`);
 }
 
@@ -646,7 +647,7 @@ export interface CommunityProject {
     proposerCallsign: string;
     requestedAmount: number;
     status: 'proposed' | 'active' | 'funded' | 'rejected' | 'completed';
-    votes: { pubkey: string; weight: 1 }[];
+    votes: { pubkey: string; weight: number; creditsUsed?: number }[];
     createdAt: string;
     fundedAt?: string;
 }
@@ -680,8 +681,12 @@ export async function deleteCommunityProject(proposerPubkey: string, projectId: 
     return request('POST', '/api/commons/projects/delete', { proposerPubkey, projectId });
 }
 
-export async function voteForProject(voterPubkey: string, projectId: string): Promise<{ success: boolean }> {
-    return request('POST', '/api/commons/vote', { voterPubkey, projectId });
+export async function voteForProject(voterPubkey: string, projectId: string, voteCount: number = 1): Promise<{ success: boolean; creditsUsed?: number }> {
+    return request('POST', '/api/commons/vote', { voterPubkey, projectId, voteCount });
+}
+
+export async function getGovernanceCredits(pubkey: string): Promise<{ totalCredits: number; usedCredits: number; availableCredits: number }> {
+    return request('GET', `/api/commons/my-credits/${encodeURIComponent(pubkey)}`);
 }
 
 export async function getVotingRounds(): Promise<{ rounds: VotingRound[]; activeRound: VotingRound | null }> {
@@ -698,6 +703,7 @@ export interface CrowdfundProject {
     photos: string; // JSON string array
     goal_amount: number;
     current_amount: number;
+    commons_allocation?: number; // Amount allocated from the Commons Pool (admin-triggered)
     deadline_at: string | null;
     status: string;
     created_at: string;

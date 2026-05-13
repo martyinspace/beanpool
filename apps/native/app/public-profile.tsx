@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, ScrollView, SafeAreaView, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { MemberAvatar } from '../components/MemberAvatar';
-import { getMemberProfile, getMemberRatings } from '../utils/db'; // Make sure these are exported correctly
+import { getMemberProfile, getMemberRatings, getMemberPosts } from '../utils/db'; // Make sure these are exported correctly
 import { useIdentity } from './IdentityContext';
 
 export default function PublicProfileScreen() {
@@ -12,6 +12,7 @@ export default function PublicProfileScreen() {
     const [profile, setProfile] = useState<any>(null);
     const [ratings, setRatings] = useState<any[]>([]);
     const [stats, setStats] = useState<any>(null);
+    const [activePosts, setActivePosts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     const pubKeyStr = Array.isArray(publicKey) ? publicKey[0] : publicKey;
@@ -23,13 +24,15 @@ export default function PublicProfileScreen() {
         setLoading(true);
         Promise.all([
             getMemberProfile(pubKeyStr).catch(() => null),
-            getMemberRatings(pubKeyStr).catch(() => null)
-        ]).then(([prof, rat]) => {
+            getMemberRatings(pubKeyStr).catch(() => null),
+            getMemberPosts(pubKeyStr).catch(() => [])
+        ]).then(([prof, rat, posts]) => {
             if (prof) setProfile(prof);
             if (rat) {
                 setStats({ average: rat.average, count: rat.count, asProvider: rat.asProvider, asReceiver: rat.asReceiver });
                 setRatings(rat.ratings || []);
             }
+            if (posts) setActivePosts(posts);
             setLoading(false);
         });
     }, [pubKeyStr]);
@@ -86,6 +89,53 @@ export default function PublicProfileScreen() {
                                     <Text style={[styles.statValue, { color: '#818cf8' }]}>{stats.asReceiver?.average.toFixed(1) || '-'}</Text>
                                     <Text style={[styles.statLabel, { color: '#6366f1' }]}>As Payer</Text>
                                 </View>
+                            </View>
+                        )}
+
+                        {/* Active Posts list */}
+                        {activePosts.length > 0 && (
+                            <View style={styles.reviewsWrapper}>
+                                <Text style={styles.sectionTitle}>Active Listings ({activePosts.length})</Text>
+                                {activePosts.map((p, i) => {
+                                    let coverImage: string | null = null;
+                                    if (p.photos) {
+                                        try { 
+                                            const arr = Array.isArray(p.photos) ? p.photos : JSON.parse(p.photos); 
+                                            if (arr.length > 0) coverImage = arr[0]; 
+                                        } catch {}
+                                    }
+
+                                    return (
+                                        <Pressable key={p.id || i} onPress={() => router.push(`/post/${p.id}`)}>
+                                            <View style={styles.dealCard}>
+                                                <View style={{ flexDirection: 'row', gap: 12 }}>
+                                                    {coverImage ? (
+                                                        <Image source={{ uri: coverImage }} style={styles.dealThumb} />
+                                                    ) : (
+                                                        <View style={[styles.dealThumb, styles.dealThumbFallback]}>
+                                                            <Text style={{ fontSize: 24, opacity: 0.5 }}>📦</Text>
+                                                        </View>
+                                                    )}
+                                                    <View style={{ flex: 1, justifyContent: 'center' }}>
+                                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                            <View style={[styles.typeBadge, p.type === 'offer' ? styles.badgeOffer : styles.badgeNeed]}>
+                                                                <Text style={styles.typeBadgeText}>{p.type?.toUpperCase()}</Text>
+                                                            </View>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                                <Text style={styles.creditAmount} numberOfLines={1}>
+                                                                    {p.credits ?? '?'}
+                                                                </Text>
+                                                                <Image source={require('../assets/images/bean.png')} style={styles.beanIcon} />
+                                                            </View>
+                                                        </View>
+                                                        <Text style={styles.dealTitle} numberOfLines={1}>{p.title}</Text>
+                                                        <Text style={styles.dealDateText}>Active</Text>
+                                                    </View>
+                                                </View>
+                                            </View>
+                                        </Pressable>
+                                    );
+                                })}
                             </View>
                         )}
 
@@ -231,5 +281,68 @@ const styles = StyleSheet.create({
     },
     noCommentText: {
         fontSize: 13, color: '#6b7280', fontStyle: 'italic'
+    },
+    // Deal card styles for active posts
+    dealCard: {
+        backgroundColor: '#111',
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: '#333',
+    },
+    dealThumb: {
+        width: 56,
+        height: 56,
+        borderRadius: 8,
+        backgroundColor: '#222',
+    },
+    dealThumbFallback: {
+        backgroundColor: '#1a1a1a',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    dealTitle: {
+        fontSize: 15,
+        fontWeight: '800',
+        color: '#fff',
+        marginBottom: 2,
+    },
+    dealDateText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#9ca3af',
+    },
+    creditAmount: {
+        fontWeight: '900',
+        fontSize: 15,
+        color: '#8b5cf6',
+    },
+    beanIcon: {
+        width: 14,
+        height: 14,
+        marginLeft: 2,
+        resizeMode: 'contain',
+    },
+    typeBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    badgeOffer: {
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        borderWidth: 1,
+        borderColor: 'rgba(16, 185, 129, 0.2)',
+    },
+    badgeNeed: {
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.2)',
+    },
+    typeBadgeText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#d1d5db',
+        letterSpacing: 0.5,
     }
 });

@@ -27,7 +27,7 @@ import {
     type MarketplacePost, type MemberProfile, type NodeInfo, type MarketplaceTransaction, type NodeConfig,
 } from '../lib/api';
 import { type BeanPoolIdentity } from '../lib/identity';
-import { PublicProfileModal } from '../components/PublicProfileModal';
+
 import { matchesExpandedSearch } from '../lib/search';
 
 interface Props {
@@ -36,9 +36,10 @@ interface Props {
     openPostId?: string | null;
     onPostOpened?: () => void;
     onNavigate?: (tab: string, conversationId?: string) => void;
+    onOpenProfile?: (pubkey: string) => void;
 }
 
-export function MarketplacePage({ identity, marketClickCount = 0, openPostId, onPostOpened, onNavigate }: Props) {
+export function MarketplacePage({ identity, marketClickCount = 0, openPostId, onPostOpened, onNavigate, onOpenProfile }: Props) {
     const [posts, setPosts] = useState<MarketplacePost[]>([]);
     const [typeFilter, setTypeFilter] = useState<PostType | 'all'>('all');
     const [categoryFilter, setCategoryFilter] = useState<string | 'all'>('all');
@@ -112,7 +113,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
     const [reportReason, setReportReason] = useState('');
     const [submittingReport, setSubmittingReport] = useState(false);
 
-    const [viewingProfileFor, setViewingProfileFor] = useState<{ publicKey: string, callsign: string } | null>(null);
+
 
     // Accept/Fulfill
     const [accepting, setAccepting] = useState(false);
@@ -453,7 +454,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                         Posted by
                     </p>
                     <button 
-                        onClick={() => setViewingProfileFor({ publicKey: selectedPost.authorPublicKey, callsign: selectedPost.authorCallsign })}
+                        onClick={() => { if (onOpenProfile) onOpenProfile(selectedPost.authorPublicKey); }}
                         className="flex items-start gap-4 text-left w-full hover:bg-oat-50/50 dark:hover:bg-black/20 p-2 -ml-2 rounded-xl transition-colors"
                     >
                         {/* Avatar */}
@@ -672,7 +673,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                 <div key={req.id} className="bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-lg p-3 flex flex-col shadow-sm">
                                     <div className="flex flex-col mb-3">
                                         <button 
-                                            onClick={() => setViewingProfileFor({ publicKey: req.sellerPublicKey || req.buyerPublicKey, callsign: req.sellerCallsign })}
+                                            onClick={() => { if (onOpenProfile) onOpenProfile(req.sellerPublicKey || req.buyerPublicKey); }}
                                             className="font-bold text-nature-900 dark:text-white text-sm text-left hover:text-emerald-600 transition-colors flex items-center gap-1"
                                         >
                                             <span className="text-amber-600">🤝</span> <span className="underline decoration-nature-300 underline-offset-2">{req.sellerCallsign}</span>
@@ -1567,13 +1568,6 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                 </button>
             )}
             {/* Modals */}
-            {viewingProfileFor && (
-                <PublicProfileModal 
-                    publicKey={viewingProfileFor.publicKey} 
-                    callsign={viewingProfileFor.callsign} 
-                    onClose={() => setViewingProfileFor(null)} 
-                />
-            )}
 
             <CategoryPickerModal
                 visible={showCategoryPicker}

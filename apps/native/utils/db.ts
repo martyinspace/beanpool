@@ -2189,3 +2189,19 @@ export async function getRecoveryStatus(pubkey: string): Promise<any> {
         return { status: 'none' };
     }
 }
+
+export async function getMemberPosts(pubkey: string) {
+    const database = await waitForInit();
+    const rows = await database.getAllAsync<any>(`
+        SELECT * FROM posts
+        WHERE author_pubkey = ? AND status = 'active'
+        ORDER BY created_at DESC
+    `, [pubkey]);
+    
+    return rows.map(r => {
+        if (typeof r.photos === 'string') {
+            try { r.photos = JSON.parse(r.photos); } catch (e) { r.photos = []; }
+        }
+        return r;
+    });
+}

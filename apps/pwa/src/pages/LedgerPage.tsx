@@ -9,11 +9,12 @@ import { type BeanPoolIdentity } from '../lib/identity';
 import {
     getBalance, getTransactions, sendTransfer, getMembers,
     getCommonsProjects, proposeProject, voteForProject, getMemberProfile,
-    updateCommunityProject, deleteCommunityProject,
+    updateCommunityProject, deleteCommunityProject, getGovernanceCredits,
     type BalanceInfo, type TierInfo, type Transaction, type Member,
     type CommunityProject, type VotingRound, type MemberProfile,
 } from '../lib/api';
 import { resolveAvatarUrl } from '../lib/avatar';
+import { CommonsInfoModal } from '../components/CommonsInfoModal';
 
 interface Props {
     identity: BeanPoolIdentity;
@@ -48,6 +49,12 @@ export function LedgerPage({ identity }: Props) {
     const [editPropAmount, setEditPropAmount] = useState('');
     const [savingEdit, setSavingEdit] = useState(false);
 
+    // QV Governance state
+    const [voteSteppers, setVoteSteppers] = useState<Record<string, number>>({});
+    const [govCredits, setGovCredits] = useState<{ totalCredits: number; usedCredits: number; availableCredits: number } | null>(null);
+    const [showCommonsInfo, setShowCommonsInfo] = useState(false);
+    const [votingInProgress, setVotingInProgress] = useState<string | null>(null);
+
     const refresh = useCallback(async () => {
         try {
             const [bal, txn, mem, prof] = await Promise.all([
@@ -66,6 +73,11 @@ export function LedgerPage({ identity }: Props) {
                 setProjects(commons.projects);
                 setActiveRound(commons.activeRound);
             } catch { /* commons not critical */ }
+            // Load governance credits
+            try {
+                const credits = await getGovernanceCredits(identity.publicKey);
+                setGovCredits(credits);
+            } catch { /* credits not critical */ }
             setError(null);
         } catch (e: any) {
             setError(e.message || 'Failed to load');
@@ -106,6 +118,7 @@ export function LedgerPage({ identity }: Props) {
     const hoursEquivalent = Math.abs(balance) / 40;
 
     return (
+        <>
         <div className="p-4 max-w-[600px] mx-auto min-h-full">
             {/* Identity header */}
             <div className="text-center mb-6 p-6 bg-white dark:bg-nature-900 rounded-2xl border border-nature-200 dark:border-nature-800 shadow-sm transition-transform hover:-translate-y-0.5">
@@ -151,7 +164,15 @@ export function LedgerPage({ identity }: Props) {
                     </p>
                 </div>
 
-                <div className="flex-1 bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-2xl p-5 text-center shadow-sm">
+                <div className="flex-1 bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-2xl p-5 text-center shadow-sm relative">
+                    <button
+                        onClick={() => setShowCommonsInfo(true)}
+                        className="absolute top-2 right-2 w-6 h-6 rounded-full bg-nature-100 dark:bg-nature-800 border border-nature-200 dark:border-nature-700 flex items-center justify-center cursor-pointer text-nature-400 hover:text-amber-500 transition-colors text-xs font-bold"
+                        title="Learn about the Community Commons"
+                        style={{ lineHeight: 1 }}
+                    >
+                        ⓘ
+                    </button>
                     <p className="text-nature-500 dark:text-nature-400 text-sm font-semibold mb-2">Commons</p>
                     <p className="text-3xl font-bold text-amber-500 font-mono">
                         {loading ? '...' : <span style={{ whiteSpace: 'nowrap', display: 'inline-block' }}>{(balanceInfo?.commonsBalance ?? 0).toFixed(2)}&nbsp;<img src="/assets/bean.png" style={{ display: 'inline-block', width: '22px', height: '22px', verticalAlign: 'middle', marginTop: '-4px' }} alt="B" /></span>}
@@ -295,11 +316,35 @@ export function LedgerPage({ identity }: Props) {
                     </p>
                 ) : (
                     <div className="flex flex-col gap-3 mb-4">
+                        {/* QV Credits banner */}
+                        {govCredits && activeRound && (
+                            <div className="flex items-center justify-between bg-gradient-to-r from-violet-50 to-blue-50 dark:from-violet-950/30 dark:to-blue-950/30 border border-violet-200 dark:border-violet-800 rounded-xl px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-lg">🗳️</span>
+                                    <div>
+                                        <div className="text-[11px] font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wide">Governance Credits</div>
+                                        <div className="text-[13px] font-bold text-nature-900 dark:text-white">
+                                            {govCredits.availableCredits.toFixed(0)} available <span className="text-nature-400 font-normal">of {govCredits.totalCredits.toFixed(0)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowCommonsInfo(true)}
+                                    className="text-violet-400 hover:text-violet-600 bg-transparent border-none cursor-pointer text-xs font-bold"
+                                >
+                                    How it works →
+                                </button>
+                            </div>
+                        )}
+
                         {projects.filter(p => p.status === 'active' || p.status === 'proposed').map(project => {
-                            const totalVotes = project.votes.length;
-                            const maxVotes = Math.max(...projects.filter(p => p.status === 'active').map(p => p.votes.length), 1);
+                            const totalVotes = project.votes.reduce((sum, v) => sum + (v.weight || 1), 0);
+                            const maxVotes = Math.max(...projects.filter(p => p.status === 'active').map(p => p.votes.reduce((s, v) => s + (v.weight || 1), 0)), 1);
                             const hasVoted = project.votes.some(v => v.pubkey === identity.publicKey);
+                            const myVote = project.votes.find(v => v.pubkey === identity.publicKey);
                             const isActive = project.status === 'active';
+                            const stepperVotes = voteSteppers[project.id] ?? 1;
+                            const stepperCost = stepperVotes * stepperVotes;
 
                             return (
                                 <div key={project.id} className={`bg-white rounded-xl p-4 transition-all shadow-sm ${hasVoted ? 'border-2 border-emerald-500 ring-2 ring-emerald-50' : 'border border-nature-200 hover:border-nature-300'}`}>
@@ -392,21 +437,45 @@ export function LedgerPage({ identity }: Props) {
                                             </p>
                                         </div>
                                         {isActive && (
-                                            <button
-                                                onClick={async () => {
-                                                    try {
-                                                        await voteForProject(identity.publicKey, project.id);
-                                                        await refresh();
-                                                    } catch { /* ignore */ }
-                                                }}
-                                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border-none cursor-pointer whitespace-nowrap transition-colors shadow-sm ${
-                                                    hasVoted 
-                                                        ? 'bg-emerald-600 text-white' 
-                                                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-                                                }`}
-                                            >
-                                                {hasVoted ? '✓ Voted' : 'Vote'}
-                                            </button>
+                                            hasVoted ? (
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white whitespace-nowrap">
+                                                        ✓ {myVote?.weight || 1} vote{(myVote?.weight || 1) > 1 ? 's' : ''}
+                                                    </span>
+                                                    <span className="text-[10px] font-bold text-violet-500">({myVote?.creditsUsed || ((myVote?.weight || 1) * (myVote?.weight || 1))} cr)</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <div className="flex items-center gap-1">
+                                                        <button
+                                                            onClick={() => setVoteSteppers(prev => ({ ...prev, [project.id]: Math.max(1, (prev[project.id] ?? 1) - 1) }))}
+                                                            className="w-7 h-7 rounded-lg bg-nature-100 border border-nature-200 text-nature-600 font-bold cursor-pointer flex items-center justify-center text-sm hover:bg-nature-200 transition-colors"
+                                                        >−</button>
+                                                        <span className="w-8 text-center font-bold text-[15px] text-nature-900">{stepperVotes}</span>
+                                                        <button
+                                                            onClick={() => setVoteSteppers(prev => ({ ...prev, [project.id]: Math.min(10, (prev[project.id] ?? 1) + 1) }))}
+                                                            className="w-7 h-7 rounded-lg bg-nature-100 border border-nature-200 text-nature-600 font-bold cursor-pointer flex items-center justify-center text-sm hover:bg-nature-200 transition-colors"
+                                                        >+</button>
+                                                        <button
+                                                            disabled={votingInProgress === project.id || stepperCost > (govCredits?.availableCredits ?? 0)}
+                                                            onClick={async () => {
+                                                                setVotingInProgress(project.id);
+                                                                try {
+                                                                    await voteForProject(identity.publicKey, project.id, stepperVotes);
+                                                                    await refresh();
+                                                                } catch { /* ignore */ }
+                                                                setVotingInProgress(null);
+                                                            }}
+                                                            className="ml-1 px-3 py-1.5 rounded-lg text-xs font-bold border-none cursor-pointer whitespace-nowrap transition-colors shadow-sm bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-40"
+                                                        >
+                                                            {votingInProgress === project.id ? '...' : 'Cast'}
+                                                        </button>
+                                                    </div>
+                                                    <span className="text-[10px] font-bold" style={{ color: stepperCost > (govCredits?.availableCredits ?? 0) ? '#ef4444' : '#8b5cf6' }}>
+                                                        {stepperVotes} vote{stepperVotes > 1 ? 's' : ''} = {stepperCost} credits
+                                                    </span>
+                                                </div>
+                                            )
                                         )}
                                     </div>
                                     {/* Vote bar */}
@@ -573,5 +642,12 @@ export function LedgerPage({ identity }: Props) {
                 </div>
             )}
         </div>
+
+            <CommonsInfoModal
+                isOpen={showCommonsInfo}
+                onClose={() => setShowCommonsInfo(false)}
+                commonsBalance={balanceInfo?.commonsBalance}
+            />
+        </>
     );
 }

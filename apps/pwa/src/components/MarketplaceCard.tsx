@@ -20,9 +20,10 @@ interface Props {
     remoteNode?: string;
     onTrade?: (post: MarketplacePost) => void;
     viewMode?: 'grid' | 'list';
+    onOpenProfile?: (pubkey: string) => void;
 }
 
-export function MarketplaceCard({ post, authorRating, authorEnergy = 0, authorAvatarUrl, remoteNode, viewMode = 'grid' }: Props) {
+export function MarketplaceCard({ post, authorRating, authorEnergy = 0, authorAvatarUrl, remoteNode, viewMode = 'grid', onOpenProfile }: Props) {
     const categoryConfig = MARKETPLACE_CATEGORIES.find((c) => c.id === post.category);
     const typeColor = POST_TYPE_COLORS[post.type];
     const emoji = categoryConfig?.emoji ?? '📦';
@@ -96,6 +97,7 @@ export function MarketplaceCard({ post, authorRating, authorEnergy = 0, authorAv
                         avatarUrl={authorAvatarUrl}
                         publicKey={post.authorPublicKey}
                         mode="full"
+                        onOpenProfile={onOpenProfile}
                     />
                 </div>
                 
@@ -125,6 +127,7 @@ export function MarketplaceCard({ post, authorRating, authorEnergy = 0, authorAv
                         publicKey={post.authorPublicKey}
                         mode="compact"
                         className="mb-1"
+                        onOpenProfile={onOpenProfile}
                     />
                     <span className={`font-bold text-nature-950 dark:text-white truncate text-xs mt-0.5`}>
                         {post.title}
