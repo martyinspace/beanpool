@@ -17,16 +17,16 @@ export interface BundledAvatar {
 }
 
 export const BUNDLED_AVATARS: BundledAvatar[] = [
-    { id: 'bean-green',   label: 'Green Bean',  source: require('../assets/images/avatars/avatar-bean-green.png') },
-    { id: 'bean-purple',  label: 'Purple Bean', source: require('../assets/images/avatars/avatar-bean-purple.png') },
-    { id: 'leaf',         label: 'Leaf',        source: require('../assets/images/avatars/avatar-leaf.png') },
-    { id: 'sprout',       label: 'Sprout',      source: require('../assets/images/avatars/avatar-sprout.png') },
-    { id: 'sun',          label: 'Sun',         source: require('../assets/images/avatars/avatar-sun.png') },
-    { id: 'moon',         label: 'Moon',        source: require('../assets/images/avatars/avatar-moon.png') },
-    { id: 'wave',         label: 'Wave',        source: require('../assets/images/avatars/avatar-wave.png') },
-    { id: 'mountain',     label: 'Mountain',    source: require('../assets/images/avatars/avatar-mountain.png') },
-    { id: 'fire',         label: 'Fire',        source: require('../assets/images/avatars/avatar-fire.png') },
-    { id: 'crystal',      label: 'Crystal',     source: require('../assets/images/avatars/avatar-crystal.png') },
+    { id: 'bean-green',   label: 'Green Bean',  source: require('../assets/images/avatars/avatar_bean_green.png') },
+    { id: 'bean-purple',  label: 'Purple Bean', source: require('../assets/images/avatars/avatar_bean_purple.png') },
+    { id: 'leaf',         label: 'Leaf',        source: require('../assets/images/avatars/avatar_leaf.png') },
+    { id: 'sprout',       label: 'Sprout',      source: require('../assets/images/avatars/avatar_sprout.png') },
+    { id: 'sun',          label: 'Sun',         source: require('../assets/images/avatars/avatar_sun.png') },
+    { id: 'moon',         label: 'Moon',        source: require('../assets/images/avatars/avatar_moon.png') },
+    { id: 'wave',         label: 'Wave',        source: require('../assets/images/avatars/avatar_wave.png') },
+    { id: 'mountain',     label: 'Mountain',    source: require('../assets/images/avatars/avatar_mountain.png') },
+    { id: 'fire',         label: 'Fire',        source: require('../assets/images/avatars/avatar_fire.png') },
+    { id: 'crystal',      label: 'Crystal',     source: require('../assets/images/avatars/avatar_crystal.png') },
 ];
 
 /**
