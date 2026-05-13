@@ -199,6 +199,11 @@ beanpool/
 
 ### Run a BeanPool Node (Docker)
 
+BeanPool is distributed as a **Universal Docker Container** via the GitHub Container Registry. It natively supports:
+- **Intel/AMD** (Standard servers, Mini PCs)
+- **ARM64** (Raspberry Pi, Apple Silicon, ARM NAS drives)
+- **TrueNAS Scale / Kubernetes** (runs smoothly as a non-root user via `PUID`/`PGID` variables)
+
 ```bash
 git clone https://github.com/martyinspace/beanpool.git
 cd beanpool

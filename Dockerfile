@@ -77,6 +77,9 @@ WORKDIR /app/apps/server
 # Force build better-sqlite3 native bindings for Alpine
 RUN npm rebuild better-sqlite3 --build-from-source
 
+# Install su-exec for dropping privileges
+RUN apk add --no-cache su-exec
+
 # Clean up build tools to reduce image size
 RUN apk del python3 make g++
 
@@ -88,5 +91,9 @@ ENV BEANPOOL_DATA_DIR=/data
 ENV APP_VERSION=${APP_VERSION}
 VOLUME /data
 
-# Run compiled JavaScript directly
+# Copy entrypoint script
+COPY --from=builder /app/entrypoint.sh /app/entrypoint.sh
+
+# Run compiled JavaScript via the entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["node", "dist/index.js"]
