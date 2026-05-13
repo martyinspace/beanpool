@@ -67,6 +67,9 @@ export function MemberAvatar({
                 />
             );
         }
+        // If it's a bundled URL but resolution fails, do NOT fall through to network URI (which crashes iOS).
+        // Break out to render the initial fallback.
+        uri = null;
     }
 
     if (uri) {
