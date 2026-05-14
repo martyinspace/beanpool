@@ -1759,15 +1759,69 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
         ORDER BY COALESCE(last_msg_time, c.created_at) DESC
     `).all(pubkey) as any[];
 
+    // ⚡ Bolt: Batch fetch participants to avoid N+1 queries
+    const conversationIds = rows.map(r => r.id);
+    const participantsByConv = new Map<string, string[]>();
+    const allPeerPubkeys = new Set<string>();
+
+    if (conversationIds.length > 0) {
+        const placeholders = conversationIds.map(() => '?').join(',');
+        const partsQuery = `SELECT conversation_id, public_key FROM conversation_participants WHERE conversation_id IN (${placeholders})`;
+        const allParts = db.prepare(partsQuery).all(...conversationIds) as any[];
+
+        for (const part of allParts) {
+            if (!participantsByConv.has(part.conversation_id)) {
+                participantsByConv.set(part.conversation_id, []);
+            }
+            participantsByConv.get(part.conversation_id)!.push(part.public_key);
+            if (part.public_key !== pubkey) {
+                allPeerPubkeys.add(part.public_key);
+            }
+        }
+    }
+
+    // ⚡ Bolt: Batch fetch peer member data to avoid N+1 queries
+    const membersByPubkey = new Map<string, any>();
+    if (allPeerPubkeys.size > 0) {
+        const pubkeysArray = Array.from(allPeerPubkeys);
+        const placeholders = pubkeysArray.map(() => '?').join(',');
+        const membersQuery = `SELECT public_key, callsign, avatar_url FROM members WHERE public_key IN (${placeholders})`;
+        const allMembers = db.prepare(membersQuery).all(...pubkeysArray) as any[];
+
+        for (const member of allMembers) {
+            membersByPubkey.set(member.public_key, member);
+        }
+    }
+
+    // ⚡ Bolt: Batch fetch post photos to avoid N+1 queries
+    const postIds = Array.from(new Set(rows.map(r => r.post_id).filter(id => id != null)));
+    const postPhotosById = new Map<string, string | null>();
+    if (postIds.length > 0) {
+        const placeholders = postIds.map(() => '?').join(',');
+        const postsQuery = `SELECT id, photos FROM posts WHERE id IN (${placeholders})`;
+        const allPosts = db.prepare(postsQuery).all(...postIds) as any[];
+
+        for (const post of allPosts) {
+            let postPhoto: string | null = null;
+            if (post.photos) {
+                try {
+                    const arr = JSON.parse(post.photos);
+                    if (Array.isArray(arr) && arr.length > 0) postPhoto = arr[0];
+                } catch {}
+            }
+            postPhotosById.set(post.id, postPhoto);
+        }
+    }
+
     return rows.map(r => {
-        const parts = db.prepare("SELECT public_key FROM conversation_participants WHERE conversation_id=?").all(r.id) as any[];
+        const parts = participantsByConv.get(r.id) || [];
         
         // Look up peer member data (avatar + callsign) for the other participant
-        const peerPubkey = parts.find(p => p.public_key !== pubkey)?.public_key;
+        const peerPubkey = parts.find(p => p !== pubkey);
         let peerCallsign: string | undefined;
         let peerAvatar: string | null = null;
         if (peerPubkey) {
-            const peerMember = db.prepare("SELECT callsign, avatar_url FROM members WHERE public_key=?").get(peerPubkey) as any;
+            const peerMember = membersByPubkey.get(peerPubkey);
             if (peerMember) {
                 peerCallsign = peerMember.callsign;
                 peerAvatar = peerMember.avatar_url || null;
@@ -1775,16 +1829,7 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
         }
 
         // Extract first photo from post
-        let postPhoto: string | null = null;
-        if (r.post_id) {
-            const postRow = db.prepare("SELECT photos FROM posts WHERE id=?").get(r.post_id) as any;
-            if (postRow?.photos) {
-                try {
-                    const arr = JSON.parse(postRow.photos);
-                    if (Array.isArray(arr) && arr.length > 0) postPhoto = arr[0];
-                } catch {}
-            }
-        }
+        const postPhoto = r.post_id ? (postPhotosById.get(r.post_id) || null) : null;
 
         return { 
             id: r.id, 
@@ -1798,7 +1843,7 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
             name: r.name, 
             createdBy: r.created_by, 
             createdAt: r.created_at, 
-            participants: parts.map(p => p.public_key),
+            participants: parts,
             peerCallsign,
             peerAvatar,
         };
