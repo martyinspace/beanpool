@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS conversation_participants (
     last_read_at DATETIME,
     PRIMARY KEY (conversation_id, public_key)
 );
+CREATE INDEX IF NOT EXISTS idx_conversation_participants_pubkey ON conversation_participants(public_key);
 
 CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,

@@ -1,3 +1,6 @@
 ## 2026-05-11 - [O(N^2) Array Filtering on Relational Data]
 **Learning:** In `state-engine.ts`, fetching associated relational data (like photos for posts) was done by running `.filter()` on an entire array of relational objects inside a `.map()` block across all rows. For large datasets, this N+1 in-memory problem creates an O(N^2) complexity that blocks the single-threaded Node.js event loop.
 **Action:** When mapping relational rows to nested objects, pre-group the relational arrays using a `Map` structure with the foreign key (e.g., `post_id`) as the key to convert the operation into an O(N) lookup.
+## 2024-05-15 - Missing Index on junction table `conversation_participants`
+**Learning:** SQLite's auto-generated indexes for composite primary keys only support efficient lookups starting with the first column. In `conversation_participants`, the primary key is `(conversation_id, public_key)`. Filtering queries by `public_key` alone (to find a user's conversations) were forcing full table scans because there was no secondary index on `public_key`.
+**Action:** Always verify that junction tables with composite primary keys have secondary indexes created for the non-leading columns if those columns are queried independently. Add an explicit `CREATE INDEX` for them.
