@@ -11,7 +11,7 @@ export interface InfoModalProps {
     isOpen: boolean;
     onClose: () => void;
     title: string;
-    icon: string;
+    icon: React.ReactNode;
     tabs: InfoModalTab[];
 }
 
@@ -37,7 +37,7 @@ export function InfoModal({ isOpen, onClose, title, icon, tabs }: InfoModalProps
                         {/* Header */}
                         <View style={styles.header}>
                             <View style={styles.headerTitleContainer}>
-                                <Text style={styles.headerIcon}>{icon}</Text>
+                                <View style={styles.headerIconContainer}>{icon}</View>
                                 <Text style={styles.headerTitle}>{title}</Text>
                             </View>
                             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -104,8 +104,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 12,
     },
-    headerIcon: {
-        fontSize: 24,
+    headerIconContainer: {
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     headerTitle: {
         fontSize: 20,

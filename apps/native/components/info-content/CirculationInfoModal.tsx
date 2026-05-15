@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { InfoModal, InfoModalTab } from '../InfoModal';
 import { CurrencyDisplay } from '../CurrencyDisplay';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface Props {
     isOpen: boolean;
@@ -12,7 +13,7 @@ export function CirculationInfoModal({ isOpen, onClose }: Props) {
     const tabs: InfoModalTab[] = [
         {
             id: 'demurrage',
-            label: '📉 What is Demurrage?',
+            label: 'What is Demurrage?',
             content: (
                 <View style={styles.tabContent}>
                     <Text style={styles.descriptionText}>
@@ -34,7 +35,7 @@ export function CirculationInfoModal({ isOpen, onClose }: Props) {
                     </View>
 
                     <View style={styles.infoBox}>
-                        <Text style={styles.infoBoxIcon}>🌊</Text>
+                        <MaterialCommunityIcons name="water" size={24} color="#3b82f6" style={styles.infoBoxIcon} />
                         <Text style={styles.infoBoxText}>
                             Unlike interest which rewards hoarding, demurrage rewards circulation. It encourages you to spend your credits on community services!
                         </Text>
@@ -44,7 +45,7 @@ export function CirculationInfoModal({ isOpen, onClose }: Props) {
         },
         {
             id: 'recovery',
-            label: '📈 Debt Recovery',
+            label: 'Debt Recovery',
             content: (
                 <View style={styles.tabContent}>
                     <Text style={styles.descriptionText}>
@@ -74,7 +75,7 @@ export function CirculationInfoModal({ isOpen, onClose }: Props) {
             isOpen={isOpen}
             onClose={onClose}
             title="System Circulation"
-            icon="🔄"
+            icon={<MaterialCommunityIcons name="sync" size={24} color="#3b82f6" />}
             tabs={tabs}
         />
     );
@@ -123,7 +124,6 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     infoBoxIcon: {
-        fontSize: 24,
         marginRight: 12,
     },
     infoBoxText: {

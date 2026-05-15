@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { CurrencyDisplay } from './CurrencyDisplay';
 import { InfoModal, InfoModalTab } from './InfoModal';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const BRACKETS = [
     { min: 0, max: 200, rate: 0.5, color: '#22c55e' },
@@ -12,11 +13,11 @@ const BRACKETS = [
 ];
 
 const FLOW_STEPS = [
-    { icon: '🤝', label: 'My Trade', desc: 'Credits earned through community exchange' },
-    { icon: '🌿', label: 'Demurrage', desc: 'Progressive monthly contribution from positive balances' },
-    { icon: '🏛️', label: 'Commons Pool', desc: 'Community fund growing from all members\' contributions' },
-    { icon: '🗳️', label: 'My Vote', desc: 'Quadratic Voting: N votes costs N² credits' },
-    { icon: '🚀', label: 'Community Project', desc: 'Winning projects funded from the Commons Pool' },
+    { icon: <MaterialCommunityIcons name="handshake" size={24} color="#10b981" />, label: 'My Trade', desc: 'Credits earned through community exchange' },
+    { icon: <MaterialCommunityIcons name="leaf" size={24} color="#10b981" />, label: 'Demurrage', desc: 'Progressive monthly contribution from positive balances' },
+    { icon: <MaterialCommunityIcons name="bank" size={24} color="#fcd34d" />, label: 'Commons Pool', desc: 'Community fund growing from all members\' contributions' },
+    { icon: <MaterialCommunityIcons name="vote" size={24} color="#3b82f6" />, label: 'My Vote', desc: 'Quadratic Voting: N votes costs N² credits' },
+    { icon: <MaterialCommunityIcons name="rocket-launch" size={24} color="#8b5cf6" />, label: 'Community Project', desc: 'Winning projects funded from the Commons Pool' },
 ];
 
 interface Props {
@@ -29,7 +30,7 @@ export function CommonsInfoModal({ isOpen, onClose, commonsBalance }: Props) {
     const tabs: InfoModalTab[] = [
         {
             id: 'flow',
-            label: '🌊 How It Works',
+            label: 'How It Works',
             content: (
                 <View style={styles.tabContent}>
                     <Text style={styles.descriptionText}>
@@ -47,7 +48,7 @@ export function CommonsInfoModal({ isOpen, onClose, commonsBalance }: Props) {
                         {FLOW_STEPS.map((step, i) => (
                             <View key={i}>
                                 <View style={styles.flowStep}>
-                                    <Text style={styles.flowStepIcon}>{step.icon}</Text>
+                                    <View style={styles.flowStepIcon}>{step.icon}</View>
                                     <View style={styles.flowStepTextContainer}>
                                         <Text style={styles.flowStepLabel}>{step.label}</Text>
                                         <Text style={styles.flowStepDesc}>{step.desc}</Text>
@@ -55,7 +56,7 @@ export function CommonsInfoModal({ isOpen, onClose, commonsBalance }: Props) {
                                 </View>
                                 {i < FLOW_STEPS.length - 1 && (
                                     <View style={styles.flowConnector}>
-                                        <Text style={styles.flowConnectorArrow}>↓</Text>
+                                        <MaterialCommunityIcons name="arrow-down" size={24} color="#4b5563" />
                                     </View>
                                 )}
                             </View>
@@ -66,7 +67,7 @@ export function CommonsInfoModal({ isOpen, onClose, commonsBalance }: Props) {
         },
         {
             id: 'brackets',
-            label: '📊 Tax Brackets',
+            label: 'Tax Brackets',
             content: (
                 <View style={styles.tabContent}>
                     <Text style={styles.descriptionText}>
@@ -108,7 +109,7 @@ export function CommonsInfoModal({ isOpen, onClose, commonsBalance }: Props) {
         },
         {
             id: 'qv',
-            label: '🗳️ Voting',
+            label: 'Voting',
             content: (
                 <View style={styles.tabContent}>
                     <Text style={styles.descriptionText}>
@@ -156,7 +157,7 @@ export function CommonsInfoModal({ isOpen, onClose, commonsBalance }: Props) {
             isOpen={isOpen}
             onClose={onClose}
             title="Community Commons"
-            icon="🏛️"
+            icon={<MaterialCommunityIcons name="bank" size={24} color="#fcd34d" />}
             tabs={tabs}
         />
     );
@@ -208,7 +209,6 @@ const styles = StyleSheet.create({
         borderRadius: 12,
     },
     flowStepIcon: {
-        fontSize: 24,
         marginRight: 16,
     },
     flowStepTextContainer: {
@@ -230,11 +230,6 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         marginLeft: 28,
         alignSelf: 'flex-start',
-    },
-    flowConnectorArrow: {
-        color: '#4b5563',
-        fontSize: 18,
-        fontWeight: 'bold',
     },
     bracketsContainer: {
         marginBottom: 24,

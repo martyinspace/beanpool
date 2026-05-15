@@ -5,9 +5,12 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIdentity } from '../IdentityContext';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { getBalance, getTransactions, getProjects, getMemberProfile, getAllCommunityMembers, sendTransfer } from '../../utils/db';
+import { getBalance, getTransactions, getProjects, getMemberProfile, getAllCommunityMembers, sendTransfer, voteForProjectApi } from '../../utils/db';
 import { CurrencyDisplay } from '../../components/CurrencyDisplay';
 import { MemberAvatar } from '../../components/MemberAvatar';
+import { BalanceInfoModal } from '../../components/info-content/BalanceInfoModal';
+import { CirculationInfoModal } from '../../components/info-content/CirculationInfoModal';
+import { CommonsInfoModal } from '../../components/CommonsInfoModal';
 
 export default function LedgerScreen() {
     const { identity } = useIdentity();
@@ -16,6 +19,15 @@ export default function LedgerScreen() {
     const [balanceState, setBalanceState] = useState({ balance: 0, floor: -100, tier: { name: 'Ghost', emoji: '👻', canGift: false, canInvite: false }, earnedCredit: 0, commons: 0 });
     const [showSend, setShowSend] = useState(false);
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+    // QV Voting State
+    const [voteSteppers, setVoteSteppers] = useState<Record<string, number>>({});
+    const [votingInProgress, setVotingInProgress] = useState<string | null>(null);
+
+    // Modal states
+    const [showBalanceInfo, setShowBalanceInfo] = useState(false);
+    const [showCommonsInfo, setShowCommonsInfo] = useState(false);
+    const [showCirculationInfo, setShowCirculationInfo] = useState(false);
 
     // Send form state
     const [members, setMembers] = useState<{ publicKey: string; callsign: string }[]>([]);
@@ -116,17 +128,17 @@ export default function LedgerScreen() {
 
             {/* Balance Row */}
             <View style={styles.balanceRow}>
-                <View style={styles.balanceCard}>
-                    <Text style={styles.balanceLabel}>Balance</Text>
+                <Pressable style={styles.balanceCard} onPress={() => setShowBalanceInfo(true)}>
+                    <Text style={styles.balanceLabel}>Balance ⓘ</Text>
                     <CurrencyDisplay style={[styles.balanceAmount, balanceState.balance >= 0 ? styles.positiveText : styles.negativeText]} amount={`${balanceState.balance >= 0 ? '+' : ''}${balanceState.balance.toFixed(2)}`} />
                     <Text style={styles.hoursEquivalent}>≈ {(Math.abs(balanceState.balance) / 40).toFixed(1)} hrs</Text>
                     <Text style={styles.balanceFloor}>Floor: {balanceState.floor}</Text>
-                </View>
-                <View style={styles.balanceCard}>
-                    <Text style={styles.balanceLabel}>Commons</Text>
+                </Pressable>
+                <Pressable style={styles.balanceCard} onPress={() => setShowCommonsInfo(true)}>
+                    <Text style={styles.balanceLabel}>Commons ⓘ</Text>
                     <CurrencyDisplay style={styles.commonsAmount} amount={balanceState.commons.toFixed(2)} />
                     <Text style={styles.balanceFloor}>🌱 Community Pool</Text>
-                </View>
+                </Pressable>
             </View>
 
             {/* Community Circulation Info */}
@@ -150,9 +162,12 @@ export default function LedgerScreen() {
                 const showAmber = balanceState.balance > 1000;
 
                 return (
-                    <View style={[styles.circulationBox, showAmber && styles.circulationBoxAbove]}>
+                    <Pressable 
+                        style={[styles.circulationBox, showAmber && styles.circulationBoxAbove]}
+                        onPress={() => setShowCirculationInfo(true)}
+                    >
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Text style={[styles.circulationLabel, showAmber && { color: '#92400e' }]}>🌿 Community Circulation</Text>
+                            <Text style={[styles.circulationLabel, showAmber && { color: '#92400e' }]}>🌿 Community Circulation ⓘ</Text>
                             <CurrencyDisplay 
                                 style={[styles.circulationRate, showAmber && { color: '#92400e' }]} 
                                 amount={`−${totalCirculation.toFixed(3)} /mo`} 
@@ -161,7 +176,7 @@ export default function LedgerScreen() {
                         <Text style={[styles.circulationWarning, !showAmber && { color: '#059669' }]}>
                             ≈ {effectiveRate}% /mo effective • Funds community projects
                         </Text>
-                    </View>
+                    </Pressable>
                 );
             })()}
 
@@ -289,13 +304,10 @@ export default function LedgerScreen() {
                 </View>
             )}
 
-            {/* Community Projects Overview */}
+            {/* Community Projects Overview - QV Steppers */}
             {projects.length > 0 ? (
-                <Pressable 
-                    style={styles.projectsOverview} 
-                    onPress={() => router.push('/(tabs)/projects')}
-                >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={styles.projectsContainer}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, marginLeft: 4 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                             <Text style={{ fontSize: 18 }}>🌱</Text>
                             <View>
@@ -307,9 +319,101 @@ export default function LedgerScreen() {
                                 </Text>
                             </View>
                         </View>
-                        <MaterialCommunityIcons name="chevron-right" size={22} color="#9ca3af" />
                     </View>
-                </Pressable>
+                    <Text style={{ fontSize: 13, color: '#4b5563', marginBottom: 16, paddingHorizontal: 4 }}>
+                        You have <Text style={{ fontWeight: 'bold' }}>{balanceState.earnedCredit}</Text> governance credits available to vote on community projects using quadratic voting.
+                    </Text>
+                    
+                    <View style={styles.projectList}>
+                        {projects.map(project => {
+                            let parsedVotes = project.votes || [];
+                            if (typeof project.votes === 'string') {
+                                try { parsedVotes = JSON.parse(project.votes); } catch (e) { parsedVotes = []; }
+                            }
+                            
+                            const totalVotes = parsedVotes.reduce((sum: number, v: any) => sum + (v.weight || 1), 0);
+                            const maxVotes = Math.max(...projects.map(p => {
+                                let pv = p.votes || [];
+                                if (typeof p.votes === 'string') {
+                                    try { pv = JSON.parse(p.votes); } catch (e) { pv = []; }
+                                }
+                                return pv.reduce((s: number, v: any) => s + (v.weight || 1), 0);
+                            }), 1);
+                            
+                            const myVote = parsedVotes.find((v: any) => v.pubkey === identity?.publicKey);
+                            const hasVoted = !!myVote;
+                            
+                            const stepperVotes = voteSteppers[project.id] ?? 1;
+                            const stepperCost = stepperVotes * stepperVotes;
+                            const isOverBudget = stepperCost > balanceState.earnedCredit;
+
+                            return (
+                                <View key={project.id} style={styles.projectCard}>
+                                    <View style={styles.projectCardHeader}>
+                                        <Text style={styles.projectCardTitle} numberOfLines={1}>{project.title}</Text>
+                                        <Text style={styles.projectCardGoal}>{project.goal} B</Text>
+                                    </View>
+                                    <Text style={styles.projectCardDesc} numberOfLines={2}>{project.description || 'No description provided.'}</Text>
+                                    
+                                    <View style={styles.votingArea}>
+                                        {hasVoted ? (
+                                            <View style={styles.votedBadge}>
+                                                <MaterialCommunityIcons name="check-circle" size={16} color="#10b981" />
+                                                <Text style={styles.votedText}>You cast {myVote.weight} vote{myVote.weight !== 1 ? 's' : ''}</Text>
+                                            </View>
+                                        ) : (
+                                            <View style={styles.stepperContainer}>
+                                                <View style={styles.stepperControls}>
+                                                    <Pressable 
+                                                        style={styles.stepperBtn}
+                                                        onPress={() => setVoteSteppers(prev => ({ ...prev, [project.id]: Math.max(1, (prev[project.id] ?? 1) - 1) }))}
+                                                    >
+                                                        <Text style={styles.stepperBtnText}>-</Text>
+                                                    </Pressable>
+                                                    <Text style={styles.stepperValue}>{stepperVotes}</Text>
+                                                    <Pressable 
+                                                        style={styles.stepperBtn}
+                                                        onPress={() => setVoteSteppers(prev => ({ ...prev, [project.id]: Math.min(10, (prev[project.id] ?? 1) + 1) }))}
+                                                    >
+                                                        <Text style={styles.stepperBtnText}>+</Text>
+                                                    </Pressable>
+                                                    
+                                                    <Pressable 
+                                                        style={[styles.castBtn, (votingInProgress === project.id || isOverBudget) && styles.castBtnDisabled]}
+                                                        disabled={votingInProgress === project.id || isOverBudget}
+                                                        onPress={async () => {
+                                                            setVotingInProgress(project.id);
+                                                            try {
+                                                                await voteForProjectApi(project.id, stepperVotes);
+                                                                loadData();
+                                                            } catch (e: any) {
+                                                                Alert.alert('Voting Failed', e.message);
+                                                            }
+                                                            setVotingInProgress(null);
+                                                        }}
+                                                    >
+                                                        <Text style={styles.castBtnText}>{votingInProgress === project.id ? '...' : 'Cast'}</Text>
+                                                    </Pressable>
+                                                </View>
+                                                <Text style={[styles.stepperCostText, isOverBudget && styles.stepperCostTextError]}>
+                                                    {stepperVotes} vote{stepperVotes > 1 ? 's' : ''} = {stepperCost} credits
+                                                </Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                    
+                                    {/* Progress Bar */}
+                                    <View style={styles.progressSection}>
+                                        <View style={styles.progressBarBg}>
+                                            <View style={[styles.progressBarFill, { width: `${(totalVotes / maxVotes) * 100}%` }]} />
+                                        </View>
+                                        <Text style={styles.progressText}>{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</Text>
+                                    </View>
+                                </View>
+                            );
+                        })}
+                    </View>
+                </View>
             ) : (
                 <View style={styles.projectsOverview}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -360,6 +464,22 @@ export default function LedgerScreen() {
                 renderItem={renderTxn}
                 contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
+            />
+
+            <BalanceInfoModal 
+                isOpen={showBalanceInfo} 
+                onClose={() => setShowBalanceInfo(false)} 
+            />
+            
+            <CommonsInfoModal 
+                isOpen={showCommonsInfo} 
+                onClose={() => setShowCommonsInfo(false)}
+                commonsBalance={balanceState.commons}
+            />
+            
+            <CirculationInfoModal 
+                isOpen={showCirculationInfo} 
+                onClose={() => setShowCirculationInfo(false)} 
             />
         </SafeAreaView>
     );
@@ -436,5 +556,29 @@ const styles = StyleSheet.create({
     txnAmount: { fontSize: 16, fontWeight: 'bold' },
     commonsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginLeft: 4 },
     projectsOverview: { backgroundColor: '#ffffff', padding: 16, borderRadius: 16, marginBottom: 16, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
+    projectsContainer: { marginBottom: 16 },
+    projectList: { gap: 12 },
+    projectCard: { backgroundColor: '#ffffff', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+    projectCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+    projectCardTitle: { fontSize: 15, fontWeight: '700', color: '#1f2937', flex: 1, marginRight: 8 },
+    projectCardGoal: { fontSize: 14, fontWeight: '600', color: '#059669', fontFamily: 'Courier' },
+    projectCardDesc: { fontSize: 13, color: '#6b7280', marginBottom: 14 },
+    votingArea: { backgroundColor: '#f9fafb', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#f3f4f6' },
+    votedBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', paddingVertical: 4 },
+    votedText: { color: '#059669', fontSize: 13, fontWeight: '600' },
+    stepperContainer: { alignItems: 'center' },
+    stepperControls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    stepperBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#ffffff', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#d1d5db', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
+    stepperBtnText: { fontSize: 20, color: '#4b5563', marginTop: -2 },
+    stepperValue: { fontSize: 18, fontWeight: '700', color: '#1f2937', width: 28, textAlign: 'center', fontFamily: 'Courier' },
+    castBtn: { backgroundColor: '#10b981', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
+    castBtnDisabled: { backgroundColor: '#9ca3af' },
+    castBtnText: { color: '#ffffff', fontSize: 14, fontWeight: 'bold' },
+    stepperCostText: { fontSize: 11, color: '#6b7280', marginTop: 8, fontWeight: '500' },
+    stepperCostTextError: { color: '#ef4444' },
+    progressSection: { marginTop: 4 },
+    progressBarBg: { height: 6, backgroundColor: '#f3f4f6', borderRadius: 3, overflow: 'hidden', marginBottom: 4 },
+    progressBarFill: { height: '100%', backgroundColor: '#10b981', borderRadius: 3 },
+    progressText: { fontSize: 11, color: '#9ca3af', textAlign: 'right', fontWeight: '500', fontFamily: 'Courier' },
 });
 

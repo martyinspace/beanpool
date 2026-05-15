@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { InfoModal, InfoModalTab } from '../InfoModal';
 import { CurrencyDisplay } from '../CurrencyDisplay';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface Props {
     isOpen: boolean;
@@ -12,7 +13,7 @@ export function BalanceInfoModal({ isOpen, onClose }: Props) {
     const tabs: InfoModalTab[] = [
         {
             id: 'balance',
-            label: '💰 Your Balance',
+            label: 'Your Balance',
             content: (
                 <View style={styles.tabContent}>
                     <Text style={styles.descriptionText}>
@@ -38,7 +39,7 @@ export function BalanceInfoModal({ isOpen, onClose }: Props) {
                     </View>
 
                     <View style={styles.infoBox}>
-                        <Text style={styles.infoBoxIcon}>💡</Text>
+                        <MaterialCommunityIcons name="lightbulb-on" size={24} color="#fbbf24" style={styles.infoBoxIcon} />
                         <Text style={styles.infoBoxText}>
                             Credits in BeanPool are backed by real community trust and exchange, not fiat currency.
                         </Text>
@@ -48,7 +49,7 @@ export function BalanceInfoModal({ isOpen, onClose }: Props) {
         },
         {
             id: 'floor',
-            label: '🛡️ Floor Balance',
+            label: 'Floor Balance',
             content: (
                 <View style={styles.tabContent}>
                     <Text style={styles.descriptionText}>
@@ -70,7 +71,7 @@ export function BalanceInfoModal({ isOpen, onClose }: Props) {
                     </View>
 
                     <View style={styles.warningBox}>
-                        <Text style={styles.warningIcon}>⚠️</Text>
+                        <MaterialCommunityIcons name="alert" size={24} color="#f87171" style={styles.warningIcon} />
                         <Text style={styles.warningText}>
                             Members who stay at their maximum floor balance for over 3 months without active trading may face account suspension.
                         </Text>
@@ -85,7 +86,7 @@ export function BalanceInfoModal({ isOpen, onClose }: Props) {
             isOpen={isOpen}
             onClose={onClose}
             title="Available Balance"
-            icon="💰"
+            icon={<MaterialCommunityIcons name="wallet" size={24} color="#10b981" />}
             tabs={tabs}
         />
     );
@@ -134,7 +135,6 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     infoBoxIcon: {
-        fontSize: 24,
         marginRight: 12,
     },
     infoBoxText: {
@@ -173,7 +173,6 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     warningIcon: {
-        fontSize: 24,
         marginRight: 12,
     },
     warningText: {

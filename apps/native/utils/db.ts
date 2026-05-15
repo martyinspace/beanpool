@@ -1068,6 +1068,21 @@ export async function pledgeToCrowdfundProjectApi(projectId: string, amount: num
     return res;
 }
 
+export async function voteForProjectApi(projectId: string, votes: number) {
+    const identity = await loadIdentity();
+    if (!identity) throw new Error("No identity block found");
+
+    const res = await _signedRequest(`/api/crowdfund/projects/vote`, {
+        projectId,
+        pubkey: identity.publicKey,
+        votes
+    });
+
+    // In a local-first system, we might want to optimistically update the local DB
+    // but the node's sync will update the project votes anyway.
+    return res;
+}
+
 export async function updatePost(id: string, updates: any) {
     const identity = await loadIdentity();
     if (!identity) throw new Error('Not logged in. Identity required.');
