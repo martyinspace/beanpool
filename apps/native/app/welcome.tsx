@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, Alert, Image, FlatList } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, TextInput, Pressable, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, Alert, Image, FlatList, BackHandler } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { createIdentity, createIdentityFromMnemonic, BeanPoolIdentity } from '../utils/identity';
 import { nativeDecryptIdentity } from '../utils/native-crypto';
 import { importIdentity } from '../utils/identity';
@@ -22,7 +23,7 @@ export default function WelcomeScreen() {
     const params = useGlobalSearchParams();
     const incomingUrl = Linking.useURL();
     const { setIdentity } = useIdentity();
-    const [mode, setMode] = useState<'home' | 'member' | 'create' | 'recover' | 'import' | 'profileSetup'>('home');
+    const [mode, setMode] = useState<'home' | 'member' | 'create' | 'recover' | 'import' | 'profileSetup' | 'seedBackup'>('home');
     const [callsign, setCallsign] = useState('');
     const [recoveryWords, setRecoveryWords] = useState<string[]>(Array(12).fill(''));
     const [recoveryCallsign, setRecoveryCallsign] = useState('');
@@ -39,6 +40,7 @@ export default function WelcomeScreen() {
     const [processingMagicLink, setProcessingMagicLink] = useState(false);
     const [pendingAvatar, setPendingAvatar] = useState<string | null>(null);
     const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+    const [seedCopied, setSeedCopied] = useState(false);
 
     React.useEffect(() => {
         AsyncStorage.getItem('beanpool_anchor_url').then(val => {
@@ -159,6 +161,8 @@ export default function WelcomeScreen() {
             const identity = await createIdentity(callsign.trim());
             setPendingIdentity(identity);
             setPendingInviteCode(parsedCode);
+            // Go to avatar selection (Step 2) instead of seed phrase
+            setMode('profileSetup');
         } catch (err: any) {
             setError(`Failed to generate identity: ${err?.message || err}`);
             console.error(err);
@@ -176,8 +180,8 @@ export default function WelcomeScreen() {
                 const { redeemInvite } = await import('../utils/db');
                 await redeemInvite(pendingInviteCode, pendingIdentity.callsign, pendingIdentity);
             }
-            // Transition to profile setup gate instead of entering the app
-            setMode('profileSetup');
+            // Final step — enter the app
+            setIdentity(pendingIdentity);
         } catch (err: any) {
             setError(err.message || 'Failed to redeem invite code.');
         } finally {
@@ -242,6 +246,69 @@ export default function WelcomeScreen() {
         setError(null);
     }
 
+    // --- Onboarding Progress Stepper ---
+    function OnboardingStepper({ step }: { step: 1 | 2 | 3 }) {
+        const steps = ['Your Name', 'Your Photo', 'Safety Backup'];
+        return (
+            <View style={stepperStyles.container}>
+                {steps.map((label, i) => {
+                    const stepNum = i + 1;
+                    const isActive = stepNum === step;
+                    const isCompleted = stepNum < step;
+                    return (
+                        <React.Fragment key={i}>
+                            {i > 0 && <View style={[stepperStyles.line, (isCompleted || isActive) && stepperStyles.lineActive]} />}
+                            <View style={stepperStyles.stepItem}>
+                                <View style={[stepperStyles.dot, isActive && stepperStyles.dotActive, isCompleted && stepperStyles.dotCompleted]}>
+                                    {isCompleted && <Text style={stepperStyles.dotCheck}>✓</Text>}
+                                </View>
+                                <Text style={[stepperStyles.label, isActive && stepperStyles.labelActive]}>{label}</Text>
+                            </View>
+                        </React.Fragment>
+                    );
+                })}
+            </View>
+        );
+    }
+
+    // --- Copy seed phrase to clipboard ---
+    async function handleCopySeed() {
+        if (!pendingIdentity?.mnemonic) return;
+        await Clipboard.setStringAsync(pendingIdentity.mnemonic.join(' '));
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setSeedCopied(true);
+        setTimeout(() => setSeedCopied(false), 2000);
+    }
+
+    // --- Back-button guard for seed phrase screen ---
+    function handleSeedBackPress() {
+        Alert.alert(
+            'Have you saved your words?',
+            'If you go back now, you\'ll need to start over.',
+            [
+                { text: 'Stay', style: 'cancel' },
+                { text: 'Go Back', style: 'destructive', onPress: () => {
+                    setPendingIdentity(null);
+                    setPendingAvatar(null);
+                    setSeedConfirmed(false);
+                    setSeedCopied(false);
+                    setMode('create');
+                    setError(null);
+                }},
+            ]
+        );
+    }
+
+    // Android hardware back button handler for seed screen
+    React.useEffect(() => {
+        if (mode !== 'seedBackup') return;
+        const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+            handleSeedBackPress();
+            return true; // Prevent default back
+        });
+        return () => sub.remove();
+    }, [mode]);
+
     // --- Profile image picker helpers for "Who Are You?" gate ---
     // Moved to AvatarPickerSheet component
 
@@ -285,8 +352,8 @@ export default function WelcomeScreen() {
                 console.warn('[Welcome] Profile publish failed (non-blocking):', publishErr);
             }
 
-            // 3. Gate passes — enter the app
-            setIdentity(pendingIdentity);
+            // 3. Profile done — go to seed phrase (Step 3) instead of entering app
+            setMode('seedBackup');
         } catch (err: any) {
             setError(err.message || 'Failed to save profile.');
         } finally {
@@ -294,14 +361,15 @@ export default function WelcomeScreen() {
         }
     }
 
-    // --- PROFILE SETUP GATE ("Who Are You?") ---
+    // --- STEP 2: PROFILE SETUP ("Choose your look") ---
     if (mode === 'profileSetup' && pendingIdentity) {
         return (
             <SafeAreaView style={styles.container}>
                 <StatusBar style="light" />
                 <ScrollView contentContainerStyle={styles.scroll}>
+                    <OnboardingStepper step={2} />
                     <View style={styles.card}>
-                        <Text style={styles.title}>🌱 Who are you?</Text>
+                        <Text style={styles.title}>📸 Choose your look</Text>
                         <Text style={styles.subtitle}>
                             Pick a profile picture so your community knows you.
                         </Text>
@@ -353,16 +421,16 @@ export default function WelcomeScreen() {
                             {loading ? (
                                 <ActivityIndicator color="#fff" />
                             ) : (
-                                <Text style={styles.primaryBtnText}>Let's Go →</Text>
+                                <Text style={styles.primaryBtnText}>Next →</Text>
                             )}
                         </Pressable>
 
                         <Pressable
                             style={styles.backBtn}
-                            onPress={() => { setMode('home'); setPendingIdentity(null); setPendingAvatar(null); setShowAvatarPicker(false); setError(null); }}
+                            onPress={() => { setMode('create'); setPendingIdentity(null); setPendingAvatar(null); setShowAvatarPicker(false); setError(null); }}
                             disabled={loading}
                         >
-                            <Text style={styles.backBtnText}>← Start Over</Text>
+                            <Text style={styles.backBtnText}>← Back</Text>
                         </Pressable>
                     </View>
                 </ScrollView>
@@ -376,16 +444,20 @@ export default function WelcomeScreen() {
         );
     }
 
-    // --- SEED PHRASE CONFIRMATION (after create) ---
-    if (pendingIdentity) {
+    // --- STEP 3: SAFETY BACKUP (seed phrase — reframed) ---
+    if (mode === 'seedBackup' && pendingIdentity) {
         return (
             <SafeAreaView style={styles.container}>
                 <StatusBar style="light" />
                 <ScrollView contentContainerStyle={styles.scroll}>
+                    <OnboardingStepper step={3} />
                     <View style={styles.card}>
-                        <Text style={styles.title}>🔑 Recovery Phrase</Text>
+                        <Text style={styles.title}>🛡️ Your Safety Backup</Text>
                         <Text style={styles.subtitle}>
-                            Write these 12 words down on paper. This is the only way to recover your identity if you lose this device.
+                            These 12 words are your personal recovery key. If you ever lose your phone, these words will bring your account back.
+                        </Text>
+                        <Text style={{ color: '#94a3b8', fontSize: 13, marginBottom: 16, lineHeight: 18 }}>
+                            💡 Take a screenshot or write them down somewhere safe.
                         </Text>
                         <View style={styles.seedGrid}>
                             {pendingIdentity.mnemonic?.map((word, i) => (
@@ -396,12 +468,22 @@ export default function WelcomeScreen() {
                             ))}
                         </View>
 
+                        {/* Copy to clipboard */}
+                        <Pressable
+                            style={[styles.secondaryBtn, { marginBottom: 12 }]}
+                            onPress={handleCopySeed}
+                        >
+                            <Text style={styles.secondaryBtnText}>
+                                {seedCopied ? '✅ Copied!' : '📋 Copy All Words'}
+                            </Text>
+                        </Pressable>
+
                         <Pressable
                             style={[styles.checkbox, seedConfirmed && styles.checkboxActive]}
                             onPress={() => setSeedConfirmed(!seedConfirmed)}
                         >
                             <Text style={styles.checkboxText}>
-                                {seedConfirmed ? '✅ ' : '⬜ '} I've written these words down safely
+                                {seedConfirmed ? '✅ ' : '⬜ '} I've saved these words ✓
                             </Text>
                         </Pressable>
 
@@ -412,12 +494,12 @@ export default function WelcomeScreen() {
                             disabled={!seedConfirmed || loading}
                             onPress={handleConfirmSeed}
                         >
-                            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Continue →</Text>}
+                            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Enter BeanPool →</Text>}
                         </Pressable>
 
                         <Pressable
                             style={styles.backBtn}
-                            onPress={() => { setPendingIdentity(null); setError(null); }}
+                            onPress={handleSeedBackPress}
                             disabled={loading}
                         >
                             <Text style={styles.backBtnText}>← Back</Text>
@@ -433,52 +515,63 @@ export default function WelcomeScreen() {
         return (
             <SafeAreaView style={styles.container}>
                 <StatusBar style="light" />
-                <View style={styles.card}>
-                    <Text style={styles.title}>🎟️ Join BeanPool</Text>
-                    <Text style={styles.subtitle}>Enter an Invite Code and choose your Call Sign.</Text>
+                <ScrollView contentContainerStyle={styles.scroll}>
+                    <OnboardingStepper step={1} />
+                    <View style={styles.card}>
+                        <Text style={styles.title}>🎟️ Join BeanPool</Text>
 
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Invite URL or token"
-                        placeholderTextColor="#64748b"
-                        value={inviteCode}
-                        onChangeText={setInviteCode}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                    />
-
-                    {inviteCode && !inviteCode.startsWith('http') && (
                         <TextInput
                             style={styles.input}
-                            placeholder="Community Node URL (Optional)"
+                            placeholder="Paste your invite link or code"
                             placeholderTextColor="#64748b"
-                            value={createAnchorUrl}
-                            onChangeText={setCreateAnchorUrl}
+                            value={inviteCode}
+                            onChangeText={setInviteCode}
                             autoCapitalize="none"
                             autoCorrect={false}
-                            keyboardType="url"
                         />
-                    )}
 
-                    <TextInput
-                        style={styles.input}
-                        placeholder="e.g. Billinudgel-Marty"
-                        placeholderTextColor="#64748b"
-                        value={callsign}
-                        onChangeText={setCallsign}
-                        maxLength={32}
-                    />
+                        {inviteCode && !inviteCode.startsWith('http') && (
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Community Node URL (Optional)"
+                                placeholderTextColor="#64748b"
+                                value={createAnchorUrl}
+                                onChangeText={setCreateAnchorUrl}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                keyboardType="url"
+                            />
+                        )}
 
-                    {error && <Text style={styles.error}>{error}</Text>}
+                        <Text style={styles.callsignLabel}>What should we call you?</Text>
+                        <TextInput
+                            style={styles.callsignInput}
+                            placeholder="Your name or nickname (e.g. Sarah)"
+                            placeholderTextColor="#64748b"
+                            value={callsign}
+                            onChangeText={setCallsign}
+                            maxLength={32}
+                            autoFocus={true}
+                            autoCapitalize="words"
+                        />
+                        <Text style={styles.callsignHelper}>
+                            This is your display name — how the community sees you. You can change it later.
+                        </Text>
+                        <Text style={styles.callsignTip}>
+                            💡 Tip: adding your suburb helps locals find you!
+                        </Text>
 
-                    <Pressable style={styles.primaryBtn} onPress={handleCreate} disabled={loading}>
-                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Create Sovereign Identity</Text>}
-                    </Pressable>
+                        {error && <Text style={styles.error}>{error}</Text>}
 
-                    <Pressable style={styles.backBtn} onPress={goBack}>
-                        <Text style={styles.backBtnText}>← Back</Text>
-                    </Pressable>
-                </View>
+                        <Pressable style={styles.primaryBtn} onPress={handleCreate} disabled={loading}>
+                            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Next →</Text>}
+                        </Pressable>
+
+                        <Pressable style={styles.backBtn} onPress={goBack}>
+                            <Text style={styles.backBtnText}>← Back</Text>
+                        </Pressable>
+                    </View>
+                </ScrollView>
             </SafeAreaView>
         );
     }
@@ -652,6 +745,12 @@ const styles = StyleSheet.create({
     subtitle: { fontSize: 14, color: '#94a3b8', marginBottom: 24, lineHeight: 20 },
     input: { backgroundColor: '#262626', borderWidth: 1, borderColor: '#404040', borderRadius: 10, padding: 14, color: '#fff', fontSize: 16, marginBottom: 16 },
 
+    // Callsign (Step 1) — larger, labeled input
+    callsignLabel: { fontSize: 18, fontWeight: '700', color: '#e2e8f0', marginBottom: 8, marginTop: 8 },
+    callsignInput: { backgroundColor: '#262626', borderWidth: 1.5, borderColor: '#404040', borderRadius: 12, padding: 18, color: '#fff', fontSize: 18, marginBottom: 8 },
+    callsignHelper: { fontSize: 13, color: '#94a3b8', marginBottom: 4, lineHeight: 18 },
+    callsignTip: { fontSize: 13, color: '#64748b', marginBottom: 20, fontStyle: 'italic' },
+
     // Main welcome buttons
     memberBtn: { backgroundColor: '#2563eb', padding: 18, borderRadius: 14, alignItems: 'center', width: '100%', marginBottom: 12, shadowColor: '#2563eb', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 14, elevation: 6 },
     memberBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
@@ -778,5 +877,64 @@ const profileStyles = StyleSheet.create({
     avatarGridImage: {
         width: '100%',
         height: '100%',
+    },
+});
+
+// Styles for the onboarding progress stepper
+const stepperStyles = StyleSheet.create({
+    container: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 24,
+        paddingHorizontal: 8,
+    },
+    stepItem: {
+        alignItems: 'center',
+    },
+    dot: {
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        backgroundColor: '#404040',
+        marginBottom: 6,
+    },
+    dotActive: {
+        backgroundColor: '#fff',
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+    },
+    dotCompleted: {
+        backgroundColor: '#22c55e',
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    dotCheck: {
+        color: '#fff',
+        fontSize: 9,
+        fontWeight: '800',
+    },
+    label: {
+        fontSize: 11,
+        color: '#64748b',
+        fontWeight: '500',
+    },
+    labelActive: {
+        color: '#fff',
+        fontWeight: '700',
+    },
+    line: {
+        width: 32,
+        height: 2,
+        backgroundColor: '#404040',
+        marginBottom: 18,
+        marginHorizontal: 4,
+    },
+    lineActive: {
+        backgroundColor: '#22c55e',
     },
 });
