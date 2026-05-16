@@ -1457,8 +1457,8 @@
                 const hasChildren = children.length > 0;
                 
                 let html = `
-                    <details ${depth < 3 || hasFlags || memberReportCount > 0 ? 'open' : ''} style="margin-left:${depth === 0 ? 0 : 15}px;${dimStyle}">
-                        <summary style="margin-bottom:0.4rem; padding:0.4rem; background:#1e293b; border-left:2px solid ${isPruned ? '#475569' : isActive ? '#10b981' : '#f59e0b'}; border-radius:0 8px 8px 0; cursor:${hasChildren ? 'pointer' : 'default'};">
+                    <details ${depth < 3 || hasFlags || memberReportCount > 0 ? 'open' : ''} style="margin-left:${depth === 0 ? 0 : 15}px;">
+                        <summary style="margin-bottom:0.4rem; padding:0.4rem; background:#1e293b; border-left:2px solid ${isPruned ? '#475569' : isActive ? '#10b981' : '#f59e0b'}; border-radius:0 8px 8px 0; cursor:${hasChildren ? 'pointer' : 'default'}; ${dimStyle}">
                             <div style="display:inline-flex; width: calc(100% - 20px); justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; vertical-align: top;">
                                 <div>
                                     <strong style="font-size:0.85rem;color:${isPruned ? '#64748b' : isActive ? '#f8fafc' : '#f59e0b'}">${isPruned ? '🗑️ ' : !isActive ? '⏸️ ' : ''}${esc(member.callsign)} <span style="font-size:0.6rem;font-family:monospace;color:#475569;">(${pubkey.substring(0,8)})</span></strong>
