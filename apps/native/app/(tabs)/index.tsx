@@ -85,6 +85,15 @@ const ClusterMarker = ({ cluster, clustersReady }: any) => {
         return { size: 36, glow: 48, fontSize: 15 };
     };
 
+    // Safety for Android fallback: if we're forced to use the fallback, turn off tracksViewChanges after a delay 
+    // to prevent the MapView from choking on continuous software rendering updates.
+    useEffect(() => {
+        if (!cachedImage && Platform.OS === 'android') {
+            const timer = setTimeout(() => setTracksViewChanges(false), 800);
+            return () => clearTimeout(timer);
+        }
+    }, [cachedImage]);
+
     if (cachedImage && Platform.OS !== 'web') {
         if (Platform.OS === 'android') {
             const { glow } = getCS(displayCount);
@@ -120,12 +129,14 @@ const ClusterMarker = ({ cluster, clustersReady }: any) => {
 
     // Fallback (web, or while capturing)
     const { size, glow, fontSize } = getCS(points);
+
     return (
         <Marker
             coordinate={{ longitude: geometry.coordinates[0], latitude: geometry.coordinates[1] }}
             onPress={onPress}
-            tracksViewChanges={true}
+            tracksViewChanges={tracksViewChanges}
             style={{ zIndex: points + 1 }}
+            anchor={CLUSTER_ANCHOR}
         >
             <View collapsable={false} style={{ width: glow, height: glow, justifyContent: 'center', alignItems: 'center' }}>
                 <View style={{ position: 'absolute', width: glow, height: glow, borderRadius: glow / 2, backgroundColor: 'rgba(59, 130, 246, 0.25)' }} />
@@ -148,6 +159,14 @@ const CustomMapMarker = React.memo(({ coordinate, post, catObj, isSelected, onPr
     // Platform fix: We start tracksViewChanges=true on Android.
     // It will be set to false ONLY when the RNImage's onLoad fires.
     const [tracksViewChanges, setTracksViewChanges] = useState(Platform.OS !== 'ios');
+
+    // Safety for Android fallback:
+    useEffect(() => {
+        if (!cachedImage && Platform.OS === 'android') {
+            const timer = setTimeout(() => setTracksViewChanges(false), 800);
+            return () => clearTimeout(timer);
+        }
+    }, [cachedImage]);
 
     if (cachedImage && Platform.OS !== 'web') {
         if (Platform.OS === 'android') {
@@ -187,7 +206,7 @@ const CustomMapMarker = React.memo(({ coordinate, post, catObj, isSelected, onPr
     return (
         <Marker
             coordinate={coordinate}
-            tracksViewChanges={false}
+            tracksViewChanges={tracksViewChanges}
             opacity={opacity}
             anchor={PIN_ANCHOR}
             onPress={(e) => { e.stopPropagation(); onPress(post); }}
@@ -500,7 +519,8 @@ export default function MapScreen() {
     const submitDisabled = posting || postLat == null || !postTitle.trim() || !postDescription.trim() || postCredits === '' || !postCategory || postPhotos.length < 1;
 
     const renderCluster = (cluster: any) => {
-        return <ClusterMarker key={`cluster-${cluster.id}-${clustersReady}`} cluster={cluster} clustersReady={clustersReady} />;
+        const [lon, lat] = cluster.geometry.coordinates;
+        return <ClusterMarker key={`cluster-${cluster.id}-${lat}-${lon}-${clustersReady}`} cluster={cluster} clustersReady={clustersReady} />;
     };
 
     return (
@@ -564,7 +584,7 @@ export default function MapScreen() {
                     const isSelected = selectedPostPreview?.id === post.id;
                     return (
                         <CustomMapMarker
-                            key={`${post.id}-${isSelected}-${markersReady}`}
+                            key={`${post.id}-${isSelected}-${markersReady}-${safePost.lat}-${safePost.lng}`}
                             coordinate={{ latitude: safePost.lat, longitude: safePost.lng }}
                             post={safePost}
                             catObj={catObj}
