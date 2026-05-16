@@ -39,6 +39,29 @@ export function GlobalHeader() {
     // Per-node membership cache: { [nodeUrl]: boolean }
     const membershipCache = useRef<Record<string, boolean>>({});
     const [isGuestOnActive, setIsGuestOnActive] = useState(false);
+    const [isOffline, setIsOffline] = useState(false);
+
+    // Continuous health ping
+    useEffect(() => {
+        let isMounted = true;
+        const pingActive = async () => {
+            const active = await AsyncStorage.getItem('beanpool_anchor_url');
+            if (!active) return;
+            try {
+                const r = await fetchWithTimeout(`${active}/api/community/health`, { timeout: 3000 });
+                if (r.ok) {
+                    if (isMounted) setIsOffline(false);
+                } else {
+                    if (isMounted) setIsOffline(true);
+                }
+            } catch (e) {
+                if (isMounted) setIsOffline(true);
+            }
+        };
+        pingActive();
+        const iv = setInterval(pingActive, 10000);
+        return () => { isMounted = false; clearInterval(iv); };
+    }, []);
 
     useEffect(() => {
         (async () => {
@@ -243,12 +266,15 @@ export function GlobalHeader() {
                                 <Text style={{ position: 'absolute', left: 80, bottom: -8, fontSize: 10, fontWeight: '900', color: '#fbbf24', letterSpacing: 1, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
                                     v{appConfig.expo.version}
                                 </Text>
-                                <MaterialCommunityIcons 
-                                    name="chevron-down" 
-                                    size={20} 
-                                    color="#ffffff" 
-                                    style={{ position: 'absolute', bottom: -10, right: 90, opacity: 0.9 }} 
-                                />
+                                <View style={{ position: 'absolute', bottom: -10, right: 90, flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                                    {isOffline && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444', borderWidth: 1, borderColor: '#fff' }} />}
+                                    <MaterialCommunityIcons 
+                                        name="chevron-down" 
+                                        size={20} 
+                                        color="#ffffff" 
+                                        style={{ opacity: 0.9 }} 
+                                    />
+                                </View>
                             </View>
                         ) : (
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -260,6 +286,7 @@ export function GlobalHeader() {
                                      pathname === '/ledger' ? 'Ledger' :
                                      pathname === '/settings' ? 'Settings' : 'BeanPool'}
                                 </Text>
+                                {isOffline && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444', borderWidth: 1, borderColor: '#fff' }} />}
                                 <MaterialCommunityIcons name="chevron-down" size={20} color="#ffffff" style={{ opacity: 0.8, marginTop: 2 }} />
                             </View>
                         )}
