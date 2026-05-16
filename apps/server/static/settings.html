@@ -456,6 +456,34 @@
         .stats-card .stat-row .label { color: #94a3b8; }
         .stats-card .stat-row .value { color: #f8fafc; font-weight: 600; font-variant-numeric: tabular-nums; }
         .stats-card .stat-row.full-width { grid-column: 1 / -1; }
+
+        /* Collapsible threshold groups */
+        details.threshold-group { margin-bottom: 0.75rem; }
+        details.threshold-group summary {
+            cursor: pointer;
+            padding: 0.6rem 0;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #cbd5e1;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-bottom: 1px solid #1e293b;
+            user-select: none;
+        }
+        details.threshold-group summary::after {
+            content: '▸';
+            margin-left: auto;
+            transition: transform 0.2s;
+        }
+        details.threshold-group[open] summary::after {
+            transform: rotate(90deg);
+        }
+        details.threshold-group summary::-webkit-details-marker { display: none; }
+        details.threshold-group .group-body {
+            padding-top: 0.75rem;
+        }
     </style>
 </head>
 
@@ -718,6 +746,75 @@
                 </div>
             </div>
 
+            <!-- Node Timing (Network tab) -->
+            <div class="glass" data-tab="network">
+                <h3>🔧 Node Timing</h3>
+                <p style="font-size:0.75rem;color:#64748b;margin-bottom:1rem;">Controls how often this node syncs with peers. Changes take effect immediately.</p>
+                <div class="field">
+                    <label>Sync Interval (minutes)</label>
+                    <input type="number" id="th-syncIntervalMin" step="1">
+                </div>
+                <div class="field">
+                    <label>Initial Sync Delay (seconds after boot)</label>
+                    <input type="number" id="th-initialSyncDelaySec" step="5">
+                </div>
+                <div class="field">
+                    <label>Handshake Interval (seconds)</label>
+                    <input type="number" id="th-handshakeIntervalSec" step="1">
+                </div>
+                <div class="field">
+                    <label>Retry Interval (seconds)</label>
+                    <input type="number" id="th-retryIntervalSec" step="5">
+                </div>
+                <div class="field">
+                    <label>Max Retry Backoff (minutes)</label>
+                    <input type="number" id="th-maxRetryBackoffMin" step="1">
+                </div>
+                <div style="display:flex;gap:0.5rem;">
+                    <button class="btn btn-primary" id="save-network-thresholds-btn" style="flex:1;">💾 Save</button>
+                    <button class="btn btn-outline" id="reset-network-thresholds-btn" style="flex:1;">↩️ Defaults</button>
+                </div>
+                <div class="status-msg" id="network-thresholds-status"></div>
+            </div>
+
+            <!-- Database Backup & Restore -->
+            <div class="glass" data-tab="system">
+                <h3>💾 Database Backup & Restore</h3>
+                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.75rem;">
+                    Download a snapshot of your node's database and config, or upload a previously downloaded snapshot to restore your node's state.
+                </p>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <button class="btn btn-primary" id="btn-backup" onclick="downloadBackup()" style="flex: 1;">
+                        💾 Download Backup
+                    </button>
+                    <label class="btn btn-outline" style="flex: 1; text-align: center; cursor: pointer; display: flex; justify-content: center; align-items: center; margin: 0; color: #f8fafc;">
+                        <input type="file" id="backup-upload-input" accept=".tar.gz" style="display:none;" onchange="uploadBackup()">
+                        📂 Upload Restore
+                    </label>
+                </div>
+                <div class="status-msg" id="backup-status"></div>
+                <div class="status-msg" id="restore-status"></div>
+            </div>
+
+            <!-- Reset Node -->
+            <div class="glass" data-tab="system" style="border: 1px solid #7f1d1d;">
+                <h3>☢️ Reset Node</h3>
+                <p style="font-size: 0.8rem; color: #f87171; margin-bottom: 0.5rem;">
+                    <strong>This erases your node identity, admin password, and all configuration.</strong>
+                    The database (members, posts, ledger) is preserved, but the node will need to be 
+                    completely reconfigured after a container restart.
+                </p>
+                <p style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.75rem;">
+                    Type <code style="color:#f87171;background:#1e1e1e;padding:1px 4px;border-radius:3px;">RESET</code> below to enable the button.
+                </p>
+                <input type="text" id="reset-confirm-input" placeholder="Type RESET to confirm" 
+                    autocomplete="off" spellcheck="false"
+                    style="margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 2px; text-align: center; border-color: #7f1d1d;"
+                    oninput="document.getElementById('reset-btn').disabled = this.value !== 'RESET'">
+                <button class="btn btn-danger btn-full" id="reset-btn" disabled>Reset Configuration</button>
+                <div class="status-msg" id="reset-status"></div>
+            </div>
+
             <!-- Software Updates -->
             <div class="glass" data-tab="system" id="update-panel">
                 <h3>🔄 Software Update</h3>
@@ -768,111 +865,9 @@
                 </div>
                 <div class="status-msg" id="update-status"></div>
             </div>
-            <!-- Thresholds & Guardrails -->
-            <div class="glass" data-tab="system">
-                <h3>⚙️ Thresholds & Guardrails</h3>
-                <p style="font-size:0.75rem;color:#64748b;margin-bottom:1rem;">Tune protocol parameters. Changes take effect immediately.</p>
 
-                <!-- Credit -->
-                <div style="font-size:0.7rem;color:#10b981;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin-bottom:0.5rem;">💰 Credit</div>
-                <div class="field">
-                    <label>Base Circulation Rate (progressive 0.5% - 2.5% applies automatically)</label>
-                    <input type="number" id="th-circulationRate" step="0.001">
-                </div>
-                <div class="field">
-                    <label>Circulation Epoch (days per month)</label>
-                    <input type="number" id="th-circulationEpochDays" step="1">
-                </div>
-
-                <!-- Network -->
-                <div style="font-size:0.7rem;color:#3b82f6;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin:1rem 0 0.5rem;">🌐 Network</div>
-                <div class="field">
-                    <label>Sync Interval (minutes)</label>
-                    <input type="number" id="th-syncIntervalMin" step="1">
-                </div>
-                <div class="field">
-                    <label>Initial Sync Delay (seconds after boot)</label>
-                    <input type="number" id="th-initialSyncDelaySec" step="5">
-                </div>
-                <div class="field">
-                    <label>Handshake Interval (seconds)</label>
-                    <input type="number" id="th-handshakeIntervalSec" step="1">
-                </div>
-                <div class="field">
-                    <label>Retry Interval (seconds)</label>
-                    <input type="number" id="th-retryIntervalSec" step="5">
-                </div>
-                <div class="field">
-                    <label>Max Retry Backoff (minutes)</label>
-                    <input type="number" id="th-maxRetryBackoffMin" step="1">
-                </div>
-
-                <!-- Health Flags -->
-                <div style="font-size:0.7rem;color:#f59e0b;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin:1rem 0 0.5rem;">🚩 Health Flags</div>
-                <div class="field">
-                    <label>Wash Trading Window (hours)</label>
-                    <input type="number" id="th-washTradingWindowHours" step="1">
-                </div>
-                <div class="field">
-                    <label>Wash Trading Min Txns (to flag)</label>
-                    <input type="number" id="th-washTradingMinTxns" step="1">
-                </div>
-                <div class="field">
-                    <label>Inactive Member (days)</label>
-                    <input type="number" id="th-inactiveMemberDays" step="1">
-                </div>
-                <div class="field">
-                    <label>Isolated Branch Min Txns</label>
-                    <input type="number" id="th-isolatedBranchMinTxns" step="1">
-                </div>
-                <div class="field">
-                    <label>Max Project Expiry (days)</label>
-                    <input type="number" id="th-maxProjectExpiryDays" step="1">
-                </div>
-
-                <!-- Sybil Funnel Detection -->
-                <div style="font-size:0.7rem;color:#ef4444;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin:1rem 0 0.5rem;">🕵️ Sybil Funnel Detection</div>
-                <div class="field">
-                    <label>Min Invitees Funneling (to flag)</label>
-                    <input type="number" id="th-sybilFunnelMinInvitees" step="1">
-                </div>
-                <div class="field">
-                    <label>Min Beans Funneled (to flag)</label>
-                    <input type="number" id="th-sybilFunnelMinAmount" step="1">
-                </div>
-                <div class="field">
-                    <label>Funnel Window (days)</label>
-                    <input type="number" id="th-sybilFunnelWindowDays" step="1">
-                </div>
-
-                <!-- Ghost Velocity Gate -->
-                <div style="font-size:0.7rem;color:#f59e0b;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin:1rem 0 0.5rem;">🛡️ Ghost Velocity Gate</div>
-                <div class="field">
-                    <label>Tier 1 Cutoff (hours)</label>
-                    <input type="number" id="th-ghostVelocityTier1Hours" step="1">
-                </div>
-                <div class="field">
-                    <label>Tier 1 Daily Limit (beans)</label>
-                    <input type="number" id="th-ghostVelocityTier1Limit" step="1">
-                </div>
-                <div class="field">
-                    <label>Tier 2 Cutoff (hours)</label>
-                    <input type="number" id="th-ghostVelocityTier2Hours" step="1">
-                </div>
-                <div class="field">
-                    <label>Tier 2 Daily Limit (beans)</label>
-                    <input type="number" id="th-ghostVelocityTier2Limit" step="1">
-                </div>
-
-                <div style="display:flex;gap:0.5rem;">
-                    <button class="btn btn-primary" id="save-thresholds-btn" style="flex:1;">💾 Save</button>
-                    <button class="btn btn-outline" id="reset-thresholds-btn" style="flex:1;">↩️ Defaults</button>
-                </div>
-                <div class="status-msg" id="thresholds-status"></div>
-            </div>
-
-            <!-- Community Health -->
-            <div class="glass" data-tab="community">
+            <!-- Community Health (moved to Audit tab) -->
+            <div class="glass" data-tab="members">
                 <h3>💚 Community Health</h3>
                 <div id="health-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:1rem;"></div>
                 <div id="health-widest" style="display:none;background:#0f172a;border:1px solid #1e3a5f;border-radius:8px;padding:0.75rem;margin-bottom:1rem;"></div>
@@ -880,7 +875,6 @@
                 <div id="health-flags"></div>
                 <button class="btn btn-outline btn-full" id="refresh-health-btn" style="margin-top:0.75rem;">🔄 Refresh</button>
             </div>
-
 
             <!-- Admin Moderation -->
             <div class="glass" data-tab="moderation" style="display:none;">
@@ -961,6 +955,85 @@
                 <button class="btn btn-outline btn-full" onclick="loadAdminData()">🔄 Refresh Data</button>
             </div>
 
+            <!-- Detection Thresholds (Audit tab) -->
+            <div class="glass" data-tab="members" style="display:none;">
+                <h3>🔧 Detection Thresholds</h3>
+                <p style="font-size:0.75rem;color:#64748b;margin-bottom:1rem;">Tune detection parameters for health flags. Changes take effect immediately.</p>
+
+                <details class="threshold-group">
+                    <summary>🚩 Health Flags <span style="font-size:0.65rem;color:#64748b;font-weight:400;">(5 settings)</span></summary>
+                    <div class="group-body">
+                        <div class="field">
+                            <label>Wash Trading Window (hours)</label>
+                            <input type="number" id="th-washTradingWindowHours" step="1">
+                        </div>
+                        <div class="field">
+                            <label>Wash Trading Min Txns (to flag)</label>
+                            <input type="number" id="th-washTradingMinTxns" step="1">
+                        </div>
+                        <div class="field">
+                            <label>Inactive Member (days)</label>
+                            <input type="number" id="th-inactiveMemberDays" step="1">
+                        </div>
+                        <div class="field">
+                            <label>Isolated Branch Min Txns</label>
+                            <input type="number" id="th-isolatedBranchMinTxns" step="1">
+                        </div>
+                        <div class="field">
+                            <label>Max Project Expiry (days)</label>
+                            <input type="number" id="th-maxProjectExpiryDays" step="1">
+                        </div>
+                    </div>
+                </details>
+
+                <details class="threshold-group">
+                    <summary>🕵️ Sybil Detection <span style="font-size:0.65rem;color:#64748b;font-weight:400;">(3 settings)</span></summary>
+                    <div class="group-body">
+                        <div class="field">
+                            <label>Min Invitees Funneling (to flag)</label>
+                            <input type="number" id="th-sybilFunnelMinInvitees" step="1">
+                        </div>
+                        <div class="field">
+                            <label>Min Beans Funneled (to flag)</label>
+                            <input type="number" id="th-sybilFunnelMinAmount" step="1">
+                        </div>
+                        <div class="field">
+                            <label>Funnel Window (days)</label>
+                            <input type="number" id="th-sybilFunnelWindowDays" step="1">
+                        </div>
+                    </div>
+                </details>
+
+                <details class="threshold-group">
+                    <summary>🛡️ Ghost Velocity Gate <span style="font-size:0.65rem;color:#64748b;font-weight:400;">(4 settings)</span></summary>
+                    <div class="group-body">
+                        <p style="font-size:0.7rem;color:#64748b;margin-bottom:0.75rem;">ℹ️ Only affects accounts less than 72 hours old.</p>
+                        <div class="field">
+                            <label>Tier 1 Cutoff (hours)</label>
+                            <input type="number" id="th-ghostVelocityTier1Hours" step="1">
+                        </div>
+                        <div class="field">
+                            <label>Tier 1 Daily Limit (beans)</label>
+                            <input type="number" id="th-ghostVelocityTier1Limit" step="1">
+                        </div>
+                        <div class="field">
+                            <label>Tier 2 Cutoff (hours)</label>
+                            <input type="number" id="th-ghostVelocityTier2Hours" step="1">
+                        </div>
+                        <div class="field">
+                            <label>Tier 2 Daily Limit (beans)</label>
+                            <input type="number" id="th-ghostVelocityTier2Limit" step="1">
+                        </div>
+                    </div>
+                </details>
+
+                <div style="display:flex;gap:0.5rem;">
+                    <button class="btn btn-primary" id="save-audit-thresholds-btn" style="flex:1;">💾 Save</button>
+                    <button class="btn btn-outline" id="reset-audit-thresholds-btn" style="flex:1;">↩️ Defaults</button>
+                </div>
+                <div class="status-msg" id="audit-thresholds-status"></div>
+            </div>
+
             <!-- Admin Members & Audit -->
             <div class="glass" data-tab="members" style="display:none;">
                 <h3>🌳 Members & Audit Tree</h3>
@@ -1012,6 +1085,20 @@
                     <button class="btn btn-outline" onclick="closeRound()" style="flex:1;">✅ Close Round</button>
                     <button class="btn btn-outline" onclick="loadCommonsData()" style="flex:1;">🔄 Refresh</button>
                 </div>
+
+                <!-- Circulation Rate -->
+                <hr style="border-color:#1e293b;margin:0 0 1rem 0;">
+                <h4 style="font-size:0.95rem;margin-bottom:0.5rem;">💰 Circulation Rate</h4>
+                <p style="font-size:0.75rem;color:#64748b;margin-bottom:0.75rem;">The base rate at which idle credits flow back to the commons pool each epoch. Progressive scaling (0.5% – 2.5%) applies automatically based on balance.</p>
+                <div class="field">
+                    <label>Base Circulation Rate</label>
+                    <input type="number" id="th-circulationRate" step="0.001">
+                </div>
+                <div style="display:flex;gap:0.5rem;">
+                    <button class="btn btn-primary" id="save-commons-thresholds-btn" style="flex:1;">💾 Save</button>
+                    <button class="btn btn-outline" id="reset-commons-thresholds-btn" style="flex:1;">↩️ Defaults</button>
+                </div>
+                <div class="status-msg" id="commons-thresholds-status"></div>
 
             </div>
 
@@ -1073,47 +1160,10 @@
                 <div class="status-msg" id="announce-status"></div>
             </div>
 
-            <!-- Database Backup & Restore -->
-            <div class="glass" data-tab="system">
-                <h3>💾 Database Backup & Restore</h3>
-                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.75rem;">
-                    Download a snapshot of your node's database and config, or upload a previously downloaded snapshot to restore your node's state.
-                </p>
-                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
-                    <button class="btn btn-primary" id="btn-backup" onclick="downloadBackup()" style="flex: 1;">
-                        💾 Download Backup
-                    </button>
-                    <label class="btn btn-outline" style="flex: 1; text-align: center; cursor: pointer; display: flex; justify-content: center; align-items: center; margin: 0; color: #f8fafc;">
-                        <input type="file" id="backup-upload-input" accept=".tar.gz" style="display:none;" onchange="uploadBackup()">
-                        📂 Upload Restore
-                    </label>
-                </div>
-                <div class="status-msg" id="backup-status"></div>
-                <div class="status-msg" id="restore-status"></div>
-            </div>
-
-            <!-- Reset Node -->
-            <div class="glass" data-tab="system" style="border: 1px solid #7f1d1d;">
-                <h3>☢️ Reset Node</h3>
-                <p style="font-size: 0.8rem; color: #f87171; margin-bottom: 0.5rem;">
-                    <strong>This erases your node identity, admin password, and all configuration.</strong>
-                    The database (members, posts, ledger) is preserved, but the node will need to be 
-                    completely reconfigured after a container restart.
-                </p>
-                <p style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.75rem;">
-                    Type <code style="color:#f87171;background:#1e1e1e;padding:1px 4px;border-radius:3px;">RESET</code> below to enable the button.
-                </p>
-                <input type="text" id="reset-confirm-input" placeholder="Type RESET to confirm" 
-                    autocomplete="off" spellcheck="false"
-                    style="margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 2px; text-align: center; border-color: #7f1d1d;"
-                    oninput="document.getElementById('reset-btn').disabled = this.value !== 'RESET'">
-                <button class="btn btn-danger btn-full" id="reset-btn" disabled>Reset Configuration</button>
-                <div class="status-msg" id="reset-status"></div>
-            </div>
         </div>
     </div>
 
-    <script src="settings.js?v=1.0.36"></script>
+    <script src="settings.js?v=1.0.37"></script>
 </body>
 
 </html>

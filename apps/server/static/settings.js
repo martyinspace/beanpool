@@ -60,8 +60,10 @@
             }
             // Load data for admin tabs
             if (tabName === 'moderation' || tabName === 'members') loadAdminData();
+            if (tabName === 'members') loadThresholdGroup(AUDIT_THRESHOLD_KEYS);
             if (tabName === 'comms') loadAdminInbox();
-            if (tabName === 'commons') { loadCommonsData(); loadNodeConfig(); }
+            if (tabName === 'commons') { loadCommonsData(); loadNodeConfig(); loadThresholdGroup(COMMONS_THRESHOLD_KEYS); }
+            if (tabName === 'network') loadThresholdGroup(NETWORK_THRESHOLD_KEYS);
         }
 
         document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -579,35 +581,58 @@
             } catch { /* offline */ }
         }
 
-        // ===================== THRESHOLDS =====================
+        // ===================== THRESHOLDS (split by tab) =====================
 
-        const THRESHOLD_KEYS = [
-            'circulationRate', 'circulationEpochDays',
-            'syncIntervalMin', 'initialSyncDelaySec', 'handshakeIntervalSec',
-            'retryIntervalSec', 'maxRetryBackoffMin',
-            'washTradingWindowHours', 'washTradingMinTxns', 'inactiveMemberDays', 'isolatedBranchMinTxns',
-            'maxProjectExpiryDays'
+        const AUDIT_THRESHOLD_KEYS = [
+            'washTradingWindowHours', 'washTradingMinTxns', 'inactiveMemberDays',
+            'isolatedBranchMinTxns', 'maxProjectExpiryDays',
+            'sybilFunnelMinInvitees', 'sybilFunnelMinAmount', 'sybilFunnelWindowDays',
+            'ghostVelocityTier1Hours', 'ghostVelocityTier1Limit',
+            'ghostVelocityTier2Hours', 'ghostVelocityTier2Limit'
         ];
+        const COMMONS_THRESHOLD_KEYS = ['circulationRate'];
+        const NETWORK_THRESHOLD_KEYS = [
+            'syncIntervalMin', 'initialSyncDelaySec', 'handshakeIntervalSec',
+            'retryIntervalSec', 'maxRetryBackoffMin'
+        ];
+        const ALL_THRESHOLD_KEYS = [...AUDIT_THRESHOLD_KEYS, ...COMMONS_THRESHOLD_KEYS, ...NETWORK_THRESHOLD_KEYS];
 
-        async function loadThresholds() {
+        let _thresholdsCache = null;
+
+        async function fetchThresholds() {
             try {
                 const res = await fetch('/api/admin/thresholds/get', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ password: authToken })
                 });
-                if (!res.ok) return;
-                const data = await res.json();
-                for (const key of THRESHOLD_KEYS) {
-                    const el = document.getElementById('th-' + key);
-                    if (el) el.value = data.thresholds[key];
-                }
-            } catch { /* offline */ }
+                if (!res.ok) return null;
+                _thresholdsCache = await res.json();
+                return _thresholdsCache;
+            } catch { return null; }
         }
 
-        async function saveThresholds() {
+        function populateThresholdInputs(keys, data) {
+            if (!data) return;
+            for (const key of keys) {
+                const el = document.getElementById('th-' + key);
+                if (el) el.value = data.thresholds[key];
+            }
+        }
+
+        async function loadThresholds() {
+            const data = await fetchThresholds();
+            if (data) populateThresholdInputs(ALL_THRESHOLD_KEYS, data);
+        }
+
+        async function loadThresholdGroup(keys) {
+            const data = _thresholdsCache || await fetchThresholds();
+            if (data) populateThresholdInputs(keys, data);
+        }
+
+        async function saveThresholdGroup(keys, statusId) {
             const updates = { password: authToken };
-            for (const key of THRESHOLD_KEYS) {
+            for (const key of keys) {
                 const el = document.getElementById('th-' + key);
                 if (el) updates[key] = parseFloat(el.value);
             }
@@ -618,37 +643,39 @@
                     body: JSON.stringify(updates)
                 });
                 if (res.ok) {
-                    showStatus('thresholds-status', '✅ Thresholds saved!', 'success');
+                    showStatus(statusId, '✅ Saved!', 'success');
+                    _thresholdsCache = null; // invalidate cache
                     loadHealthDashboard(); // Refresh health with new thresholds
                 } else {
                     const data = await res.json();
-                    showStatus('thresholds-status', data.error || 'Save failed', 'error');
+                    showStatus(statusId, data.error || 'Save failed', 'error');
                 }
             } catch {
-                showStatus('thresholds-status', 'Failed to save', 'error');
+                showStatus(statusId, 'Failed to save', 'error');
             }
         }
 
-        async function resetThresholds() {
-            try {
-                const res = await fetch('/api/admin/thresholds/get', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: authToken })
-                });
-                if (!res.ok) return;
-                const data = await res.json();
-                // Fill with defaults
-                for (const key of THRESHOLD_KEYS) {
-                    const el = document.getElementById('th-' + key);
-                    if (el) el.value = data.defaults[key];
-                }
-                showStatus('thresholds-status', 'Defaults loaded — click Save to apply', 'success');
-            } catch { /* offline */ }
+        async function resetThresholdGroup(keys, statusId) {
+            const data = _thresholdsCache || await fetchThresholds();
+            if (!data) return;
+            for (const key of keys) {
+                const el = document.getElementById('th-' + key);
+                if (el) el.value = data.defaults[key];
+            }
+            showStatus(statusId, 'Defaults loaded — click Save to apply', 'success');
         }
 
-        document.getElementById('save-thresholds-btn').addEventListener('click', saveThresholds);
-        document.getElementById('reset-thresholds-btn').addEventListener('click', resetThresholds);
+        // Audit tab (detection thresholds)
+        document.getElementById('save-audit-thresholds-btn').addEventListener('click', () => saveThresholdGroup(AUDIT_THRESHOLD_KEYS, 'audit-thresholds-status'));
+        document.getElementById('reset-audit-thresholds-btn').addEventListener('click', () => resetThresholdGroup(AUDIT_THRESHOLD_KEYS, 'audit-thresholds-status'));
+
+        // Commons tab (circulation rate)
+        document.getElementById('save-commons-thresholds-btn').addEventListener('click', () => saveThresholdGroup(COMMONS_THRESHOLD_KEYS, 'commons-thresholds-status'));
+        document.getElementById('reset-commons-thresholds-btn').addEventListener('click', () => resetThresholdGroup(COMMONS_THRESHOLD_KEYS, 'commons-thresholds-status'));
+
+        // Network tab (timing)
+        document.getElementById('save-network-thresholds-btn').addEventListener('click', () => saveThresholdGroup(NETWORK_THRESHOLD_KEYS, 'network-thresholds-status'));
+        document.getElementById('reset-network-thresholds-btn').addEventListener('click', () => resetThresholdGroup(NETWORK_THRESHOLD_KEYS, 'network-thresholds-status'));
 
         document.getElementById('refresh-health-btn').addEventListener('click', loadHealthDashboard);
 
