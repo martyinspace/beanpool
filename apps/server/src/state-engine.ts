@@ -2444,7 +2444,7 @@ export function getCommunityHealth(): CommunityHealth {
                 type: 'inactive_member',
                 severity: 'warning',
                 description: `${inactiveRows.length} member${inactiveRows.length > 1 ? 's' : ''} with no activity for ${t.inactiveMemberDays}+ days`,
-                members: inactiveRows.map(r => r.callsign || r.public_key.substring(0, 8))
+                members: inactiveRows.map(r => r.public_key)
             });
         }
     } catch (e) { console.error('Health flag check (inactive) failed:', e); }
@@ -2475,7 +2475,7 @@ export function getCommunityHealth(): CommunityHealth {
                         type: 'wash_trading',
                         severity: 'alert',
                         description: `${row.cnt + reverse.cnt} reciprocal transactions between ${callsignA} ↔ ${callsignB} in ${t.washTradingWindowHours}h`,
-                        members: [callsignA, callsignB]
+                        members: [row.a, row.b]
                     });
                 }
             }
@@ -2491,7 +2491,8 @@ export function getCommunityHealth(): CommunityHealth {
                 seller.callsign as farmer_callsign,
                 COUNT(DISTINCT mt.buyer_pubkey) as puppet_count,
                 ROUND(SUM(mt.credits), 2) as total_funneled,
-                GROUP_CONCAT(DISTINCT buyer.callsign) as puppet_names
+                GROUP_CONCAT(DISTINCT buyer.callsign) as puppet_names,
+                GROUP_CONCAT(DISTINCT buyer.public_key) as puppet_keys
             FROM marketplace_transactions mt
             JOIN members buyer ON mt.buyer_pubkey = buyer.public_key
             JOIN members seller ON mt.seller_pubkey = seller.public_key
@@ -2510,7 +2511,8 @@ export function getCommunityHealth(): CommunityHealth {
                 inviter.callsign as farmer_callsign,
                 COUNT(DISTINCT txn.from_pubkey) as puppet_count,
                 ROUND(SUM(txn.amount), 2) as total_funneled,
-                GROUP_CONCAT(DISTINCT puppet.callsign) as puppet_names
+                GROUP_CONCAT(DISTINCT puppet.callsign) as puppet_names,
+                GROUP_CONCAT(DISTINCT puppet.public_key) as puppet_keys
             FROM transactions txn
             JOIN members puppet ON txn.from_pubkey = puppet.public_key
             JOIN members inviter ON puppet.invited_by = inviter.public_key
@@ -2570,7 +2572,7 @@ export function getCommunityHealth(): CommunityHealth {
                 type: 'sybil_funnel',
                 severity: 'alert',
                 description: `Invite funnel: ${row.puppet_count} invitees of "${row.farmer_callsign}" sent ${row.total_funneled}B back (${isolatedPuppets} with 0 other partners)`,
-                members: [row.farmer_callsign, ...(row.puppet_names?.split(',') || [])]
+                members: [row.farmer_pubkey, ...(row.puppet_keys?.split(',') || [])]
             });
         }
     } catch (e) { console.error('Health flag check (sybil funnel) failed:', e); }
