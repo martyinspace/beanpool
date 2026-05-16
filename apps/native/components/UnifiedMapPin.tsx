@@ -163,7 +163,7 @@ export const MapMarkerManager = React.memo<MapMarkerManagerProps>(({ variants, o
       const uri = await captureRef(ref.current, {
         format: 'png',
         quality: 1,
-        result: 'tmpfile',
+        result: 'data-uri',
       });
       imageCache.set(key, uri);
       capturedCount.current += 1;
@@ -210,11 +210,11 @@ const captureStyles = StyleSheet.create({
   offscreen: {
     position: 'absolute',
     left: -9999,
-    top: -9999,
+    top: 0,
     opacity: 1,           // Must be visible for capture
     overflow: 'visible',  // Breathing room — never clip the SVG shadow/glow
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    width: 200,           // Constrain parent size so it doesn't get culled
+    height: 200,
   },
   slot: {
     width: PIN_RENDER_W,
@@ -333,7 +333,7 @@ export const ClusterCaptureManager = React.memo<ClusterCaptureManagerProps>(({ c
       const uri = await captureRef(ref.current, {
         format: 'png',
         quality: 1,
-        result: 'tmpfile',
+        result: 'data-uri',
       });
       clusterImageCache.set(count, uri);
       capturedCount.current += 1;
@@ -359,7 +359,7 @@ export const ClusterCaptureManager = React.memo<ClusterCaptureManagerProps>(({ c
             ref={refs.current.get(count)}
             collapsable={false}
             onLayout={() => setTimeout(() => handleCapture(count), 200)}
-            style={{ width: glow + 8, height: glow + 8, backgroundColor: 'transparent', overflow: 'visible', justifyContent: 'center', alignItems: 'center' }}
+            style={{ position: 'absolute', top: 0, left: 0, width: glow + 8, height: glow + 8, backgroundColor: 'transparent', overflow: 'visible', justifyContent: 'center', alignItems: 'center' }}
           >
             <ClusterVisual points={count} />
           </View>

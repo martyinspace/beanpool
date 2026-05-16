@@ -72,19 +72,10 @@ const ClusterMarker = ({ cluster, clustersReady }: any) => {
 
     const cachedImage = clustersReady ? getCachedClusterImage(displayCount) : null;
 
-    if (cachedImage && Platform.OS !== 'web') {
-        return (
-            <Marker
-                coordinate={{ longitude: geometry.coordinates[0], latitude: geometry.coordinates[1] }}
-                onPress={onPress}
-                tracksViewChanges={false}
-                anchor={CLUSTER_ANCHOR}
-                image={{ uri: cachedImage }}
-            />
-        );
-    }
+    // Platform fix: We start tracksViewChanges=true on Android.
+    // It will be set to false ONLY when the RNImage's onLoad fires.
+    const [tracksViewChanges, setTracksViewChanges] = useState(Platform.OS !== 'ios');
 
-    // Fallback (web, or while capturing)
     const getCS = (p: number) => {
         if (p >= 50) return { size: 64, glow: 80, fontSize: 20 };
         if (p >= 25) return { size: 56, glow: 72, fontSize: 19 };
@@ -93,6 +84,41 @@ const ClusterMarker = ({ cluster, clustersReady }: any) => {
         if (p >= 5)  return { size: 42, glow: 54, fontSize: 16 };
         return { size: 36, glow: 48, fontSize: 15 };
     };
+
+    if (cachedImage && Platform.OS !== 'web') {
+        if (Platform.OS === 'android') {
+            const { glow } = getCS(displayCount);
+            return (
+                <Marker
+                    coordinate={{ longitude: geometry.coordinates[0], latitude: geometry.coordinates[1] }}
+                    onPress={onPress}
+                    tracksViewChanges={tracksViewChanges}
+                    anchor={CLUSTER_ANCHOR}
+                >
+                    <View style={{ width: glow + 8, height: glow + 8, justifyContent: 'center', alignItems: 'center' }}>
+                        <RNImage 
+                            source={{ uri: cachedImage }} 
+                            style={{ width: glow + 8, height: glow + 8 }} 
+                            resizeMode="contain" 
+                            fadeDuration={0}
+                            onLoad={() => setTimeout(() => setTracksViewChanges(false), 400)}
+                        />
+                    </View>
+                </Marker>
+            );
+        }
+        return (
+            <Marker
+                coordinate={{ longitude: geometry.coordinates[0], latitude: geometry.coordinates[1] }}
+                onPress={onPress}
+                tracksViewChanges={tracksViewChanges}
+                anchor={CLUSTER_ANCHOR}
+                image={{ uri: cachedImage }}
+            />
+        );
+    }
+
+    // Fallback (web, or while capturing)
     const { size, glow, fontSize } = getCS(points);
     return (
         <Marker
@@ -119,11 +145,36 @@ const CustomMapMarker = React.memo(({ coordinate, post, catObj, isSelected, onPr
     const isElder = (post.author_energy_cycled || 0) >= 10000;
     const cachedImage = markersReady ? getCachedMarkerImage(markerEmoji, bgColor, isElder) : null;
 
+    // Platform fix: We start tracksViewChanges=true on Android.
+    // It will be set to false ONLY when the RNImage's onLoad fires.
+    const [tracksViewChanges, setTracksViewChanges] = useState(Platform.OS !== 'ios');
+
     if (cachedImage && Platform.OS !== 'web') {
+        if (Platform.OS === 'android') {
+            return (
+                <Marker
+                    coordinate={coordinate}
+                    tracksViewChanges={tracksViewChanges}
+                    opacity={opacity}
+                    anchor={PIN_ANCHOR}
+                    onPress={(e) => { e.stopPropagation(); onPress(post); }}
+                >
+                    <View style={{ width: PIN_RENDER_W, height: PIN_RENDER_H, justifyContent: 'center', alignItems: 'center' }}>
+                        <RNImage 
+                            source={{ uri: cachedImage }} 
+                            style={{ width: PIN_RENDER_W, height: PIN_RENDER_H }} 
+                            resizeMode="contain" 
+                            fadeDuration={0}
+                            onLoad={() => setTimeout(() => setTracksViewChanges(false), 400)}
+                        />
+                    </View>
+                </Marker>
+            );
+        }
         return (
             <Marker
                 coordinate={coordinate}
-                tracksViewChanges={false}
+                tracksViewChanges={tracksViewChanges}
                 opacity={opacity}
                 anchor={PIN_ANCHOR}
                 image={{ uri: cachedImage }}
