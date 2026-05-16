@@ -1095,7 +1095,7 @@
                 el.innerHTML = '<div style="text-align:center;padding:0.75rem;"><div style="font-size:1rem;">✅</div><div style="color:#22c55e;font-size:0.8rem;">No health alerts</div></div>';
                 return;
             }
-            const icons = { wash_trading: '🔄', inactive_member: '💤', isolated_branch: '🏝️', invite_spam: '⚠️' };
+            const icons = { wash_trading: '🔄', inactive_member: '💤', isolated_branch: '🏝️', invite_spam: '⚠️', sybil_funnel: '🕵️' };
             el.innerHTML = flags.map(f => `
                 <div style="padding:0.5rem 0.75rem;border-bottom:1px solid #1e293b;display:flex;gap:0.5rem;align-items:flex-start;">
                     <span style="font-size:1rem;">${icons[f.type] || '⚠️'}</span>
@@ -1274,6 +1274,17 @@
             }
         };
 
+        let auditFilter = 'all';
+        window.setAuditFilter = function(filter) {
+            auditFilter = auditFilter === filter ? 'all' : filter;
+            document.querySelectorAll('.audit-filter-btn').forEach(btn => {
+                const isActive = btn.dataset.filter === auditFilter;
+                btn.style.background = isActive ? '#334155' : 'transparent';
+                btn.style.borderColor = isActive ? '#60a5fa' : '#334155';
+            });
+            renderAdminMembers();
+        };
+
         function renderAdminMembers() {
             const el = document.getElementById('admin-members-tree');
             if (!el || !adminDataCache) return;
@@ -1402,10 +1413,24 @@
                 }
 
                 const childrenHtml = children.map(c => buildNode(c.publicKey, depth + 1)).join('');
+
+                // Filter: when a filter is active, check if this node or descendants match
+                const directFlags = nodeFlags[member.callsign] || nodeFlags[pubkey] || [];
+                const matchesFilter = auditFilter === 'all' ? true
+                    : auditFilter === 'reported' ? memberReportCount > 0
+                    : directFlags.some(f => f.type === auditFilter);
+
+                if (auditFilter !== 'all' && !matchesFilter && !childrenHtml.trim()) {
+                    return ''; // No match and no matching descendants — hide completely
+                }
+
+                // Dim non-matching ancestor nodes but keep full UI
+                const dimStyle = (auditFilter !== 'all' && !matchesFilter) ? 'opacity:0.4;' : '';
+
                 const hasChildren = children.length > 0;
                 
                 let html = `
-                    <details ${depth < 3 || hasFlags || memberReportCount > 0 ? 'open' : ''} style="margin-left:${depth === 0 ? 0 : 15}px;">
+                    <details ${depth < 3 || hasFlags || memberReportCount > 0 ? 'open' : ''} style="margin-left:${depth === 0 ? 0 : 15}px;${dimStyle}">
                         <summary style="margin-bottom:0.4rem; padding:0.4rem; background:#1e293b; border-left:2px solid ${isPruned ? '#475569' : isActive ? '#10b981' : '#f59e0b'}; border-radius:0 8px 8px 0; cursor:${hasChildren ? 'pointer' : 'default'};">
                             <div style="display:inline-flex; width: calc(100% - 20px); justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; vertical-align: top;">
                                 <div>
@@ -1435,6 +1460,20 @@
             const roots = tree['genesis'] || [];
             if (roots.length === 0) el.innerHTML = '<div style="padding:1rem;color:#64748b;">No tree found</div>';
             else el.innerHTML = roots.map(r => buildNode(r.publicKey, 0)).join('');
+
+            // Update filter count badges (count unique members, not flag instances)
+            const membersByFlag = {};
+            flags.forEach(f => {
+                if (!membersByFlag[f.type]) membersByFlag[f.type] = new Set();
+                f.members.forEach(m => membersByFlag[f.type].add(m));
+            });
+            document.querySelectorAll('.filter-count').forEach(el => {
+                const type = el.dataset.count;
+                const count = type === 'reported'
+                    ? Object.keys(reportsByMember).length
+                    : membersByFlag[type]?.size || 0;
+                el.textContent = count > 0 ? count : '';
+            });
             
             window.promptWarning = async function(pubkey) {
                 // Switch to the Inbox & Comms tab

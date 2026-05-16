@@ -991,6 +991,42 @@ export function transfer(from: string, to: string, amount: number, memo: string,
         }
     }
 
+    // Ghost Velocity Gate: rate-limit new Ghost accounts to prevent Sybil funneling
+    if (!from.startsWith('escrow_') && !from.startsWith('project_') && from !== 'commons' && from !== 'genesis') {
+        const sender = getMember(from);
+        if (sender) {
+            const senderTier = getMemberTrustProfile(from).tier;
+            if (senderTier.name === 'Ghost' && sender.joinedAt) {
+                const ageHours = (Date.now() - new Date(sender.joinedAt).getTime()) / (1000 * 60 * 60);
+                const t = getThresholds();
+                let dailyLimit: number | null = null;
+                let unlockHours = 0;
+
+                if (ageHours < t.ghostVelocityTier1Hours) {
+                    dailyLimit = t.ghostVelocityTier1Limit;
+                    unlockHours = Math.ceil(t.ghostVelocityTier1Hours - ageHours);
+                } else if (ageHours < t.ghostVelocityTier2Hours) {
+                    dailyLimit = t.ghostVelocityTier2Limit;
+                    unlockHours = Math.ceil(t.ghostVelocityTier2Hours - ageHours);
+                }
+
+                if (dailyLimit !== null) {
+                    const recentSpend = db.prepare(`
+                        SELECT COALESCE(SUM(amount), 0) as total 
+                        FROM transactions 
+                        WHERE from_pubkey = ? 
+                          AND timestamp > datetime('now', '-24 hours')
+                    `).get(from) as any;
+
+                    if ((recentSpend?.total || 0) + amount > dailyLimit) {
+                        console.log(`🛡️ Ghost velocity gate: ${sender.callsign} (${ageHours.toFixed(0)}h old) blocked — would exceed ${dailyLimit}B daily limit`);
+                        throw new Error(`New accounts are limited to ${dailyLimit}B per day. Full access unlocks in ~${unlockHours} hours.`);
+                    }
+                }
+            }
+        }
+    }
+
     // Calculate dynamic floor for the sender (escrow wallets are exempt)
     const senderFloor = from.startsWith('escrow_') ? -Infinity : calculateDynamicFloor(getMemberTrustStats(from));
     const success = ledger.transfer(from, to, amount, senderFloor);
@@ -2329,7 +2365,7 @@ export function getPostCount(filter?: { type?: string; category?: string; status
 
 // ===================== COMMUNITY HEALTH =====================
 
-export interface HealthFlag { type: 'wash_trading' | 'isolated_branch' | 'inactive_member' | 'invite_spam'; severity: 'warning' | 'alert'; description: string; members: string[]; }
+export interface HealthFlag { type: 'wash_trading' | 'isolated_branch' | 'inactive_member' | 'invite_spam' | 'sybil_funnel'; severity: 'warning' | 'alert'; description: string; members: string[]; }
 export interface CommunityHealth { nodeName: string; currency: { type: string; value: string }; tree: any; activity: any; flags: HealthFlag[]; reportCount: number; }
 
 export function getCommunityHealth(): CommunityHealth {
@@ -2396,6 +2432,99 @@ export function getCommunityHealth(): CommunityHealth {
             }
         }
     } catch (e) { console.error('Health flag check (wash trading) failed:', e); }
+
+    // 3. Sybil Funnel: invitees purchasing from their inviter via marketplace
+    try {
+        // Primary: completed marketplace deals where buyer was invited by seller
+        const funnelRows = db.prepare(`
+            SELECT 
+                seller.public_key as farmer_pubkey,
+                seller.callsign as farmer_callsign,
+                COUNT(DISTINCT mt.buyer_pubkey) as puppet_count,
+                ROUND(SUM(mt.credits), 2) as total_funneled,
+                GROUP_CONCAT(DISTINCT buyer.callsign) as puppet_names
+            FROM marketplace_transactions mt
+            JOIN members buyer ON mt.buyer_pubkey = buyer.public_key
+            JOIN members seller ON mt.seller_pubkey = seller.public_key
+            WHERE buyer.invited_by = seller.public_key
+              AND mt.status = 'completed'
+              AND mt.created_at > datetime('now', ? || ' days')
+            GROUP BY seller.public_key
+            HAVING puppet_count >= ?
+               AND total_funneled >= ?
+        `).all(`-${t.sybilFunnelWindowDays}`, t.sybilFunnelMinInvitees, t.sybilFunnelMinAmount) as any[];
+
+        // Secondary: direct transfers (for Resident+ accounts that graduated past Ghost)
+        const directFunnelRows = db.prepare(`
+            SELECT 
+                inviter.public_key as farmer_pubkey,
+                inviter.callsign as farmer_callsign,
+                COUNT(DISTINCT txn.from_pubkey) as puppet_count,
+                ROUND(SUM(txn.amount), 2) as total_funneled,
+                GROUP_CONCAT(DISTINCT puppet.callsign) as puppet_names
+            FROM transactions txn
+            JOIN members puppet ON txn.from_pubkey = puppet.public_key
+            JOIN members inviter ON puppet.invited_by = inviter.public_key
+            WHERE txn.to_pubkey = inviter.public_key
+              AND txn.from_pubkey NOT LIKE 'escrow_%'
+              AND txn.to_pubkey NOT LIKE 'escrow_%'
+              AND txn.from_pubkey NOT LIKE 'project_%'
+              AND txn.to_pubkey != 'commons'
+              AND txn.from_pubkey != 'SYSTEM'
+              AND txn.timestamp > datetime('now', ? || ' days')
+            GROUP BY inviter.public_key
+            HAVING puppet_count >= ?
+               AND total_funneled >= ?
+        `).all(`-${t.sybilFunnelWindowDays}`, t.sybilFunnelMinInvitees, t.sybilFunnelMinAmount) as any[];
+
+        // Merge & deduplicate by farmer
+        const seen = new Set<string>();
+        for (const row of [...funnelRows, ...directFunnelRows]) {
+            if (seen.has(row.farmer_pubkey)) continue;
+            seen.add(row.farmer_pubkey);
+
+            // Isolation check: do the puppets trade with ANYONE else?
+            const puppetPubkeys = db.prepare(`
+                SELECT public_key FROM members WHERE invited_by = ?
+            `).all(row.farmer_pubkey) as any[];
+            
+            let isolatedPuppets = 0;
+            for (const p of puppetPubkeys) {
+                const marketPartners = db.prepare(`
+                    SELECT COUNT(DISTINCT partner) as cnt FROM (
+                        SELECT seller_pubkey as partner FROM marketplace_transactions
+                        WHERE buyer_pubkey = ? AND seller_pubkey != ? AND status = 'completed'
+                        UNION
+                        SELECT buyer_pubkey as partner FROM marketplace_transactions
+                        WHERE seller_pubkey = ? AND buyer_pubkey != ? AND status = 'completed'
+                    )
+                `).get(p.public_key, row.farmer_pubkey, p.public_key, row.farmer_pubkey) as any;
+
+                const directPartners = db.prepare(`
+                    SELECT COUNT(DISTINCT partner) as cnt FROM (
+                        SELECT to_pubkey as partner FROM transactions
+                        WHERE from_pubkey = ? AND to_pubkey != ?
+                          AND to_pubkey NOT LIKE 'escrow_%' AND to_pubkey NOT LIKE 'project_%'
+                          AND to_pubkey != 'commons' AND to_pubkey != 'SYSTEM'
+                        UNION
+                        SELECT from_pubkey as partner FROM transactions
+                        WHERE to_pubkey = ? AND from_pubkey != ?
+                          AND from_pubkey NOT LIKE 'escrow_%' AND from_pubkey NOT LIKE 'project_%'
+                          AND from_pubkey != 'commons' AND from_pubkey != 'SYSTEM'
+                    )
+                `).get(p.public_key, row.farmer_pubkey, p.public_key, row.farmer_pubkey) as any;
+
+                if ((marketPartners?.cnt || 0) + (directPartners?.cnt || 0) === 0) isolatedPuppets++;
+            }
+
+            flags.push({
+                type: 'sybil_funnel',
+                severity: 'alert',
+                description: `Invite funnel: ${row.puppet_count} invitees of "${row.farmer_callsign}" sent ${row.total_funneled}B back (${isolatedPuppets} with 0 other partners)`,
+                members: [row.farmer_callsign, ...(row.puppet_names?.split(',') || [])]
+            });
+        }
+    } catch (e) { console.error('Health flag check (sybil funnel) failed:', e); }
     
     const config = getLocalConfig();
     const reportCount = getReportCount();

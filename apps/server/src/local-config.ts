@@ -55,6 +55,15 @@ export interface Thresholds {
     inactiveMemberDays: number;      // Days with no activity to flag (default: 30)
     isolatedBranchMinTxns: number;   // Min internal txns to flag isolation (default: 3)
     maxProjectExpiryDays: number;    // Max days allowed for crowdfund expiry (default: 365)
+    // Sybil funnel detection
+    sybilFunnelMinInvitees: number;  // Min invitees funneling back to flag (default: 2)
+    sybilFunnelMinAmount: number;    // Min total beans funneled to flag (default: 100)
+    sybilFunnelWindowDays: number;   // Rolling window in days (default: 30)
+    // Ghost velocity gate
+    ghostVelocityTier1Hours: number;   // First tier cutoff in hours (default: 24)
+    ghostVelocityTier1Limit: number;   // Max daily spend in tier 1 (default: 20)
+    ghostVelocityTier2Hours: number;   // Second tier cutoff in hours (default: 72)
+    ghostVelocityTier2Limit: number;   // Max daily spend in tier 2 (default: 40)
 }
 
 const DEFAULT_CONFIG: LocalConfig = {
@@ -176,6 +185,13 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
     inactiveMemberDays: 30,
     isolatedBranchMinTxns: 3,
     maxProjectExpiryDays: 365,
+    sybilFunnelMinInvitees: 2,
+    sybilFunnelMinAmount: 100,
+    sybilFunnelWindowDays: 30,
+    ghostVelocityTier1Hours: 24,
+    ghostVelocityTier1Limit: 20,
+    ghostVelocityTier2Hours: 72,
+    ghostVelocityTier2Limit: 40,
 };
 
 export function getThresholds(): Thresholds {

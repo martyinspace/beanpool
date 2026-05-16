@@ -830,6 +830,40 @@
                     <input type="number" id="th-maxProjectExpiryDays" step="1">
                 </div>
 
+                <!-- Sybil Funnel Detection -->
+                <div style="font-size:0.7rem;color:#ef4444;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin:1rem 0 0.5rem;">🕵️ Sybil Funnel Detection</div>
+                <div class="field">
+                    <label>Min Invitees Funneling (to flag)</label>
+                    <input type="number" id="th-sybilFunnelMinInvitees" step="1">
+                </div>
+                <div class="field">
+                    <label>Min Beans Funneled (to flag)</label>
+                    <input type="number" id="th-sybilFunnelMinAmount" step="1">
+                </div>
+                <div class="field">
+                    <label>Funnel Window (days)</label>
+                    <input type="number" id="th-sybilFunnelWindowDays" step="1">
+                </div>
+
+                <!-- Ghost Velocity Gate -->
+                <div style="font-size:0.7rem;color:#f59e0b;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin:1rem 0 0.5rem;">🛡️ Ghost Velocity Gate</div>
+                <div class="field">
+                    <label>Tier 1 Cutoff (hours)</label>
+                    <input type="number" id="th-ghostVelocityTier1Hours" step="1">
+                </div>
+                <div class="field">
+                    <label>Tier 1 Daily Limit (beans)</label>
+                    <input type="number" id="th-ghostVelocityTier1Limit" step="1">
+                </div>
+                <div class="field">
+                    <label>Tier 2 Cutoff (hours)</label>
+                    <input type="number" id="th-ghostVelocityTier2Hours" step="1">
+                </div>
+                <div class="field">
+                    <label>Tier 2 Daily Limit (beans)</label>
+                    <input type="number" id="th-ghostVelocityTier2Limit" step="1">
+                </div>
+
                 <div style="display:flex;gap:0.5rem;">
                     <button class="btn btn-primary" id="save-thresholds-btn" style="flex:1;">💾 Save</button>
                     <button class="btn btn-outline" id="reset-thresholds-btn" style="flex:1;">↩️ Defaults</button>
@@ -931,12 +965,21 @@
             <div class="glass" data-tab="members" style="display:none;">
                 <h3>🌳 Members & Audit Tree</h3>
                 <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.5rem;">Manage members and prune suspicious branches. Members with pending reports show a 🚩 badge.</p>
-                <div style="font-size: 0.75rem; display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.5rem; padding: 0.4rem 0%;">
-                    <div><span style="display:inline-block;padding:2px 6px;border-radius:4px;background:#ef444422;color:#ef4444;font-weight:bold;margin-right:4px;">⚠️</span> Sybil / Invite Spam</div>
-                    <div><span style="display:inline-block;padding:2px 6px;border-radius:4px;background:#f59e0b22;color:#f59e0b;font-weight:bold;margin-right:4px;">🔄</span> Wash Trading</div>
-                    <div><span style="display:inline-block;padding:2px 6px;border-radius:4px;background:#f59e0b22;color:#f59e0b;font-weight:bold;margin-right:4px;">🏝️</span> Isolated Branch</div>
-                    <div><span style="display:inline-block;padding:2px 6px;border-radius:4px;background:#64748b22;color:#64748b;font-weight:bold;margin-right:4px;">💤</span> Inactive</div>
-                    <div><span style="display:inline-block;padding:2px 6px;border-radius:4px;background:#ef444422;color:#ef4444;font-weight:bold;margin-right:4px;">🚩</span> Reported</div>
+                <div id="audit-filter-bar" style="font-size: 0.75rem; display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.75rem; padding: 0.4rem 0;">
+                    <button class="audit-filter-btn active" data-filter="all" onclick="setAuditFilter('all')"
+                        style="padding:3px 8px;border-radius:6px;border:1px solid #334155;background:#334155;color:#f8fafc;cursor:pointer;font-size:0.72rem;font-weight:600;">All</button>
+                    <button class="audit-filter-btn" data-filter="invite_spam" onclick="setAuditFilter('invite_spam')"
+                        style="padding:3px 8px;border-radius:6px;border:1px solid #334155;background:transparent;color:#ef4444;cursor:pointer;font-size:0.72rem;font-weight:600;">⚠️ Sybil <span class="filter-count" data-count="invite_spam"></span></button>
+                    <button class="audit-filter-btn" data-filter="sybil_funnel" onclick="setAuditFilter('sybil_funnel')"
+                        style="padding:3px 8px;border-radius:6px;border:1px solid #334155;background:transparent;color:#ef4444;cursor:pointer;font-size:0.72rem;font-weight:600;">🕵️ Funnel <span class="filter-count" data-count="sybil_funnel"></span></button>
+                    <button class="audit-filter-btn" data-filter="wash_trading" onclick="setAuditFilter('wash_trading')"
+                        style="padding:3px 8px;border-radius:6px;border:1px solid #334155;background:transparent;color:#f59e0b;cursor:pointer;font-size:0.72rem;font-weight:600;">🔄 Wash <span class="filter-count" data-count="wash_trading"></span></button>
+                    <button class="audit-filter-btn" data-filter="isolated_branch" onclick="setAuditFilter('isolated_branch')"
+                        style="padding:3px 8px;border-radius:6px;border:1px solid #334155;background:transparent;color:#f59e0b;cursor:pointer;font-size:0.72rem;font-weight:600;">🏝️ Isolated <span class="filter-count" data-count="isolated_branch"></span></button>
+                    <button class="audit-filter-btn" data-filter="inactive_member" onclick="setAuditFilter('inactive_member')"
+                        style="padding:3px 8px;border-radius:6px;border:1px solid #334155;background:transparent;color:#64748b;cursor:pointer;font-size:0.72rem;font-weight:600;">💤 Inactive <span class="filter-count" data-count="inactive_member"></span></button>
+                    <button class="audit-filter-btn" data-filter="reported" onclick="setAuditFilter('reported')"
+                        style="padding:3px 8px;border-radius:6px;border:1px solid #334155;background:transparent;color:#ef4444;cursor:pointer;font-size:0.72rem;font-weight:600;">🚩 Reported <span class="filter-count" data-count="reported"></span></button>
                 </div>
                 <div id="admin-members-tree" style="margin-bottom:0.75rem; max-height:400px; overflow-y:auto; border:1px solid #1e293b; border-radius:8px; padding:0.5rem;"></div>
                 <button class="btn btn-outline btn-full" onclick="loadAdminData()">🔄 Refresh Data</button>
