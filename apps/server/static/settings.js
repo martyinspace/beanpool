@@ -71,7 +71,7 @@
         });
 
         // Apply initial tab (default: identity)
-        switchTab(sessionStorage.getItem('bp-settings-tab') || 'identity');
+        // Moved to bottom of file to prevent ReferenceError with constants
 
         // ======================== LEAFLET MAP ========================
         const nodeIcon = L.divIcon({
@@ -1858,5 +1858,8 @@
                 refreshConnectors();
             }
         }, 10000);
+
+        // Apply initial tab (default: identity)
+        switchTab(sessionStorage.getItem('bp-settings-tab') || 'identity');
 
         init();

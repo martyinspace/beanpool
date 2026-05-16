@@ -2392,18 +2392,47 @@ export function getCommunityHealth(): CommunityHealth {
     const now = Date.now();
     const t = getThresholds();
     
-    // Active member count
-    const activeMemberCount = (db.prepare(`SELECT COUNT(DISTINCT m.public_key) as c FROM members m JOIN transactions tx ON tx.timestamp > datetime('now', '-30 days') AND (m.public_key = tx.from_pubkey OR m.public_key = tx.to_pubkey) WHERE m.status != 'pruned'`).get() as any).c;
+    // Active vs Inactive member counts (excluding genesis admin account)
+    let activeMemberCount = 0;
+    let inactiveMemberCount = 0;
+    try {
+        activeMemberCount = (db.prepare(`
+            SELECT COUNT(DISTINCT m.public_key) as c 
+            FROM members m 
+            WHERE m.status != 'pruned' AND m.invited_by != 'genesis' AND (
+                m.joined_at > datetime('now', '-${t.inactiveMemberDays} days') OR
+                m.public_key IN (
+                    SELECT DISTINCT from_pubkey FROM transactions WHERE timestamp > datetime('now', '-${t.inactiveMemberDays} days')
+                    UNION
+                    SELECT DISTINCT to_pubkey FROM transactions WHERE timestamp > datetime('now', '-${t.inactiveMemberDays} days')
+                )
+            )
+        `).get() as any).c;
+        
+        inactiveMemberCount = (db.prepare(`
+            SELECT COUNT(DISTINCT m.public_key) as c 
+            FROM members m 
+            WHERE m.status != 'pruned' AND m.invited_by != 'genesis' AND
+            m.joined_at <= datetime('now', '-${t.inactiveMemberDays} days') AND
+            m.public_key NOT IN (
+                SELECT DISTINCT from_pubkey FROM transactions WHERE timestamp > datetime('now', '-${t.inactiveMemberDays} days')
+                UNION
+                SELECT DISTINCT to_pubkey FROM transactions WHERE timestamp > datetime('now', '-${t.inactiveMemberDays} days')
+            )
+        `).get() as any).c;
+    } catch (e) { console.error('Failed to calculate member activity stats:', e); }
+
     const totalMembers = getMembers().length;
     
     // ========== HEALTH FLAG DETECTION ==========
     const flags: HealthFlag[] = [];
     
-    // 1. Inactive Members: no transactions in N days
+    // 1. Inactive Members: no transactions in N days, and must have joined > N days ago
     try {
         const inactiveRows = db.prepare(`
             SELECT m.public_key, m.callsign FROM members m 
             WHERE m.status = 'active' AND m.invited_by != 'genesis'
+            AND m.joined_at <= datetime('now', '-${t.inactiveMemberDays} days')
             AND m.public_key NOT IN (
                 SELECT DISTINCT from_pubkey FROM transactions WHERE timestamp > datetime('now', '-${t.inactiveMemberDays} days')
                 UNION
@@ -2558,7 +2587,7 @@ export function getCommunityHealth(): CommunityHealth {
             last7Days: (db.prepare(`SELECT COUNT(*) as c FROM transactions WHERE timestamp > datetime('now', '-7 days')`).get() as any).c,
             last30Days: (db.prepare(`SELECT COUNT(*) as c FROM transactions WHERE timestamp > datetime('now', '-30 days')`).get() as any).c,
             activeMemberCount,
-            inactiveMemberCount: totalMembers - activeMemberCount,
+            inactiveMemberCount,
             commonsBalance: Math.round(COMMONS_BALANCE * 100) / 100
         },
         flags,
