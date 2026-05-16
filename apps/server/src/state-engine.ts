@@ -518,6 +518,17 @@ export function assertMemberActive(publicKey: string): void {
     if (member.status === 'pruned') throw new Error('Account has been pruned');
 }
 
+export function assertProfileComplete(publicKey: string): void {
+    const member = db.prepare("SELECT avatar_url, callsign FROM members WHERE public_key = ?").get(publicKey) as any;
+    if (!member) return; // Let assertMemberActive handle missing members
+    if (!member.avatar_url) {
+        throw new Error('Please set a profile photo before using the marketplace. Tap your profile to add one.');
+    }
+    if (!member.callsign || member.callsign.trim().length < 2) {
+        throw new Error('Please set a display name before using the marketplace.');
+    }
+}
+
 function rowToMember(row: any): Member {
     if (!row) return row;
     return {
@@ -571,6 +582,13 @@ export function seedGenesisMember(adminPublicKey: string, callsign: string): Mem
 }
 
 function registerMemberInternal(publicKey: string, callsign: string, invitedBy: string | null, inviteCode: string | null): Member | null {
+    // Callsign validation: require 2+ non-whitespace characters
+    if (!callsign || callsign.trim().length < 2) {
+        console.warn(`[Security] Rejected registration with invalid callsign "${callsign}" for ${publicKey}`);
+        return null;
+    }
+    callsign = callsign.trim();
+
     const existing = db.prepare("SELECT * FROM members WHERE public_key = ?").get(publicKey) as any;
     if (existing) {
         db.prepare("UPDATE members SET callsign = ? WHERE public_key = ?").run(callsign, publicKey);
@@ -1109,6 +1127,7 @@ export function createPost(
     if (!getMember(authorPublicKey)) {
         return null;
     }
+    assertProfileComplete(authorPublicKey);
 
     const finalId = id || crypto.randomUUID();
     const createdAt = new Date().toISOString();
@@ -1263,6 +1282,7 @@ export function updatePost(id: string, authorPublicKey: string, updates: Partial
 
 export function requestPost(postId: string, requesterPublicKey: string, hours?: number): MarketplaceTransaction {
     assertMemberActive(requesterPublicKey);
+    assertProfileComplete(requesterPublicKey);
     const post = db.prepare(`SELECT * FROM posts WHERE id=?`).get(postId) as any;
     if (!post) throw new Error('Post not found');
     if (post.status !== 'active') throw new Error('Post is not active');
