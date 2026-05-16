@@ -6,6 +6,7 @@ import { useIdentity } from '../IdentityContext';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { getBalance, getTransactions, getProjects, getMemberProfile, getAllCommunityMembers, sendTransfer, voteForProjectApi } from '../../utils/db';
+import { hapticSuccess, hapticWarning, hapticTick } from '../../utils/haptics';
 import { CurrencyDisplay } from '../../components/CurrencyDisplay';
 import { MemberAvatar } from '../../components/MemberAvatar';
 import { BalanceInfoModal } from '../../components/info-content/BalanceInfoModal';
@@ -82,6 +83,7 @@ export default function LedgerScreen() {
         setSendSuccess(false);
         try {
             await sendTransfer(identity.publicKey, sendTo, amount, sendMemo || '');
+            hapticSuccess();
             setSendSuccess(true);
             setSendTo('');
             setSendAmount('');
@@ -94,6 +96,7 @@ export default function LedgerScreen() {
                 setShowSend(false);
             }, 1500);
         } catch (e: any) {
+            hapticWarning();
             setSendError(e.message || 'Transfer failed');
         } finally {
             setSending(false);
@@ -366,14 +369,14 @@ export default function LedgerScreen() {
                                                 <View style={styles.stepperControls}>
                                                     <Pressable 
                                                         style={styles.stepperBtn}
-                                                        onPress={() => setVoteSteppers(prev => ({ ...prev, [project.id]: Math.max(1, (prev[project.id] ?? 1) - 1) }))}
+                                                        onPress={() => { hapticTick(); setVoteSteppers(prev => ({ ...prev, [project.id]: Math.max(1, (prev[project.id] ?? 1) - 1) })); }}
                                                     >
                                                         <Text style={styles.stepperBtnText}>-</Text>
                                                     </Pressable>
                                                     <Text style={styles.stepperValue}>{stepperVotes}</Text>
                                                     <Pressable 
                                                         style={styles.stepperBtn}
-                                                        onPress={() => setVoteSteppers(prev => ({ ...prev, [project.id]: Math.min(10, (prev[project.id] ?? 1) + 1) }))}
+                                                        onPress={() => { hapticTick(); setVoteSteppers(prev => ({ ...prev, [project.id]: Math.min(10, (prev[project.id] ?? 1) + 1) })); }}
                                                     >
                                                         <Text style={styles.stepperBtnText}>+</Text>
                                                     </Pressable>
@@ -385,8 +388,10 @@ export default function LedgerScreen() {
                                                             setVotingInProgress(project.id);
                                                             try {
                                                                 await voteForProjectApi(project.id, stepperVotes);
+                                                                hapticSuccess();
                                                                 loadData();
                                                             } catch (e: any) {
+                                                                hapticWarning();
                                                                 Alert.alert('Voting Failed', e.message);
                                                             }
                                                             setVotingInProgress(null);

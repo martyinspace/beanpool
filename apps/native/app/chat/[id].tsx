@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useIdentity } from '../IdentityContext';
 import { getMessages, getConversation, insertMessage, syncMessages, syncSingleConversation, markConversationRead, completeMarketplaceTransaction, cancelMarketplaceTransaction } from '../../utils/db';
+import { hapticSuccess, hapticWarning } from '../../utils/haptics';
 
 export default function ChatScreen() {
     const { id } = useLocalSearchParams();
@@ -119,12 +120,14 @@ export default function ChatScreen() {
                         setActionLoading(true);
                         try {
                             await completeMarketplaceTransaction(pendingTx.id, identity.publicKey);
+                            hapticSuccess();
                             Alert.alert('Success', 'Credits have been released!');
                             // Refresh conversation state
                             syncSingleConversation(id as string).then(() => {
                                 loadMessages(true);
                             });
                         } catch (e: any) {
+                            hapticWarning();
                             Alert.alert('Failed', e.message || 'Could not release credits.');
                         } finally {
                             setActionLoading(false);
@@ -149,11 +152,13 @@ export default function ChatScreen() {
                         setActionLoading(true);
                         try {
                             await cancelMarketplaceTransaction(pendingTx.id, identity.publicKey);
+                            hapticWarning();
                             Alert.alert('Cancelled', 'Escrow has been cancelled and credits refunded.');
                             syncSingleConversation(id as string).then(() => {
                                 loadMessages(true);
                             });
                         } catch (e: any) {
+                            hapticWarning();
                             Alert.alert('Failed', e.message || 'Could not cancel escrow.');
                         } finally {
                             setActionLoading(false);

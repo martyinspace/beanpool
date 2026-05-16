@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, Alert, Image, FlatList, BackHandler } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { hapticTick } from '../utils/haptics';
 import { createIdentity, createIdentityFromMnemonic, BeanPoolIdentity } from '../utils/identity';
 import { nativeDecryptIdentity } from '../utils/native-crypto';
 import { importIdentity } from '../utils/identity';
@@ -275,7 +275,7 @@ export default function WelcomeScreen() {
     async function handleCopySeed() {
         if (!pendingIdentity?.mnemonic) return;
         await Clipboard.setStringAsync(pendingIdentity.mnemonic.join(' '));
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        hapticTick();
         setSeedCopied(true);
         setTimeout(() => setSeedCopied(false), 2000);
     }

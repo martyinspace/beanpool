@@ -16,6 +16,7 @@ import { useIdentity } from '../IdentityContext';
 import { ReviewModal } from '../../components/ReviewModal';
 import { CurrencyDisplay } from '../../components/CurrencyDisplay';
 import { MemberAvatar } from '../../components/MemberAvatar';
+import { hapticSuccess, hapticWarning, hapticTick } from '../../utils/haptics';
 
 const CATEGORIES = [
     { id: 'food', emoji: '🥕', label: 'Food' },
@@ -224,8 +225,9 @@ export default function PostDetailModal() {
             await approveMarketplaceRequest(transactionId, identity.publicKey);
             const updated = await getPost(post.id);
             setPost(updated);
+            hapticSuccess();
             Alert.alert('Approved', 'Escrow locked successfully.');
-        } catch (e: any) { Alert.alert('Error', e.message); }
+        } catch (e: any) { hapticWarning(); Alert.alert('Error', e.message); }
         setAccepting(false);
     };
 
@@ -405,7 +407,8 @@ export default function PostDetailModal() {
                                                         targetPubkey, 
                                                         targetCallsign: targetPeerCallsign 
                                                     });
-                                                } catch(e: any) { Alert.alert('Error', e.message); } finally { setAccepting(false); }
+                                                    hapticSuccess();
+                                                } catch(e: any) { hapticWarning(); Alert.alert('Error', e.message); } finally { setAccepting(false); }
                                             }}>
                                                 <Text style={styles.confirmActionBtnText}>{accepting ? 'Processing...' : 'Release Credits'}</Text>
                                             </Pressable>
@@ -710,7 +713,7 @@ export default function PostDetailModal() {
                                     <View style={[styles.confirmBox, { marginTop: 8 }]}>
                                         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
                                             {[1,2,3,4,5].map(star => (
-                                                <Pressable key={star} onPress={() => setMyRating(star)}>
+                                                <Pressable key={star} onPress={() => { setMyRating(star); hapticTick(); }}>
                                                     <Text style={{ fontSize: 32, color: star <= myRating ? '#fbbf24' : '#d1d5db' }}>{star <= myRating ? '★' : '☆'}</Text>
                                                 </Pressable>
                                             ))}
@@ -723,8 +726,9 @@ export default function PostDetailModal() {
                                                 setSubmittingRating(true);
                                                 await submitRating(identity.publicKey, targetPeerPubkey, myRating, ratingComment, txToRate);
                                                 setShowRatingForm(false);
+                                                hapticSuccess();
                                                 Alert.alert('Success', 'Rating submitted!');
-                                            } catch(e:any) { Alert.alert('Error', e.message); } finally { setSubmittingRating(false); }
+                                            } catch(e:any) { hapticWarning(); Alert.alert('Error', e.message); } finally { setSubmittingRating(false); }
                                         }}>
                                             <Text style={styles.confirmActionBtnText}>{submittingRating ? 'Submitting...' : 'Submit Rating'}</Text>
                                         </Pressable>
