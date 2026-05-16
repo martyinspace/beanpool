@@ -166,15 +166,15 @@ export const MapMarkerManager = React.memo<MapMarkerManagerProps>(({ variants, o
         result: 'data-uri',
       });
       imageCache.set(key, uri);
-      capturedCount.current += 1;
       console.log(`[MapMarkerManager] Captured "${key}" → ${uri.substring(0, 50)}...`);
-
-      if (capturedCount.current >= variants.length) {
-        console.log(`[MapMarkerManager] All ${variants.length} variants captured. Ready!`);
-        onReadyRef.current();
-      }
     } catch (e) {
       console.warn(`[MapMarkerManager] Failed to capture "${key}":`, e);
+    } finally {
+      capturedCount.current += 1;
+      if (capturedCount.current >= variants.length) {
+        console.log(`[MapMarkerManager] All ${variants.length} variants processed. Ready!`);
+        onReadyRef.current();
+      }
     }
   }, [variants.length]);
 
@@ -336,14 +336,15 @@ export const ClusterCaptureManager = React.memo<ClusterCaptureManagerProps>(({ c
         result: 'data-uri',
       });
       clusterImageCache.set(count, uri);
-      capturedCount.current += 1;
       console.log(`[ClusterCapture] Captured count=${count} → ${uri.substring(0, 50)}...`);
-      if (capturedCount.current >= counts.length) {
-        console.log(`[ClusterCapture] All ${counts.length} cluster variants captured!`);
-        onReadyRef.current();
-      }
     } catch (e) {
       console.warn(`[ClusterCapture] Failed count=${count}:`, e);
+    } finally {
+      capturedCount.current += 1;
+      if (capturedCount.current >= counts.length) {
+        console.log(`[ClusterCapture] All ${counts.length} cluster variants processed!`);
+        onReadyRef.current();
+      }
     }
   }, [counts.length]);
 
