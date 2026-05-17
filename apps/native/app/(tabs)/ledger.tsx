@@ -6,6 +6,7 @@ import { useIdentity } from '../IdentityContext';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { getBalance, getTransactions, getProjects, getMemberProfile, getAllCommunityMembers, sendTransfer, voteForProjectApi } from '../../utils/db';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { hapticSuccess, hapticWarning, hapticTick } from '../../utils/haptics';
 import { CurrencyDisplay } from '../../components/CurrencyDisplay';
 import { MemberAvatar } from '../../components/MemberAvatar';
@@ -195,12 +196,22 @@ export default function LedgerScreen() {
             {/* Send Button */}
             <Pressable 
                 style={[styles.sendBtn, showSend && styles.sendBtnActive, !balanceState.tier.canGift && styles.sendBtnDisabled]} 
-                onPress={() => {
+                onPress={async () => {
                     if (!balanceState.tier.canGift) return;
+                    if (!showSend) {
+                        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+                        if (!anchorUrl) {
+                            Alert.alert('Not Connected', 'Connect to a community before sending credits.', [
+                                { text: 'Cancel', style: 'cancel' },
+                                { text: 'Connect', onPress: () => router.push({ pathname: '/(tabs)/settings', params: { section: 'advanced' } }) }
+                            ]);
+                            return;
+                        }
+                        loadMembers();
+                    }
                     setShowSend(!showSend);
                     setSendError(null);
                     setSendSuccess(false);
-                    if (!showSend) loadMembers();
                 }}
                 disabled={!balanceState.tier.canGift}
             >

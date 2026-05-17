@@ -1,10 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { getProjects } from '../../utils/db';
 import { loadIdentity } from '../../utils/identity';
 import { MemberAvatar } from '../../components/MemberAvatar';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProjectsScreen() {
     const [projects, setProjects] = useState<any[]>([]);
@@ -172,13 +173,33 @@ export default function ProjectsScreen() {
                         <Text style={styles.emptyDesc}>
                             Got an idea that benefits the community? Propose a project and get it funded through collective contributions.
                         </Text>
-                        <Pressable style={styles.emptyBtn} onPress={() => router.push('/propose-project')}>
+                        <Pressable style={styles.emptyBtn} onPress={async () => {
+                            const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+                            if (!anchorUrl) {
+                                Alert.alert('Not Connected', 'Connect to a community first.', [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    { text: 'Connect', onPress: () => router.push({ pathname: '/(tabs)/settings', params: { section: 'advanced' } }) }
+                                ]);
+                                return;
+                            }
+                            router.push('/propose-project');
+                        }}>
                             <Text style={styles.emptyBtnText}>+ Propose a Project</Text>
                         </Pressable>
                     </View>
                 }
             />
-            <Pressable style={styles.fab} onPress={() => router.push('/propose-project')}>
+            <Pressable style={styles.fab} onPress={async () => {
+                const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+                if (!anchorUrl) {
+                    Alert.alert('Not Connected', 'Connect to a community before proposing projects.', [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Connect', onPress: () => router.push({ pathname: '/(tabs)/settings', params: { section: 'advanced' } }) }
+                    ]);
+                    return;
+                }
+                router.push('/propose-project');
+            }}>
                 <MaterialCommunityIcons name="plus" size={30} color="#fff" />
             </Pressable>
         </SafeAreaView>

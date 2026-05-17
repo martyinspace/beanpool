@@ -40,13 +40,18 @@ export function GlobalHeader() {
     const membershipCache = useRef<Record<string, boolean>>({});
     const [isGuestOnActive, setIsGuestOnActive] = useState(false);
     const [isOffline, setIsOffline] = useState(false);
+    const [hasAnchorUrl, setHasAnchorUrl] = useState(true); // assume true until checked
 
     // Continuous health ping
     useEffect(() => {
         let isMounted = true;
         const pingActive = async () => {
             const active = await AsyncStorage.getItem('beanpool_anchor_url');
-            if (!active) return;
+            if (!active) {
+                if (isMounted) { setIsOffline(true); setHasAnchorUrl(false); }
+                return;
+            }
+            if (isMounted) setHasAnchorUrl(true);
             try {
                 const r = await fetchWithTimeout(`${active}/api/community/health`, { timeout: 3000 });
                 if (r.ok) {
@@ -61,7 +66,7 @@ export function GlobalHeader() {
         pingActive();
         const iv = setInterval(pingActive, 10000);
         return () => { isMounted = false; clearInterval(iv); };
-    }, []);
+    }, [pathname]);
 
     useEffect(() => {
         (async () => {
@@ -75,7 +80,7 @@ export function GlobalHeader() {
         if (!identity?.publicKey) { setIsGuestOnActive(true); return; }
         (async () => {
             const active = await AsyncStorage.getItem('beanpool_anchor_url');
-            if (!active) return;
+            if (!active) { setIsGuestOnActive(true); return; }
             try {
                 const url = `${active}/api/community/membership/${identity.publicKey}`;
                 const r = await fetchWithTimeout(url, { timeout: 8000 });
@@ -88,7 +93,7 @@ export function GlobalHeader() {
                 // Network error — don't change state
             }
         })();
-    }, [identity?.publicKey]);
+    }, [identity?.publicKey, pathname]);
 
     const openDropdown = async () => {
         const nodes = await getSavedNodes();
@@ -232,19 +237,25 @@ export function GlobalHeader() {
             </View>
 
             <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top + 10, 40), height: Math.max(insets.top + 10, 40) + 56 }]} pointerEvents="box-none">
-                {/* LEFT: Invite/Join Router Pill */}
+                {/* LEFT: Invite/Join/Connect Router Pill */}
                 <View style={styles.headerLeft}>
                     <TouchableOpacity 
-                        style={[styles.headerLeftControls, isGuestOnActive && styles.headerLeftControlsGuest]} 
-                        onPress={() => router.push({ pathname: '/people', params: { view: 'invites' } })}
+                        style={[styles.headerLeftControls, !hasAnchorUrl ? styles.headerLeftControlsDisconnected : isGuestOnActive ? styles.headerLeftControlsGuest : undefined]} 
+                        onPress={() => {
+                            if (!hasAnchorUrl) {
+                                router.push({ pathname: '/(tabs)/settings', params: { section: 'advanced' } });
+                            } else {
+                                router.push({ pathname: '/people', params: { view: 'invites' } });
+                            }
+                        }}
                     >
                         <MaterialCommunityIcons 
-                            name={isGuestOnActive ? 'account-alert-outline' : 'account-plus-outline'} 
+                            name={!hasAnchorUrl ? 'link-off' : isGuestOnActive ? 'account-alert-outline' : 'account-plus-outline'} 
                             size={16} 
-                            color={isGuestOnActive ? '#d97706' : '#10b981'} 
+                            color={!hasAnchorUrl ? '#ef4444' : isGuestOnActive ? '#d97706' : '#10b981'} 
                         />
-                        <Text style={{ fontSize: 13, fontWeight: '700', color: isGuestOnActive ? '#d97706' : '#10b981', marginLeft: 4 }}>
-                            {isGuestOnActive ? 'Join' : 'Invite'}
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: !hasAnchorUrl ? '#ef4444' : isGuestOnActive ? '#d97706' : '#10b981', marginLeft: 4 }}>
+                            {!hasAnchorUrl ? 'Connect' : isGuestOnActive ? 'Join' : 'Invite'}
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -320,7 +331,15 @@ export function GlobalHeader() {
                 <Pressable style={styles.modalBg} onPress={() => setDropdownVisible(false)}>
                     <View style={[styles.modalContent, { marginTop: insets.top + 80 }]}>
                         <Text style={styles.modalHeader}>Select Community</Text>
-                        {savedNodes.length === 0 && <Text style={{ padding: 10 }}>No saved communities.</Text>}
+                        {savedNodes.length === 0 && (
+                            <View style={{ padding: 14 }}>
+                                <Text style={{ fontSize: 14, color: '#374151', lineHeight: 20 }}>
+                                    {!hasAnchorUrl
+                                        ? '🔴 No community connected.\n\nAsk a friend for an invite link, or tap the Connect button to add a node manually.'
+                                        : 'No saved communities.'}
+                                </Text>
+                            </View>
+                        )}
                         {savedNodes.map((n, i) => {
                             const isCurrent = activeNode === n.url;
                             const isGuest = n.status === 'guest';
@@ -456,6 +475,7 @@ const styles = StyleSheet.create({
     pillBase: {alignItems: 'center', justifyContent: 'flex-end', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', height: 32, overflow: 'hidden' },
     headerLeftControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)', height: 32, width: 80, overflow: 'hidden' },
     headerLeftControlsGuest: { borderColor: 'rgba(217, 119, 6, 0.4)', backgroundColor: '#fffbeb' },
+    headerLeftControlsDisconnected: { borderColor: 'rgba(239, 68, 68, 0.4)', backgroundColor: '#fef2f2' },
     headerRightControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', height: 32, width: 72, overflow: 'hidden' },
     controlPillBtn: { flex: 1, height: '100%', justifyContent: 'center', alignItems: 'center' },
     modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center' },

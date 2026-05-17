@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Alert, Image, Share, Linking } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useIdentity } from '../IdentityContext';
@@ -13,13 +13,21 @@ import { encodeBase64, encodeUtf8, hexToBytes, signData } from '../../utils/cryp
 import { updateMemberProfile, getMemberProfile, getPendingRecoveryRequests, approveRecoveryRequest, rejectRecoveryRequest } from '../../utils/db';
 import { getSavedNodes, SavedNode, removeSavedNode, getDatabaseFilenameForNode } from '../../utils/nodes';
 import * as FileSystem from 'expo-file-system';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import Constants from 'expo-constants';
 import appConfig from '../../app.json';
 
 export default function SettingsScreen() {
     const { identity, setIdentity } = useIdentity();
     const [mode, setMode] = useState<'menu' | 'profile' | 'export' | 'import' | 'seed' | 'advanced' | 'wipe' | 'notifications' | 'recovery-requests'>('menu');
+    const params = useLocalSearchParams<{ section?: string }>();
+
+    // Deep-link: auto-open Advanced section when navigated from Connect pill
+    useEffect(() => {
+        if (params.section === 'advanced') {
+            setMode('advanced');
+        }
+    }, [params.section]);
 
     // Notification preference state
     const [notifChat, setNotifChat] = useState(true);

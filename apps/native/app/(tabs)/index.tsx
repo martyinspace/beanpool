@@ -85,15 +85,6 @@ const ClusterMarker = ({ cluster, clustersReady }: any) => {
         return { size: 36, glow: 48, fontSize: 15 };
     };
 
-    // Safety for Android fallback: if we're forced to use the fallback, turn off tracksViewChanges after a delay 
-    // to prevent the MapView from choking on continuous software rendering updates.
-    useEffect(() => {
-        if (!cachedImage && Platform.OS === 'android') {
-            const timer = setTimeout(() => setTracksViewChanges(false), 800);
-            return () => clearTimeout(timer);
-        }
-    }, [cachedImage]);
-
     if (cachedImage && Platform.OS !== 'web') {
         if (Platform.OS === 'android') {
             const { glow } = getCS(displayCount);
@@ -134,14 +125,14 @@ const ClusterMarker = ({ cluster, clustersReady }: any) => {
         <Marker
             coordinate={{ longitude: geometry.coordinates[0], latitude: geometry.coordinates[1] }}
             onPress={onPress}
-            tracksViewChanges={tracksViewChanges}
+            tracksViewChanges={true}
             style={{ zIndex: points + 1 }}
             anchor={CLUSTER_ANCHOR}
         >
             <View collapsable={false} style={{ width: glow, height: glow, justifyContent: 'center', alignItems: 'center' }}>
-                <View style={{ position: 'absolute', width: glow, height: glow, borderRadius: glow / 2, backgroundColor: 'rgba(59, 130, 246, 0.25)' }} />
-                <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', borderColor: '#ffffff', borderWidth: 3 }}>
-                    <Text style={{ color: '#ffffff', fontWeight: '800', fontSize }}>{points}</Text>
+                <View collapsable={false} style={{ position: 'absolute', width: glow, height: glow, borderRadius: glow / 2, backgroundColor: 'rgba(59, 130, 246, 0.25)' }} />
+                <View collapsable={false} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', borderColor: '#ffffff', borderWidth: 3 }}>
+                    <Text collapsable={false} style={{ color: '#ffffff', fontWeight: '800', fontSize }}>{points}</Text>
                 </View>
             </View>
         </Marker>
@@ -159,14 +150,6 @@ const CustomMapMarker = React.memo(({ coordinate, post, catObj, isSelected, onPr
     // Platform fix: We start tracksViewChanges=true on Android.
     // It will be set to false ONLY when the RNImage's onLoad fires.
     const [tracksViewChanges, setTracksViewChanges] = useState(Platform.OS !== 'ios');
-
-    // Safety for Android fallback:
-    useEffect(() => {
-        if (!cachedImage && Platform.OS === 'android') {
-            const timer = setTimeout(() => setTracksViewChanges(false), 800);
-            return () => clearTimeout(timer);
-        }
-    }, [cachedImage]);
 
     if (cachedImage && Platform.OS !== 'web') {
         if (Platform.OS === 'android') {
@@ -206,7 +189,7 @@ const CustomMapMarker = React.memo(({ coordinate, post, catObj, isSelected, onPr
     return (
         <Marker
             coordinate={coordinate}
-            tracksViewChanges={tracksViewChanges}
+            tracksViewChanges={false}
             opacity={opacity}
             anchor={PIN_ANCHOR}
             onPress={(e) => { e.stopPropagation(); onPress(post); }}
@@ -519,8 +502,7 @@ export default function MapScreen() {
     const submitDisabled = posting || postLat == null || !postTitle.trim() || !postDescription.trim() || postCredits === '' || !postCategory || postPhotos.length < 1;
 
     const renderCluster = (cluster: any) => {
-        const [lon, lat] = cluster.geometry.coordinates;
-        return <ClusterMarker key={`cluster-${cluster.id}-${lat}-${lon}-${clustersReady}`} cluster={cluster} clustersReady={clustersReady} />;
+        return <ClusterMarker key={`cluster-${cluster.id}-${clustersReady}`} cluster={cluster} clustersReady={clustersReady} />;
     };
 
     return (
@@ -584,7 +566,7 @@ export default function MapScreen() {
                     const isSelected = selectedPostPreview?.id === post.id;
                     return (
                         <CustomMapMarker
-                            key={`${post.id}-${isSelected}-${markersReady}-${safePost.lat}-${safePost.lng}`}
+                            key={`${post.id}-${isSelected}-${markersReady}`}
                             coordinate={{ latitude: safePost.lat, longitude: safePost.lng }}
                             post={safePost}
                             catObj={catObj}
@@ -721,7 +703,21 @@ export default function MapScreen() {
                 <SafeAreaView style={StyleSheet.absoluteFill} pointerEvents="box-none">
                     <TouchableOpacity
                         style={styles.fab}
-                        onPress={() => setShowNewPost(true)}
+                        onPress={async () => {
+                            const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+                            if (!anchorUrl) {
+                                Alert.alert(
+                                    'Not Connected',
+                                    'You need to connect to a BeanPool community before posting. Go to Settings → Advanced to add a node.',
+                                    [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        { text: 'Connect', onPress: () => router.push({ pathname: '/(tabs)/settings', params: { section: 'advanced' } }) }
+                                    ]
+                                );
+                                return;
+                            }
+                            setShowNewPost(true);
+                        }}
                         activeOpacity={0.8}
                     >
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
