@@ -546,7 +546,7 @@ export default function MapScreen() {
                 renderCluster={renderCluster}
                 spiralEnabled={true}
                 animationEnabled={false}
-                radius={15}
+                radius={50}
             >
                 {posts.filter(p => {
                     if (p.status && p.status !== 'active') return false;

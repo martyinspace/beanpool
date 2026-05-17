@@ -52,7 +52,7 @@ export const PinVisual = React.memo<PinVisualProps>(({
   const strokeWidth = isElder ? 2 : 0;
 
   return (
-    <View style={pinStyles.container}>
+    <View collapsable={false} style={pinStyles.container}>
       <Svg width={PIN_RENDER_W} height={PIN_RENDER_H} viewBox={`0 0 ${VB_W} ${VB_H}`}>
         {isElder && (
           <Circle cx={CX} cy={CY} r={R + 3} fill="none" stroke="#fbbf24" strokeWidth={2} opacity={0.6} />
@@ -60,8 +60,8 @@ export const PinVisual = React.memo<PinVisualProps>(({
         <Path d={PIN_PATH} fill={bgColor} stroke={strokeColor} strokeWidth={strokeWidth} />
         <Circle cx={CX} cy={CY} r={EMOJI_BG_R} fill="rgba(255,255,255,0.85)" />
       </Svg>
-      <View style={pinStyles.emojiOverlay}>
-        <Text style={pinStyles.emoji}>{emoji}</Text>
+      <View collapsable={false} style={pinStyles.emojiOverlay}>
+        <Text collapsable={false} style={pinStyles.emoji}>{emoji}</Text>
       </View>
     </View>
   );
@@ -181,17 +181,17 @@ export const MapMarkerManager = React.memo<MapMarkerManagerProps>(({ variants, o
   if (Platform.OS === 'web') return null;
 
   return (
-    <View style={captureStyles.offscreen} pointerEvents="none">
-      {variants.map((v) => (
+    <View style={[captureStyles.offscreen, { height: Math.max(200, variants.length * (PIN_RENDER_H + 4)) }]} pointerEvents="none">
+      {variants.map((v, index) => (
         <View
           key={v.key}
           ref={refs.current.get(v.key)}
           collapsable={false}
           onLayout={() => {
-            // 200ms delay to let SVG fully render before capture
-            setTimeout(() => handleCapture(v.key), 200);
+            // 300ms delay + wider stagger to give Android GPU time per capture
+            setTimeout(() => handleCapture(v.key), 300 + (index * 50));
           }}
-          style={captureStyles.slot}
+          style={[captureStyles.slot, { top: index * (PIN_RENDER_H + 4) }]}
         >
           <PinVisual
             emoji={v.emoji}
@@ -217,6 +217,9 @@ const captureStyles = StyleSheet.create({
     height: 200,
   },
   slot: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
     width: PIN_RENDER_W,
     height: PIN_RENDER_H,
     backgroundColor: 'transparent',
@@ -351,16 +354,16 @@ export const ClusterCaptureManager = React.memo<ClusterCaptureManagerProps>(({ c
   if (Platform.OS === 'web') return null;
 
   return (
-    <View style={captureStyles.offscreen} pointerEvents="none">
-      {counts.map((count) => {
+    <View style={[captureStyles.offscreen, { height: Math.max(200, counts.length * 92) }]} pointerEvents="none">
+      {counts.map((count, index) => {
         const { glow } = getClusterStyle(count);
         return (
           <View
             key={`cluster-${count}`}
             ref={refs.current.get(count)}
             collapsable={false}
-            onLayout={() => setTimeout(() => handleCapture(count), 200)}
-            style={{ position: 'absolute', top: 0, left: 0, width: glow + 8, height: glow + 8, backgroundColor: 'transparent', overflow: 'visible', justifyContent: 'center', alignItems: 'center' }}
+            onLayout={() => setTimeout(() => handleCapture(count), 300 + (index * 30))}
+            style={{ position: 'absolute', top: index * 92, left: 0, width: glow + 8, height: glow + 8, backgroundColor: 'transparent', overflow: 'visible', justifyContent: 'center', alignItems: 'center' }}
           >
             <ClusterVisual points={count} />
           </View>
