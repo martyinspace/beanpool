@@ -816,13 +816,23 @@ export interface InviteTreeNode {
 
 export function getInviteTree(rootPubkey?: string): InviteTreeNode[] {
     const allMembers = getAllMembers();
+
+    // ⚡ Bolt: Group members by invitedBy to avoid O(N²) nested filtering, turning it to O(N) lookup.
+    const membersByInviter = new Map<string, typeof allMembers>();
+    for (const m of allMembers) {
+        if (!m.invitedBy || m.publicKey === m.invitedBy) continue;
+        if (!membersByInviter.has(m.invitedBy)) {
+            membersByInviter.set(m.invitedBy, []);
+        }
+        membersByInviter.get(m.invitedBy)!.push(m);
+    }
+
     function buildSubtree(parentPubkey: string): InviteTreeNode[] {
-        return allMembers
-            .filter(m => m.invitedBy === parentPubkey && m.publicKey !== parentPubkey)
-            .map(m => ({
-                publicKey: m.publicKey, callsign: m.callsign, joinedAt: m.joinedAt, inviteCode: m.inviteCode,
-                children: buildSubtree(m.publicKey),
-            }));
+        const children = membersByInviter.get(parentPubkey) || [];
+        return children.map(m => ({
+            publicKey: m.publicKey, callsign: m.callsign, joinedAt: m.joinedAt, inviteCode: m.inviteCode,
+            children: buildSubtree(m.publicKey),
+        }));
     }
 
     if (rootPubkey) {
