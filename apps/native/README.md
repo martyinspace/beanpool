@@ -102,6 +102,9 @@ apps/native/
 - **iOS Crypto Polyfill** — SHA-512 and Ed25519 signing polyfilled for iOS via `expo-crypto`
 - **Escrow Actions** — request/approve/reject/cancel/complete marketplace deals with atomic escrow settlement
 - **Social Recovery (3-of-N)** — cryptographically secure identity recovery requiring a quorum of trusted guardians without central admins.
+- **Quadratic Voting** — native governance engine with voting stepper, dual progress bars, and CommonsInfoModal for community projects.
+- **Haptic Feedback** — contextual haptic responses for a tactile and responsive native experience.
+- **Cross-platform Avatar Sync** — robust `bundled://` protocol for seamless avatar resolution and cross-platform syncing.
 
 ## Background Sync (Pillar Toggle)
 
@@ -163,7 +166,7 @@ npx expo start                      # Native dev client
 | People browser | ✅ | ✅ | Connects to `/api/members` dictionary for Callsign resolutions |
 | Ledger & send credits | ✅ | ✅ | |
 | Identity (create/recover) | ✅ | ✅ | SecureStore on native |
-| Community Projects | — | ✅ | Native-only feature |
+| Community Projects & Quadratic Voting | — | ✅ | Native-only feature (funding + QV governance) |
 | Settings / Profile | ✅ | ✅ | |
 | Bean ratings | ✅ | ✅ | Implemented via SQLite and ReviewModal |
 | Abuse reporting | ✅ | ✅ | Implemented via SQLite and identity tracking |

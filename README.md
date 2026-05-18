@@ -305,6 +305,13 @@ All endpoints are served on port 8443 (HTTPS):
 | `/api/admin/check-update` | POST | Check GitHub for newer releases (admin auth) |
 | `/api/admin/thresholds` | POST | Update protocol thresholds (admin auth) |
 | `/api/admin/thresholds/get` | POST | Read current thresholds (admin auth) |
+| `/api/commons/balance` | GET | Get the current Commons pool balance |
+| `/api/commons/projects` | GET/POST | List or create governance voting projects |
+| `/api/commons/projects/update` | POST | Edit a voting project |
+| `/api/commons/projects/delete` | POST | Delete a voting project |
+| `/api/commons/my-credits/:pubkey` | GET | Get available Quadratic Voting credits |
+| `/api/commons/vote` | POST | Cast votes for a project (Quadratic Voting) |
+| `/api/commons/rounds` | GET | List voting rounds |
 | `/ws` | WebSocket | Real-time state feed |
 
 ---
@@ -395,7 +402,7 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ Community health dashboard (admin settings)
 - ✅ Moderation Centre — reported posts, health-flagged wash trading, batch operations, member audit
 - ✅ Software update notifications — Docker Desktop-style header badge, auto-check with configurable interval
-- ✅ REST APIs (46+ endpoints) including friends, ratings, reports, admin thresholds, version check, push tokens, escrow lifecycle
+- ✅ REST APIs (50+ endpoints) including friends, ratings, reports, admin thresholds, version check, push tokens, escrow lifecycle, and quadratic voting.
 - ✅ WebSocket real-time state feed
 - ✅ Federation protocol — peer/mirror/blocked trust levels
 - ✅ Cross-community marketplace browsing (Connected Communities UI)
@@ -433,6 +440,14 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ **Performance & Accessibility** — Fixed an O(N^2) array filtering bottleneck for relational data and added ARIA labels to the PWA WelcomePage.
 - ✅ **PWA Parity Phase 1-4** — Community status indicator, avatar trust badges with profile navigation, People page search/avatars/relative dates/message button, synonym-expanded marketplace search (417-entry map), localStorage-based blocked user filtering, Settings security section (backup reminder, private key viewer, wipe identity).
 - ✅ **Native Invite Fix** — Updated invite share text to include Node URL for manual code entry.
+- ✅ **Cross-platform Avatar Sync** — Implemented `bundled://` protocol for avatars, fixing missing pin icons and broken clustering on Android.
+- ✅ **Native Quadratic Voting** — Restored native QV governance engine, CommonsInfoModal, voting stepper, and dual progress bars.
+- ✅ **Sybil Hardening v3** — Implemented funnel detection, ghost velocity gate, and interactive audit filters.
+- ✅ **Profile Completeness Enforcement** — Added server-side enforcement for profile completeness.
+- ✅ **Onboarding UX Overhaul** — Refined into a friendly 3-step onboarding flow.
+- ✅ **Haptic Feedback** — Phase 1 essentials implemented for native app interactions.
+- ✅ **Admin Dashboard Reorganization** — Redistributed System tab settings to contextual tabs; fixed login ReferenceError.
+- ✅ **Continuous Health Ping** — Added offline red dot indicator and continuous health ping to mobile app header, mapped using unique public keys to prevent UI collisions.
 
 **Coming next:**
 - Native App Polish & App Store Submission (federation parity)
@@ -443,4 +458,4 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 
 [MIT](LICENSE)
 
-_Last updated: 2026-05-13 AEST_
+_Last updated: 2026-05-18 AEST_

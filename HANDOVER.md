@@ -4,7 +4,7 @@
 > **Read this first** — then see `index.md` for a full documentation map.
 
 ---
-## Current State (2026-05-09)
+## Current State (2026-05-18)
 
 **BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🪶 bean reputation system, abuse reporting, **moderation centre** (batch post management, wash-trading detection, member audit), **update notifications** (Docker Desktop-style header badge with auto-check), community health dashboard, and federation protocol — deployed on **3 sovereign nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity including a custom Android map marker rendering pipeline. A new automated security journaling process using the `.jules` directory has been established to harden the codebase.
 
@@ -83,6 +83,14 @@
 - ✅ **PWA Blocked User Filtering** — Marketplace posts from blocked users (stored in `localStorage` as `bp_blocked_users`) are automatically hidden.
 - ✅ **PWA Security Settings** — Settings page now includes: backup reminder (amber warning), private key viewer (reveal/hide + copy), and wipe identity (double-confirm → localStorage clear → reload).
 - ✅ **Native Invite Share Fix** — Invite share text now explicitly includes the Node URL alongside the invite code for manual redemption.
+- ✅ **Cross-platform Avatar Sync** — Implemented `bundled://` protocol for avatars, fixing missing pin icons and broken clustering on Android.
+- ✅ **Native Quadratic Voting** — Restored native QV governance engine, CommonsInfoModal, voting stepper, and dual progress bars.
+- ✅ **Sybil Hardening v3** — Implemented funnel detection, ghost velocity gate, and interactive audit filters.
+- ✅ **Profile Completeness Enforcement** — Added server-side enforcement for profile completeness.
+- ✅ **Onboarding UX Overhaul** — Refined into a friendly 3-step onboarding flow.
+- ✅ **Haptic Feedback** — Phase 1 essentials implemented for native app interactions.
+- ✅ **Admin Dashboard Reorganization** — Redistributed System tab settings to contextual tabs; fixed login ReferenceError.
+- ✅ **Continuous Health Ping** — Added offline red dot indicator and continuous health ping to mobile app header, mapped using unique public keys to prevent UI collisions.
 
 ---
 

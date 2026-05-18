@@ -1,11 +1,19 @@
 # 🗺️ BeanPool Roadmap
 
-> Planned features and future work. Updated: 2026-05-13
+> Planned features and future work. Updated: 2026-05-18
 
 ---
 
 ## ✅ Recently Completed
 
+- ✅ **Cross-platform Avatar Sync** — Implemented `bundled://` protocol for avatars, fixing missing pin icons and broken clustering on Android.
+- ✅ **Native Quadratic Voting** — Restored native QV governance engine, CommonsInfoModal, voting stepper, and dual progress bars.
+- ✅ **Sybil Hardening v3** — Implemented funnel detection, ghost velocity gate, and interactive audit filters.
+- ✅ **Profile Completeness Enforcement** — Added server-side enforcement for profile completeness.
+- ✅ **Onboarding UX Overhaul** — Refined into a friendly 3-step onboarding flow.
+- ✅ **Haptic Feedback** — Phase 1 essentials implemented for native app interactions.
+- ✅ **Admin Dashboard Reorganization** — Redistributed System tab settings to contextual tabs; fixed login ReferenceError.
+- ✅ **Continuous Health Ping** — Added offline red dot indicator and continuous health ping to mobile app header, mapped using unique public keys to prevent UI collisions.
 - ✅ **Sentinel Security Hardening** — Mitigated Stored XSS vulnerabilities across the Admin Dashboard and fixed Command Injection in server backup routines. Established `.jules/sentinel.md` as a continuous security audit journal.
 - ✅ **Relational Filtering Optimization** — Fixed an O(N^2) performance bottleneck for array filtering on relational data elements.
 - ✅ **PWA Accessibility** — Added missing ARIA attributes and labels to the WelcomePage inputs.
