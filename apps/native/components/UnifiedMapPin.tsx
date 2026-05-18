@@ -163,35 +163,35 @@ export const MapMarkerManager = React.memo<MapMarkerManagerProps>(({ variants, o
       const uri = await captureRef(ref.current, {
         format: 'png',
         quality: 1,
-        result: 'data-uri',
+        result: 'tmpfile',
       });
       imageCache.set(key, uri);
-      console.log(`[MapMarkerManager] Captured "${key}" → ${uri.substring(0, 50)}...`);
-    } catch (e) {
-      console.warn(`[MapMarkerManager] Failed to capture "${key}":`, e);
-    } finally {
       capturedCount.current += 1;
+      console.log(`[MapMarkerManager] Captured "${key}" → ${uri.substring(0, 50)}...`);
+
       if (capturedCount.current >= variants.length) {
-        console.log(`[MapMarkerManager] All ${variants.length} variants processed. Ready!`);
+        console.log(`[MapMarkerManager] All ${variants.length} variants captured. Ready!`);
         onReadyRef.current();
       }
+    } catch (e) {
+      console.warn(`[MapMarkerManager] Failed to capture "${key}":`, e);
     }
   }, [variants.length]);
 
   if (Platform.OS === 'web') return null;
 
   return (
-    <View style={[captureStyles.offscreen, { height: Math.max(200, variants.length * (PIN_RENDER_H + 4)) }]} pointerEvents="none">
-      {variants.map((v, index) => (
+    <View style={captureStyles.offscreen} pointerEvents="none">
+      {variants.map((v) => (
         <View
           key={v.key}
           ref={refs.current.get(v.key)}
           collapsable={false}
           onLayout={() => {
-            // 300ms delay + wider stagger to give Android GPU time per capture
-            setTimeout(() => handleCapture(v.key), 300 + (index * 50));
+            // 200ms delay to let SVG fully render before capture
+            setTimeout(() => handleCapture(v.key), 200);
           }}
-          style={[captureStyles.slot, { top: index * (PIN_RENDER_H + 4) }]}
+          style={captureStyles.slot}
         >
           <PinVisual
             emoji={v.emoji}
@@ -210,16 +210,13 @@ const captureStyles = StyleSheet.create({
   offscreen: {
     position: 'absolute',
     left: -9999,
-    top: 0,
+    top: -9999,
     opacity: 1,           // Must be visible for capture
     overflow: 'visible',  // Breathing room — never clip the SVG shadow/glow
-    width: 200,           // Constrain parent size so it doesn't get culled
-    height: 200,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   slot: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
     width: PIN_RENDER_W,
     height: PIN_RENDER_H,
     backgroundColor: 'transparent',
@@ -336,34 +333,33 @@ export const ClusterCaptureManager = React.memo<ClusterCaptureManagerProps>(({ c
       const uri = await captureRef(ref.current, {
         format: 'png',
         quality: 1,
-        result: 'data-uri',
+        result: 'tmpfile',
       });
       clusterImageCache.set(count, uri);
-      console.log(`[ClusterCapture] Captured count=${count} → ${uri.substring(0, 50)}...`);
-    } catch (e) {
-      console.warn(`[ClusterCapture] Failed count=${count}:`, e);
-    } finally {
       capturedCount.current += 1;
+      console.log(`[ClusterCapture] Captured count=${count} → ${uri.substring(0, 50)}...`);
       if (capturedCount.current >= counts.length) {
-        console.log(`[ClusterCapture] All ${counts.length} cluster variants processed!`);
+        console.log(`[ClusterCapture] All ${counts.length} cluster variants captured!`);
         onReadyRef.current();
       }
+    } catch (e) {
+      console.warn(`[ClusterCapture] Failed count=${count}:`, e);
     }
   }, [counts.length]);
 
   if (Platform.OS === 'web') return null;
 
   return (
-    <View style={[captureStyles.offscreen, { height: Math.max(200, counts.length * 92) }]} pointerEvents="none">
-      {counts.map((count, index) => {
+    <View style={captureStyles.offscreen} pointerEvents="none">
+      {counts.map((count) => {
         const { glow } = getClusterStyle(count);
         return (
           <View
             key={`cluster-${count}`}
             ref={refs.current.get(count)}
             collapsable={false}
-            onLayout={() => setTimeout(() => handleCapture(count), 300 + (index * 30))}
-            style={{ position: 'absolute', top: index * 92, left: 0, width: glow + 8, height: glow + 8, backgroundColor: 'transparent', overflow: 'visible', justifyContent: 'center', alignItems: 'center' }}
+            onLayout={() => setTimeout(() => handleCapture(count), 200)}
+            style={{ width: glow + 8, height: glow + 8, backgroundColor: 'transparent', overflow: 'visible', justifyContent: 'center', alignItems: 'center' }}
           >
             <ClusterVisual points={count} />
           </View>
