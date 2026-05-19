@@ -70,6 +70,10 @@ export default function PostDetailModal() {
     const [submittingReport, setSubmittingReport] = useState(false);
     const [promptReviewForTx, setPromptReviewForTx] = useState<{ txId: string; targetPubkey: string; targetCallsign: string } | null>(null);
 
+    // Request Rejection Modal State
+    const [rejectModalTxId, setRejectModalTxId] = useState<string | null>(null);
+    const [rejectMessage, setRejectMessage] = useState('');
+
     const [requests, setRequests] = useState<any[]>([]);
 
     const [authorAvgRating, setAuthorAvgRating] = useState<number | null>(null);
@@ -227,16 +231,51 @@ export default function PostDetailModal() {
             setPost(updated);
             hapticSuccess();
             Alert.alert('Approved', 'Escrow locked successfully.');
+            
+            // Route to chat with requester
+            const req = requests.find(r => r.id === transactionId);
+            const peerPubkey = req ? (post.type === 'need' ? req.seller_pubkey : req.buyer_pubkey) : null;
+            if (peerPubkey) {
+                try {
+                    const conv = await createConversationApi('dm', [peerPubkey, identity.publicKey], identity.publicKey, undefined, post.id);
+                    if (conv) router.replace(`/chat/${conv.id}`);
+                } catch (e) {
+                    // Chat failed, fallback is normal UI refresh
+                    console.error('Failed to create chat on approve', e);
+                }
+            }
         } catch (e: any) { hapticWarning(); Alert.alert('Error', e.message); }
         setAccepting(false);
     };
 
-    const handleReject = async (transactionId: string) => {
-        if (!identity) return;
+    const handleReject = (transactionId: string) => {
+        setRejectMessage('');
+        setRejectModalTxId(transactionId);
+    };
+    
+    const confirmReject = async () => {
+        if (!identity || !rejectModalTxId) return;
+        setAccepting(true);
         try {
-            await rejectMarketplaceRequest(transactionId, identity.publicKey);
-            setRequests(prev => prev.filter(r => r.id !== transactionId));
+            const req = requests.find(r => r.id === rejectModalTxId);
+            const peerPubkey = req ? (post.type === 'need' ? req.seller_pubkey : req.buyer_pubkey) : null;
+            
+            await rejectMarketplaceRequest(rejectModalTxId, identity.publicKey);
+            
+            // Optionally send the reject message if provided
+            if (rejectMessage.trim() && peerPubkey) {
+                try {
+                    await createConversationApi('dm', [peerPubkey, identity.publicKey], identity.publicKey, rejectMessage.trim(), post.id);
+                } catch (e) {
+                    console.error('Failed to send rejection message', e);
+                }
+            }
+            
+            setRequests(prev => prev.filter(r => r.id !== rejectModalTxId));
+            setRejectModalTxId(null);
+            hapticSuccess();
         } catch (e: any) { Alert.alert('Error', e.message); }
+        setAccepting(false);
     };
 
     const handleWithdraw = async () => {
@@ -674,29 +713,47 @@ export default function PostDetailModal() {
                 {isOwnPost && post.status === 'active' && requests.length > 0 && (
                     <View style={styles.requestsContainer}>
                         <Text style={styles.requestsTitle}>✋ Fulfillment Requests ({requests.length})</Text>
-                        {requests.map(req => (
-                            <View key={req.id} style={styles.requestCard}>
-                                <View style={{ flex: 1, marginBottom: 8 }}>
-                                  <Pressable onPress={() => router.push({ pathname: '/public-profile', params: { publicKey: req.buyer_pubkey, callsign: req.buyer_callsign || req.buyer_pubkey.slice(0,8) } })}>
-                                      <Text style={[styles.requestName, { textDecorationLine: 'underline', color: '#fbbf24' }]}>
-                                          🤝 {req.buyer_callsign || req.buyer_pubkey.slice(0, 8)}
-                                      </Text>
-                                  </Pressable>
-                                  <Text style={{ fontSize: 12, color: '#fbbf24', marginTop: 2, fontWeight: '600' }}>
-                                    {req.count > 0 ? `★ ${req.avgRating.toFixed(1)} (${req.count} reviews)` : '☆☆☆☆☆ No ratings yet'}
-                                  </Text>
-                                  <Text style={styles.requestAmt}>{req.hours ? `${req.hours} hours estimated` : 'Offered to fulfill'}</Text>
+                        {requests.map(req => {
+                            const reqPubkey = post.type === 'need' ? req.seller_pubkey : req.buyer_pubkey;
+                            const reqCallsign = post.type === 'need' ? (req.seller_callsign || reqPubkey.slice(0,8)) : (req.buyer_callsign || reqPubkey.slice(0,8));
+                            return (
+                                <View key={req.id} style={styles.requestCard}>
+                                    <View style={{ flex: 1, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        <View>
+                                            <Pressable onPress={() => router.push({ pathname: '/public-profile', params: { publicKey: reqPubkey, callsign: reqCallsign } })}>
+                                                <Text style={[styles.requestName, { textDecorationLine: 'underline', color: '#fbbf24' }]}>
+                                                    🤝 {reqCallsign}
+                                                </Text>
+                                            </Pressable>
+                                            <Text style={{ fontSize: 12, color: '#fbbf24', marginTop: 2, fontWeight: '600' }}>
+                                                {req.count > 0 ? `★ ${req.avgRating.toFixed(1)} (${req.count} reviews)` : '☆☆☆☆☆ No ratings yet'}
+                                            </Text>
+                                            <Text style={styles.requestAmt}>{req.hours ? `${req.hours} hours estimated` : 'Offered to fulfill'}</Text>
+                                        </View>
+                                        <Pressable 
+                                            style={styles.reqMessageBtn} 
+                                            onPress={async () => {
+                                                if (!identity) return;
+                                                try {
+                                                    const conv = await createConversationApi('dm', [reqPubkey, identity.publicKey], identity.publicKey, undefined, post.id);
+                                                    if (conv) router.push(`/chat/${conv.id}`);
+                                                } catch (e: any) { Alert.alert("Error", e.message); }
+                                            }}
+                                        >
+                                            <Text style={styles.reqMessageBtnText}>💬 Message</Text>
+                                        </Pressable>
+                                    </View>
+                                    <View style={{flexDirection: 'row', gap: 8}}>
+                                        <Pressable style={[styles.rejectBtn, accepting && {opacity: 0.5}]} disabled={accepting} onPress={() => handleReject(req.id)}>
+                                            <Text style={styles.rejectBtnText}>Deny</Text>
+                                        </Pressable>
+                                        <Pressable style={[styles.approveBtn, accepting && {opacity: 0.5}, { flex: 2 }]} disabled={accepting} onPress={() => handleApprove(req.id)}>
+                                            <Text style={styles.approveBtnText}>Approve & Escrow</Text>
+                                        </Pressable>
+                                    </View>
                                 </View>
-                                <View style={{flexDirection: 'row', gap: 8}}>
-                                    <Pressable style={[styles.rejectBtn, accepting && {opacity: 0.5}]} disabled={accepting} onPress={() => handleReject(req.id)}>
-                                        <Text style={styles.rejectBtnText}>Deny</Text>
-                                    </Pressable>
-                                    <Pressable style={[styles.approveBtn, accepting && {opacity: 0.5}, { flex: 2 }]} disabled={accepting} onPress={() => handleApprove(req.id)}>
-                                        <Text style={styles.approveBtnText}>Approve & Escrow</Text>
-                                    </Pressable>
-                                </View>
-                            </View>
-                        ))}
+                            );
+                        })}
                     </View>
                 )}
 
@@ -797,6 +854,37 @@ export default function PostDetailModal() {
                         if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
                     }}
                 />
+            )}
+            
+            {/* Reject Request Modal */}
+            {rejectModalTxId && (
+                <View style={StyleSheet.absoluteFill}>
+                    <Pressable style={styles.modalOverlay} onPress={() => setRejectModalTxId(null)}>
+                        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%' }}>
+                            <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()}>
+                                <Text style={styles.modalTitle}>Decline Offer</Text>
+                                <Text style={styles.modalSubtext}>Are you sure you want to decline this offer?</Text>
+                                <TextInput
+                                    style={[styles.editInput, { minHeight: 80, marginBottom: 16 }]}
+                                    value={rejectMessage}
+                                    onChangeText={setRejectMessage}
+                                    placeholder="Add a brief message (optional)..."
+                                    placeholderTextColor="#9ca3af"
+                                    multiline
+                                    textAlignVertical="top"
+                                />
+                                <View style={{ flexDirection: 'row', gap: 12 }}>
+                                    <Pressable style={[styles.editCancelBtn, { flex: 1 }]} onPress={() => setRejectModalTxId(null)}>
+                                        <Text style={styles.editCancelBtnText}>Cancel</Text>
+                                    </Pressable>
+                                    <Pressable style={[styles.deletePostBtn, { flex: 1, marginVertical: 0 }]} disabled={accepting} onPress={confirmReject}>
+                                        <Text style={styles.deletePostBtnText}>{accepting ? '...' : 'Decline'}</Text>
+                                    </Pressable>
+                                </View>
+                            </Pressable>
+                        </KeyboardAvoidingView>
+                    </Pressable>
+                </View>
             )}
         </View>
     );
@@ -979,5 +1067,47 @@ const styles = StyleSheet.create({
         color: '#ef4444',
         fontSize: 13,
         fontWeight: 'bold'
+    },
+    reqMessageBtn: {
+        backgroundColor: '#ffffff',
+        borderWidth: 1,
+        borderColor: '#d1d5db',
+        borderRadius: 16,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+    },
+    reqMessageBtnText: {
+        color: '#4b5563',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        padding: 20,
+    },
+    modalContent: {
+        backgroundColor: '#ffffff',
+        borderRadius: 20,
+        padding: 24,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+        elevation: 10,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '900',
+        color: '#1f2937',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    modalSubtext: {
+        fontSize: 14,
+        color: '#6b7280',
+        marginBottom: 20,
+        textAlign: 'center',
     }
 });
