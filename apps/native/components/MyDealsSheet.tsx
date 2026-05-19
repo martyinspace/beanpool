@@ -49,7 +49,7 @@ export function MyDealsSheet({ visible, identity, onClose, initialTab = 'active'
         identity && (
             p.author_pubkey === identity.publicKey ||
             p.accepted_by === identity.publicKey ||
-            transactions.some(t => t.postId === p.id && t.status === 'pending' && (t.buyerPublicKey === identity.publicKey || t.sellerPublicKey === identity.publicKey))
+            transactions.some(t => t.postId === p.id && (t.status === 'pending' || t.status === 'requested') && (t.buyerPublicKey === identity.publicKey || t.sellerPublicKey === identity.publicKey))
         )
     ).sort((a, b) => {
         if (a.status === 'pending' && b.status !== 'pending') return -1;
@@ -62,13 +62,13 @@ export function MyDealsSheet({ visible, identity, onClose, initialTab = 'active'
     const pendingDeals = posts.filter(p => {
         if (!identity) return false;
         if (p.status === 'pending' && (p.author_pubkey === identity.publicKey || p.accepted_by === identity.publicKey)) return true;
-        return transactions.some(t => t.postId === p.id && t.status === 'pending');
+        return transactions.some(t => t.postId === p.id && (t.status === 'pending' || t.status === 'requested'));
     });
 
     const pendingCount = pendingDeals.length;
 
     const getData = () => {
-        if (dealsTab === 'active') return myPosts.filter(p => p.status === 'active');
+        if (dealsTab === 'active') return myPosts.filter(p => p.status === 'active' && p.author_pubkey === identity?.publicKey);
         if (dealsTab === 'pending') return pendingDeals;
         // History
         let txs = transactions.filter(t => t.status === 'completed' || t.status === 'cancelled' || t.status === 'rejected');
@@ -166,9 +166,26 @@ export function MyDealsSheet({ visible, identity, onClose, initialTab = 'active'
             } catch {}
         }
 
+        const relatedTx = transactions.find(t => t.postId === item.id && (t.status === 'pending' || t.status === 'requested'));
+        let displayStatusText = 'Active';
+        let highlightStyle = {};
+        
+        if (item.status === 'pending' || relatedTx?.status === 'pending') {
+            displayStatusText = '🤝 In Escrow';
+            highlightStyle = { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' };
+        } else if (relatedTx?.status === 'requested') {
+            if (item.author_pubkey === identity?.publicKey) {
+                displayStatusText = '⚠️ Action Required';
+                highlightStyle = { backgroundColor: '#fffbeb', borderColor: '#fde047' };
+            } else {
+                displayStatusText = '⏳ Awaiting Approval';
+                highlightStyle = { backgroundColor: '#f3f4f6', borderColor: '#e5e7eb' };
+            }
+        }
+
         return (
             <Pressable onPress={() => { onClose(); router.push(`/post/${item.id}`); }}>
-                <View style={[styles.dealCard, item.status === 'pending' && { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }]}>
+                <View style={[styles.dealCard, highlightStyle]}>
                     <View style={{ flexDirection: 'row', gap: 12 }}>
                         {coverImage ? (
                             <Image source={{ uri: coverImage }} style={styles.dealThumb} />
@@ -190,7 +207,7 @@ export function MyDealsSheet({ visible, identity, onClose, initialTab = 'active'
                                 </View>
                             </View>
                             <Text style={styles.dealTitle} numberOfLines={1}>{item.title}</Text>
-                            <Text style={styles.dateText}>{item.status === 'pending' ? '🤝 In Escrow' : 'Active'}</Text>
+                            <Text style={[styles.dateText, displayStatusText.includes('Action') && { color: '#d97706', fontWeight: '800' }]}>{displayStatusText}</Text>
                         </View>
                     </View>
                 </View>
@@ -313,7 +330,7 @@ export function usePendingDealsCount(identity: { publicKey: string } | null, pos
     if (!identity) return 0;
     return posts.filter(p => {
         if (p.status === 'pending' && (p.author_pubkey === identity.publicKey || p.accepted_by === identity.publicKey)) return true;
-        return transactions.some((t: any) => t.postId === p.id && t.status === 'pending');
+        return transactions.some((t: any) => t.postId === p.id && (t.status === 'pending' || t.status === 'requested'));
     }).length;
 }
 

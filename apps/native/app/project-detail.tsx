@@ -200,17 +200,19 @@ export default function ProjectDetailScreen() {
                         <View style={styles.inputRow}>
                             <View style={styles.inputContainer}>
                                 <CurrencyDisplay style={styles.beanSymbol} hideAmount={true} />
-                                <TextInput 
+                                <TextInput
                                     style={styles.amountInput}
                                     placeholder="0"
+                                    placeholderTextColor="#9ca3af"
                                     keyboardType="numeric"
                                     value={pledgeAmount}
                                     onChangeText={setPledgeAmount}
                                 />
                             </View>
-                            <TextInput 
+                            <TextInput
                                 style={styles.memoInput}
                                 placeholder="Optional memo..."
+                                placeholderTextColor="#9ca3af"
                                 value={pledgeMemo}
                                 onChangeText={setPledgeMemo}
                             />
@@ -253,10 +255,10 @@ const styles = StyleSheet.create({
     description: { fontSize: 15, color: '#4b5563', lineHeight: 24 },
     footer: { padding: 16, borderTopWidth: 1, borderTopColor: '#f3f4f6', backgroundColor: '#ffffff' },
     inputRow: { flexDirection: 'row', marginBottom: 16, gap: 12 },
-    inputContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#f3f4f6', borderRadius: 12, paddingHorizontal: 16 },
+    inputContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#f9fafb', borderRadius: 12, paddingHorizontal: 16, borderWidth: 1, borderColor: '#d1d5db' },
     beanSymbol: { fontSize: 18, fontWeight: 'bold', color: '#10b981', marginRight: 8 },
     amountInput: { flex: 1, height: 48, fontSize: 18, fontWeight: 'bold', color: '#1f2937' },
-    memoInput: { flex: 2, height: 48, backgroundColor: '#f3f4f6', borderRadius: 12, paddingHorizontal: 16, fontSize: 15, color: '#1f2937' },
+    memoInput: { flex: 2, height: 48, backgroundColor: '#f9fafb', borderRadius: 12, paddingHorizontal: 16, fontSize: 15, color: '#1f2937', borderWidth: 1, borderColor: '#d1d5db' },
     pledgeBtn: { backgroundColor: '#10b981', height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
     pledgeBtnText: { color: '#ffffff', fontWeight: '800', letterSpacing: 1, fontSize: 15 },
 });

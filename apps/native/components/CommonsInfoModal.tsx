@@ -142,9 +142,9 @@ export function CommonsInfoModal({ isOpen, onClose, commonsBalance }: Props) {
                         <Text style={styles.processLabel}>PROCESS</Text>
                         <Text style={styles.processText}>
                             1. Members propose projects{'\n'}
-                            2. Admin opens a voting round{'\n'}
+                            2. Admin opens a voting round with a close date{'\n'}
                             3. Members allocate votes to projects{'\n'}
-                            4. At round end, Commons Pool is distributed proportionally
+                            4. At round end, the top-voted project is paid its requested amount from the Commons Pool. Any leftover stays in the pool for future rounds.
                         </Text>
                     </View>
                 </View>

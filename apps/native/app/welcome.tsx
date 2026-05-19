@@ -14,8 +14,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { BUNDLED_AVATARS, BundledAvatar, resolveBundledAvatar } from '../utils/bundled-avatars';
 import { AvatarPickerSheet } from '../components/AvatarPickerSheet';
 import { updateMemberProfile } from '../utils/db';
-import { hexToBytes } from '../utils/crypto';
-import { sign } from '@noble/ed25519';
+import { hexToBytes, encodeBase64, encodeUtf8, signData } from '../utils/crypto';
 
 import { extractNodeOrigin, normaliseInviteCode } from '../utils/invite-parser';
 
@@ -334,22 +333,28 @@ export default function WelcomeScreen() {
                     };
                     const bodyString = JSON.stringify(payloadObj);
                     const privateKeyBytes = hexToBytes(pendingIdentity.privateKey);
-                    const msgBytes = new TextEncoder().encode(bodyString);
-                    const sigBytes = await sign(msgBytes, privateKeyBytes);
-                    const sigHex = Array.from(sigBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+                    const messageBytes = encodeUtf8(bodyString);
+                    const signatureBytes = await signData(messageBytes, privateKeyBytes);
+                    const signatureBase64 = encodeBase64(signatureBytes);
 
-                    await fetch(`${url}/api/profile`, {
+                    const res = await fetch(`${url}/api/profile/update`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'x-signature': sigHex,
-                            'x-pubkey': pendingIdentity.publicKey,
+                            'X-Public-Key': pendingIdentity.publicKey,
+                            'X-Signature': signatureBase64,
                         },
                         body: bodyString,
-                    }).catch(() => {}); // Don't block on network failure
+                    });
+                    if (!res.ok) {
+                        const errText = await res.text().catch(() => '');
+                        console.warn('[Welcome] Profile publish rejected by server:', res.status, errText);
+                        await AsyncStorage.setItem('pending_profile_sync', 'true');
+                    }
                 }
             } catch (publishErr) {
                 console.warn('[Welcome] Profile publish failed (non-blocking):', publishErr);
+                await AsyncStorage.setItem('pending_profile_sync', 'true');
             }
 
             // 3. Profile done — go to seed phrase (Step 3) instead of entering app
@@ -365,7 +370,7 @@ export default function WelcomeScreen() {
     if (mode === 'profileSetup' && pendingIdentity) {
         return (
             <SafeAreaView style={styles.container}>
-                <StatusBar style="light" />
+                <StatusBar style="dark" />
                 <ScrollView contentContainerStyle={styles.scroll}>
                     <OnboardingStepper step={2} />
                     <View style={styles.card}>
@@ -407,7 +412,7 @@ export default function WelcomeScreen() {
                         {loading && (
                             <View style={{ alignItems: 'center', marginVertical: 12 }}>
                                 <ActivityIndicator color="#2563eb" />
-                                <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>Processing image...</Text>
+                                <Text style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>Processing image...</Text>
                             </View>
                         )}
 
@@ -448,7 +453,7 @@ export default function WelcomeScreen() {
     if (mode === 'seedBackup' && pendingIdentity) {
         return (
             <SafeAreaView style={styles.container}>
-                <StatusBar style="light" />
+                <StatusBar style="dark" />
                 <ScrollView contentContainerStyle={styles.scroll}>
                     <OnboardingStepper step={3} />
                     <View style={styles.card}>
@@ -456,7 +461,7 @@ export default function WelcomeScreen() {
                         <Text style={styles.subtitle}>
                             These 12 words are your personal recovery key. If you ever lose your phone, these words will bring your account back.
                         </Text>
-                        <Text style={{ color: '#94a3b8', fontSize: 13, marginBottom: 16, lineHeight: 18 }}>
+                        <Text style={{ color: '#6b7280', fontSize: 13, marginBottom: 16, lineHeight: 18 }}>
                             💡 Take a screenshot or write them down somewhere safe.
                         </Text>
                         <View style={styles.seedGrid}>
@@ -514,7 +519,7 @@ export default function WelcomeScreen() {
     if (mode === 'create') {
         return (
             <SafeAreaView style={styles.container}>
-                <StatusBar style="light" />
+                <StatusBar style="dark" />
                 <ScrollView contentContainerStyle={styles.scroll}>
                     <OnboardingStepper step={1} />
                     <View style={styles.card}>
@@ -523,7 +528,7 @@ export default function WelcomeScreen() {
                         <TextInput
                             style={styles.input}
                             placeholder="Paste your invite link or code"
-                            placeholderTextColor="#64748b"
+                            placeholderTextColor="#9ca3af"
                             value={inviteCode}
                             onChangeText={setInviteCode}
                             autoCapitalize="none"
@@ -534,7 +539,7 @@ export default function WelcomeScreen() {
                             <TextInput
                                 style={styles.input}
                                 placeholder="Community Node URL (Optional)"
-                                placeholderTextColor="#64748b"
+                                placeholderTextColor="#9ca3af"
                                 value={createAnchorUrl}
                                 onChangeText={setCreateAnchorUrl}
                                 autoCapitalize="none"
@@ -547,7 +552,7 @@ export default function WelcomeScreen() {
                         <TextInput
                             style={styles.callsignInput}
                             placeholder="Your name or nickname (e.g. Sarah)"
-                            placeholderTextColor="#64748b"
+                            placeholderTextColor="#9ca3af"
                             value={callsign}
                             onChangeText={setCallsign}
                             maxLength={32}
@@ -580,7 +585,7 @@ export default function WelcomeScreen() {
     if (mode === 'member') {
         return (
             <SafeAreaView style={styles.container}>
-                <StatusBar style="light" />
+                <StatusBar style="dark" />
                 <View style={{ flex: 1, justifyContent: 'center', padding: 24, alignItems: 'center' }}>
                     <View style={styles.card}>
                         <Text style={styles.title}>Sign in to your account</Text>
@@ -611,7 +616,7 @@ export default function WelcomeScreen() {
     if (mode === 'import') {
         return (
             <SafeAreaView style={styles.container}>
-                <StatusBar style="light" />
+                <StatusBar style="dark" />
                 <ScrollView contentContainerStyle={styles.scroll}>
                     <View style={styles.card}>
                         <Text style={styles.title}>📥 Import Identity</Text>
@@ -622,7 +627,7 @@ export default function WelcomeScreen() {
                             value={importData}
                             onChangeText={setImportData}
                             placeholder="Paste transfer code here..."
-                            placeholderTextColor="#64748b"
+                            placeholderTextColor="#9ca3af"
                             multiline
                         />
 
@@ -631,7 +636,7 @@ export default function WelcomeScreen() {
                             value={importPin}
                             onChangeText={setImportPin}
                             placeholder="PIN"
-                            placeholderTextColor="#64748b"
+                            placeholderTextColor="#9ca3af"
                             keyboardType="number-pad"
                             maxLength={8}
                             secureTextEntry
@@ -656,7 +661,7 @@ export default function WelcomeScreen() {
     if (mode === 'recover') {
         return (
             <SafeAreaView style={styles.container}>
-                <StatusBar style="light" />
+                <StatusBar style="dark" />
                 <ScrollView contentContainerStyle={styles.scroll}>
                     <View style={styles.card}>
                         <Text style={styles.title}>🔑 Recover Identity</Text>
@@ -674,7 +679,7 @@ export default function WelcomeScreen() {
                                         setRecoveryWords(updated);
                                     }}
                                     placeholder={`${i + 1}`}
-                                    placeholderTextColor="#64748b"
+                                    placeholderTextColor="#9ca3af"
                                     autoCapitalize="none"
                                 />
                             ))}
@@ -683,7 +688,7 @@ export default function WelcomeScreen() {
                         <TextInput
                             style={styles.input}
                             placeholder="Your callsign"
-                            placeholderTextColor="#64748b"
+                            placeholderTextColor="#9ca3af"
                             value={recoveryCallsign}
                             onChangeText={setRecoveryCallsign}
                         />
@@ -691,7 +696,7 @@ export default function WelcomeScreen() {
                         <TextInput
                             style={styles.input}
                             placeholder="Community Node URL (optional)"
-                            placeholderTextColor="#64748b"
+                            placeholderTextColor="#9ca3af"
                             value={recoveryAnchorUrl}
                             onChangeText={setRecoveryAnchorUrl}
                             autoCapitalize="none"
@@ -716,7 +721,7 @@ export default function WelcomeScreen() {
     // --- MAIN WELCOME SCREEN (two choices like the PWA) ---
     return (
         <SafeAreaView style={styles.container}>
-            <StatusBar style="light" />
+            <StatusBar style="dark" />
             <View style={{ flex: 1, justifyContent: 'center', padding: 24, alignItems: 'center' }}>
                 <Text style={styles.headerTitle}>Welcome to BeanPool</Text>
                 <Text style={styles.headerSubtitle}>
@@ -736,50 +741,50 @@ export default function WelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0a0a0a' },
+    container: { flex: 1, backgroundColor: '#f9fafb' },
     scroll: { flexGrow: 1, justifyContent: 'center', padding: 24 },
-    headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#fff', textAlign: 'center', marginBottom: 8 },
-    headerSubtitle: { fontSize: 16, color: '#94a3b8', textAlign: 'center', marginBottom: 32, lineHeight: 24 },
-    card: { backgroundColor: '#1a1a1a', padding: 24, borderRadius: 16, borderWidth: 1, borderColor: '#333' },
-    title: { fontSize: 20, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
-    subtitle: { fontSize: 14, color: '#94a3b8', marginBottom: 24, lineHeight: 20 },
-    input: { backgroundColor: '#262626', borderWidth: 1, borderColor: '#404040', borderRadius: 10, padding: 14, color: '#fff', fontSize: 16, marginBottom: 16 },
+    headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#111827', textAlign: 'center', marginBottom: 8 },
+    headerSubtitle: { fontSize: 16, color: '#6b7280', textAlign: 'center', marginBottom: 32, lineHeight: 24 },
+    card: { backgroundColor: '#ffffff', padding: 24, borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 },
+    title: { fontSize: 20, fontWeight: 'bold', color: '#111827', marginBottom: 8 },
+    subtitle: { fontSize: 14, color: '#6b7280', marginBottom: 24, lineHeight: 20 },
+    input: { backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#d1d5db', borderRadius: 10, padding: 14, color: '#111827', fontSize: 16, marginBottom: 16 },
 
     // Callsign (Step 1) — larger, labeled input
-    callsignLabel: { fontSize: 18, fontWeight: '700', color: '#e2e8f0', marginBottom: 8, marginTop: 8 },
-    callsignInput: { backgroundColor: '#262626', borderWidth: 1.5, borderColor: '#404040', borderRadius: 12, padding: 18, color: '#fff', fontSize: 18, marginBottom: 8 },
-    callsignHelper: { fontSize: 13, color: '#94a3b8', marginBottom: 4, lineHeight: 18 },
-    callsignTip: { fontSize: 13, color: '#64748b', marginBottom: 20, fontStyle: 'italic' },
+    callsignLabel: { fontSize: 18, fontWeight: '700', color: '#1f2937', marginBottom: 8, marginTop: 8 },
+    callsignInput: { backgroundColor: '#ffffff', borderWidth: 1.5, borderColor: '#d1d5db', borderRadius: 12, padding: 18, color: '#111827', fontSize: 18, marginBottom: 8 },
+    callsignHelper: { fontSize: 13, color: '#6b7280', marginBottom: 4, lineHeight: 18 },
+    callsignTip: { fontSize: 13, color: '#9ca3af', marginBottom: 20, fontStyle: 'italic' },
 
     // Main welcome buttons
-    memberBtn: { backgroundColor: '#2563eb', padding: 18, borderRadius: 14, alignItems: 'center', width: '100%', marginBottom: 12, shadowColor: '#2563eb', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 14, elevation: 6 },
+    memberBtn: { backgroundColor: '#2563eb', padding: 18, borderRadius: 14, alignItems: 'center', width: '100%', marginBottom: 12, shadowColor: '#2563eb', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 14, elevation: 6 },
     memberBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
-    secondaryBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#404040', padding: 16, borderRadius: 14, alignItems: 'center', width: '100%' },
-    secondaryBtnText: { color: '#94a3b8', fontSize: 16, fontWeight: '600' },
+    secondaryBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#d1d5db', padding: 16, borderRadius: 14, alignItems: 'center', width: '100%' },
+    secondaryBtnText: { color: '#4b5563', fontSize: 16, fontWeight: '600' },
 
     // Member sub-options
-    transferBtn: { width: '100%', padding: 16, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.15)', alignItems: 'center', marginBottom: 10 },
-    transferBtnText: { color: '#93bbfc', fontSize: 16, fontWeight: '700' },
-    recoverBtn: { width: '100%', padding: 16, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)', backgroundColor: 'rgba(245,158,11,0.15)', alignItems: 'center', marginBottom: 10 },
-    recoverBtnText: { color: '#fcd171', fontSize: 16, fontWeight: '700' },
-    socialRecoverBtn: { width: '100%', padding: 16, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(16,185,129,0.4)', backgroundColor: 'rgba(16,185,129,0.15)', alignItems: 'center', marginBottom: 10 },
-    socialRecoverBtnText: { color: '#6ee7b7', fontSize: 16, fontWeight: '700' },
+    transferBtn: { width: '100%', padding: 16, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(37,99,235,0.4)', backgroundColor: 'rgba(37,99,235,0.08)', alignItems: 'center', marginBottom: 10 },
+    transferBtnText: { color: '#2563eb', fontSize: 16, fontWeight: '700' },
+    recoverBtn: { width: '100%', padding: 16, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)', backgroundColor: 'rgba(245,158,11,0.08)', alignItems: 'center', marginBottom: 10 },
+    recoverBtnText: { color: '#b45309', fontSize: 16, fontWeight: '700' },
+    socialRecoverBtn: { width: '100%', padding: 16, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(16,185,129,0.4)', backgroundColor: 'rgba(16,185,129,0.08)', alignItems: 'center', marginBottom: 10 },
+    socialRecoverBtnText: { color: '#047857', fontSize: 16, fontWeight: '700' },
 
     primaryBtn: { backgroundColor: '#2563eb', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
     primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-    disabledBtn: { backgroundColor: '#334155' },
+    disabledBtn: { backgroundColor: '#cbd5e1' },
     backBtn: { marginTop: 16, alignItems: 'center', padding: 10 },
-    backBtnText: { color: '#94a3b8', fontSize: 14 },
-    error: { color: '#ef4444', fontSize: 14, marginBottom: 16, textAlign: 'center' },
-    checkbox: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, padding: 12, backgroundColor: '#262626', borderRadius: 8 },
-    checkboxActive: { backgroundColor: '#1e3a8a' },
-    checkboxText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+    backBtnText: { color: '#6b7280', fontSize: 14 },
+    error: { color: '#dc2626', fontSize: 14, marginBottom: 16, textAlign: 'center' },
+    checkbox: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, padding: 12, backgroundColor: '#f3f4f6', borderRadius: 8 },
+    checkboxActive: { backgroundColor: '#dbeafe' },
+    checkboxText: { color: '#111827', fontSize: 14, fontWeight: '600' },
     seedGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-    seedCell: { width: '31%', backgroundColor: '#262626', borderRadius: 8, padding: 8, marginBottom: 8, alignItems: 'center' },
-    seedIndex: { color: '#64748b', fontSize: 10 },
-    seedWord: { color: '#fff', fontSize: 14, fontWeight: 'bold', minHeight: 20 },
+    seedCell: { width: '31%', backgroundColor: '#f3f4f6', borderRadius: 8, padding: 8, marginBottom: 8, alignItems: 'center' },
+    seedIndex: { color: '#9ca3af', fontSize: 10 },
+    seedWord: { color: '#111827', fontSize: 14, fontWeight: 'bold', minHeight: 20 },
     recoveryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 16 },
-    recoveryInput: { width: '31%', backgroundColor: '#262626', borderWidth: 1, borderColor: '#404040', borderRadius: 8, padding: 8, color: '#fff', fontSize: 12, marginBottom: 8, textAlign: 'center' }
+    recoveryInput: { width: '31%', backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 8, color: '#111827', fontSize: 12, marginBottom: 8, textAlign: 'center' }
 });
 
 // Styles for the "Who Are You?" profile setup gate
@@ -799,9 +804,9 @@ const profileStyles = StyleSheet.create({
         width: 96,
         height: 96,
         borderRadius: 48,
-        backgroundColor: '#262626',
+        backgroundColor: '#f3f4f6',
         borderWidth: 2,
-        borderColor: '#404040',
+        borderColor: '#d1d5db',
         borderStyle: 'dashed',
         justifyContent: 'center',
         alignItems: 'center',
@@ -809,12 +814,12 @@ const profileStyles = StyleSheet.create({
     previewPlaceholderText: {
         fontSize: 36,
         fontWeight: '800',
-        color: '#64748b',
+        color: '#9ca3af',
     },
     previewCallsign: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#e2e8f0',
+        color: '#1f2937',
         marginTop: 8,
     },
     trinityRow: {
@@ -825,9 +830,9 @@ const profileStyles = StyleSheet.create({
     },
     trinityCard: {
         flex: 1,
-        backgroundColor: '#262626',
+        backgroundColor: '#f9fafb',
         borderWidth: 1,
-        borderColor: '#404040',
+        borderColor: '#e5e7eb',
         borderRadius: 14,
         paddingVertical: 16,
         alignItems: 'center',
@@ -835,7 +840,7 @@ const profileStyles = StyleSheet.create({
     },
     trinityCardActive: {
         borderColor: '#2563eb',
-        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+        backgroundColor: 'rgba(37, 99, 235, 0.08)',
     },
     trinityEmoji: {
         fontSize: 28,
@@ -843,7 +848,7 @@ const profileStyles = StyleSheet.create({
     trinityLabel: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#94a3b8',
+        color: '#4b5563',
     },
     avatarGrid: {
         flexDirection: 'row',
@@ -853,10 +858,10 @@ const profileStyles = StyleSheet.create({
         marginBottom: 20,
         paddingVertical: 12,
         paddingHorizontal: 4,
-        backgroundColor: '#1e1e1e',
+        backgroundColor: '#f3f4f6',
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#333',
+        borderColor: '#e5e7eb',
     },
     avatarGridItem: {
         width: 60,
@@ -896,11 +901,11 @@ const stepperStyles = StyleSheet.create({
         width: 12,
         height: 12,
         borderRadius: 6,
-        backgroundColor: '#404040',
+        backgroundColor: '#d1d5db',
         marginBottom: 6,
     },
     dotActive: {
-        backgroundColor: '#fff',
+        backgroundColor: '#2563eb',
         width: 14,
         height: 14,
         borderRadius: 7,
@@ -920,17 +925,17 @@ const stepperStyles = StyleSheet.create({
     },
     label: {
         fontSize: 11,
-        color: '#64748b',
+        color: '#6b7280',
         fontWeight: '500',
     },
     labelActive: {
-        color: '#fff',
+        color: '#111827',
         fontWeight: '700',
     },
     line: {
         width: 32,
         height: 2,
-        backgroundColor: '#404040',
+        backgroundColor: '#d1d5db',
         marginBottom: 18,
         marginHorizontal: 4,
     },

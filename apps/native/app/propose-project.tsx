@@ -21,6 +21,8 @@ export default function ProposeProjectModal() {
     const [submitting, setSubmitting] = useState(false);
     const submittingRef = useRef(false);
     const [photos, setPhotos] = useState<string[]>([]);
+    const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set());
+    const [validationToast, setValidationToast] = useState('');
 
     const [maxExpiryDays, setMaxExpiryDays] = useState<number>(365);
     useEffect(() => {
@@ -32,10 +34,21 @@ export default function ProposeProjectModal() {
     const maxDate = new Date();
     maxDate.setDate(maxDate.getDate() + maxExpiryDays);
 
+    const fieldBorder = (field: string) => validationErrors.has(field) ? { borderColor: '#ef4444', borderWidth: 2, shadowColor: '#ef4444', shadowOpacity: 0.3, shadowRadius: 6 } : {};
+
     const handleSubmit = async () => {
         if (submittingRef.current) return;
-        if (!title.trim() || !goalAmount.trim()) {
-            Alert.alert("Missing Fields", "Please provide a project title and requested goal amount.");
+
+        const errors = new Set<string>();
+        if (!title.trim()) errors.add('title');
+        if (!goalAmount.trim() || isNaN(Number(goalAmount)) || Number(goalAmount) <= 0) errors.add('goalAmount');
+        if (!description.trim()) errors.add('description');
+        if (!deadlineDate) errors.add('deadline');
+        if (photos.length === 0) errors.add('photos');
+        setValidationErrors(errors);
+        if (errors.size > 0) {
+            setValidationToast('⚠️ Please complete all required fields');
+            setTimeout(() => setValidationToast(''), 3000);
             return;
         }
 
@@ -86,11 +99,11 @@ export default function ProposeProjectModal() {
                     {/* Title */}
                     <View style={styles.field}>
                         <Text style={styles.label}>PROJECT TITLE</Text>
-                        <TextInput 
-                            style={styles.input}
+                        <TextInput
+                            style={[styles.input, fieldBorder('title')]}
                             placeholder="e.g. Community Garden Tool Shed"
                             value={title}
-                            onChangeText={setTitle}
+                            onChangeText={(v) => { setTitle(v); if (validationErrors.has('title')) { const n = new Set(validationErrors); n.delete('title'); setValidationErrors(n); } }}
                             maxLength={60}
                         />
                     </View>
@@ -98,12 +111,12 @@ export default function ProposeProjectModal() {
                     {/* Goal Amount */}
                     <View style={styles.field}>
                         <Text style={styles.label}>FUNDING GOAL (<CurrencyDisplay hideAmount={true} />)</Text>
-                        <TextInput 
-                            style={[styles.input, styles.priceInput]}
+                        <TextInput
+                            style={[styles.input, styles.priceInput, fieldBorder('goalAmount')]}
                             placeholder="0"
                             keyboardType="numeric"
                             value={goalAmount}
-                            onChangeText={setGoalAmount}
+                            onChangeText={(v) => { setGoalAmount(v); if (validationErrors.has('goalAmount')) { const n = new Set(validationErrors); n.delete('goalAmount'); setValidationErrors(n); } }}
                             maxLength={6}
                         />
                         {/* PWA states "Commons allocation limit bounds this locally". */}
@@ -112,9 +125,9 @@ export default function ProposeProjectModal() {
 
                     {/* Deadline */}
                     <View style={styles.field}>
-                        <Text style={styles.label}>FUNDING DEADLINE (OPTIONAL)</Text>
+                        <Text style={styles.label}>FUNDING DEADLINE *</Text>
                         <Pressable 
-                            style={[styles.input, { justifyContent: 'center' }]} 
+                            style={[styles.input, { justifyContent: 'center' }, fieldBorder('deadline')]} 
                             onPress={() => setShowPicker(true)}
                         >
                             <Text style={{ color: deadlineDate ? '#111827' : '#9ca3af', fontSize: 16 }}>
@@ -132,6 +145,7 @@ export default function ProposeProjectModal() {
                                     setShowPicker(false);
                                     if (event.type === 'set' && selectedDate) {
                                         setDeadlineDate(selectedDate);
+                                        if (validationErrors.has('deadline')) { const n = new Set(validationErrors); n.delete('deadline'); setValidationErrors(n); }
                                     }
                                 }}
                             />
@@ -141,8 +155,8 @@ export default function ProposeProjectModal() {
 
                     {/* Photos */}
                     <View style={styles.field}>
-                        <Text style={styles.label}>PROJECT PHOTOS (MAX 3)</Text>
-                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                        <Text style={styles.label}>PROJECT PHOTOS * (MIN 1, MAX 3)</Text>
+                        <View style={[{ flexDirection: 'row', gap: 10, marginTop: 4, padding: 4, borderRadius: 12 }, fieldBorder('photos')]}>
                             {photos.map((uri, idx) => (
                                 <View key={idx} style={{ position: 'relative' }}>
                                     <Image source={{ uri }} style={{ width: 80, height: 80, borderRadius: 12, backgroundColor: '#f3f4f6' }} />
@@ -172,6 +186,7 @@ export default function ProposeProjectModal() {
                                             );
                                             if (manipResult.base64) {
                                                 setPhotos(prev => [...prev, `data:image/jpeg;base64,${manipResult.base64}`]);
+                                                if (validationErrors.has('photos')) { const n = new Set(validationErrors); n.delete('photos'); setValidationErrors(n); }
                                             }
                                         }
                                     }}
@@ -186,17 +201,23 @@ export default function ProposeProjectModal() {
                     {/* Description */}
                     <View style={styles.field}>
                         <Text style={styles.label}>PROPOSAL DETAILS</Text>
-                        <TextInput 
-                            style={[styles.input, styles.textarea]}
+                        <TextInput
+                            style={[styles.input, styles.textarea, fieldBorder('description')]}
                             placeholder="Describe the project, who benefits, and how the credits will be allocated..."
                             value={description}
-                            onChangeText={setDescription}
+                            onChangeText={(v) => { setDescription(v); if (validationErrors.has('description')) { const n = new Set(validationErrors); n.delete('description'); setValidationErrors(n); } }}
                             multiline
                             textAlignVertical="top"
                         />
                     </View>
 
                 </ScrollView>
+
+                {validationToast ? (
+                    <View style={styles.toast}>
+                        <Text style={styles.toastText}>{validationToast}</Text>
+                    </View>
+                ) : null}
 
                 <View style={styles.footer}>
                     <Pressable style={styles.submitBtn} onPress={handleSubmit} disabled={submitting}>
@@ -228,5 +249,7 @@ const styles = StyleSheet.create({
     textarea: { height: 160, paddingTop: 16 },
     footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#e5e7eb', backgroundColor: '#f9fafb' },
     submitBtn: { paddingVertical: 16, borderRadius: 14, alignItems: 'center', backgroundColor: '#10b981', shadowColor: '#059669', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 5 },
-    submitBtnText: { color: '#ffffff', fontSize: 15, fontWeight: 'bold', letterSpacing: 1 }
+    submitBtnText: { color: '#ffffff', fontSize: 15, fontWeight: 'bold', letterSpacing: 1 },
+    toast: { position: 'absolute', bottom: 100, left: 20, right: 20, backgroundColor: '#fef3c7', borderColor: '#f59e0b', borderWidth: 1, padding: 12, borderRadius: 10, alignItems: 'center' },
+    toastText: { color: '#92400e', fontWeight: '700', fontSize: 13 },
 });

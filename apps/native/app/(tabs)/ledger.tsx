@@ -1,37 +1,55 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, TextInput, Image, DeviceEventEmitter, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, TextInput, Image,
+    DeviceEventEmitter, Alert, ScrollView } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useIdentity } from '../IdentityContext';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { getBalance, getTransactions, getProjects, getMemberProfile, getAllCommunityMembers, sendTransfer, voteForProjectApi } from '../../utils/db';
+import { useIdentity } from '../IdentityContext';
+import { getBalance, getTransactions, getMemberProfile, getAllCommunityMembers, sendTransfer, getPledgeHistory, getEscrowTotal } from '../../utils/db';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { hapticSuccess, hapticWarning, hapticTick } from '../../utils/haptics';
+import { hapticSuccess, hapticWarning } from '../../utils/haptics';
 import { CurrencyDisplay } from '../../components/CurrencyDisplay';
 import { MemberAvatar } from '../../components/MemberAvatar';
 import { BalanceInfoModal } from '../../components/info-content/BalanceInfoModal';
 import { CirculationInfoModal } from '../../components/info-content/CirculationInfoModal';
 import { CommonsInfoModal } from '../../components/CommonsInfoModal';
 
+// ── Tier constants (mirrors beanpool-core/protocol.ts) ──
+const TIERS = [
+    { name: 'Ghost',    emoji: '👻', color: '#6b7280', bg: '#f3f4f6', border: '#d1d5db', min: 0    },
+    { name: 'Resident', emoji: '🏠', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', min: 120  },
+    { name: 'Citizen',  emoji: '🏛️', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', min: 520  },
+    { name: 'Elder',    emoji: '👑', color: '#d97706', bg: '#fffbeb', border: '#fde68a', min: 1320 },
+];
+const W_TRADES = 8, W_PARTNERS = 40, W_DAYS = 2;
+
+function getTierIndex(ec: number) {
+    if (ec >= 1320) return 3;
+    if (ec >= 520)  return 2;
+    if (ec >= 120)  return 1;
+    return 0;
+}
+
 export default function LedgerScreen() {
     const { identity } = useIdentity();
     const [txns, setTxns] = useState<any[]>([]);
-    const [projects, setProjects] = useState<any[]>([]);
-    const [balanceState, setBalanceState] = useState({ balance: 0, floor: -100, tier: { name: 'Ghost', emoji: '👻', canGift: false, canInvite: false }, earnedCredit: 0, commons: 0 });
-    const [showSend, setShowSend] = useState(false);
+    const [balanceState, setBalanceState] = useState<any>({
+        balance: 0, floor: -100,
+        tier: { name: 'Ghost', emoji: '👻', canGift: false, canInvite: false },
+        earnedCredit: 0, commons: 0, trustStats: null,
+    });
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'trust' | 'financials'>('trust');
+    const [escrowTotal, setEscrowTotal] = useState(0);
+    const [pledgeHistory, setPledgeHistory] = useState<any[]>([]);
+    const [exporting, setExporting] = useState(false);
 
-    // QV Voting State
-    const [voteSteppers, setVoteSteppers] = useState<Record<string, number>>({});
-    const [votingInProgress, setVotingInProgress] = useState<string | null>(null);
-
-    // Modal states
     const [showBalanceInfo, setShowBalanceInfo] = useState(false);
     const [showCommonsInfo, setShowCommonsInfo] = useState(false);
     const [showCirculationInfo, setShowCirculationInfo] = useState(false);
 
-    // Send form state
+    const [showSend, setShowSend] = useState(false);
     const [members, setMembers] = useState<{ publicKey: string; callsign: string }[]>([]);
     const [sendTo, setSendTo] = useState('');
     const [sendAmount, setSendAmount] = useState('');
@@ -46,425 +64,338 @@ export default function LedgerScreen() {
         if (identity?.publicKey) {
             getBalance(identity.publicKey).then(setBalanceState).catch(console.error);
             getTransactions(identity.publicKey).then(setTxns).catch(console.error);
-            getProjects().then(setProjects).catch(console.error);
-            getMemberProfile(identity.publicKey).then(profile => {
-                setAvatarUrl(profile?.avatar_url || null);
-            }).catch(console.error);
+            getMemberProfile(identity.publicKey).then(p => setAvatarUrl(p?.avatar_url || null)).catch(console.error);
+            getEscrowTotal(identity.publicKey).then(setEscrowTotal).catch(() => {});
+            getPledgeHistory(identity.publicKey).then(setPledgeHistory).catch(() => {});
         }
     };
 
+    const handleExport = async () => {
+        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+        if (!anchorUrl || !identity?.publicKey) return;
+        setExporting(true);
+        try {
+            const res = await fetch(`${anchorUrl}/api/ledger/export`);
+            if (!res.ok) throw new Error('Export failed');
+            const { transactionsCsv } = await res.json();
+            const path = `${FileSystem.cacheDirectory}beanpool-ledger.csv`;
+            await FileSystem.writeAsStringAsync(path, transactionsCsv, { encoding: FileSystem.EncodingType.UTF8 });
+            await Sharing.shareAsync(path, { mimeType: 'text/csv', dialogTitle: 'Export Ledger' });
+        } catch (e: any) {
+            Alert.alert('Export Failed', e.message || 'Could not export ledger.');
+        } finally {
+            setExporting(false);
+        }
+    };
     const loadMembers = () => {
-        getAllCommunityMembers().then(m => {
-            setMembers(m.filter(mm => mm.publicKey !== identity?.publicKey));
-        }).catch(console.error);
+        getAllCommunityMembers().then(m => setMembers(m.filter(mm => mm.publicKey !== identity?.publicKey))).catch(console.error);
     };
 
     useFocusEffect(
         React.useCallback(() => {
-            loadData();
-            loadMembers();
-            const sub = DeviceEventEmitter.addListener('transaction_completed', loadData);
-            const sub2 = DeviceEventEmitter.addListener('sync_data_updated', loadData);
-            return () => {
-                sub.remove();
-                sub2.remove();
-            };
+            loadData(); loadMembers();
+            const s1 = DeviceEventEmitter.addListener('transaction_completed', loadData);
+            const s2 = DeviceEventEmitter.addListener('sync_data_updated', loadData);
+            return () => { s1.remove(); s2.remove(); };
         }, [identity])
     );
 
     const handleSend = async () => {
         if (!sendTo || !sendAmount || !identity?.publicKey) return;
         const amount = parseFloat(sendAmount);
-        if (isNaN(amount) || amount <= 0) {
-            setSendError('Enter a valid amount');
-            return;
-        }
-        setSending(true);
-        setSendError(null);
-        setSendSuccess(false);
+        if (isNaN(amount) || amount <= 0) { setSendError('Enter a valid amount'); return; }
+        setSending(true); setSendError(null); setSendSuccess(false);
         try {
             await sendTransfer(identity.publicKey, sendTo, amount, sendMemo || '');
             hapticSuccess();
             setSendSuccess(true);
-            setSendTo('');
-            setSendAmount('');
-            setSendMemo('');
-            setMemberSearch('');
+            setSendTo(''); setSendAmount(''); setSendMemo(''); setMemberSearch('');
             loadData();
-            // Auto-close form after 1.5s
-            setTimeout(() => {
-                setSendSuccess(false);
-                setShowSend(false);
-            }, 1500);
+            setTimeout(() => { setSendSuccess(false); setShowSend(false); }, 1500);
         } catch (e: any) {
             hapticWarning();
             setSendError(e.message || 'Transfer failed');
-        } finally {
-            setSending(false);
-        }
+        } finally { setSending(false); }
     };
 
+    // Trust calculations
+    const ec = balanceState.earnedCredit || 0;
+    const ts = balanceState.trustStats;
+    const tradeCount    = ts?.tradeCount     || 0;
+    const uniquePartners = ts?.uniquePartners || 0;
+    const ageDays       = ts?.ageDays        || 0;
+    const tierIdx = getTierIndex(ec);
+    const tier = TIERS[tierIdx];
+    const nextTier = TIERS[tierIdx + 1] || null;
+    const overallProgress = nextTier ? Math.min(1, (ec - tier.min) / (nextTier.min - tier.min)) : 1;
+    const creditsToNext = nextTier ? Math.max(0, nextTier.min - ec) : 0;
+    const tradesToLevel   = nextTier ? Math.ceil(creditsToNext / W_TRADES)   : 0;
+    const partnersToLevel = nextTier ? Math.ceil(creditsToNext / W_PARTNERS) : 0;
+    const daysToLevel     = nextTier ? Math.ceil(creditsToNext / W_DAYS)     : 0;
+
     const selectedMember = members.find(m => m.publicKey === sendTo);
-    const filteredMembers = members.filter(m =>
-        m.callsign.toLowerCase().includes(memberSearch.toLowerCase())
-    );
+    const filteredMembers = members.filter(m => m.callsign.toLowerCase().includes(memberSearch.toLowerCase()));
 
-    const headerElement = (
-        <View style={styles.headerContainer}>
-            {/* Identity Card */}
-            <View style={styles.identityCard}>
-                <View style={styles.avatar}>
-                    <MemberAvatar avatarUrl={avatarUrl} pubkey={identity?.publicKey || ''} callsign={identity?.callsign || 'GUEST'} size={72} />
-                </View>
-                <Text style={styles.callsign}>{identity?.callsign || 'GUEST'}</Text>
-                <Text style={styles.pubkey}>{identity?.publicKey?.substring(0, 16) || '...'}...</Text>
-                
-                {/* Tier Badge */}
-                <View style={[styles.reputationBadge, {
-                    backgroundColor: balanceState.tier.name === 'Ghost' ? '#374151' : balanceState.tier.name === 'Resident' ? '#1e3a5f' : '#312e81',
-                    borderColor: balanceState.tier.name === 'Ghost' ? '#4b5563' : balanceState.tier.name === 'Resident' ? '#3b82f6' : '#7c3aed',
-                }]}>
-                    <Text style={[styles.reputationText, {
-                        color: balanceState.tier.name === 'Ghost' ? '#9ca3af' : balanceState.tier.name === 'Resident' ? '#93c5fd' : '#c4b5fd',
-                    }]}>{balanceState.tier.emoji} {balanceState.tier.name}</Text>
-                </View>
-            </View>
+    // ─── Trust Tab ───────────────────────────────────────────────────────────
+    const renderTrustTab = () => (
+        <ScrollView style={{ flex: 1, backgroundColor: '#f9fafb' }} contentContainerStyle={{ padding: 16, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
 
-            {/* Balance Row */}
-            <View style={styles.balanceRow}>
-                <Pressable style={styles.balanceCard} onPress={() => setShowBalanceInfo(true)}>
-                    <Text style={styles.balanceLabel}>Balance ⓘ</Text>
-                    <CurrencyDisplay style={[styles.balanceAmount, balanceState.balance >= 0 ? styles.positiveText : styles.negativeText]} amount={`${balanceState.balance >= 0 ? '+' : ''}${balanceState.balance.toFixed(2)}`} />
-                    <Text style={styles.hoursEquivalent}>≈ {(Math.abs(balanceState.balance) / 40).toFixed(1)} hrs</Text>
-                    <Text style={styles.balanceFloor}>Floor: {balanceState.floor}</Text>
-                </Pressable>
-                <Pressable style={styles.balanceCard} onPress={() => setShowCommonsInfo(true)}>
-                    <Text style={styles.balanceLabel}>Commons ⓘ</Text>
-                    <CurrencyDisplay style={styles.commonsAmount} amount={balanceState.commons.toFixed(2)} />
-                    <Text style={styles.balanceFloor}>🌱 Community Pool</Text>
-                </Pressable>
-            </View>
-
-            {/* Community Circulation Info */}
-            {balanceState.balance > 0 && (() => {
-                const brackets = [
-                    { maxInBracket: 200, rate: 0.005 },
-                    { maxInBracket: 300, rate: 0.010 },
-                    { maxInBracket: 500, rate: 0.015 },
-                    { maxInBracket: 1000, rate: 0.020 },
-                    { maxInBracket: Infinity, rate: 0.025 }
-                ];
-                let remaining = balanceState.balance;
-                let totalCirculation = 0;
-                for (const b of brackets) {
-                    if (remaining <= 0) break;
-                    const amountInBracket = Math.min(remaining, b.maxInBracket);
-                    totalCirculation += amountInBracket * b.rate;
-                    remaining -= amountInBracket;
-                }
-                const effectiveRate = ((totalCirculation / balanceState.balance) * 100).toFixed(2);
-                const showAmber = balanceState.balance > 1000;
-
-                return (
-                    <Pressable 
-                        style={[styles.circulationBox, showAmber && styles.circulationBoxAbove]}
-                        onPress={() => setShowCirculationInfo(true)}
-                    >
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Text style={[styles.circulationLabel, showAmber && { color: '#92400e' }]}>🌿 Community Circulation ⓘ</Text>
-                            <CurrencyDisplay 
-                                style={[styles.circulationRate, showAmber && { color: '#92400e' }]} 
-                                amount={`−${totalCirculation.toFixed(3)} /mo`} 
-                            />
+            {/* Tier Hero */}
+            <View style={[styles.tierHero, { backgroundColor: tier.bg, borderColor: tier.border }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                    <View>
+                        <Text style={styles.tierHeroLabel}>YOUR TRUST LEVEL</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                            <Text style={{ fontSize: 32 }}>{tier.emoji}</Text>
+                            <Text style={[styles.tierHeroName, { color: tier.color }]}>{tier.name}</Text>
                         </View>
-                        <Text style={[styles.circulationWarning, !showAmber && { color: '#059669' }]}>
-                            ≈ {effectiveRate}% /mo effective • Funds community projects
-                        </Text>
-                    </Pressable>
-                );
-            })()}
-
-            {/* Ghost Gift Warning */}
-            {!balanceState.tier.canGift && !showSend && (
-                <View style={styles.ghostWarning}>
-                    <Text style={styles.ghostWarningText}>
-                        👻 Direct gifting unlocks at Resident tier. Trade on the Marketplace to build trust.
-                    </Text>
+                    </View>
+                    <View style={[styles.levelBadge, { borderColor: tier.border, backgroundColor: '#fff' }]}>
+                        <Text style={[styles.levelBadgeText, { color: tier.color }]}>Level {tierIdx + 1} / {TIERS.length}</Text>
+                    </View>
                 </View>
-            )}
 
-            {/* Send Button */}
-            <Pressable 
-                style={[styles.sendBtn, showSend && styles.sendBtnActive, !balanceState.tier.canGift && styles.sendBtnDisabled]} 
-                onPress={async () => {
-                    if (!balanceState.tier.canGift) return;
-                    if (!showSend) {
-                        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
-                        if (!anchorUrl) {
-                            Alert.alert('Not Connected', 'Connect to a community before sending credits.', [
-                                { text: 'Cancel', style: 'cancel' },
-                                { text: 'Connect', onPress: () => router.push({ pathname: '/(tabs)/settings', params: { section: 'advanced' } }) }
-                            ]);
-                            return;
-                        }
-                        loadMembers();
+                <View style={styles.progressBg}>
+                    <View style={[styles.progressFill, { width: `${overallProgress * 100}%`, backgroundColor: tier.color }]} />
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+                    <Text style={styles.progressLabel}>{ec} credits earned</Text>
+                    {nextTier
+                        ? <Text style={styles.progressLabel}>{nextTier.min} for {nextTier.emoji} {nextTier.name}</Text>
+                        : <Text style={[styles.progressLabel, { color: '#d97706', fontWeight: '700' }]}>✨ Maximum level!</Text>
                     }
-                    setShowSend(!showSend);
-                    setSendError(null);
-                    setSendSuccess(false);
-                }}
-                disabled={!balanceState.tier.canGift}
-            >
-                <Text style={styles.sendBtnText}>
-                    {!balanceState.tier.canGift ? '🔒 Send Credits (Locked)' : showSend ? '✕ Cancel' : '💸 Send Credits'}
-                </Text>
-            </Pressable>
-
-            {showSend && (
-                <View style={styles.sendForm}>
-                    {/* Recipient Picker */}
-                    <Pressable
-                        style={styles.recipientPicker}
-                        onPress={() => setShowMemberPicker(!showMemberPicker)}
-                    >
-                        <Text style={[styles.recipientText, !selectedMember && { color: '#9ca3af' }]}>
-                            {selectedMember ? `${selectedMember.callsign}` : 'Select recipient...'}
-                        </Text>
-                        <MaterialCommunityIcons name={showMemberPicker ? 'chevron-up' : 'chevron-down'} size={20} color="#6b7280" />
-                    </Pressable>
-
-                    {showMemberPicker && (
-                        <View style={styles.memberPickerContainer}>
-                            <TextInput
-                                style={styles.memberSearchInput}
-                                placeholder="Search members..."
-                                placeholderTextColor="#9ca3af"
-                                value={memberSearch}
-                                onChangeText={setMemberSearch}
-                                autoCapitalize="none"
-                            />
-                            <FlatList
-                                data={filteredMembers}
-                                keyExtractor={item => item.publicKey}
-                                style={styles.memberList}
-                                nestedScrollEnabled
-                                renderItem={({ item }) => (
-                                    <Pressable
-                                        style={[styles.memberRow, item.publicKey === sendTo && styles.memberRowActive]}
-                                        onPress={() => {
-                                            setSendTo(item.publicKey);
-                                            setShowMemberPicker(false);
-                                            setMemberSearch('');
-                                        }}
-                                    >
-                                        <Text style={[styles.memberCallsign, item.publicKey === sendTo && { color: '#fff' }]}>
-                                            {item.callsign}
-                                        </Text>
-                                        <Text style={[styles.memberPk, item.publicKey === sendTo && { color: '#d1fae5' }]}>
-                                            {item.publicKey.slice(0, 12)}...
-                                        </Text>
-                                    </Pressable>
-                                )}
-                                ListEmptyComponent={
-                                    <Text style={styles.memberEmpty}>No members found</Text>
-                                }
-                            />
-                        </View>
-                    )}
-
-                    {/* Amount */}
-                    <TextInput
-                        style={styles.sendInput}
-                        placeholder="Amount"
-                        placeholderTextColor="#9ca3af"
-                        value={sendAmount}
-                        onChangeText={setSendAmount}
-                        keyboardType="decimal-pad"
-                    />
-
-                    {/* Memo */}
-                    <TextInput
-                        style={styles.sendInput}
-                        placeholder="Memo (optional)"
-                        placeholderTextColor="#9ca3af"
-                        value={sendMemo}
-                        onChangeText={setSendMemo}
-                    />
-
-                    {/* Error */}
-                    {sendError && (
-                        <View style={styles.errorBox}>
-                            <Text style={styles.errorText}>{sendError}</Text>
-                        </View>
-                    )}
-
-                    {/* Success */}
-                    {sendSuccess && (
-                        <View style={styles.successBox}>
-                            <Text style={styles.successText}>✅ Transfer sent!</Text>
-                        </View>
-                    )}
-
-                    {/* Confirm Button */}
-                    <Pressable
-                        style={[styles.confirmBtn, (sending || !sendTo || !sendAmount) && styles.confirmBtnDisabled]}
-                        onPress={handleSend}
-                        disabled={sending || !sendTo || !sendAmount}
-                    >
-                        <Text style={styles.confirmBtnText}>
-                            {sending ? 'Sending...' : 'Confirm Transfer'}
-                        </Text>
-                    </Pressable>
                 </View>
-            )}
 
-            {/* Community Projects Overview - QV Steppers */}
-            {projects.length > 0 ? (
-                <View style={styles.projectsContainer}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, marginLeft: 4 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <Text style={{ fontSize: 18 }}>🌱</Text>
-                            <View>
-                                <Text style={{ fontSize: 14, fontWeight: '700', color: '#1f2937' }}>
-                                    {projects.length} Active Project{projects.length !== 1 ? 's' : ''}
-                                </Text>
-                                <Text style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
-                                    <CurrencyDisplay style={{ fontSize: 12, color: '#10b981', fontWeight: '600' }} amount={`${projects.reduce((sum, p) => sum + (p.current || 0), 0)}`} /> raised of <CurrencyDisplay style={{ fontSize: 12, color: '#6b7280' }} amount={`${projects.reduce((sum, p) => sum + (p.goal || 0), 0)} goal`} />
-                                </Text>
-                            </View>
-                        </View>
+                {/* Perks */}
+                <View style={styles.perksRow}>
+                    <View style={[styles.perkPill, { borderColor: balanceState.tier.canGift ? '#bbf7d0' : '#e5e7eb', backgroundColor: balanceState.tier.canGift ? '#f0fdf4' : '#f9fafb' }]}>
+                        <MaterialCommunityIcons name={balanceState.tier.canGift ? 'check-circle' : 'lock-outline'} size={13} color={balanceState.tier.canGift ? '#10b981' : '#9ca3af'} />
+                        <Text style={[styles.perkText, { color: balanceState.tier.canGift ? '#059669' : '#9ca3af' }]}>Send Credits</Text>
                     </View>
-                    <Text style={{ fontSize: 13, color: '#4b5563', marginBottom: 16, paddingHorizontal: 4 }}>
-                        You have <Text style={{ fontWeight: 'bold' }}>{balanceState.earnedCredit}</Text> governance credits available to vote on community projects using quadratic voting.
-                    </Text>
-                    
-                    <View style={styles.projectList}>
-                        {projects.map(project => {
-                            let parsedVotes = project.votes || [];
-                            if (typeof project.votes === 'string') {
-                                try { parsedVotes = JSON.parse(project.votes); } catch (e) { parsedVotes = []; }
-                            }
-                            
-                            const totalVotes = parsedVotes.reduce((sum: number, v: any) => sum + (v.weight || 1), 0);
-                            const maxVotes = Math.max(...projects.map(p => {
-                                let pv = p.votes || [];
-                                if (typeof p.votes === 'string') {
-                                    try { pv = JSON.parse(p.votes); } catch (e) { pv = []; }
-                                }
-                                return pv.reduce((s: number, v: any) => s + (v.weight || 1), 0);
-                            }), 1);
-                            
-                            const myVote = parsedVotes.find((v: any) => v.pubkey === identity?.publicKey);
-                            const hasVoted = !!myVote;
-                            
-                            const stepperVotes = voteSteppers[project.id] ?? 1;
-                            const stepperCost = stepperVotes * stepperVotes;
-                            const isOverBudget = stepperCost > balanceState.earnedCredit;
-
-                            return (
-                                <View key={project.id} style={styles.projectCard}>
-                                    <View style={styles.projectCardHeader}>
-                                        <Text style={styles.projectCardTitle} numberOfLines={1}>{project.title}</Text>
-                                        <Text style={styles.projectCardGoal}>{project.goal} B</Text>
-                                    </View>
-                                    <Text style={styles.projectCardDesc} numberOfLines={2}>{project.description || 'No description provided.'}</Text>
-                                    
-                                    <View style={styles.votingArea}>
-                                        {hasVoted ? (
-                                            <View style={styles.votedBadge}>
-                                                <MaterialCommunityIcons name="check-circle" size={16} color="#10b981" />
-                                                <Text style={styles.votedText}>You cast {myVote.weight} vote{myVote.weight !== 1 ? 's' : ''}</Text>
-                                            </View>
-                                        ) : (
-                                            <View style={styles.stepperContainer}>
-                                                <View style={styles.stepperControls}>
-                                                    <Pressable 
-                                                        style={styles.stepperBtn}
-                                                        onPress={() => { hapticTick(); setVoteSteppers(prev => ({ ...prev, [project.id]: Math.max(1, (prev[project.id] ?? 1) - 1) })); }}
-                                                    >
-                                                        <Text style={styles.stepperBtnText}>-</Text>
-                                                    </Pressable>
-                                                    <Text style={styles.stepperValue}>{stepperVotes}</Text>
-                                                    <Pressable 
-                                                        style={styles.stepperBtn}
-                                                        onPress={() => { hapticTick(); setVoteSteppers(prev => ({ ...prev, [project.id]: Math.min(10, (prev[project.id] ?? 1) + 1) })); }}
-                                                    >
-                                                        <Text style={styles.stepperBtnText}>+</Text>
-                                                    </Pressable>
-                                                    
-                                                    <Pressable 
-                                                        style={[styles.castBtn, (votingInProgress === project.id || isOverBudget) && styles.castBtnDisabled]}
-                                                        disabled={votingInProgress === project.id || isOverBudget}
-                                                        onPress={async () => {
-                                                            setVotingInProgress(project.id);
-                                                            try {
-                                                                await voteForProjectApi(project.id, stepperVotes);
-                                                                hapticSuccess();
-                                                                loadData();
-                                                            } catch (e: any) {
-                                                                hapticWarning();
-                                                                Alert.alert('Voting Failed', e.message);
-                                                            }
-                                                            setVotingInProgress(null);
-                                                        }}
-                                                    >
-                                                        <Text style={styles.castBtnText}>{votingInProgress === project.id ? '...' : 'Cast'}</Text>
-                                                    </Pressable>
-                                                </View>
-                                                <Text style={[styles.stepperCostText, isOverBudget && styles.stepperCostTextError]}>
-                                                    {stepperVotes} vote{stepperVotes > 1 ? 's' : ''} = {stepperCost} credits
-                                                </Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                    
-                                    {/* Progress Bar */}
-                                    <View style={styles.progressSection}>
-                                        <View style={styles.progressBarBg}>
-                                            <View style={[styles.progressBarFill, { width: `${(totalVotes / maxVotes) * 100}%` }]} />
-                                        </View>
-                                        <Text style={styles.progressText}>{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</Text>
-                                    </View>
-                                </View>
-                            );
-                        })}
+                    <View style={[styles.perkPill, { borderColor: balanceState.tier.canInvite ? '#bbf7d0' : '#e5e7eb', backgroundColor: balanceState.tier.canInvite ? '#f0fdf4' : '#f9fafb' }]}>
+                        <MaterialCommunityIcons name={balanceState.tier.canInvite ? 'check-circle' : 'lock-outline'} size={13} color={balanceState.tier.canInvite ? '#10b981' : '#9ca3af'} />
+                        <Text style={[styles.perkText, { color: balanceState.tier.canInvite ? '#059669' : '#9ca3af' }]}>Invite Members</Text>
                     </View>
                 </View>
-            ) : (
-                <View style={styles.projectsOverview}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Text style={{ fontSize: 18 }}>🌱</Text>
-                        <Text style={{ fontSize: 13, color: '#9ca3af' }}>No community projects yet</Text>
-                    </View>
-                </View>
-            )}
-
-            <View style={[styles.sectionTitleContainer, { marginTop: 24 }]}>
-                <Text style={styles.sectionTitle}>Recent Transactions</Text>
             </View>
-        </View>
+
+            {/* Path to next tier */}
+            {nextTier && (
+                <View style={styles.pathCard}>
+                    <Text style={styles.pathTitle}>🚀 Fastest paths to {nextTier.emoji} {nextTier.name}</Text>
+                    <View style={styles.pathRow}>
+                        <View style={styles.pathOption}>
+                            <Text style={[styles.pathNumber, { color: '#10b981' }]}>{tradesToLevel}</Text>
+                            <Text style={styles.pathLabel}>more trades</Text>
+                        </View>
+                        <Text style={styles.pathOr}>or</Text>
+                        <View style={styles.pathOption}>
+                            <Text style={[styles.pathNumber, { color: '#3b82f6' }]}>{partnersToLevel}</Text>
+                            <Text style={styles.pathLabel}>new partners</Text>
+                        </View>
+                        <Text style={styles.pathOr}>or</Text>
+                        <View style={styles.pathOption}>
+                            <Text style={[styles.pathNumber, { color: '#f97316' }]}>{daysToLevel}</Text>
+                            <Text style={styles.pathLabel}>more days</Text>
+                        </View>
+                    </View>
+                </View>
+            )}
+
+            {/* Achievement cards */}
+            <Text style={styles.sectionLabel}>YOUR ACHIEVEMENTS</Text>
+            <View style={styles.achieveRow}>
+                {[
+                    { icon: '🤝', label: 'TRADES',   count: tradeCount,     contrib: tradeCount * W_TRADES,     target: 50,  color: '#10b981', trackBg: '#f0fdf4' },
+                    { icon: '👥', label: 'PARTNERS', count: uniquePartners, contrib: uniquePartners * W_PARTNERS, target: 20, color: '#3b82f6', trackBg: '#eff6ff' },
+                    { icon: '📅', label: 'DAYS',     count: ageDays,        contrib: ageDays * W_DAYS,          target: 365, color: '#f97316', trackBg: '#fff7ed' },
+                ].map(a => (
+                    <View key={a.label} style={[styles.achieveCard, { borderColor: a.color + '30' }]}>
+                        <Text style={{ fontSize: 22, marginBottom: 4 }}>{a.icon}</Text>
+                        <Text style={[styles.achieveCount, { color: a.color }]}>{a.count}</Text>
+                        <Text style={styles.achieveLabel}>{a.label}</Text>
+                        <Text style={styles.achieveContrib}>+{a.contrib} pts</Text>
+                        <View style={[styles.achieveBarBg, { backgroundColor: a.trackBg }]}>
+                            <View style={[styles.achieveBarFill, { width: `${Math.min(100, (a.count / a.target) * 100)}%`, backgroundColor: a.color }]} />
+                        </View>
+                        <Text style={styles.achieveFooter}>{a.count}/{a.target}</Text>
+                    </View>
+                ))}
+            </View>
+
+            {/* Tier Ladder */}
+            <Text style={styles.sectionLabel}>TRUST LADDER</Text>
+            <View style={styles.ladder}>
+                {TIERS.map((t, i) => {
+                    const reached = tierIdx >= i;
+                    const isCurrent = tierIdx === i;
+                    return (
+                        <View key={t.name} style={[styles.ladderRow, isCurrent && { backgroundColor: t.bg, borderColor: t.border }]}>
+                            <View style={[styles.ladderDot, { backgroundColor: reached ? t.color : '#e5e7eb', borderColor: t.color }]} />
+                            <Text style={{ fontSize: 18, width: 24, textAlign: 'center' }}>{t.emoji}</Text>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.ladderName, { color: reached ? t.color : '#9ca3af' }]}>
+                                    {t.name}{isCurrent ? '  ← you' : ''}
+                                </Text>
+                                <Text style={styles.ladderReq}>{t.min === 0 ? 'Starting tier' : `${t.min} credits`}</Text>
+                            </View>
+                            {reached && <MaterialCommunityIcons name="check-circle" size={18} color={t.color} />}
+                        </View>
+                    );
+                })}
+            </View>
+            <Text style={styles.formula}>💡 Credits = (trades × 8) + (partners × 40) + (days as member × 2)</Text>
+        </ScrollView>
     );
+
+    // ─── Financials Tab ───────────────────────────────────────────────────────
+    const renderActivityHeader = () => {
+        const brackets = [{ m: 200, r: 0.005 }, { m: 300, r: 0.010 }, { m: 500, r: 0.015 }, { m: 1000, r: 0.020 }, { m: Infinity, r: 0.025 }];
+        let rem = balanceState.balance, monthly = 0;
+        for (const b of brackets) { if (rem <= 0) break; monthly += Math.min(rem, b.m) * b.r; rem -= b.m; }
+        const amber = balanceState.balance > 1000;
+        const now = new Date();
+        const nextRun = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const daysUntil = Math.ceil((nextRun.getTime() - now.getTime()) / 86400000);
+
+        return (
+            <View>
+                <View style={styles.balanceRow}>
+                    <Pressable style={styles.balanceCard} onPress={() => setShowBalanceInfo(true)}>
+                        <Text style={styles.balCardLabel}>Balance ⓘ</Text>
+                        <CurrencyDisplay asView style={[styles.balCardAmount, balanceState.balance >= 0 ? styles.pos : styles.neg]} amount={`${balanceState.balance >= 0 ? '+' : ''}${balanceState.balance.toFixed(2)}`} />
+                        <Text style={styles.balCardSub}>≈ {(Math.abs(balanceState.balance) / 40).toFixed(1)} hrs · Floor {balanceState.floor}</Text>
+                    </Pressable>
+                    <Pressable style={styles.balanceCard} onPress={() => setShowCommonsInfo(true)}>
+                        <Text style={styles.balCardLabel}>Commons ⓘ</Text>
+                        <CurrencyDisplay asView style={styles.commonsAmt} amount={balanceState.commons.toFixed(2)} />
+                        <Text style={styles.balCardSub}>🌱 Community Pool</Text>
+                    </Pressable>
+                </View>
+
+                {balanceState.balance > 0 && (
+                    <Pressable style={[styles.circBox, amber && styles.circBoxAmber]} onPress={() => setShowCirculationInfo(true)}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                            <Text style={[styles.circLabel, amber && { color: '#92400e' }]}>🌿 Community Circulation ⓘ</Text>
+                            <CurrencyDisplay style={[styles.circRate, amber && { color: '#92400e' }]} amount={monthly.toFixed(2)} />
+                        </View>
+                        <Text style={[styles.circLabel, { color: '#9ca3af', fontSize: 11, marginTop: 2 }]}>per month → commons pool</Text>
+                        {amber && <Text style={{ color: '#d97706', fontSize: 11, marginTop: 4, fontWeight: '600' }}>Balance above 1000 — consider spending!</Text>}
+                    </Pressable>
+                )}
+
+                {escrowTotal > 0 && (
+                    <View style={styles.infoCard}>
+                        <View style={styles.infoCardRow}>
+                            <MaterialCommunityIcons name="lock-clock" size={18} color="#f59e0b" />
+                            <Text style={styles.infoCardLabel}>In Escrow</Text>
+                            <CurrencyDisplay style={styles.infoCardValue} amount={escrowTotal.toFixed(2)} />
+                        </View>
+                        <Text style={styles.infoCardSub}>Beans locked in active marketplace deals</Text>
+                    </View>
+                )}
+
+                {balanceState.balance > 0 && (
+                    <View style={styles.forecastCard}>
+                        <View style={styles.infoCardRow}>
+                            <MaterialCommunityIcons name="calendar-clock" size={18} color="#8b5cf6" />
+                            <Text style={styles.infoCardLabel}>Next Circulation</Text>
+                            <Text style={styles.forecastDate}>{nextRun.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} · {daysUntil}d</Text>
+                        </View>
+                        <View style={styles.infoCardRow}>
+                            <Text style={styles.forecastSub}>Est. amount</Text>
+                            <CurrencyDisplay style={styles.forecastAmt} amount={`~${monthly.toFixed(1)}`} />
+                        </View>
+                    </View>
+                )}
+
+                {pledgeHistory.length > 0 && (
+                    <View style={styles.pledgeSection}>
+                        <Text style={styles.sectionLabel}>PROJECT PLEDGES</Text>
+                        {pledgeHistory.map((pl: any) => (
+                            <View key={pl.id} style={styles.pledgeRow}>
+                                <MaterialCommunityIcons name="sprout" size={16} color="#10b981" />
+                                <View style={{ flex: 1, marginLeft: 10 }}>
+                                    <Text style={styles.pledgeName} numberOfLines={1}>{pl.projectTitle}</Text>
+                                    <Text style={styles.pledgeDate}>{new Date(pl.timestamp).toLocaleDateString()}</Text>
+                                </View>
+                                <Text style={styles.pledgeAmt}>-{pl.amount} B</Text>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                <Pressable
+                    style={[styles.sendBtn, showSend && styles.sendBtnOpen, !balanceState.tier.canGift && styles.sendBtnLocked]}
+                    onPress={async () => {
+                        if (!balanceState.tier.canGift) return;
+                        if (!showSend) {
+                            const url = await AsyncStorage.getItem('beanpool_anchor_url');
+                            if (!url) { Alert.alert('Not Connected', 'Connect to a community first.', [{ text: 'Cancel' }, { text: 'Connect', onPress: () => router.push({ pathname: '/(tabs)/settings', params: { section: 'advanced' } }) }]); return; }
+                            loadMembers();
+                        }
+                        setShowSend(!showSend); setSendError(null); setSendSuccess(false);
+                    }}
+                    disabled={!balanceState.tier.canGift}
+                >
+                    <Text style={styles.sendBtnText}>{!balanceState.tier.canGift ? '🔒 Send Credits (Locked)' : showSend ? '✕ Cancel' : '💸 Send Credits'}</Text>
+                </Pressable>
+
+                {showSend && (
+                    <View style={styles.sendForm}>
+                        <Pressable style={styles.recipientRow} onPress={() => setShowMemberPicker(!showMemberPicker)}>
+                            <Text style={[styles.recipientText, !selectedMember && { color: '#9ca3af' }]}>{selectedMember?.callsign || 'Select recipient...'}</Text>
+                            <MaterialCommunityIcons name={showMemberPicker ? 'chevron-up' : 'chevron-down'} size={20} color="#6b7280" />
+                        </Pressable>
+                        {showMemberPicker && (
+                            <View style={styles.pickerBox}>
+                                <TextInput style={styles.pickerSearch} placeholder="Search members..." placeholderTextColor="#9ca3af" value={memberSearch} onChangeText={setMemberSearch} autoCapitalize="none" />
+                                <FlatList data={filteredMembers} keyExtractor={i => i.publicKey} style={{ maxHeight: 180 }} nestedScrollEnabled
+                                    renderItem={({ item }) => (
+                                        <Pressable style={[styles.pickerRow, item.publicKey === sendTo && styles.pickerRowActive]} onPress={() => { setSendTo(item.publicKey); setShowMemberPicker(false); setMemberSearch(''); }}>
+                                            <Text style={[styles.pickerName, item.publicKey === sendTo && { color: '#fff' }]}>{item.callsign}</Text>
+                                            <Text style={[styles.pickerPk, item.publicKey === sendTo && { color: '#d1fae5' }]}>{item.publicKey.slice(0, 12)}...</Text>
+                                        </Pressable>
+                                    )}
+                                    ListEmptyComponent={<Text style={{ padding: 16, color: '#9ca3af', textAlign: 'center', fontSize: 13 }}>No members found</Text>}
+                                />
+                            </View>
+                        )}
+                        <TextInput style={styles.sendInput} placeholder="Amount" placeholderTextColor="#9ca3af" keyboardType="numeric" value={sendAmount} onChangeText={setSendAmount} />
+                        <TextInput style={styles.sendInput} placeholder="Memo (optional)" placeholderTextColor="#9ca3af" value={sendMemo} onChangeText={setSendMemo} />
+                        {sendError && <View style={styles.errBox}><Text style={styles.errText}>{sendError}</Text></View>}
+                        {sendSuccess && <View style={styles.okBox}><Text style={styles.okText}>✓ Sent!</Text></View>}
+                        <Pressable style={[styles.confirmBtn, (sending || !sendTo || !sendAmount) && styles.confirmBtnOff]} onPress={handleSend} disabled={sending || !sendTo || !sendAmount}>
+                            <Text style={styles.confirmBtnText}>{sending ? 'Sending...' : 'Confirm Transfer'}</Text>
+                        </Pressable>
+                    </View>
+                )}
+
+                <View style={styles.txnHeaderRow}>
+                    <Text style={styles.sectionLabel}>RECENT TRANSACTIONS</Text>
+                    <Pressable style={styles.exportBtn} onPress={handleExport} disabled={exporting}>
+                        <MaterialCommunityIcons name="download" size={14} color="#6b7280" />
+                        <Text style={styles.exportBtnText}>{exporting ? 'Exporting…' : 'Export CSV'}</Text>
+                    </Pressable>
+                </View>
+            </View>
+        );
+    };
 
     const renderTxn = ({ item }: { item: any }) => {
         const isCredit = item.type === 'credit';
         return (
             <View style={styles.txnRow}>
-                <View style={[styles.txnIcon, isCredit ? styles.iconCredit : styles.iconDebit]}>
-                    <MaterialCommunityIcons 
-                        name={isCredit ? 'arrow-bottom-left' : 'arrow-top-right'} 
-                        size={20} 
-                        color={isCredit ? '#10b981' : '#ef4444'} 
-                    />
+                <View style={[styles.txnIcon, isCredit ? styles.txnIconCredit : styles.txnIconDebit]}>
+                    <MaterialCommunityIcons name={isCredit ? 'arrow-bottom-left' : 'arrow-top-right'} size={18} color={isCredit ? '#10b981' : '#ef4444'} />
                 </View>
-                <View style={styles.txnDetails}>
+                <View style={{ flex: 1, marginRight: 8 }}>
                     <Text style={styles.txnPeer}>{item.peer}</Text>
                     <Text style={styles.txnMemo}>{item.memo}</Text>
                     <Text style={styles.txnTime}>{item.timestamp}</Text>
                 </View>
-                <View style={[styles.txnAmountCol, { flexDirection: 'row', alignItems: 'center' }]}>
-                    <Text style={[styles.txnAmount, isCredit ? styles.positiveText : styles.negativeText]} numberOfLines={1}>
-                        {isCredit ? '+' : '-'}{item.amount}
-                    </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={[styles.txnAmount, isCredit ? styles.pos : styles.neg]}>{isCredit ? '+' : '-'}{item.amount}</Text>
                     <Image source={require('../../assets/images/bean.png')} style={{ width: 16, height: 16, marginLeft: 2, resizeMode: 'contain' }} />
                 </View>
             </View>
@@ -472,129 +403,191 @@ export default function LedgerScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.safeArea}>
-            <FlatList
-                data={txns}
-                keyExtractor={item => item.id}
-                ListHeaderComponent={headerElement}
-                renderItem={renderTxn}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-            />
+        <SafeAreaView style={styles.root}>
 
-            <BalanceInfoModal 
-                isOpen={showBalanceInfo} 
-                onClose={() => setShowBalanceInfo(false)} 
-            />
-            
-            <CommonsInfoModal 
-                isOpen={showCommonsInfo} 
-                onClose={() => setShowCommonsInfo(false)}
-                commonsBalance={balanceState.commons}
-            />
-            
-            <CirculationInfoModal 
-                isOpen={showCirculationInfo} 
-                onClose={() => setShowCirculationInfo(false)} 
-            />
+            {/* ── Compact profile + balance bar ── */}
+            <View style={styles.topBar}>
+                {/* Avatar + name + tier — left side */}
+                <Pressable style={styles.profileChunk} onPress={() => router.push({ pathname: '/(tabs)/settings', params: { section: 'profile' } })}>
+                    <View style={styles.avatarRing}>
+                        <MemberAvatar avatarUrl={avatarUrl} pubkey={identity?.publicKey || ''} callsign={identity?.callsign || 'G'} size={48} />
+                    </View>
+                    <View>
+                        <Text style={styles.profileName}>{identity?.callsign || 'GUEST'}</Text>
+                        <View style={[styles.tierChip, { backgroundColor: tier.bg, borderColor: tier.border }]}>
+                            <Text style={[styles.tierChipText, { color: tier.color }]}>{tier.emoji} {tier.name}</Text>
+                        </View>
+                    </View>
+                    <View style={styles.editHint}>
+                        <MaterialCommunityIcons name="pencil-outline" size={14} color="#9ca3af" />
+                    </View>
+                </Pressable>
+
+                {/* Balance — right side, intentionally large */}
+                <Pressable style={styles.balanceChunk} onPress={() => { setActiveTab('financials'); }}>
+                    <CurrencyDisplay
+                        asView
+                        style={[styles.bigBalance, balanceState.balance >= 0 ? styles.pos : styles.neg]}
+                        amount={`${balanceState.balance >= 0 ? '+' : ''}${balanceState.balance.toFixed(1)}`}
+                    />
+                    <Text style={styles.balanceWord}>BEANS</Text>
+                </Pressable>
+            </View>
+
+            {/* ── Tab bar ── */}
+            <View style={styles.tabBar}>
+                <Pressable style={[styles.tab, activeTab === 'trust' && [styles.tabActive, { borderBottomColor: tier.color }]]} onPress={() => setActiveTab('trust')}>
+                    <MaterialCommunityIcons name="shield-star-outline" size={15} color={activeTab === 'trust' ? tier.color : '#9ca3af'} />
+                    <Text style={[styles.tabText, activeTab === 'trust' && { color: tier.color, fontWeight: '800' }]}>Trust Level</Text>
+                </Pressable>
+                <Pressable style={[styles.tab, activeTab === 'financials' && styles.tabActive]} onPress={() => setActiveTab('financials')}>
+                    <MaterialCommunityIcons name="swap-horizontal" size={15} color={activeTab === 'financials' ? '#10b981' : '#9ca3af'} />
+                    <Text style={[styles.tabText, activeTab === 'financials' && { color: '#10b981', fontWeight: '800' }]}>Financials</Text>
+                </Pressable>
+            </View>
+
+            {/* ── Content ── */}
+            {activeTab === 'trust' ? renderTrustTab() : (
+                <FlatList
+                    data={txns}
+                    keyExtractor={item => item.id}
+                    ListHeaderComponent={renderActivityHeader()}
+                    renderItem={renderTxn}
+                    contentContainerStyle={styles.activityContent}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#9ca3af', paddingTop: 32, fontSize: 14 }}>No transactions yet.</Text>}
+                />
+            )}
+
+            <BalanceInfoModal isOpen={showBalanceInfo} onClose={() => setShowBalanceInfo(false)} />
+            <CommonsInfoModal isOpen={showCommonsInfo} onClose={() => setShowCommonsInfo(false)} commonsBalance={balanceState.commons} />
+            <CirculationInfoModal isOpen={showCirculationInfo} onClose={() => setShowCirculationInfo(false)} />
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: '#f9fafb' },
-    topBar: { padding: 16, backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
-    topTitle: { fontSize: 32, fontWeight: '800', color: '#1f2937', letterSpacing: -0.5 },
-    listContent: { padding: 16, paddingBottom: 100 },
-    headerContainer: { marginBottom: 8 },
-    identityCard: { backgroundColor: '#ffffff', borderRadius: 20, padding: 24, alignItems: 'center', marginBottom: 24, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
-    avatar: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, borderColor: '#10b981', backgroundColor: '#ecfdf5', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-    avatarEmoji: { fontSize: 32 },
-    callsign: { fontSize: 20, fontWeight: 'bold', color: '#111827', marginBottom: 4 },
-    pubkey: { fontSize: 12, color: '#6b7280', fontFamily: 'Courier', marginBottom: 12 },
-    reputationBadge: { paddingVertical: 6, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1 },
-    reputationText: { fontSize: 12, fontWeight: '800' },
-    balanceRow: { flexDirection: 'row', gap: 16, marginBottom: 24 },
-    balanceCard: { flex: 1, backgroundColor: '#ffffff', borderRadius: 20, padding: 20, alignItems: 'center', borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
-    balanceLabel: { fontSize: 13, fontWeight: '600', color: '#6b7280', marginBottom: 8 },
-    balanceAmount: { fontSize: 28, fontWeight: 'bold', fontFamily: 'Courier' },
-    commonsAmount: { fontSize: 28, fontWeight: 'bold', color: '#f59e0b', fontFamily: 'Courier' },
-    balanceFloor: { fontSize: 11, fontWeight: '500', color: '#9ca3af', marginTop: 4 },
-    positiveText: { color: '#10b981' },
-    negativeText: { color: '#ef4444' },
-    sendBtn: { width: '100%', paddingVertical: 16, borderRadius: 16, backgroundColor: '#d97757', alignItems: 'center', marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-    sendBtnActive: { backgroundColor: '#374151' },
-    sendBtnDisabled: { backgroundColor: '#9ca3af', opacity: 0.6 },
-    sendBtnText: { color: '#ffffff', fontSize: 15, fontWeight: 'bold', letterSpacing: 0.5 },
-    hoursEquivalent: { fontSize: 12, fontWeight: '600', color: '#9ca3af', marginTop: 2, fontFamily: 'Courier' } as any,
-    circulationBox: { backgroundColor: '#ecfdf5', borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#a7f3d0' },
-    circulationBoxAbove: { backgroundColor: '#fef3c7', borderColor: '#fbbf24' },
-    circulationLabel: { fontSize: 13, fontWeight: '700', color: '#065f46' } as any,
-    circulationRate: { fontSize: 13, fontWeight: '700', color: '#047857', fontFamily: 'Courier' } as any,
-    circulationWarning: { fontSize: 11, fontWeight: '500', color: '#92400e', marginTop: 6 } as any,
-    ghostWarning: { backgroundColor: '#f3f4f6', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#e5e7eb' },
-    ghostWarningText: { fontSize: 12, fontWeight: '500', color: '#6b7280', textAlign: 'center' } as any,
-    
-    // Send form styles
-    sendForm: { backgroundColor: '#f3f4f6', padding: 16, borderRadius: 16, marginBottom: 24, borderWidth: 1, borderColor: '#e5e7eb' },
-    recipientPicker: { backgroundColor: '#ffffff', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    recipientText: { fontSize: 15, fontWeight: '600', color: '#1f2937' },
-    memberPickerContainer: { backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 10, overflow: 'hidden' },
-    memberSearchInput: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', fontSize: 14, color: '#1f2937' },
-    memberList: { maxHeight: 180 },
-    memberRow: { paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#f9fafb' },
-    memberRowActive: { backgroundColor: '#10b981' },
-    memberCallsign: { fontSize: 14, fontWeight: '700', color: '#1f2937' },
-    memberPk: { fontSize: 11, color: '#9ca3af', fontFamily: 'Courier', marginTop: 2 },
-    memberEmpty: { padding: 16, textAlign: 'center', color: '#9ca3af', fontSize: 13 },
-    sendInput: { backgroundColor: '#ffffff', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 10, fontSize: 15, fontWeight: '500', color: '#1f2937' },
-    errorBox: { backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fecaca', borderRadius: 10, padding: 10, marginBottom: 10 },
-    errorText: { color: '#dc2626', fontSize: 13, fontWeight: '700', textAlign: 'center' },
-    successBox: { backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: '#a7f3d0', borderRadius: 10, padding: 10, marginBottom: 10 },
-    successText: { color: '#059669', fontSize: 13, fontWeight: '700', textAlign: 'center' },
-    confirmBtn: { backgroundColor: '#10b981', paddingVertical: 14, borderRadius: 12, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-    confirmBtnDisabled: { backgroundColor: '#d1d5db' },
-    confirmBtnText: { color: '#ffffff', fontSize: 15, fontWeight: 'bold' },
-    
-    sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1f2937', marginBottom: 16, marginLeft: 4 },
-    sectionTitleContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginLeft: 4, marginRight: 4 },
-    auditBtn: { backgroundColor: '#f3f4f6', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb' },
-    auditBtnText: { color: '#4b5563', fontSize: 12, fontWeight: '800' },
-    txnRow: { flexDirection: 'row', backgroundColor: '#ffffff', padding: 16, borderRadius: 16, marginBottom: 12, alignItems: 'center', borderWidth: 1, borderColor: '#f3f4f6' },
-    txnIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-    iconCredit: { backgroundColor: 'rgba(16, 185, 129, 0.1)' },
-    iconDebit: { backgroundColor: 'rgba(239, 68, 68, 0.1)' },
-    txnDetails: { flex: 1 },
-    txnPeer: { fontSize: 15, fontWeight: '700', color: '#1f2937', marginBottom: 2 },
-    txnMemo: { fontSize: 13, color: '#6b7280', marginBottom: 4 },
-    txnTime: { fontSize: 11, color: '#9ca3af', fontWeight: '500' },
-    txnAmountCol: { alignItems: 'flex-end' },
-    txnAmount: { fontSize: 16, fontWeight: 'bold' },
-    commonsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginLeft: 4 },
-    projectsOverview: { backgroundColor: '#ffffff', padding: 16, borderRadius: 16, marginBottom: 16, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
-    projectsContainer: { marginBottom: 16 },
-    projectList: { gap: 12 },
-    projectCard: { backgroundColor: '#ffffff', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-    projectCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-    projectCardTitle: { fontSize: 15, fontWeight: '700', color: '#1f2937', flex: 1, marginRight: 8 },
-    projectCardGoal: { fontSize: 14, fontWeight: '600', color: '#059669', fontFamily: 'Courier' },
-    projectCardDesc: { fontSize: 13, color: '#6b7280', marginBottom: 14 },
-    votingArea: { backgroundColor: '#f9fafb', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#f3f4f6' },
-    votedBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', paddingVertical: 4 },
-    votedText: { color: '#059669', fontSize: 13, fontWeight: '600' },
-    stepperContainer: { alignItems: 'center' },
-    stepperControls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    stepperBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#ffffff', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#d1d5db', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
-    stepperBtnText: { fontSize: 20, color: '#4b5563', marginTop: -2 },
-    stepperValue: { fontSize: 18, fontWeight: '700', color: '#1f2937', width: 28, textAlign: 'center', fontFamily: 'Courier' },
-    castBtn: { backgroundColor: '#10b981', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
-    castBtnDisabled: { backgroundColor: '#9ca3af' },
-    castBtnText: { color: '#ffffff', fontSize: 14, fontWeight: 'bold' },
-    stepperCostText: { fontSize: 11, color: '#6b7280', marginTop: 8, fontWeight: '500' },
-    stepperCostTextError: { color: '#ef4444' },
-    progressSection: { marginTop: 4 },
-    progressBarBg: { height: 6, backgroundColor: '#f3f4f6', borderRadius: 3, overflow: 'hidden', marginBottom: 4 },
-    progressBarFill: { height: '100%', backgroundColor: '#10b981', borderRadius: 3 },
-    progressText: { fontSize: 11, color: '#9ca3af', textAlign: 'right', fontWeight: '500', fontFamily: 'Courier' },
-});
+    root: { flex: 1, backgroundColor: '#f9fafb' },
 
+    // Top bar
+    topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
+    profileChunk: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+    avatarRing: { width: 56, height: 56, borderRadius: 28, borderWidth: 2.5, borderColor: '#10b981', overflow: 'hidden', shadowColor: '#10b981', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
+    profileName: { fontSize: 17, fontWeight: '800', color: '#111827', marginBottom: 3 },
+    tierChip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, borderWidth: 1 },
+    tierChipText: { fontSize: 11, fontWeight: '700' },
+    editHint: { marginLeft: 2, marginTop: -14 },
+
+    // Big balance — the whole point of this page
+    balanceChunk: { alignItems: 'flex-end', paddingLeft: 8 },
+    bigBalance: { fontSize: 34, fontWeight: '900', letterSpacing: -1 },
+    balanceWord: { fontSize: 10, fontWeight: '800', color: '#9ca3af', letterSpacing: 1.5, textTransform: 'uppercase', marginTop: 0 },
+
+    pos: { color: '#10b981' },
+    neg: { color: '#ef4444' },
+
+    // Tab bar
+    tabBar: { flexDirection: 'row', backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
+    tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, borderBottomWidth: 2.5, borderBottomColor: 'transparent' },
+    tabActive: { borderBottomColor: '#8b5cf6' },
+    tabText: { fontSize: 13, fontWeight: '600', color: '#9ca3af' },
+
+    // ── Trust Tab ──
+    tierHero: { borderRadius: 20, padding: 20, borderWidth: 1, marginBottom: 16 },
+    tierHeroLabel: { fontSize: 10, fontWeight: '800', color: '#6b7280', textTransform: 'uppercase', letterSpacing: 1 },
+    tierHeroName: { fontSize: 30, fontWeight: '900', letterSpacing: -0.5 },
+    levelBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1 },
+    levelBadgeText: { fontSize: 13, fontWeight: '800' },
+    progressBg: { height: 10, backgroundColor: '#e5e7eb', borderRadius: 5, overflow: 'hidden' },
+    progressFill: { height: '100%', borderRadius: 5 },
+    progressLabel: { fontSize: 11, color: '#6b7280', fontWeight: '600' },
+    perksRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
+    perkPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1 },
+    perkText: { fontSize: 12, fontWeight: '700' },
+
+    pathCard: { backgroundColor: '#ffffff', borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+    pathTitle: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 14 },
+    pathRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly' },
+    pathOption: { alignItems: 'center' },
+    pathNumber: { fontSize: 32, fontWeight: '900', lineHeight: 36 },
+    pathLabel: { fontSize: 11, color: '#6b7280', fontWeight: '600', marginTop: 2 },
+    pathOr: { fontSize: 11, color: '#d1d5db', fontWeight: '600' },
+
+    sectionLabel: { fontSize: 11, fontWeight: '800', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 },
+
+    achieveRow: { flexDirection: 'row', gap: 10, marginBottom: 24 },
+    achieveCard: { flex: 1, backgroundColor: '#ffffff', borderRadius: 14, padding: 12, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1 },
+    achieveCount: { fontSize: 24, fontWeight: '900', marginBottom: 1 },
+    achieveLabel: { fontSize: 9, fontWeight: '800', color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 },
+    achieveContrib: { fontSize: 10, color: '#9ca3af', fontWeight: '600', marginBottom: 8 },
+    achieveBarBg: { height: 5, borderRadius: 3, overflow: 'hidden', marginBottom: 4 },
+    achieveBarFill: { height: '100%', borderRadius: 3 },
+    achieveFooter: { fontSize: 9, color: '#9ca3af', fontWeight: '600' },
+
+    ladder: { backgroundColor: '#ffffff', borderRadius: 16, overflow: 'hidden', marginBottom: 12, borderWidth: 1, borderColor: '#e5e7eb' },
+    ladderRow: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', borderColor: 'transparent' },
+    ladderDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 2 },
+    ladderName: { fontSize: 14, fontWeight: '800' },
+    ladderReq: { fontSize: 11, color: '#9ca3af', fontWeight: '500' },
+    formula: { fontSize: 11, color: '#9ca3af', fontStyle: 'italic', textAlign: 'center', paddingBottom: 4 },
+
+    // ── Activity Tab ──
+    activityContent: { padding: 16, paddingBottom: 100 },
+    balanceRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+    balanceCard: { flex: 1, backgroundColor: '#ffffff', borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#e5e7eb' },
+    balCardLabel: { fontSize: 12, fontWeight: '600', color: '#6b7280', marginBottom: 6 },
+    balCardAmount: { fontSize: 22, fontWeight: '800' },
+    commonsAmt: { fontSize: 22, fontWeight: '800', color: '#d97706', flexShrink: 1 },
+    balCardSub: { fontSize: 11, color: '#9ca3af', marginTop: 4 },
+    // Escrow / forecast / pledge
+    infoCard: { backgroundColor: '#fffbeb', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#fde68a' },
+    infoCardRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+    infoCardLabel: { flex: 1, fontSize: 13, fontWeight: '700', color: '#374151' },
+    infoCardValue: { fontSize: 15, fontWeight: '800', color: '#f59e0b' } as any,
+    infoCardSub: { fontSize: 11, color: '#9ca3af', marginTop: 2 },
+    forecastCard: { backgroundColor: '#f5f3ff', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#ddd6fe', gap: 6 },
+    forecastDate: { fontSize: 13, fontWeight: '700', color: '#7c3aed' },
+    forecastSub: { flex: 1, fontSize: 12, color: '#6b7280' },
+    forecastAmt: { fontSize: 15, fontWeight: '800', color: '#8b5cf6' } as any,
+    pledgeSection: { marginBottom: 12 },
+    pledgeRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: '#e5e7eb' },
+    pledgeName: { fontSize: 13, fontWeight: '700', color: '#111827' },
+    pledgeDate: { fontSize: 11, color: '#9ca3af', marginTop: 2 },
+    pledgeAmt: { fontSize: 13, fontWeight: '700', color: '#ef4444' },
+    txnHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 4 },
+    exportBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#f3f4f6', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#e5e7eb' },
+    exportBtnText: { fontSize: 11, color: '#6b7280', fontWeight: '700' },
+    circBox: { backgroundColor: '#ecfdf5', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#a7f3d0' },
+    circBoxAmber: { backgroundColor: '#fffbeb', borderColor: '#fde68a' },
+    circLabel: { fontSize: 13, fontWeight: '700', color: '#065f46' } as any,
+    circRate: { fontSize: 13, fontWeight: '700', color: '#047857', fontFamily: 'Courier' } as any,
+    sendBtn: { paddingVertical: 16, borderRadius: 14, backgroundColor: '#f97316', alignItems: 'center', marginBottom: 12 },
+    sendBtnOpen: { backgroundColor: '#374151' },
+    sendBtnLocked: { backgroundColor: '#e5e7eb', opacity: 0.7 },
+    sendBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+    sendForm: { backgroundColor: '#f9fafb', borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#e5e7eb' },
+    recipientRow: { backgroundColor: '#fff', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    recipientText: { fontSize: 15, fontWeight: '600', color: '#111827' },
+    pickerBox: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 10, overflow: 'hidden' },
+    pickerSearch: { padding: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', fontSize: 14, color: '#111827' },
+    pickerRow: { paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#f9fafb' },
+    pickerRowActive: { backgroundColor: '#10b981' },
+    pickerName: { fontSize: 14, fontWeight: '700', color: '#111827' },
+    pickerPk: { fontSize: 11, color: '#9ca3af', fontFamily: 'Courier', marginTop: 2 },
+    sendInput: { backgroundColor: '#fff', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 10, fontSize: 15, color: '#111827' },
+    errBox: { backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fecaca', borderRadius: 10, padding: 10, marginBottom: 10 },
+    errText: { color: '#dc2626', fontSize: 13, fontWeight: '700', textAlign: 'center' },
+    okBox: { backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0', borderRadius: 10, padding: 10, marginBottom: 10 },
+    okText: { color: '#16a34a', fontSize: 13, fontWeight: '700', textAlign: 'center' },
+    confirmBtn: { backgroundColor: '#10b981', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+    confirmBtnOff: { backgroundColor: '#e5e7eb' },
+    confirmBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+    txnRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#e5e7eb' },
+    txnIcon: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+    txnIconCredit: { backgroundColor: '#f0fdf4' },
+    txnIconDebit: { backgroundColor: '#fef2f2' },
+    txnPeer: { fontSize: 14, fontWeight: '700', color: '#111827', marginBottom: 2 },
+    txnMemo: { fontSize: 12, color: '#6b7280', marginBottom: 2 },
+    txnTime: { fontSize: 11, color: '#9ca3af' },
+    txnAmount: { fontSize: 16, fontWeight: '800' },
+});

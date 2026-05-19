@@ -165,12 +165,19 @@ export default function MarketScreen() {
                 const res = await fetch(`${anchorUrl}/api/marketplace/posts?q=${encodeURIComponent(expandedQ)}${type}${cat}&limit=50`);
                 if (res.ok) {
                     const data = await res.json();
-                    // Parse photos for each result
+                    // Server returns camelCase MarketplacePost; the UI reads snake_case
+                    // (matching local SQLite shape). Normalize and parse photos.
                     const parsed = (Array.isArray(data) ? data : []).map((p: any) => {
                         if (typeof p.photos === 'string') {
                             try { p.photos = JSON.parse(p.photos); } catch { p.photos = []; }
                         }
-                        return p;
+                        return {
+                            ...p,
+                            author_pubkey: p.author_pubkey ?? p.authorPublicKey,
+                            author_callsign: p.author_callsign ?? p.authorCallsign,
+                            author_avatar: p.author_avatar ?? p.authorAvatarUrl ?? null,
+                            author_energy_cycled: p.author_energy_cycled ?? p.authorEnergyCycled ?? 0,
+                        };
                     });
                     setSearchResults(parsed);
                 } else {
@@ -641,13 +648,13 @@ const styles = StyleSheet.create({
     gridFallbackEmoji: { fontSize: 32, opacity: 0.3 },
     gridPriceBadge: { position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(17,24,39,0.9)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
     gridPriceText: { color: '#ffffff', fontSize: 13, fontWeight: 'bold' },
-    gridTypeBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: '#ffffff' },
+    gridTypeBadge: { position: 'absolute', top: 8, left: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
     gridTextContent: { padding: 12 },
     gridCardTitle: { fontSize: 14, fontWeight: '700', color: '#1f2937', marginBottom: 4 },
     badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-    badgeOffer: { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.2)' },
-    badgeNeed: { backgroundColor: 'rgba(245, 158, 11, 0.1)', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.2)' },
-    badgeText: { fontSize: 11, fontWeight: '800', color: '#1f2937', letterSpacing: 0.5 },
+    badgeOffer: { backgroundColor: '#10b981', borderWidth: 0 },
+    badgeNeed: { backgroundColor: '#ea580c', borderWidth: 0 },
+    badgeText: { fontSize: 11, fontWeight: '800', color: '#000000', letterSpacing: 0.5 },
     price: { fontSize: 16, fontWeight: '800', color: '#8b5cf6' },
     fab: { position: 'absolute', bottom: 32, right: 24, backgroundColor: '#ea580c', paddingVertical: 14, paddingHorizontal: 20, borderRadius: 28, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 8, zIndex: 100 }
 });

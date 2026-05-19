@@ -1,7 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { InfoModal, InfoModalTab } from '../InfoModal';
-import { CurrencyDisplay } from '../CurrencyDisplay';
 
 interface Props {
     isOpen: boolean;
@@ -25,7 +24,7 @@ export function PricingInfoModal({ isOpen, onClose }: Props) {
                         <View style={styles.priceRow}>
                             <View style={styles.priceCol}>
                                 <Text style={styles.priceText}>0</Text>
-                                <CurrencyDisplay hideAmount={true} />
+                                <Image source={require('../../assets/images/bean.png')} style={styles.beanIcon} />
                             </View>
                             <View style={styles.descCol}>
                                 <Text style={styles.descText}>Gifts, freebies, and community contributions.</Text>
@@ -35,7 +34,7 @@ export function PricingInfoModal({ isOpen, onClose }: Props) {
                         <View style={styles.priceRow}>
                             <View style={styles.priceCol}>
                                 <Text style={styles.priceText}>1–10</Text>
-                                <CurrencyDisplay hideAmount={true} />
+                                <Image source={require('../../assets/images/bean.png')} style={styles.beanIcon} />
                             </View>
                             <View style={styles.descCol}>
                                 <Text style={styles.descText}>Small favours, home produce, quick tasks, or simple tools.</Text>
@@ -45,7 +44,7 @@ export function PricingInfoModal({ isOpen, onClose }: Props) {
                         <View style={styles.priceRow}>
                             <View style={styles.priceCol}>
                                 <Text style={styles.priceText}>10–40</Text>
-                                <CurrencyDisplay hideAmount={true} />
+                                <Image source={require('../../assets/images/bean.png')} style={styles.beanIcon} />
                             </View>
                             <View style={styles.descCol}>
                                 <Text style={styles.descText}>Skilled labour (per hour), substantial goods, or tech repairs.</Text>
@@ -55,7 +54,7 @@ export function PricingInfoModal({ isOpen, onClose }: Props) {
                         <View style={styles.priceRow}>
                             <View style={styles.priceCol}>
                                 <Text style={styles.priceText}>40–100</Text>
-                                <CurrencyDisplay hideAmount={true} />
+                                <Image source={require('../../assets/images/bean.png')} style={styles.beanIcon} />
                             </View>
                             <View style={styles.descCol}>
                                 <Text style={styles.descText}>Professional services, large items, or event catering.</Text>
@@ -65,7 +64,7 @@ export function PricingInfoModal({ isOpen, onClose }: Props) {
                         <View style={styles.priceRow}>
                             <View style={styles.priceCol}>
                                 <Text style={styles.priceText}>100+</Text>
-                                <CurrencyDisplay hideAmount={true} />
+                                <Image source={require('../../assets/images/bean.png')} style={styles.beanIcon} />
                             </View>
                             <View style={styles.descCol}>
                                 <Text style={styles.descText}>Major projects, housing rentals, vehicles, or commercial contracts.</Text>
@@ -89,7 +88,7 @@ export function PricingInfoModal({ isOpen, onClose }: Props) {
             isOpen={isOpen}
             onClose={onClose}
             title="Pricing Guide"
-            icon="💡"
+            icon={<Text style={{ fontSize: 24 }}>💡</Text>}
             tabs={tabs}
         />
     );
@@ -136,6 +135,11 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         fontSize: 15,
         marginRight: 4,
+    },
+    beanIcon: {
+        width: 16,
+        height: 16,
+        resizeMode: 'contain',
     },
     descCol: {
         flex: 1,

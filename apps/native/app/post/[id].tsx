@@ -620,6 +620,7 @@ export default function PostDetailModal() {
                                             if (isOffer) {
                                                 await acceptMarketplacePost(post.id, identity.publicKey, estimatedHrs);
                                                 setShowAcceptConfirm(false);
+                                                router.replace({ pathname: '/(tabs)/market', params: { tab: 'deals', dealsTab: 'active' } });
                                             } else {
                                                 await requestMarketplacePost(post.id, identity.publicKey, estimatedHrs);
                                                 setShowAcceptConfirm(false);
@@ -629,6 +630,7 @@ export default function PostDetailModal() {
                                                     credits: post.price_type === 'fixed' ? post.credits : post.credits * Number(acceptHours),
                                                     hours: post.price_type === 'fixed' ? null : Number(acceptHours), status: 'requested'
                                                 }]);
+                                                router.replace({ pathname: '/(tabs)/market', params: { tab: 'deals', dealsTab: 'pending' } });
                                             }
                                         } catch (e: any) { 
                                             if (e.message?.includes('not found') || e.message?.includes('not active')) {

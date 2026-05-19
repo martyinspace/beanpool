@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { CategoryPickerSheet } from '../../components/CategoryPickerSheet';
+import { PricingInfoModal } from '../../components/info-content/PricingInfoModal';
 import { PinVisual, MapMarkerManager, getCachedMarkerImage, buildVariantList, PIN_ANCHOR, PIN_RENDER_W, PIN_RENDER_H, pinCacheKey, ClusterCaptureManager, getCachedClusterImage, CLUSTER_ANCHOR } from '../../components/UnifiedMapPin';
 
 const CATEGORIES = [
@@ -141,7 +142,8 @@ const ClusterMarker = ({ cluster, clustersReady }: any) => {
 
 const CustomMapMarker = React.memo(({ coordinate, post, catObj, isSelected, onPress, opacity = 1, markersReady = false }: any) => {
 
-    const isOffer = post.type === 'offer';
+    const postType = (post.type || '').toLowerCase();
+    const isOffer = postType === 'offer';
     const bgColor = isOffer ? '#10b981' : '#ea580c';
     const markerEmoji = catObj?.emoji || (isOffer ? '📦' : '❤️');
     const isElder = (post.author_energy_cycled || 0) >= 10000;
@@ -150,6 +152,12 @@ const CustomMapMarker = React.memo(({ coordinate, post, catObj, isSelected, onPr
     // Platform fix: We start tracksViewChanges=true on Android.
     // It will be set to false ONLY when the RNImage's onLoad fires.
     const [tracksViewChanges, setTracksViewChanges] = useState(Platform.OS !== 'ios');
+
+    useEffect(() => {
+        if (Platform.OS === 'android') {
+            setTracksViewChanges(true);
+        }
+    }, [cachedImage]);
 
     if (cachedImage && Platform.OS !== 'web') {
         if (Platform.OS === 'android') {
@@ -163,6 +171,7 @@ const CustomMapMarker = React.memo(({ coordinate, post, catObj, isSelected, onPr
                 >
                     <View style={{ width: PIN_RENDER_W, height: PIN_RENDER_H, justifyContent: 'center', alignItems: 'center' }}>
                         <RNImage 
+                            key={cachedImage}
                             source={{ uri: cachedImage }} 
                             style={{ width: PIN_RENDER_W, height: PIN_RENDER_H }} 
                             resizeMode="contain" 
@@ -246,6 +255,7 @@ export default function MapScreen() {
     const [keyboardHeight, setKeyboardHeight] = useState(0);
     const [validationToast, setValidationToast] = useState('');
     const [showCategoryModal, setShowCategoryModal] = useState(false);
+    const [showPricingModal, setShowPricingModal] = useState(false);
     const scrollViewRef = useRef<ScrollView>(null);
     const pickerRef = useRef<any>(null);
 
@@ -427,17 +437,7 @@ export default function MapScreen() {
         ]);
     };
 
-    const showPricingGuide = () => {
-        Alert.alert(
-            "💡 Pricing Guide",
-            "Free (0 Ʀ) — Gifts, community contributions\n\n" +
-            "1–10 Ʀ — Small favours, home produce, quick tasks\n\n" +
-            "10–40 Ʀ — Skilled labour (per hour), substantial goods\n\n" +
-            "40–100 Ʀ — Professional services, large items\n\n" +
-            "100+ Ʀ — Major projects, housing, vehicles",
-            [{ text: "Got it" }]
-        );
-    };
+    const showPricingGuide = () => setShowPricingModal(true);
 
     const handleSubmit = async () => {
         Keyboard.dismiss();
@@ -554,9 +554,10 @@ export default function MapScreen() {
                     const l1 = Number(p.lat);
                     const l2 = Number(p.lng);
                     if (isNaN(l1) || isNaN(l2)) return false;
-                    
-                    if (mapTypeFilter === 'offers' && p.type !== 'offer') return false;
-                    if (mapTypeFilter === 'needs' && p.type !== 'need') return false;
+
+                    const pt = (p.type || '').toLowerCase();
+                    if (mapTypeFilter === 'offers' && pt !== 'offer') return false;
+                    if (mapTypeFilter === 'needs' && pt !== 'need') return false;
                     if (mapCategoryFilter !== 'all' && p.category !== mapCategoryFilter) return false;
 
                     return true;
@@ -591,11 +592,11 @@ export default function MapScreen() {
                         <Pressable style={[styles.filterChip, mapTypeFilter === 'all' && styles.filterChipActive]} onPress={() => setMapTypeFilter('all')}>
                             <Text style={[styles.filterChipText, mapTypeFilter === 'all' && styles.filterChipTextActive]}>All</Text>
                         </Pressable>
-                        <Pressable style={[styles.filterChip, mapTypeFilter === 'offers' && styles.filterChipActive]} onPress={() => setMapTypeFilter('offers')}>
-                            <Text style={[styles.filterChipText, mapTypeFilter === 'offers' && styles.filterChipTextActive]}>Offers</Text>
+                        <Pressable style={[styles.filterChip, mapTypeFilter === 'offers' && styles.filterChipActiveOffers]} onPress={() => setMapTypeFilter('offers')}>
+                            <Text style={[styles.filterChipText, mapTypeFilter === 'offers' && styles.filterChipTextOnGreen]}>Offers</Text>
                         </Pressable>
-                        <Pressable style={[styles.filterChip, mapTypeFilter === 'needs' && styles.filterChipActive]} onPress={() => setMapTypeFilter('needs')}>
-                            <Text style={[styles.filterChipText, mapTypeFilter === 'needs' && styles.filterChipTextActive]}>Needs</Text>
+                        <Pressable style={[styles.filterChip, mapTypeFilter === 'needs' && styles.filterChipActiveNeeds]} onPress={() => setMapTypeFilter('needs')}>
+                            <Text style={[styles.filterChipText, mapTypeFilter === 'needs' && styles.filterChipTextOnOrange]}>Needs</Text>
                         </Pressable>
                         <View style={styles.filterDivider} />
                         <Pressable style={[styles.filterChip, mapCategoryFilter !== 'all' && styles.filterChipActive]} onPress={() => setShowMapCategoryPicker(true)}>
@@ -780,66 +781,15 @@ export default function MapScreen() {
                         </View>
 
                         <ScrollView ref={scrollViewRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={{ paddingBottom: 40 }}>
-                            {/* Type Toggle */}
+                            {/* Type Toggle — colours match map pins */}
                             <View style={styles.typeRow}>
                                 <Pressable style={[styles.typeBtn, postType === 'offer' && styles.typeBtnOffer]} onPress={() => setPostType('offer')}>
-                                    <Text style={[styles.typeBtnText, postType === 'offer' && styles.typeBtnTextActive]}>🔵 Offer</Text>
+                                    <Text style={[styles.typeBtnText, postType === 'offer' && styles.typeBtnTextActive]}>🟢 Offer</Text>
                                 </Pressable>
                                 <Pressable style={[styles.typeBtn, postType === 'need' && styles.typeBtnNeed]} onPress={() => setPostType('need')}>
                                     <Text style={[styles.typeBtnText, postType === 'need' && styles.typeBtnTextActive]}>🟠 Need</Text>
                                 </Pressable>
                             </View>
-
-                            {/* Category Selector — Full-width touch target */}
-                            <Text style={styles.sectionLabel}>Category <Text style={styles.requiredStar}>*</Text></Text>
-                            {Platform.OS === 'ios' ? (
-                                <>
-                                    <Pressable style={[styles.pickerWrap, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 50 }, fieldBorder('category')]} onPress={() => setShowCategoryModal(true)}>
-                                        <Text style={{ flex: 1, color: postCategory ? '#fff' : '#9ca3af', fontSize: 15 }}>
-                                            {postCategory ? `${CATEGORIES.find(c => c.id === postCategory)?.emoji} ${CATEGORIES.find(c => c.id === postCategory)?.label}` : 'Select a category...'}
-                                        </Text>
-                                        <Text style={{ color: '#6b7280', fontSize: 16 }}>▼</Text>
-                                    </Pressable>
-                                    <Modal visible={showCategoryModal} transparent animationType="slide">
-                                        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} onPress={() => setShowCategoryModal(false)}>
-                                            <View style={{ backgroundColor: '#1e251e', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: 400, paddingBottom: 32 }}>
-                                                <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }}>
-                                                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center' }}>Select Category</Text>
-                                                </View>
-                                                <FlatList
-                                                    data={CATEGORIES}
-                                                    keyExtractor={c => c.id}
-                                                    renderItem={({ item: c }) => (
-                                                        <Pressable
-                                                            style={{ flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', backgroundColor: postCategory === c.id ? 'rgba(16,185,129,0.15)' : 'transparent' }}
-                                                            onPress={() => { setPostCategory(c.id); setShowCategoryModal(false); setValidationErrors(prev => { const n = new Set(prev); n.delete('category'); return n; }); }}
-                                                        >
-                                                            <Text style={{ fontSize: 20, marginRight: 12 }}>{c.emoji}</Text>
-                                                            <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>{c.label}</Text>
-                                                            {postCategory === c.id && <Text style={{ marginLeft: 'auto', color: '#10b981', fontWeight: '800' }}>✓</Text>}
-                                                        </Pressable>
-                                                    )}
-                                                />
-                                            </View>
-                                        </Pressable>
-                                    </Modal>
-                                </>
-                            ) : (
-                                <Pressable style={[styles.pickerWrap, fieldBorder('category')]} onPress={() => pickerRef.current?.focus()}>
-                                    <Picker
-                                        ref={pickerRef}
-                                        selectedValue={postCategory}
-                                        onValueChange={v => { setPostCategory(v); setValidationErrors(prev => { const n = new Set(prev); n.delete('category'); return n; }); }}
-                                        style={styles.picker}
-                                        dropdownIconColor="#6b7280"
-                                    >
-                                        <Picker.Item label="Select a category..." value="" enabled={false} color="#9ca3af" />
-                                        {CATEGORIES.map(c => (
-                                            <Picker.Item key={c.id} label={`${c.emoji} ${c.label}`} value={c.id} />
-                                        ))}
-                                    </Picker>
-                                </Pressable>
-                            )}
 
                             {/* Title */}
                             <Text style={styles.sectionLabel}>Title <Text style={styles.requiredStar}>*</Text></Text>
@@ -852,40 +802,68 @@ export default function MapScreen() {
                                 maxLength={50}
                             />
 
-                            {/* Price Row — Compact inline layout */}
-                            <View style={styles.priceRowCompact}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                    <Text style={styles.sectionLabel}>Price <Text style={styles.requiredStar}>*</Text></Text>
-                                    <Pressable onPress={showPricingGuide} hitSlop={8}>
-                                        <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>💡</Text>
+                            {/* Category — unified modal picker, full-row tappable on both platforms */}
+                            <Text style={styles.sectionLabel}>Category <Text style={styles.requiredStar}>*</Text></Text>
+                            <Pressable style={[styles.pickerWrap, fieldBorder('category')]} onPress={() => setShowCategoryModal(true)}>
+                                <Text style={[styles.pickerText, postCategory && styles.pickerTextActive]}>
+                                    {postCategory ? `${CATEGORIES.find(c => c.id === postCategory)?.emoji} ${CATEGORIES.find(c => c.id === postCategory)?.label}` : 'Select a category...'}
+                                </Text>
+                                <Text style={styles.pickerArrow}>▼</Text>
+                            </Pressable>
+                            <Modal visible={showCategoryModal} transparent animationType="slide">
+                                <Pressable style={styles.categoryModalOverlay} onPress={() => setShowCategoryModal(false)}>
+                                    <View style={styles.categorySheet}>
+                                        <View style={styles.categorySheetHeader}>
+                                            <Text style={styles.categorySheetTitle}>Select Category</Text>
+                                        </View>
+                                        <FlatList
+                                            data={CATEGORIES}
+                                            keyExtractor={c => c.id}
+                                            renderItem={({ item: c }) => (
+                                                <Pressable
+                                                    style={[styles.categoryRow, postCategory === c.id && styles.categoryRowActive]}
+                                                    onPress={() => { setPostCategory(c.id); setShowCategoryModal(false); setValidationErrors(prev => { const n = new Set(prev); n.delete('category'); return n; }); }}
+                                                >
+                                                    <Text style={styles.categoryRowEmoji}>{c.emoji}</Text>
+                                                    <Text style={styles.categoryRowLabel}>{c.label}</Text>
+                                                    {postCategory === c.id && <Text style={styles.categoryRowCheck}>✓</Text>}
+                                                </Pressable>
+                                            )}
+                                        />
+                                    </View>
+                                </Pressable>
+                            </Modal>
+
+                            {/* Description */}
+                            <Text style={styles.sectionLabel}>Description <Text style={styles.requiredStar}>*</Text></Text>
+                            <TextInput
+                                style={[styles.descriptionInput, fieldBorder('description')]}
+                                placeholder="Describe what you need/offer..."
+                                placeholderTextColor="#9ca3af"
+                                value={postDescription}
+                                onChangeText={v => { setPostDescription(v); setValidationErrors(prev => { const n = new Set(prev); n.delete('description'); return n; }); }}
+                                multiline
+                                textAlignVertical="top"
+                            />
+
+                            {/* Photos */}
+                            <Text style={styles.sectionLabel}>Photos <Text style={styles.requiredStar}>*</Text> <Text style={styles.sectionLabelHint}>(min 1)</Text></Text>
+                            <View style={[styles.photosRow, fieldBorder('photos')]}>
+                                {postPhotos.map((uri, i) => (
+                                    <View key={i} style={styles.photoThumb}>
+                                        <RNImage source={{ uri }} style={styles.photoImg} />
+                                        <Pressable style={styles.photoRemove} onPress={() => setPostPhotos(prev => prev.filter((_, j) => j !== i))}>
+                                            <Text style={styles.photoRemoveText}>✕</Text>
+                                        </Pressable>
+                                    </View>
+                                ))}
+                                {postPhotos.length < 3 && (
+                                    <Pressable style={styles.photoAdd} onPress={() => { pickPhoto(); setValidationErrors(prev => { const n = new Set(prev); n.delete('photos'); return n; }); }}>
+                                        <Text style={styles.photoAddIcon}>📷</Text>
                                     </Pressable>
-                                </View>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <TextInput
-                                        style={[styles.creditsInputCompact, fieldBorder('credits')]}
-                                        placeholder="0"
-                                        placeholderTextColor="#9ca3af"
-                                        keyboardType="numeric"
-                                        value={postCredits}
-                                        onChangeText={v => { setPostCredits(v); setValidationErrors(prev => { const n = new Set(prev); n.delete('credits'); return n; }); }}
-                                        maxLength={5}
-                                    />
-                                    <Pressable onPress={() => {
-                                        const types = ['fixed', 'hourly', 'daily', 'weekly', 'monthly'];
-                                        setPostPriceType(types[(types.indexOf(postPriceType) + 1) % types.length]);
-                                    }} style={styles.priceTypeBtn}>
-                                        <Text style={styles.priceTypeBtnText}>{
-                                            { fixed: 'Total', hourly: '/ Hr', daily: '/ Dy', weekly: '/ Wk', monthly: '/ Mo' }[postPriceType] || 'Total'
-                                        }</Text>
-                                    </Pressable>
-                                    <Pressable
-                                        style={[styles.freeChip, postCredits === '0' && styles.freeChipActive]}
-                                        onPress={() => { setPostCredits('0'); setValidationErrors(prev => { const n = new Set(prev); n.delete('credits'); return n; }); }}
-                                    >
-                                        <Text style={[styles.freeChipText, postCredits === '0' && styles.freeChipTextActive]}>FREE</Text>
-                                    </Pressable>
-                                </View>
+                                )}
                             </View>
+                            <Text style={styles.photoCount}>{postPhotos.length}/3 photos</Text>
 
                             {/* Location */}
                             <Text style={styles.sectionLabel}>Location <Text style={styles.requiredStar}>*</Text></Text>
@@ -909,18 +887,37 @@ export default function MapScreen() {
                                 )}
                             </View>
 
-                            {/* Description — with auto-scroll on focus */}
-                            <Text style={styles.sectionLabel}>Description <Text style={styles.requiredStar}>*</Text></Text>
-                            <TextInput
-                                style={[styles.descriptionInput, fieldBorder('description')]}
-                                placeholder="Describe what you need/offer..."
-                                placeholderTextColor="#9ca3af"
-                                value={postDescription}
-                                onChangeText={v => { setPostDescription(v); setValidationErrors(prev => { const n = new Set(prev); n.delete('description'); return n; }); }}
-                                multiline
-                                textAlignVertical="top"
-                                onFocus={() => { setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 300); }}
-                            />
+                            {/* Price */}
+                            <Text style={styles.sectionLabel}>Price <Text style={styles.requiredStar}>*</Text></Text>
+                            <View style={styles.priceInputRow}>
+                                <TextInput
+                                    style={[styles.creditsInputCompact, fieldBorder('credits')]}
+                                    placeholder="0"
+                                    placeholderTextColor="#9ca3af"
+                                    keyboardType="numeric"
+                                    value={postCredits}
+                                    onChangeText={v => { setPostCredits(v); setValidationErrors(prev => { const n = new Set(prev); n.delete('credits'); return n; }); }}
+                                    maxLength={5}
+                                />
+                                <Pressable onPress={() => {
+                                    const types = ['fixed', 'hourly', 'daily', 'weekly', 'monthly'];
+                                    setPostPriceType(types[(types.indexOf(postPriceType) + 1) % types.length]);
+                                }} style={styles.priceTypeBtn}>
+                                    <Text style={styles.priceTypeBtnText}>{
+                                        { fixed: 'Total', hourly: '/ Hr', daily: '/ Dy', weekly: '/ Wk', monthly: '/ Mo' }[postPriceType] || 'Total'
+                                    }</Text>
+                                </Pressable>
+                                <Pressable
+                                    style={[styles.freeChip, postCredits === '0' && styles.freeChipActive]}
+                                    onPress={() => { setPostCredits('0'); setValidationErrors(prev => { const n = new Set(prev); n.delete('credits'); return n; }); }}
+                                >
+                                    <Text style={[styles.freeChipText, postCredits === '0' && styles.freeChipTextActive]}>FREE</Text>
+                                </Pressable>
+                                <Pressable onPress={showPricingGuide} hitSlop={8} style={styles.tipPill}>
+                                    <Text style={styles.tipPillEmoji}>💡</Text>
+                                    <Text style={styles.tipPillText}>Pricing tip</Text>
+                                </Pressable>
+                            </View>
 
                             {/* Repeatable Toggle */}
                             <Pressable style={styles.repeatableRow} onPress={() => setPostRepeatable(!postRepeatable)}>
@@ -929,25 +926,6 @@ export default function MapScreen() {
                                 </View>
                                 <Text style={styles.repeatableText}>🔁 Repeatable — keep listing active for ongoing bookings</Text>
                             </Pressable>
-
-                            {/* Photos */}
-                            <Text style={styles.sectionLabel}>Photos <Text style={styles.requiredStar}>*</Text> <Text style={styles.sectionLabelHint}>(min 1)</Text></Text>
-                            <View style={[styles.photosRow, fieldBorder('photos')]}>
-                                {postPhotos.map((uri, i) => (
-                                    <View key={i} style={styles.photoThumb}>
-                                        <RNImage source={{ uri }} style={styles.photoImg} />
-                                        <Pressable style={styles.photoRemove} onPress={() => setPostPhotos(prev => prev.filter((_, j) => j !== i))}>
-                                            <Text style={styles.photoRemoveText}>✕</Text>
-                                        </Pressable>
-                                    </View>
-                                ))}
-                                {postPhotos.length < 3 && (
-                                    <Pressable style={styles.photoAdd} onPress={() => { pickPhoto(); setValidationErrors(prev => { const n = new Set(prev); n.delete('photos'); return n; }); }}>
-                                        <Text style={styles.photoAddIcon}>📷</Text>
-                                    </Pressable>
-                                )}
-                            </View>
-                            <Text style={styles.photoCount}>{postPhotos.length}/3 photos</Text>
                         </ScrollView>
 
                         {/* Sticky Submit */}
@@ -961,6 +939,8 @@ export default function MapScreen() {
                     </View>
                 </KeyboardAvoidingView>
             )}
+
+            <PricingInfoModal isOpen={showPricingModal} onClose={() => setShowPricingModal(false)} />
         </View>
     );
 }
@@ -976,8 +956,12 @@ const styles = StyleSheet.create({
     filterBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.85)', padding: 4, borderRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 8 },
     filterChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
     filterChipActive: { backgroundColor: '#e5e7eb' },
+    filterChipActiveOffers: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: '#10b981' },
+    filterChipActiveNeeds: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: '#ea580c' },
     filterChipText: { fontSize: 13, fontWeight: '600', color: '#4b5563' },
     filterChipTextActive: { color: '#111827', fontWeight: '800' },
+    filterChipTextOnGreen: { fontSize: 13, color: '#ffffff', fontWeight: '800' },
+    filterChipTextOnOrange: { fontSize: 13, color: '#ffffff', fontWeight: '800' },
     filterDivider: { width: 1, height: 16, backgroundColor: '#d1d5db', marginHorizontal: 4 },
     filterClear: { paddingHorizontal: 8, paddingVertical: 8 },
     filterClearText: { fontSize: 14, color: '#9ca3af', fontWeight: '800' },
@@ -1015,70 +999,92 @@ const styles = StyleSheet.create({
     pinDropBanner: { position: 'absolute', top: 60, left: 20, right: 20, backgroundColor: '#3b82f6', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16, alignItems: 'center', zIndex: 200 },
     pinDropBannerText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
-    // Full-Screen Sheet
+    // Full-Screen Sheet — LIGHT theme
     sheetWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: SCREEN_HEIGHT * 0.95, zIndex: 500 },
-    sheet: { backgroundColor: 'rgba(24, 30, 24, 0.98)', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, maxHeight: SCREEN_HEIGHT * 0.95, flex: 1 },
+    sheet: { backgroundColor: '#ffffff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, maxHeight: SCREEN_HEIGHT * 0.95, flex: 1 },
     sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-    sheetTitle: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: 0.5 },
-    sheetClose: { color: 'rgba(255,255,255,0.5)', fontSize: 24, fontWeight: '300', width: 32, height: 32, textAlign: 'center', lineHeight: 32 },
+    sheetTitle: { color: '#111827', fontSize: 20, fontWeight: '800', letterSpacing: 0.5 },
+    sheetClose: { color: '#9ca3af', fontSize: 24, fontWeight: '300', width: 32, height: 32, textAlign: 'center', lineHeight: 32 },
 
     // Toast
     toastBanner: { backgroundColor: '#ef4444', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, marginBottom: 10, alignItems: 'center' },
     toastText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
     // Section labels
-    sectionLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4, marginTop: 2 },
+    sectionLabel: { color: '#6b7280', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4, marginTop: 2 },
     requiredStar: { color: '#ef4444', fontSize: 12 },
-    sectionLabelHint: { color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: '500', textTransform: 'none', letterSpacing: 0 },
+    sectionLabelHint: { color: '#9ca3af', fontSize: 11, fontWeight: '500', textTransform: 'none', letterSpacing: 0 },
 
-    // Type toggle
-    typeRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-    typeBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 2, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center' },
-    typeBtnOffer: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
+    // Type toggle — colours match map pins (green offer / orange need)
+    typeRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+    typeBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 2, borderColor: '#e5e7eb', backgroundColor: '#f9fafb', alignItems: 'center' },
+    typeBtnOffer: { backgroundColor: '#10b981', borderColor: '#10b981' },
     typeBtnNeed: { backgroundColor: '#ea580c', borderColor: '#ea580c' },
-    typeBtnText: { fontSize: 15, fontWeight: '800', color: 'rgba(255,255,255,0.6)' },
+    typeBtnText: { fontSize: 15, fontWeight: '800', color: '#6b7280' },
     typeBtnTextActive: { color: '#fff' },
 
     // Category picker
-    pickerWrap: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', marginBottom: 8, overflow: 'hidden' },
-    picker: { color: '#fff', height: 50 },
+    pickerWrap: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 50, backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 8, overflow: 'hidden' },
+    pickerText: { flex: 1, color: '#9ca3af', fontSize: 15 },
+    pickerTextActive: { color: '#111827', fontWeight: '600' },
+    pickerArrow: { color: '#6b7280', fontSize: 12 },
+    picker: { color: '#111827', height: 50 },
+
+    // Category modal sheet
+    categoryModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+    categorySheet: { backgroundColor: '#ffffff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: 480, paddingBottom: 32 },
+    categorySheetHeader: { padding: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
+    categorySheetTitle: { color: '#111827', fontSize: 16, fontWeight: '700', textAlign: 'center' },
+    categoryRow: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', backgroundColor: 'transparent' },
+    categoryRowActive: { backgroundColor: 'rgba(16,185,129,0.08)' },
+    categoryRowEmoji: { fontSize: 20, marginRight: 12 },
+    categoryRowLabel: { color: '#111827', fontSize: 15, fontWeight: '600' },
+    categoryRowCheck: { marginLeft: 'auto', color: '#10b981', fontWeight: '800' },
 
     // Title (full-width)
-    titleInputFull: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 10, color: '#fff', fontSize: 15, marginBottom: 8 },
+    titleInputFull: { backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 14, paddingVertical: 12, color: '#111827', fontSize: 15, marginBottom: 8 },
 
-    // Price row — compact inline
+    // Price label row + tip pill
+    priceLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, marginTop: 2 },
+    tipPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 12, borderRadius: 12, backgroundColor: '#fef3c7', borderWidth: 1, borderColor: '#fde68a' },
+    tipPillEmoji: { fontSize: 13 },
+    tipPillText: { fontSize: 11, fontWeight: '800', color: '#92400e', letterSpacing: 0.3 },
+
+    // Price input row
+    priceInputRow: { flexDirection: 'row', gap: 8, marginBottom: 12, alignItems: 'center' },
+    creditsInputCompact: { width: 80, backgroundColor: '#f9fafb', borderRadius: 10, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 10, paddingVertical: 12, color: '#111827', fontSize: 16, fontWeight: '800', textAlign: 'center' },
+
+    // Legacy (unused but kept for safety)
     priceRowCompact: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingVertical: 2 },
-    creditsInputCompact: { width: 70, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 10, color: '#fff', fontSize: 16, fontWeight: '800', textAlign: 'center' },
-
-    // Price row
     priceRow: { flexDirection: 'row', gap: 8, marginBottom: 4, alignItems: 'center' },
-    creditsInputWide: { flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 12, color: '#fff', fontSize: 16, fontWeight: '800' },
-    priceTypeBtn: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 14, justifyContent: 'center' },
-    priceTypeBtnText: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '700' },
+    creditsInputWide: { flex: 1, backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 14, paddingVertical: 12, color: '#111827', fontSize: 16, fontWeight: '800' },
+
+    priceTypeBtn: { width: 72, backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 14, paddingVertical: 14, justifyContent: 'center', alignItems: 'center' },
+    priceTypeBtnText: { color: '#4b5563', fontSize: 13, fontWeight: '700' },
     freeChip: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 2, borderColor: 'rgba(16,185,129,0.4)', backgroundColor: 'rgba(16,185,129,0.08)' },
     freeChipActive: { backgroundColor: '#10b981', borderColor: '#10b981' },
-    freeChipText: { color: 'rgba(16,185,129,0.8)', fontSize: 13, fontWeight: '800' },
+    freeChipText: { color: '#059669', fontSize: 13, fontWeight: '800' },
     freeChipTextActive: { color: '#fff' },
     pricingGuideLink: { marginBottom: 12, paddingVertical: 4 },
-    pricingGuideLinkText: { color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: '600' },
+    pricingGuideLinkText: { color: '#9ca3af', fontSize: 12, fontWeight: '600' },
 
     // Location (compact chips)
-    locationRow: { flexDirection: 'row', gap: 8, marginBottom: 8, alignItems: 'center' },
-    locationChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.08)' },
-    locationChipActive: { borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.15)' },
+    locationRow: { flexDirection: 'row', gap: 8, marginBottom: 12, alignItems: 'center' },
+    locationChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#f9fafb' },
+    locationChipActive: { borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)' },
     locationChipIcon: { fontSize: 16 },
-    locationChipLabel: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.8)' },
+    locationChipLabel: { fontSize: 13, fontWeight: '700', color: '#4b5563' },
     locationConfirmInline: { color: '#10b981', fontSize: 13, fontWeight: '800' },
 
     // Repeatable
     repeatableRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, marginBottom: 6 },
-    checkbox: { width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)', backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' },
-    checkboxActive: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
+    checkbox: { width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: '#d1d5db', backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' },
+    checkboxActive: { backgroundColor: '#10b981', borderColor: '#10b981' },
     checkboxTick: { color: '#fff', fontSize: 14, fontWeight: '800' },
-    repeatableText: { flex: 1, color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '500' },
+    repeatableText: { flex: 1, color: '#4b5563', fontSize: 13, fontWeight: '500' },
 
     // Description
-    descriptionInput: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 10, color: '#fff', fontSize: 15, minHeight: 70, marginBottom: 8 },
+    descriptionInput: { backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 14, paddingVertical: 10, color: '#111827', fontSize: 15, minHeight: 90, marginBottom: 12 },
 
     // Photos
     photosRow: { flexDirection: 'row', gap: 10, marginBottom: 4, flexWrap: 'wrap', padding: 4, borderRadius: 14 },
@@ -1086,15 +1092,15 @@ const styles = StyleSheet.create({
     photoImg: { width: 60, height: 60, borderRadius: 12 },
     photoRemove: { position: 'absolute', top: -2, right: -2, width: 22, height: 22, borderRadius: 11, backgroundColor: '#ef4444', justifyContent: 'center', alignItems: 'center' },
     photoRemoveText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-    photoAdd: { width: 60, height: 60, borderRadius: 12, borderWidth: 2, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)' },
+    photoAdd: { width: 60, height: 60, borderRadius: 12, borderWidth: 2, borderStyle: 'dashed', borderColor: '#d1d5db', justifyContent: 'center', alignItems: 'center', backgroundColor: '#f9fafb' },
     photoAddIcon: { fontSize: 26 },
-    photoCount: { color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+    photoCount: { color: '#9ca3af', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
 
     // Submit
     submitBtn: { paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginBottom: 8, marginTop: 4 },
     submitBtnOffer: { backgroundColor: '#10b981' },
     submitBtnNeed: { backgroundColor: '#ea580c' },
-    submitBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.1)' },
+    submitBtnDisabled: { backgroundColor: '#e5e7eb' },
     submitBtnText: { color: '#fff', fontSize: 15, fontWeight: '800', letterSpacing: 0.5 },
-    submitBtnTextDisabled: { color: 'rgba(255,255,255,0.4)' },
+    submitBtnTextDisabled: { color: '#9ca3af' },
 });

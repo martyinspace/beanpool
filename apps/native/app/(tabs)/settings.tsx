@@ -22,11 +22,10 @@ export default function SettingsScreen() {
     const [mode, setMode] = useState<'menu' | 'profile' | 'export' | 'import' | 'seed' | 'advanced' | 'wipe' | 'notifications' | 'recovery-requests'>('menu');
     const params = useLocalSearchParams<{ section?: string }>();
 
-    // Deep-link: auto-open Advanced section when navigated from Connect pill
+    // Deep-link: auto-open sections from other pages
     useEffect(() => {
-        if (params.section === 'advanced') {
-            setMode('advanced');
-        }
+        if (params.section === 'advanced') setMode('advanced');
+        if (params.section === 'profile') setMode('profile');
     }, [params.section]);
 
     // Notification preference state

@@ -1,26 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, ScrollView, SafeAreaView, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MemberAvatar } from '../components/MemberAvatar';
-import { getMemberProfile, getMemberRatings, getMemberPosts } from '../utils/db'; // Make sure these are exported correctly
+import { getMemberProfile, getMemberRatings, getMemberPosts } from '../utils/db';
 import { useIdentity } from './IdentityContext';
 
 export default function PublicProfileScreen() {
     const { publicKey, callsign } = useLocalSearchParams();
     const { identity } = useIdentity();
-    
+
     const [profile, setProfile] = useState<any>(null);
     const [ratings, setRatings] = useState<any[]>([]);
     const [stats, setStats] = useState<any>(null);
     const [activePosts, setActivePosts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<'listings' | 'reviews'>('listings');
 
     const pubKeyStr = Array.isArray(publicKey) ? publicKey[0] : publicKey;
     const callsignStr = Array.isArray(callsign) ? callsign[0] : callsign;
 
     useEffect(() => {
         if (!pubKeyStr) return;
-        
         setLoading(true);
         Promise.all([
             getMemberProfile(pubKeyStr).catch(() => null),
@@ -53,126 +54,151 @@ export default function PublicProfileScreen() {
                 <View style={{ width: 60 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
-                {/* Banner Profile */}
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                {/* Banner */}
                 <View style={styles.banner}>
-                    <View style={{ width: 80, height: 80, borderRadius: 40, overflow: 'hidden', marginBottom: 12 }}>
+                    <View style={styles.avatarRing}>
                         <MemberAvatar avatarUrl={profile?.avatar_url} pubkey={pubKeyStr} callsign={callsignStr || '?'} size={80} />
                     </View>
-                    <Text style={styles.callsignText}>{callsignStr} <Text style={{ color: '#10b981' }}>✓</Text></Text>
+                    <View style={styles.nameRow}>
+                        <Text style={styles.callsignText}>{callsignStr}</Text>
+                        <MaterialCommunityIcons name="check-decagram" size={22} color="#10b981" style={{ marginLeft: 6, marginTop: 2 }} />
+                    </View>
                     <Text style={styles.pubkeyText}>{pubKeyStr?.slice(0, 16)}...</Text>
-
                     {profile?.bio && (
                         <Text style={styles.bioText}>"{profile.bio}"</Text>
                     )}
                 </View>
 
                 {loading ? (
-                    <ActivityIndicator size="large" color="#fbbf24" style={{ marginTop: 40 }} />
+                    <ActivityIndicator size="large" color="#10b981" style={{ marginTop: 40 }} />
                 ) : (
                     <>
                         {/* Stats grid */}
                         {stats && stats.count > 0 && (
                             <View style={styles.statsGrid}>
-                                <View style={[styles.statBox, { borderColor: '#404040' }]}>
-                                    <Text style={styles.statIcon}>{renderStars(stats.average)}</Text>
-                                    <Text style={styles.statValue}>{stats.average.toFixed(1)}</Text>
-                                    <Text style={styles.statLabel}>Overall</Text>
+                                <View style={styles.statBoxOverall}>
+                                    <Text style={styles.starRating}>{renderStars(stats.average)}</Text>
+                                    <Text style={styles.statValueOverall}>{stats.average.toFixed(1)}</Text>
+                                    <Text style={styles.statLabelOverall}>OVERALL</Text>
                                 </View>
-                                <View style={[styles.statBox, { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
-                                    <Text style={styles.statIcon}>📤</Text>
-                                    <Text style={[styles.statValue, { color: '#34d399' }]}>{stats.asProvider?.average.toFixed(1) || '-'}</Text>
-                                    <Text style={[styles.statLabel, { color: '#10b981' }]}>As Provider</Text>
+                                <View style={styles.statBoxProvider}>
+                                    <MaterialCommunityIcons name="inbox-arrow-up" size={26} color="#10b981" />
+                                    <Text style={styles.statValueProvider}>{stats.asProvider?.average.toFixed(1) || '-'}</Text>
+                                    <Text style={styles.statLabelProvider}>AS PROVIDER</Text>
                                 </View>
-                                <View style={[styles.statBox, { backgroundColor: 'rgba(99, 102, 241, 0.1)', borderColor: 'rgba(99, 102, 241, 0.3)' }]}>
-                                    <Text style={styles.statIcon}>📥</Text>
-                                    <Text style={[styles.statValue, { color: '#818cf8' }]}>{stats.asReceiver?.average.toFixed(1) || '-'}</Text>
-                                    <Text style={[styles.statLabel, { color: '#6366f1' }]}>As Payer</Text>
+                                <View style={styles.statBoxReceiver}>
+                                    <MaterialCommunityIcons name="inbox-arrow-down" size={26} color="#6366f1" />
+                                    <Text style={styles.statValueReceiver}>{stats.asReceiver?.average.toFixed(1) || '-'}</Text>
+                                    <Text style={styles.statLabelReceiver}>AS RECEIVER</Text>
                                 </View>
                             </View>
                         )}
 
-                        {/* Active Posts list */}
-                        {activePosts.length > 0 && (
-                            <View style={styles.reviewsWrapper}>
-                                <Text style={styles.sectionTitle}>Active Listings ({activePosts.length})</Text>
-                                {activePosts.map((p, i) => {
-                                    let coverImage: string | null = null;
-                                    if (p.photos) {
-                                        try { 
-                                            const arr = Array.isArray(p.photos) ? p.photos : JSON.parse(p.photos); 
-                                            if (arr.length > 0) coverImage = arr[0]; 
-                                        } catch {}
-                                    }
+                        {/* Tabs */}
+                        <View style={styles.tabBar}>
+                            <Pressable
+                                style={[styles.tab, activeTab === 'listings' && styles.tabActive]}
+                                onPress={() => setActiveTab('listings')}
+                            >
+                                <Text style={[styles.tabText, activeTab === 'listings' && styles.tabTextActive]}>
+                                    Listings {activePosts.length > 0 ? `(${activePosts.length})` : ''}
+                                </Text>
+                            </Pressable>
+                            <Pressable
+                                style={[styles.tab, activeTab === 'reviews' && styles.tabActive]}
+                                onPress={() => setActiveTab('reviews')}
+                            >
+                                <Text style={[styles.tabText, activeTab === 'reviews' && styles.tabTextActive]}>
+                                    Reviews {ratings.length > 0 ? `(${ratings.length})` : ''}
+                                </Text>
+                            </Pressable>
+                        </View>
 
-                                    return (
-                                        <Pressable key={p.id || i} onPress={() => router.push(`/post/${p.id}`)}>
-                                            <View style={styles.dealCard}>
-                                                <View style={{ flexDirection: 'row', gap: 12 }}>
-                                                    {coverImage ? (
-                                                        <Image source={{ uri: coverImage }} style={styles.dealThumb} />
-                                                    ) : (
-                                                        <View style={[styles.dealThumb, styles.dealThumbFallback]}>
-                                                            <Text style={{ fontSize: 24, opacity: 0.5 }}>📦</Text>
-                                                        </View>
-                                                    )}
-                                                    <View style={{ flex: 1, justifyContent: 'center' }}>
-                                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                                                            <View style={[styles.typeBadge, p.type === 'offer' ? styles.badgeOffer : styles.badgeNeed]}>
-                                                                <Text style={styles.typeBadgeText}>{p.type?.toUpperCase()}</Text>
+                        {/* Listings tab */}
+                        {activeTab === 'listings' && (
+                            <View style={styles.tabContent}>
+                                {activePosts.length === 0 ? (
+                                    <View style={styles.emptyCard}>
+                                        <Text style={styles.emptyIcon}>🛒</Text>
+                                        <Text style={styles.emptyText}>No active listings.</Text>
+                                    </View>
+                                ) : (
+                                    activePosts.map((p, i) => {
+                                        let coverImage: string | null = null;
+                                        if (p.photos) {
+                                            try {
+                                                const arr = Array.isArray(p.photos) ? p.photos : JSON.parse(p.photos);
+                                                if (arr.length > 0) coverImage = arr[0];
+                                            } catch {}
+                                        }
+                                        return (
+                                            <Pressable key={p.id || i} onPress={() => router.push(`/post/${p.id}`)}>
+                                                <View style={styles.dealCard}>
+                                                    <View style={{ flexDirection: 'row', gap: 12 }}>
+                                                        {coverImage ? (
+                                                            <Image source={{ uri: coverImage }} style={styles.dealThumb} />
+                                                        ) : (
+                                                            <View style={[styles.dealThumb, styles.dealThumbFallback]}>
+                                                                <Text style={{ fontSize: 24, opacity: 0.4 }}>📦</Text>
                                                             </View>
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                                <Text style={styles.creditAmount} numberOfLines={1}>
-                                                                    {p.credits ?? '?'}
-                                                                </Text>
-                                                                <Image source={require('../assets/images/bean.png')} style={styles.beanIcon} />
+                                                        )}
+                                                        <View style={{ flex: 1, justifyContent: 'center' }}>
+                                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                                <View style={[styles.typeBadge, p.type === 'offer' ? styles.badgeOffer : styles.badgeNeed]}>
+                                                                    <Text style={styles.typeBadgeText}>{p.type?.toUpperCase()}</Text>
+                                                                </View>
+                                                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                                    <Text style={styles.creditAmount}>{p.credits ?? '?'}</Text>
+                                                                    <Image source={require('../assets/images/bean.png')} style={styles.beanIcon} />
+                                                                </View>
                                                             </View>
+                                                            <Text style={styles.dealTitle} numberOfLines={1}>{p.title}</Text>
+                                                            <Text style={styles.dealDateText}>Active</Text>
                                                         </View>
-                                                        <Text style={styles.dealTitle} numberOfLines={1}>{p.title}</Text>
-                                                        <Text style={styles.dealDateText}>Active</Text>
                                                     </View>
                                                 </View>
-                                            </View>
-                                        </Pressable>
-                                    );
-                                })}
+                                            </Pressable>
+                                        );
+                                    })
+                                )}
                             </View>
                         )}
 
-                        {/* Reviews list */}
-                        <View style={styles.reviewsWrapper}>
-                            <Text style={styles.sectionTitle}>Reviews ({ratings.length})</Text>
-                            
-                            {ratings.length === 0 ? (
-                                <View style={styles.emptyCard}>
-                                    <Text style={styles.emptyIcon}>🌱</Text>
-                                    <Text style={styles.emptyText}>No ratings yet.</Text>
-                                </View>
-                            ) : (
-                                ratings.map((r, i) => (
-                                    <View key={i} style={styles.reviewCard}>
-                                        <View style={styles.reviewHeader}>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                <Text style={styles.starText}>{renderStars(r.stars)}</Text>
-                                                <View style={[styles.roleBadge, r.role === 'provider' ? styles.roleBadgeProvider : styles.roleBadgeReceiver]}>
-                                                    <Text style={[styles.roleText, r.role === 'provider' ? styles.roleTextProvider : styles.roleTextReceiver]}>
-                                                        {r.role === 'provider' ? 'Provided Service' : 'Paid for Service'}
-                                                    </Text>
-                                                </View>
-                                            </View>
-                                            <Text style={styles.dateText}>
-                                                {new Date(r.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
-                                            </Text>
-                                        </View>
-                                        {r.comment ? (
-                                            <Text style={styles.commentText}>"{r.comment}"</Text>
-                                        ) : (
-                                            <Text style={styles.noCommentText}>No comment provided.</Text>
-                                        )}
+                        {/* Reviews tab */}
+                        {activeTab === 'reviews' && (
+                            <View style={styles.tabContent}>
+                                {ratings.length === 0 ? (
+                                    <View style={styles.emptyCard}>
+                                        <Text style={styles.emptyIcon}>🌱</Text>
+                                        <Text style={styles.emptyText}>No reviews yet.</Text>
                                     </View>
-                                ))
-                            )}
-                        </View>
+                                ) : (
+                                    ratings.map((r, i) => (
+                                        <View key={i} style={styles.reviewCard}>
+                                            <View style={styles.reviewHeader}>
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                    <Text style={styles.starText}>{renderStars(r.stars)}</Text>
+                                                    <View style={[styles.roleBadge, r.role === 'provider' ? styles.roleBadgeProvider : styles.roleBadgeReceiver]}>
+                                                        <Text style={[styles.roleText, r.role === 'provider' ? styles.roleTextProvider : styles.roleTextReceiver]}>
+                                                            {r.role === 'provider' ? 'Provided Service' : 'Received Service'}
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                                <Text style={styles.dateText}>
+                                                    {new Date(r.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }).toUpperCase()}
+                                                </Text>
+                                            </View>
+                                            {r.comment ? (
+                                                <Text style={styles.commentText}>"{r.comment}"</Text>
+                                            ) : (
+                                                <Text style={styles.noCommentText}>No comment provided.</Text>
+                                            )}
+                                        </View>
+                                    ))
+                                )}
+                            </View>
+                        )}
                     </>
                 )}
             </ScrollView>
@@ -181,168 +207,113 @@ export default function PublicProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1, backgroundColor: '#000',
-    },
+    container: { flex: 1, backgroundColor: '#f9fafb' },
+
     header: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderColor: '#333'
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        padding: 16, backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb',
     },
-    backBtn: {
-        paddingVertical: 8, paddingRight: 8
-    },
-    backBtnText: {
-        color: '#9ca3af', fontWeight: 'bold'
-    },
-    headerTitle: {
-        color: '#fff', fontSize: 18, fontWeight: 'bold'
-    },
-    scrollContent: {
-        paddingBottom: 40
-    },
+    backBtn: { paddingVertical: 4, paddingRight: 8 },
+    backBtnText: { color: '#6b7280', fontWeight: '600', fontSize: 14 },
+    headerTitle: { color: '#111827', fontSize: 17, fontWeight: '800' },
+
+    scrollContent: { paddingBottom: 48 },
+
+    // Banner
     banner: {
-        alignItems: 'center', padding: 24, borderBottomWidth: 1, borderColor: '#222'
+        alignItems: 'center', paddingVertical: 28, paddingHorizontal: 24,
+        backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb',
     },
-    avatar: {
-        width: 80, height: 80, borderRadius: 40, borderWidth: 3, borderColor: '#333', marginBottom: 16
+    avatarRing: {
+        width: 88, height: 88, borderRadius: 44, borderWidth: 3, borderColor: '#10b981',
+        overflow: 'hidden', marginBottom: 14,
+        shadowColor: '#10b981', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4,
     },
-    avatarPlaceholder: {
-        width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(245, 158, 11, 0.2)', borderWidth: 3, borderColor: '#333', alignItems: 'center', justifyContent: 'center', marginBottom: 16
-    },
-    avatarInitial: {
-        fontSize: 32, fontWeight: 'bold', color: '#fbbf24'
-    },
-    callsignText: {
-        fontSize: 24, fontWeight: 'bold', color: '#fff'
-    },
+    nameRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+    callsignText: { fontSize: 24, fontWeight: '800', color: '#111827' },
     pubkeyText: {
-        fontSize: 12, color: '#9ca3af', fontFamily: 'Courier', backgroundColor: '#1f2937', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginTop: 4
+        fontSize: 12, color: '#9ca3af', fontFamily: 'Courier',
+        backgroundColor: '#f3f4f6', paddingHorizontal: 8, paddingVertical: 3,
+        borderRadius: 6, marginBottom: 4, overflow: 'hidden',
     },
-    bioText: {
-        marginTop: 16, fontSize: 14, color: '#ccc', fontStyle: 'italic', textAlign: 'center'
+    bioText: { marginTop: 10, fontSize: 14, color: '#6b7280', fontStyle: 'italic', textAlign: 'center', lineHeight: 20 },
+
+    // Stats
+    statsGrid: { flexDirection: 'row', padding: 16, gap: 10, backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
+    statBoxOverall: {
+        flex: 1, backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb',
+        borderRadius: 14, padding: 12, alignItems: 'center',
     },
-    statsGrid: {
-        flexDirection: 'row', padding: 16, gap: 10
+    statBoxProvider: {
+        flex: 1, backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0',
+        borderRadius: 14, padding: 12, alignItems: 'center',
     },
-    statBox: {
-        flex: 1, backgroundColor: '#111', borderWidth: 1, borderColor: '#333', borderRadius: 12, padding: 12, alignItems: 'center', justifyContent: 'center'
+    statBoxReceiver: {
+        flex: 1, backgroundColor: '#eef2ff', borderWidth: 1, borderColor: '#c7d2fe',
+        borderRadius: 14, padding: 12, alignItems: 'center',
     },
-    statIcon: {
-        fontSize: 16, marginBottom: 4, color: '#fbbf24'
+    starRating: { fontSize: 13, color: '#fbbf24', marginBottom: 4, letterSpacing: -1 },
+    statValueOverall: { fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 2 },
+    statLabelOverall: { fontSize: 9, fontWeight: '700', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5 },
+    statValueProvider: { fontSize: 18, fontWeight: '800', color: '#10b981', marginBottom: 2, marginTop: 4 },
+    statLabelProvider: { fontSize: 9, fontWeight: '700', color: '#10b981', textTransform: 'uppercase', letterSpacing: 0.5 },
+    statValueReceiver: { fontSize: 18, fontWeight: '800', color: '#6366f1', marginBottom: 2, marginTop: 4 },
+    statLabelReceiver: { fontSize: 9, fontWeight: '700', color: '#6366f1', textTransform: 'uppercase', letterSpacing: 0.5 },
+
+    // Tabs
+    tabBar: {
+        flexDirection: 'row', backgroundColor: '#ffffff',
+        borderBottomWidth: 1, borderBottomColor: '#e5e7eb', paddingHorizontal: 16,
     },
-    statValue: {
-        fontSize: 16, fontWeight: 'bold', color: '#fff'
-    },
-    statLabel: {
-        fontSize: 10, fontWeight: 'bold', color: '#9ca3af', textTransform: 'uppercase', marginTop: 2
-    },
-    reviewsWrapper: {
-        padding: 16
-    },
-    sectionTitle: {
-        color: '#fff', fontWeight: 'bold', fontSize: 16, marginBottom: 12, marginLeft: 4
-    },
+    tab: { flex: 1, paddingVertical: 14, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+    tabActive: { borderBottomColor: '#10b981' },
+    tabText: { fontSize: 14, fontWeight: '600', color: '#9ca3af' },
+    tabTextActive: { color: '#10b981', fontWeight: '800' },
+    tabContent: { padding: 16 },
+
+    // Empty
     emptyCard: {
-        backgroundColor: '#111', padding: 24, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#333'
+        backgroundColor: '#ffffff', padding: 32, borderRadius: 14, alignItems: 'center',
+        borderWidth: 1, borderColor: '#e5e7eb',
     },
-    emptyIcon: {
-        fontSize: 32, opacity: 0.5, marginBottom: 8
-    },
-    emptyText: {
-        color: '#9ca3af', fontWeight: '600'
-    },
-    reviewCard: {
-        backgroundColor: '#111', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#333', marginBottom: 12
-    },
-    reviewHeader: {
-        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8
-    },
-    starText: {
-        fontSize: 13, color: '#fbbf24'
-    },
-    roleBadge: {
-        paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4
-    },
-    roleBadgeProvider: {
-        backgroundColor: 'rgba(16, 185, 129, 0.2)'
-    },
-    roleBadgeReceiver: {
-        backgroundColor: 'rgba(99, 102, 241, 0.2)'
-    },
-    roleText: {
-        fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase'
-    },
-    roleTextProvider: { color: '#34d399' },
-    roleTextReceiver: { color: '#818cf8' },
-    dateText: {
-        fontSize: 10, fontWeight: 'bold', color: '#6b7280', textTransform: 'uppercase'
-    },
-    commentText: {
-        fontSize: 14, color: '#d1d5db', fontStyle: 'italic', backgroundColor: 'rgba(255,255,255,0.05)', padding: 12, borderRadius: 8, overflow: 'hidden'
-    },
-    noCommentText: {
-        fontSize: 13, color: '#6b7280', fontStyle: 'italic'
-    },
-    // Deal card styles for active posts
+    emptyIcon: { fontSize: 32, opacity: 0.4, marginBottom: 8 },
+    emptyText: { color: '#9ca3af', fontWeight: '600', fontSize: 14 },
+
+    // Deal cards
     dealCard: {
-        backgroundColor: '#111',
-        borderRadius: 12,
-        padding: 12,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: '#333',
+        backgroundColor: '#ffffff', borderRadius: 14, padding: 12,
+        marginBottom: 10, borderWidth: 1, borderColor: '#e5e7eb',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
     },
-    dealThumb: {
-        width: 56,
-        height: 56,
-        borderRadius: 8,
-        backgroundColor: '#222',
+    dealThumb: { width: 56, height: 56, borderRadius: 10, backgroundColor: '#f3f4f6' },
+    dealThumbFallback: { alignItems: 'center', justifyContent: 'center' },
+    dealTitle: { fontSize: 15, fontWeight: '800', color: '#111827', marginBottom: 2 },
+    dealDateText: { fontSize: 12, fontWeight: '600', color: '#9ca3af' },
+    creditAmount: { fontWeight: '900', fontSize: 15, color: '#8b5cf6' },
+    beanIcon: { width: 14, height: 14, marginLeft: 2, resizeMode: 'contain' },
+    typeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 5 },
+    badgeOffer: { backgroundColor: '#10b981' },
+    badgeNeed: { backgroundColor: '#ea580c' },
+    typeBadgeText: { fontSize: 10, fontWeight: '800', color: '#000000', letterSpacing: 0.5 },
+
+    // Review cards
+    reviewCard: {
+        backgroundColor: '#ffffff', padding: 16, borderRadius: 14,
+        borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 10,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
     },
-    dealThumbFallback: {
-        backgroundColor: '#1a1a1a',
-        alignItems: 'center',
-        justifyContent: 'center',
+    reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
+    starText: { fontSize: 14, color: '#fbbf24', letterSpacing: -1 },
+    roleBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5 },
+    roleBadgeProvider: { backgroundColor: 'rgba(16, 185, 129, 0.12)' },
+    roleBadgeReceiver: { backgroundColor: 'rgba(99, 102, 241, 0.12)' },
+    roleText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 },
+    roleTextProvider: { color: '#059669' },
+    roleTextReceiver: { color: '#4f46e5' },
+    dateText: { fontSize: 10, fontWeight: '700', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.3 },
+    commentText: {
+        fontSize: 14, color: '#374151', fontStyle: 'italic', lineHeight: 20,
+        backgroundColor: '#f9fafb', padding: 12, borderRadius: 8,
     },
-    dealTitle: {
-        fontSize: 15,
-        fontWeight: '800',
-        color: '#fff',
-        marginBottom: 2,
-    },
-    dealDateText: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#9ca3af',
-    },
-    creditAmount: {
-        fontWeight: '900',
-        fontSize: 15,
-        color: '#8b5cf6',
-    },
-    beanIcon: {
-        width: 14,
-        height: 14,
-        marginLeft: 2,
-        resizeMode: 'contain',
-    },
-    typeBadge: {
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 4,
-    },
-    badgeOffer: {
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-        borderWidth: 1,
-        borderColor: 'rgba(16, 185, 129, 0.2)',
-    },
-    badgeNeed: {
-        backgroundColor: 'rgba(245, 158, 11, 0.1)',
-        borderWidth: 1,
-        borderColor: 'rgba(245, 158, 11, 0.2)',
-    },
-    typeBadgeText: {
-        fontSize: 10,
-        fontWeight: '800',
-        color: '#d1d5db',
-        letterSpacing: 0.5,
-    }
+    noCommentText: { fontSize: 13, color: '#9ca3af', fontStyle: 'italic' },
 });

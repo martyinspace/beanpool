@@ -21,7 +21,8 @@ const FALLBACK_COLORS = [
     '#ef4444', '#ec4899', '#6366f1', '#14b8a6',
 ] as const;
 
-function getColorForPubkey(pubkey: string): string {
+function getColorForPubkey(pubkey: string | null | undefined): string {
+    if (!pubkey) return FALLBACK_COLORS[0];
     let hash = 0;
     for (let i = 0; i < Math.min(pubkey.length, 8); i++) {
         hash = pubkey.charCodeAt(i) + ((hash << 5) - hash);

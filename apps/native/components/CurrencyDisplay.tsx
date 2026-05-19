@@ -67,7 +67,7 @@ export function CurrencyDisplay({ amount, style, hideAmount = false, asView = fa
         if (asView) {
             return (
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {!!amtStr && <Text style={style}>{amtStr}</Text>}
+                    {!!amtStr && <Text style={style} numberOfLines={1} adjustsFontSizeToFit>{amtStr}</Text>}
                     <Image 
                         source={require('../assets/images/bean.png')} 
                         style={{ width: fontSize, height: fontSize, resizeMode: 'contain', marginLeft: hideAmount ? 0 : 2 }} 

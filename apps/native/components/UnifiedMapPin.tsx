@@ -280,7 +280,7 @@ export function buildVariantList(
   const result: CaptureRequest[] = [];
 
   for (const post of posts) {
-    const isOffer = post.type === 'offer';
+    const isOffer = (post.type || '').toLowerCase() === 'offer';
     const bgColor = isOffer ? '#10b981' : '#ea580c';
     const catObj = categories.find((c: any) => c.id === post.category);
     const emoji = catObj?.emoji || (isOffer ? '📦' : '❤️');

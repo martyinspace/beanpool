@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, Modal, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, Modal, ActivityIndicator, Alert, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { submitRating } from '../utils/db';
 import { useIdentity } from '../app/IdentityContext';
 
@@ -33,52 +33,62 @@ export function ReviewModal({ visible, txId, targetPubkey, targetCallsign, onClo
 
     return (
         <Modal visible={visible} transparent animationType="slide">
-            <View style={styles.overlay}>
-                <View style={styles.card}>
-                    <Text style={styles.emoji}>🎉</Text>
-                    <Text style={styles.title}>Deal Complete!</Text>
-                    <Text style={styles.subtitle}>
-                        How was your experience with <Text style={styles.bold}>{targetCallsign}</Text>?
-                    </Text>
+            <KeyboardAvoidingView
+                style={styles.overlay}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    <View style={styles.card}>
+                        <Text style={styles.emoji}>🎉</Text>
+                        <Text style={styles.title}>Deal Complete!</Text>
+                        <Text style={styles.subtitle}>
+                            How was your experience with <Text style={styles.bold}>{targetCallsign}</Text>?
+                        </Text>
 
-                    <View style={styles.starsRow}>
-                        {[1, 2, 3, 4, 5].map(s => (
-                            <Pressable key={s} onPress={() => setStars(s)}>
-                                <Text style={[styles.star, s <= stars ? styles.starActive : styles.starInactive]}>★</Text>
+                        <View style={styles.starsRow}>
+                            {[1, 2, 3, 4, 5].map(s => (
+                                <Pressable key={s} onPress={() => setStars(s)}>
+                                    <Text style={[styles.star, s <= stars ? styles.starActive : styles.starInactive]}>★</Text>
+                                </Pressable>
+                            ))}
+                        </View>
+
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Write a short review (optional)..."
+                            placeholderTextColor="#9ca3af"
+                            multiline
+                            numberOfLines={3}
+                            value={comment}
+                            onChangeText={setComment}
+                        />
+
+                        <View style={styles.buttonRow}>
+                            <Pressable style={styles.skipBtn} onPress={onClose} disabled={submitting}>
+                                <Text style={styles.skipText}>Skip for now</Text>
                             </Pressable>
-                        ))}
+                            <Pressable style={[styles.submitBtn, submitting && styles.btnDisabled]} onPress={handleSubmit} disabled={submitting}>
+                                {submitting ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <Text style={styles.submitText}>Submit Rating</Text>
+                                )}
+                            </Pressable>
+                        </View>
                     </View>
-
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Write a short review (optional)..."
-                        placeholderTextColor="#9ca3af"
-                        multiline
-                        numberOfLines={3}
-                        value={comment}
-                        onChangeText={setComment}
-                    />
-
-                    <View style={styles.buttonRow}>
-                        <Pressable style={styles.skipBtn} onPress={onClose} disabled={submitting}>
-                            <Text style={styles.skipText}>Skip for now</Text>
-                        </Pressable>
-                        <Pressable style={[styles.submitBtn, submitting && styles.btnDisabled]} onPress={handleSubmit} disabled={submitting}>
-                            {submitting ? (
-                                <ActivityIndicator size="small" color="#fff" />
-                            ) : (
-                                <Text style={styles.submitText}>Submit Rating</Text>
-                            )}
-                        </Pressable>
-                    </View>
-                </View>
-            </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </Modal>
     );
 }
 
 const styles = StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
+    scrollContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
     card: { backgroundColor: '#fff', borderRadius: 24, padding: 24, width: '100%', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
     emoji: { fontSize: 40, marginBottom: 16 },
     title: { fontSize: 20, fontWeight: '900', color: '#1f2937', marginBottom: 8 },

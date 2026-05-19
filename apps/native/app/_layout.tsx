@@ -24,6 +24,7 @@ function RootLayoutNav() {
     // Handle incoming deep links for logged-in users (multi-node support)
     useEffect(() => {
         if (!identity || !incomingUrl) return;
+        let mounted = true;
         const parsed = Linking.parse(incomingUrl);
         if (parsed.queryParams?.invite) {
             if (incomingUrl.startsWith('http')) {
@@ -31,6 +32,7 @@ function RootLayoutNav() {
                 if (originMatch) {
                     let extracted = originMatch[0];
                     AsyncStorage.getItem('beanpool_anchor_url').then(current => {
+                        if (!mounted) return;
                         if (current !== extracted) {
                             Alert.alert(
                                 'Switch Nodes?',
@@ -54,6 +56,7 @@ function RootLayoutNav() {
                 }
             }
         }
+        return () => { mounted = false; };
     }, [incomingUrl, identity]);
 
     useEffect(() => {
