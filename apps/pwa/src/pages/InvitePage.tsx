@@ -324,12 +324,16 @@ export function InvitePage({ identity }: Props) {
                                             <button 
                                                 onClick={() => handleCopyProxy(inv.code)} 
                                                 className="p-2 rounded-lg bg-oat-50 dark:bg-nature-800 border border-nature-200 dark:border-nature-700 text-nature-600 dark:text-nature-400 hover:bg-oat-100 dark:hover:bg-nature-700 cursor-pointer transition-colors shadow-sm"
+                                                aria-label="Copy invite code"
+                                                title="Copy invite code"
                                             >
                                                 📋
                                             </button>
                                             <button 
                                                 onClick={() => handleShare(inv.code)} 
                                                 className="p-2 rounded-lg bg-emerald-600 border-none text-white hover:bg-emerald-700 cursor-pointer shadow-sm transition-colors"
+                                                aria-label="Share invite code"
+                                                title="Share invite code"
                                             >
                                                 📤
                                             </button>
