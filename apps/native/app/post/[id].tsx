@@ -93,17 +93,19 @@ export default function PostDetailModal() {
                             database.getFirstAsync("SELECT * FROM marketplace_transactions WHERE post_id=? AND status='pending' AND (buyer_pubkey=? OR seller_pubkey=?) ORDER BY created_at DESC LIMIT 1", [singleId, identity.publicKey, identity.publicKey]).then(setActiveTx);
                         }
                         database.getAllAsync(`
-                            SELECT t.*, m.callsign as buyer_callsign 
+                            SELECT t.*, m.callsign as buyer_callsign, s.callsign as seller_callsign 
                             FROM marketplace_transactions t 
-                            LEFT JOIN members m ON t.buyer_pubkey = m.public_key 
+                            LEFT JOIN members m ON t.buyer_pubkey = m.public_key LEFT JOIN members s ON t.seller_pubkey = s.public_key 
                             WHERE t.post_id=? AND t.status='requested'
                         `, [singleId])
                             .then(async (res: any[]) => {
                                 const enriched = await Promise.all(res.map(async req => {
                                     try {
-                                        const r = await getMemberRatings(req.buyer_pubkey);
-                                        return { ...req, avgRating: r.average, count: r.count };
-                                    } catch(e) { return { ...req, avgRating: 0, count: 0 }; }
+                                        // Some older local rows might have null seller_pubkey even for needs. Fallback to buyer_pubkey.
+                                        const reqPubkey = (post.type === 'need' && req.seller_pubkey) ? req.seller_pubkey : req.buyer_pubkey;
+                                        const r = await getMemberRatings(reqPubkey);
+                                        return { ...req, avgRating: r.average, count: r.count, resolvedReqPubkey: reqPubkey };
+                                    } catch(e) { return { ...req, avgRating: 0, count: 0, resolvedReqPubkey: req.buyer_pubkey }; }
                                 }));
                                 setRequests(enriched);
                             });
@@ -714,14 +716,25 @@ export default function PostDetailModal() {
                     <View style={styles.requestsContainer}>
                         <Text style={styles.requestsTitle}>✋ Fulfillment Requests ({requests.length})</Text>
                         {requests.map(req => {
-                            const reqPubkey = post.type === 'need' ? req.seller_pubkey : req.buyer_pubkey;
-                            const reqCallsign = post.type === 'need' ? (req.seller_callsign || reqPubkey.slice(0,8)) : (req.buyer_callsign || reqPubkey.slice(0,8));
+                            const reqPubkey = req.resolvedReqPubkey || ((post.type === 'need' && req.seller_pubkey) ? req.seller_pubkey : req.buyer_pubkey);
+                            // Fallback gracefully if pubkey is somehow still empty
+                            const safePubkeyStr = reqPubkey ? reqPubkey.slice(0, 8) : "Unknown";
+                            
+                            let reqCallsign = safePubkeyStr;
+                            if (post.type === 'need' && req.seller_pubkey) {
+                                reqCallsign = req.seller_callsign || safePubkeyStr;
+                            } else {
+                                reqCallsign = req.buyer_callsign || safePubkeyStr;
+                            }
+                            
                             return (
                                 <View key={req.id} style={styles.requestCard}>
                                     <View style={{ flex: 1, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                        <View>
-                                            <Pressable onPress={() => router.push({ pathname: '/public-profile', params: { publicKey: reqPubkey, callsign: reqCallsign } })}>
-                                                <Text style={[styles.requestName, { textDecorationLine: 'underline', color: '#fbbf24' }]}>
+                                        <View style={{ flex: 1, paddingRight: 8 }}>
+                                            <Pressable onPress={() => {
+                                                if (reqPubkey) router.push({ pathname: '/public-profile', params: { publicKey: reqPubkey, callsign: reqCallsign } });
+                                            }}>
+                                                <Text style={[styles.requestName, { textDecorationLine: 'underline', color: '#fbbf24' }]} numberOfLines={1}>
                                                     🤝 {reqCallsign}
                                                 </Text>
                                             </Pressable>
@@ -733,7 +746,7 @@ export default function PostDetailModal() {
                                         <Pressable 
                                             style={styles.reqMessageBtn} 
                                             onPress={async () => {
-                                                if (!identity) return;
+                                                if (!identity || !reqPubkey) return;
                                                 try {
                                                     const conv = await createConversationApi('dm', [reqPubkey, identity.publicKey], identity.publicKey, undefined, post.id);
                                                     if (conv) router.push(`/chat/${conv.id}`);
@@ -744,10 +757,10 @@ export default function PostDetailModal() {
                                         </Pressable>
                                     </View>
                                     <View style={{flexDirection: 'row', gap: 8}}>
-                                        <Pressable style={[styles.rejectBtn, accepting && {opacity: 0.5}]} disabled={accepting} onPress={() => handleReject(req.id)}>
+                                        <Pressable style={[styles.rejectBtn, accepting && {opacity: 0.5}, { flex: 1, alignItems: 'center' }]} disabled={accepting} onPress={() => handleReject(req.id)}>
                                             <Text style={styles.rejectBtnText}>Deny</Text>
                                         </Pressable>
-                                        <Pressable style={[styles.approveBtn, accepting && {opacity: 0.5}, { flex: 2 }]} disabled={accepting} onPress={() => handleApprove(req.id)}>
+                                        <Pressable style={[styles.approveBtn, accepting && {opacity: 0.5}, { flex: 2, alignItems: 'center' }]} disabled={accepting} onPress={() => handleApprove(req.id)}>
                                             <Text style={styles.approveBtnText}>Approve & Escrow</Text>
                                         </Pressable>
                                     </View>
