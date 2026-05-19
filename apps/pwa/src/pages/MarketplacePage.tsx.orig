@@ -1179,8 +1179,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                                 <img src={photo} alt={`photo ${i+1}`} className="w-16 h-16 object-cover rounded-xl border border-nature-200 shadow-sm" />
                                                 <button
                                                     onClick={() => setEditPhotos(editPhotos.filter((_, j) => j !== i))}
-                                                    aria-label="Remove photo"
-                                                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 border-none text-white text-[10px] flex items-center justify-center cursor-pointer shadow-sm hover:bg-red-600 transition-colors focus-visible:ring-2 focus-visible:ring-red-500"
+                                                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 border-none text-white text-[10px] flex items-center justify-center cursor-pointer shadow-sm hover:bg-red-600 transition-colors"
                                                 >
                                                     ✕
                                                 </button>

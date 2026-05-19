@@ -99,7 +99,8 @@ export function MyDealsModal({ visible, identity, onClose, posts, transactions, 
                     <h3 className="text-xl font-black text-nature-900 dark:text-white">My Deals</h3>
                     <button
                         onClick={onClose}
-                        className="w-8 h-8 rounded-full bg-nature-100 dark:bg-nature-800 flex items-center justify-center text-nature-500 hover:bg-nature-200 dark:hover:bg-nature-700 transition-colors font-bold"
+                        aria-label="Close My Deals"
+                        className="w-8 h-8 rounded-full bg-nature-100 dark:bg-nature-800 flex items-center justify-center text-nature-500 hover:bg-nature-200 dark:hover:bg-nature-700 transition-colors font-bold focus-visible:ring-2 focus-visible:ring-nature-500"
                     >
                         ✕
                     </button>

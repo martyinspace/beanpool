@@ -1,0 +1,82 @@
+@@ -1410,55 +1434,33 @@
+             {/* Posts */}
+             {loading ? (
+                 <p className="text-nature-500 text-center py-8">Loading...</p>
+-            ) : (() => {
+-                let filtered = posts.filter(p => p.status === 'active' && (!identity || p.authorPublicKey !== identity.publicKey));
+-
+-                // Text search
+-                if (searchQuery.trim()) {
+-                    const q = searchQuery.toLowerCase().trim();
+-                    filtered = filtered.filter(p =>
+-                        p.title.toLowerCase().includes(q) ||
+-                        p.description.toLowerCase().includes(q)
+-                    );
+-                }
+-
+-                // Radius filter
+-                if (radiusSettings) {
+-                    filtered = filtered.filter(p => {
+-                        if (p.lat == null || p.lng == null) return false;
+-                        const dist = haversineDistance(radiusSettings.lat, radiusSettings.lng, p.lat, p.lng);
+-                        return dist <= radiusSettings.radiusKm;
+-                    });
+-                }
+-
+-                return filtered.length === 0 ? (
+-                    <div className="bg-white dark:bg-nature-950 border border-nature-200 dark:border-nature-800 rounded-3xl p-10 mt-6 text-center shadow-soft">
+-                        <div className="text-5xl opacity-30 mb-4">
+-                            {searchQuery.trim() ? '🔍' : radiusSettings ? '📍' : '🛒'}
+-                        </div>
+-                        <h4 className="font-bold text-lg text-nature-900 dark:text-white mb-2">No items found</h4>
+-                        <p className="text-nature-500 dark:text-nature-400 text-sm">
+-                            {searchQuery.trim() ? `No matches for "${searchQuery}".`
+-                                : radiusSettings ? 'Expand your radius to see more posts.'
+-                                : 'The market is quiet right now. Post an offer!'}
+-                        </p>
++            ) : filteredPosts.length === 0 ? (
++                <div className="bg-white dark:bg-nature-950 border border-nature-200 dark:border-nature-800 rounded-3xl p-10 mt-6 text-center shadow-soft">
++                    <div className="text-5xl opacity-30 mb-4">
++                        {searchQuery.trim() ? '🔍' : radiusSettings ? '📍' : '🛒'}
+                     </div>
+-                ) : (
+-                    <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 pb-32' : 'flex flex-col gap-5 pb-32'}>
+-                        {filtered.map((post) => (
+-                            <div key={post.id} onClick={() => setSelectedPost(post)} className="h-full cursor-pointer">
+-                                <MarketplaceCard
+-                                    post={post as any}
+-                                    authorRating={authorRatingsCache[post.authorPublicKey]}
+-                                    authorEnergy={(post as any).authorEnergyCycled || 0}
+-                                    remoteNode={(post as any)._remoteNode}
+-                                    viewMode={viewMode}
+-                                />
+-                            </div>
+-                        ))}
+-                    </div>
+-                );
+-            })()}
++                    <h4 className="font-bold text-lg text-nature-900 dark:text-white mb-2">No items found</h4>
++                    <p className="text-nature-500 dark:text-nature-400 text-sm">
++                        {searchQuery.trim() ? `No matches for "${searchQuery}".`
++                            : radiusSettings ? 'Expand your radius to see more posts.'
++                            : 'The market is quiet right now. Post an offer!'}
++                    </p>
++                </div>
++            ) : (
++                <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 pb-32' : 'flex flex-col gap-5 pb-32'}>
++                    {filteredPosts.map((post) => (
++                        <div key={post.id} onClick={() => setSelectedPost(post)} className="h-full cursor-pointer">
++                            <MarketplaceCard
++                                post={post as any}
++                                authorRating={authorRatingsCache[post.authorPublicKey]}
++                                authorEnergy={(post as any).authorEnergyCycled || 0}
++                                remoteNode={(post as any)._remoteNode}
++                                viewMode={viewMode}
++                            />
++                        </div>
++                    ))}
++                </div>
++            )}
+ 
+             {/* Post-Release Review Modal */}
+             {promptReviewForTx && (
