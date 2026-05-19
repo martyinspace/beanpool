@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "751074523085",
+    "project_id": "beanpool-6196d",
+    "storage_bucket": "beanpool-6196d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:751074523085:android:ab6b54db23b9a590067684",
+        "android_client_info": {
+          "package_name": "org.beanpool.pillar"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD47_UT-eqX9qo5sfGGdQ4ZsBiav6sqe4M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
