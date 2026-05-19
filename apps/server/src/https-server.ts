@@ -989,7 +989,12 @@ export async function startHttpsServer(port: number): Promise<void> {
             ctx.body = { error: 'Member not found' };
             return;
         }
-        ctx.body = { ...getBalance(publicKey), callsign: member.callsign };
+        const trust = getMemberTrustProfile(publicKey);
+        ctx.body = {
+            ...getBalance(publicKey),
+            callsign: member.callsign,
+            trustStats: trust.stats, // tradeCount, uniquePartners, ageDays
+        };
     });
 
     router.post('/api/ledger/transfer', async (ctx) => {
