@@ -46,7 +46,7 @@ import {
     getCommunityInfo, addWsClient, removeWsClient,
     generateInvite, redeemInvite, redeemOfflineTicket, getInviteTree, getInvitesByMember,
     adminGenerateInvite, getMemberTrustProfile,
-    updateProfile, getProfile,
+    updateProfile, getProfile, getAllProfiles,
     createConversation, sendMessage, getConversationsByMember,
     getConversationMessages, getConversation,
     getCommunityHealth,
@@ -464,7 +464,7 @@ export async function startHttpsServer(port: number): Promise<void> {
         if (!checkAdminAuth(ctx as any)) return;
         ctx.body = {
             members: getAllMembers(),
-            profiles: getAllMembers().map(m => getProfile(m.publicKey)),
+            profiles: getAllProfiles(),
             posts: getPosts().filter(p => p.status !== 'cancelled'),
             health: getCommunityHealth(),
             reports: getReports(),

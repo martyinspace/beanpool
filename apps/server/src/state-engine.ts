@@ -816,13 +816,25 @@ export interface InviteTreeNode {
 
 export function getInviteTree(rootPubkey?: string): InviteTreeNode[] {
     const allMembers = getAllMembers();
+
+    // ⚡ Bolt: Pre-group members by invitedBy to avoid O(N²) nested filtering
+    const childrenByParent = new Map<string, Member[]>();
+    for (const m of allMembers) {
+        if (!m.invitedBy) continue;
+        if (!childrenByParent.has(m.invitedBy)) {
+            childrenByParent.set(m.invitedBy, []);
+        }
+        if (m.publicKey !== m.invitedBy) {
+            childrenByParent.get(m.invitedBy)!.push(m);
+        }
+    }
+
     function buildSubtree(parentPubkey: string): InviteTreeNode[] {
-        return allMembers
-            .filter(m => m.invitedBy === parentPubkey && m.publicKey !== parentPubkey)
-            .map(m => ({
-                publicKey: m.publicKey, callsign: m.callsign, joinedAt: m.joinedAt, inviteCode: m.inviteCode,
-                children: buildSubtree(m.publicKey),
-            }));
+        const children = childrenByParent.get(parentPubkey) || [];
+        return children.map(m => ({
+            publicKey: m.publicKey, callsign: m.callsign, joinedAt: m.joinedAt, inviteCode: m.inviteCode,
+            children: buildSubtree(m.publicKey),
+        }));
     }
 
     if (rootPubkey) {
@@ -894,6 +906,17 @@ export function getProfiles(): Record<string, MemberProfile> {
         map[p.publicKey] = p;
     }
     return map;
+}
+
+export function getAllProfiles(): MemberProfile[] {
+    const rows = db.prepare("SELECT * FROM members").all() as any[];
+    return rows.map(row => {
+        const p = rowToProfile(row);
+        // Default visibility for admin query without requester pubkey
+        if (p.contact && p.contact.visibility === 'hidden') p.contact = null;
+        else if (p.contact && p.contact.visibility === 'friends') p.contact = null;
+        return p;
+    });
 }
 
 // ===================== TRUST STATS =====================
