@@ -216,7 +216,7 @@ export default function PostDetailModal() {
         ]);
     };
 
-    const myRequest = requests.find(r => r.buyer_pubkey === identity?.publicKey);
+    const myRequest = requests.find(r => r.buyer_pubkey === identity?.publicKey || r.seller_pubkey === identity?.publicKey);
 
     const handleApprove = async (transactionId: string) => {
         if (!identity) return;
@@ -619,19 +619,30 @@ export default function PostDetailModal() {
                                             const estimatedHrs = post.price_type !== 'fixed' ? Number(acceptHours) : undefined;
                                             if (isOffer) {
                                                 await acceptMarketplacePost(post.id, identity.publicKey, estimatedHrs);
-                                                setShowAcceptConfirm(false);
-                                                router.replace({ pathname: '/(tabs)/market', params: { tab: 'deals', dealsTab: 'active' } });
                                             } else {
                                                 await requestMarketplacePost(post.id, identity.publicKey, estimatedHrs);
-                                                setShowAcceptConfirm(false);
                                                 // Optimistically add to local state
                                                 setRequests(prev => [...prev, {
-                                                    id: Crypto.randomUUID(), post_id: post.id, buyer_pubkey: identity.publicKey, seller_pubkey: post.author_pubkey,
+                                                    id: Crypto.randomUUID(), post_id: post.id, buyer_pubkey: post.author_pubkey, seller_pubkey: identity.publicKey,
                                                     credits: post.price_type === 'fixed' ? post.credits : post.credits * Number(acceptHours),
                                                     hours: post.price_type === 'fixed' ? null : Number(acceptHours), status: 'requested'
                                                 }]);
-                                                router.replace({ pathname: '/(tabs)/market', params: { tab: 'deals', dealsTab: 'pending' } });
                                             }
+                                            setShowAcceptConfirm(false);
+                                            
+                                            // Navigation Flow Improvement: Directly create conversation and jump to chat
+                                            try {
+                                                const conv = await createConversationApi('dm', [post.author_pubkey, identity.publicKey], identity.publicKey, undefined, post.id);
+                                                if (conv) {
+                                                    router.replace(`/chat/${conv.id}`);
+                                                    return;
+                                                }
+                                            } catch (chatError) {
+                                                console.error("Failed to start chat during post acceptance", chatError);
+                                            }
+                                            
+                                            // Fallback if chat fails
+                                            router.replace({ pathname: '/(tabs)/market', params: { tab: 'deals', dealsTab: 'pending' } });
                                         } catch (e: any) { 
                                             if (e.message?.includes('not found') || e.message?.includes('not active')) {
                                                 Alert.alert('Already Updated', 'This post was already accepted or modified elsewhere. Refreshing your screen...');
