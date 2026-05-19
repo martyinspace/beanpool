@@ -25,6 +25,8 @@ function releaseSyncLock() {
 }
 
 let currentDbName: string | null = null;
+let getDbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+
 export async function getDb(): Promise<SQLite.SQLiteDatabase> {
     let url = await AsyncStorage.getItem('beanpool_anchor_url');
     if (url === 'https://review.beanpool.org:8443' || url === 'https://beanpool.org:8443') {
@@ -37,25 +39,45 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase> {
         return db;
     }
 
-    // Force strict database isolation and hot-swap reconnect if matrix url changes
-    if (db) {
-        await db.closeAsync();
-        dbInitialized = false;
-        dbInitPromise = null;
+    if (getDbPromise && currentDbName === expectedDbName) {
+        return getDbPromise;
     }
 
-    if (url) await addSavedNode(url); // Auto-track nodes we jump into correctly inside the UI Matrix.
-    
     currentDbName = expectedDbName;
-    db = await SQLite.openDatabaseAsync(expectedDbName, { useNewConnection: true });
-    
-    // Safety Init: If we blindly swapped contexts, ensure this newly mounted database replicates the exact Schema
-    if (!dbInitialized && !dbInitPromise) {
-        dbInitPromise = _doInitDB();
-        await dbInitPromise;
-    }
 
-    return db;
+    getDbPromise = (async () => {
+        try {
+            // Force strict database isolation and hot-swap reconnect if matrix url changes
+            if (db) {
+                await db.closeAsync();
+                dbInitialized = false;
+                dbInitPromise = null;
+                db = null;
+            }
+
+            if (url) await addSavedNode(url); // Auto-track nodes we jump into correctly inside the UI Matrix.
+            
+            db = await SQLite.openDatabaseAsync(expectedDbName, { useNewConnection: true });
+            
+            // Hardcode native concurrent locking parameters per-connection
+            await db.execAsync(`
+                PRAGMA journal_mode = WAL;
+                PRAGMA busy_timeout = 30000;
+            `);
+            
+            // Safety Init: If we blindly swapped contexts, ensure this newly mounted database replicates the exact Schema
+            if (!dbInitialized && !dbInitPromise) {
+                dbInitPromise = _doInitDB();
+                await dbInitPromise;
+            }
+
+            return db;
+        } finally {
+            getDbPromise = null;
+        }
+    })();
+
+    return getDbPromise;
 }
 
 export async function closeDB() {
@@ -554,9 +576,9 @@ export async function getBalance(pubkey: string) {
                 if (balData.tier || balData.floor !== undefined) {
                     await AsyncStorage.setItem(`bp_tier_${pubkey}`, JSON.stringify({
                         tier: balData.tier || tier,
-
                         floor: balData.floor ?? floor,
                         earnedCredit: balData.earnedCredit ?? 0,
+                        trustStats: balData.trustStats ?? null,
                     }));
                     changed = true;
                 }
@@ -567,23 +589,24 @@ export async function getBalance(pubkey: string) {
     });
 
     // Try to load cached tier data
+    let trustStats: any = null;
     try {
         const cached = await AsyncStorage.getItem(`bp_tier_${pubkey}`);
         if (cached) {
             const parsed = JSON.parse(cached);
             tier = parsed.tier || tier;
-
             floor = parsed.floor ?? floor;
             earnedCredit = parsed.earnedCredit ?? 0;
+            trustStats = parsed.trustStats ?? null;
         }
     } catch { /* ignore */ }
 
     return {
         balance: row?.balance || 0,
         floor,
-
         tier,
         earnedCredit,
+        trustStats,
         commons: commons?.balance || 0
     };
 }
@@ -814,7 +837,32 @@ export async function createPost(post: any) {
             } catch (e) {
                 if (txt) errMsg = txt;
             }
-            throw new Error(errMsg);
+            // Auto-heal: server may not yet know about the user's avatar if the
+            // onboarding publish failed. Push the profile and retry once.
+            if (_isProfilePhotoError(errMsg)) {
+                const healed = await _pushProfileToServer();
+                if (healed) {
+                    const retrySig = await signData(messageBytes, privateKeyBytes);
+                    const retryRes = await fetch(`${anchorUrl}/api/marketplace/posts`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Public-Key': identity.publicKey,
+                            'X-Signature': encodeBase64(retrySig),
+                        },
+                        body: bodyString,
+                    });
+                    if (retryRes.ok) {
+                        // Fall through to local insert below
+                    } else {
+                        throw new Error(errMsg);
+                    }
+                } else {
+                    throw new Error(errMsg);
+                }
+            } else {
+                throw new Error(errMsg);
+            }
         }
     } catch (e: any) {
         // If it fails (e.g., no internet or server error), bubble it up to the UI so we DON'T lose the drafted post!
@@ -1068,6 +1116,19 @@ export async function pledgeToCrowdfundProjectApi(projectId: string, amount: num
     return res;
 }
 
+export async function getActiveVotingRound(): Promise<{ id: string; status: string; closesAt: string; projectIds: string[]; createdAt: string } | null> {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) return null;
+    try {
+        const res = await fetch(`${anchorUrl}/api/commons/rounds`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data.activeRound || null;
+    } catch {
+        return null;
+    }
+}
+
 export async function voteForProjectApi(projectId: string, votes: number) {
     const identity = await loadIdentity();
     if (!identity) throw new Error("No identity block found");
@@ -1147,11 +1208,11 @@ export async function applyDelta(delta: any) {
     await acquireSyncLock();
     try {
         const database = await getDb();
-        
-        // Full-replace sync: server response is the source of truth
+        await database.withExclusiveTransactionAsync(async (txn) => {
+// Full-replace sync: server response is the source of truth
     if (delta.accounts) {
         for (const acc of delta.accounts) {
-            await database.runAsync(
+            await txn.runAsync(
                 'INSERT OR REPLACE INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, ?, ?)',
                 [acc.public_key ?? null, acc.balance ?? 0, acc.last_demurrage_epoch ?? 0]
             );
@@ -1169,7 +1230,7 @@ export async function applyDelta(delta: any) {
             const av = m.avatarUrl || m.avatar_url || null;
             const joinedAt = m.joinedAt || m.joined_at || null;
             const profileUpdatedAt = m.profileUpdatedAt || m.profile_updated_at || null;
-            await database.runAsync(
+            await txn.runAsync(
                 `INSERT INTO members (public_key, callsign, avatar_url, joined_at, profile_updated_at) VALUES (?, ?, ?, ?, ?)
                  ON CONFLICT(public_key) DO UPDATE SET
                    callsign = excluded.callsign,
@@ -1181,14 +1242,14 @@ export async function applyDelta(delta: any) {
         }
 
         // Garbage collect members that are no longer in the server's directory
-        const localMembers = await database.getAllAsync<{public_key:string}>('SELECT public_key FROM members');
+        const localMembers = await txn.getAllAsync<{public_key:string}>('SELECT public_key FROM members');
         for (const lm of localMembers) {
             // Ensure we don't accidentally delete synthetic project accounts if any leaked in
             if (lm.public_key.startsWith('escrow_') || lm.public_key.startsWith('project_')) continue;
             
             if (!serverMemberSet.has(lm.public_key)) {
                 console.log(`[DB] applyDelta: deleting obsolete member ${lm.public_key} not present on server`);
-                await database.runAsync('DELETE FROM members WHERE public_key = ?', [lm.public_key]);
+                await txn.runAsync('DELETE FROM members WHERE public_key = ?', [lm.public_key]);
             }
         }
     }
@@ -1197,7 +1258,7 @@ export async function applyDelta(delta: any) {
             for (const t of delta.transactions) {
                 const fromKey = t.from_pubkey || t.from || null;
                 const toKey = t.to_pubkey || t.to || null;
-                await database.runAsync(
+                await txn.runAsync(
                     'INSERT OR REPLACE INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
                     [t.id ?? null, fromKey, toKey, t.amount ?? 0, t.memo ?? null, t.timestamp ?? null]
                 );
@@ -1208,7 +1269,7 @@ export async function applyDelta(delta: any) {
             // Delta Sync: Server dataset only transmits modified rows.
             // Deleted posts are transmitted with active=0 and tombstoned here natively.
             for (const p of delta.posts) {
-                await database.runAsync(
+                await txn.runAsync(
                     'INSERT OR REPLACE INTO posts (id, type, category, title, description, credits, author_pubkey, lat, lng, photos, price_type, repeatable, status, active, accepted_by, accepted_by_callsign, accepted_at, completed_at, pending_transaction_id, created_at, updated_at, origin_node) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         p.id ?? null,
@@ -1245,7 +1306,7 @@ export async function applyDelta(delta: any) {
                 
                 // Guard: Never downgrade a terminal status (completed/cancelled) back to pending/requested.
                 // This prevents a stale sync payload from reverting a transaction the user just completed locally.
-                const localRow = await database.getFirstAsync<{ status: string }>('SELECT status FROM marketplace_transactions WHERE id = ?', [tx.id]);
+                const localRow = await txn.getFirstAsync<{ status: string }>('SELECT status FROM marketplace_transactions WHERE id = ?', [tx.id]);
                 if (localRow) {
                     const terminalStates = ['completed', 'cancelled'];
                     const nonTerminalStates = ['pending', 'requested'];
@@ -1255,7 +1316,7 @@ export async function applyDelta(delta: any) {
                     }
                 }
 
-                await database.runAsync(
+                await txn.runAsync(
                     'INSERT OR REPLACE INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, completed_at, cover_image, rated_by_buyer, rated_by_seller) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         tx.id ?? null,
@@ -1277,7 +1338,7 @@ export async function applyDelta(delta: any) {
 
         if (delta.projects !== undefined) {
             for (const proj of delta.projects) {
-                await database.runAsync(
+                await txn.runAsync(
                     'INSERT OR REPLACE INTO projects (id, creator_pubkey, title, description, photos, goal_amount, current_amount, deadline_at, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         proj.id ?? null,
@@ -1300,7 +1361,7 @@ export async function applyDelta(delta: any) {
             const identity = await loadIdentity();
             if (identity?.publicKey) {
                 // Get current local friend pubkeys
-                const localFriends = await database.getAllAsync<any>(
+                const localFriends = await txn.getAllAsync<any>(
                     'SELECT friend_pubkey FROM friends WHERE owner_pubkey = ?',
                     [identity.publicKey]
                 );
@@ -1311,7 +1372,7 @@ export async function applyDelta(delta: any) {
                 for (const f of delta.friends) {
                     const fpk = f.publicKey || f.friend_pubkey;
                     if (!localSet.has(fpk)) {
-                        await database.runAsync(
+                        await txn.runAsync(
                             'INSERT OR IGNORE INTO friends (owner_pubkey, friend_pubkey, added_at, is_guardian) VALUES (?, ?, ?, ?)',
                             [identity.publicKey, fpk, f.addedAt || f.added_at || new Date().toISOString(), f.isGuardian ? 1 : 0]
                         );
@@ -1329,6 +1390,7 @@ export async function applyDelta(delta: any) {
         }
 
         console.log(`[DB] applyDelta: replaced posts table with ${delta.posts?.length || 0} posts from server`);
+        });
     } finally {
         releaseSyncLock();
     }
@@ -1354,18 +1416,20 @@ export async function syncMessages(publicKey: string) {
             try {
                 const dirData = await dirRes.json();
                 if (Array.isArray(dirData) && dirData.length > 0) {
-                    for (const m of dirData) {
-                        const pk = m.publicKey || m.public_key || '';
-                        const cs = m.callsign || '';
-                        const av = m.avatarUrl || m.avatar_url || null;
-                        await database.runAsync(
-                            `INSERT INTO members (public_key, callsign, avatar_url) VALUES (?, ?, ?)
-                             ON CONFLICT(public_key) DO UPDATE SET
-                               callsign = excluded.callsign,
-                               avatar_url = COALESCE(excluded.avatar_url, members.avatar_url)`,
-                            [pk, cs, av]
-                        );
-                    }
+                    await database.withExclusiveTransactionAsync(async (txn) => {
+                        for (const m of dirData) {
+                            const pk = m.publicKey || m.public_key || '';
+                            const cs = m.callsign || '';
+                            const av = m.avatarUrl || m.avatar_url || null;
+                            await txn.runAsync(
+                                `INSERT INTO members (public_key, callsign, avatar_url) VALUES (?, ?, ?)
+                                 ON CONFLICT(public_key) DO UPDATE SET
+                                   callsign = excluded.callsign,
+                                   avatar_url = COALESCE(excluded.avatar_url, members.avatar_url)`,
+                                [pk, cs, av]
+                            );
+                        }
+                    });
                 }
             } catch (e) {}
         }
@@ -1376,17 +1440,20 @@ export async function syncMessages(publicKey: string) {
         if (!convData.conversations) return;
         
         for (const conv of convData.conversations) {
-            const localConv = await database.getFirstAsync<any>('SELECT id FROM conversations WHERE id = ?', [conv.id]);
-            if (!localConv) {
-                await database.runAsync('INSERT INTO conversations (id, type, post_id, name, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)', 
-                    [conv.id, conv.type || 'dm', conv.postId || null, conv.name || null, conv.createdBy || '', conv.createdAt || new Date().toISOString()]);
-                
+            await database.withExclusiveTransactionAsync(async (txn) => {
+                const localConv = await txn.getFirstAsync<any>('SELECT id FROM conversations WHERE id = ?', [conv.id]);
+                if (!localConv) {
+                    await txn.runAsync('INSERT INTO conversations (id, type, post_id, name, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+                        [conv.id, conv.type || 'dm', conv.postId || null, conv.name || null, conv.createdBy || '', conv.createdAt || new Date().toISOString()]);
+                }
+                // Always upsert participants — they may have been missed if the conv
+                // row was inserted by another sync path that didn't include them.
                 if (Array.isArray(conv.participants)) {
                     for (const pub of conv.participants) {
-                        await database.runAsync('INSERT OR IGNORE INTO conversation_participants (conversation_id, public_key) VALUES (?, ?)', [conv.id, pub]);
+                        await txn.runAsync('INSERT OR IGNORE INTO conversation_participants (conversation_id, public_key) VALUES (?, ?)', [conv.id, pub]);
                     }
                 }
-            }
+            });
             
             const controller2 = new AbortController();
             const timeout2 = setTimeout(() => controller2.abort(), 5000);
@@ -1398,12 +1465,14 @@ export async function syncMessages(publicKey: string) {
             const messages = msgData.messages;
             if (!Array.isArray(messages)) continue;
             
-            for (const m of messages) {
-                await database.runAsync(
-                    'INSERT OR IGNORE INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, system_type, metadata, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [m.id, conv.id, m.author_pubkey || m.authorPubkey || '', m.ciphertext || '', m.nonce || '', m.type || 'text', m.systemType || m.system_type || null, m.metadata || null, m.timestamp || m.created_at || new Date().toISOString()]
-                );
-            }
+            await database.withExclusiveTransactionAsync(async (txn) => {
+                for (const m of messages) {
+                    await txn.runAsync(
+                        'INSERT OR IGNORE INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, system_type, metadata, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        [m.id, conv.id, m.author_pubkey || m.authorPubkey || '', m.ciphertext || '', m.nonce || '', m.type || 'text', m.systemType || m.system_type || null, m.metadata || null, m.timestamp || m.created_at || new Date().toISOString()]
+                    );
+                }
+            });
         }
     } catch (err) {
         console.log('[Sync] Failed to pull messages natively', err);
@@ -1596,7 +1665,26 @@ export async function createConversationApi(type: 'dm' | 'group', participants: 
             throw new Error(errMsg);
         }
         const data = await res.json();
-        return data.conversation;
+        const conv = data.conversation;
+
+        // Persist the conv + participants locally so the Inbox sees it
+        // immediately, without waiting for the next syncMessages cycle.
+        if (conv?.id) {
+            const database = await getDb();
+            await database.runAsync(
+                'INSERT OR IGNORE INTO conversations (id, type, post_id, name, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+                [conv.id, conv.type || type, conv.postId || postId || null, conv.name || name || null, conv.createdBy || createdBy, conv.createdAt || new Date().toISOString()]
+            );
+            const partList: string[] = Array.isArray(conv.participants) && conv.participants.length > 0 ? conv.participants : participants;
+            for (const pub of partList) {
+                await database.runAsync(
+                    'INSERT OR IGNORE INTO conversation_participants (conversation_id, public_key) VALUES (?, ?)',
+                    [conv.id, pub]
+                );
+            }
+        }
+
+        return conv;
     } catch (e: any) {
         throw new Error(e.message || 'Network request failed when creating thread.');
     }
@@ -1670,6 +1758,50 @@ export async function redeemInvite(code: string, callsign: string, identityToReg
 // MARKETPLACE TRANSACTION AND RATING HELPERS
 // ==========================================
 
+// Push the user's locally-stored profile (callsign + avatar + bio + contact)
+// to the anchor node. Returns true if the server accepted the update.
+// Used both as a one-shot heal when marketplace actions fail with the
+// "Please set a profile photo" error, and by pillar-sync's retry loop.
+async function _pushProfileToServer(): Promise<boolean> {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    const identity = await loadIdentity();
+    if (!anchorUrl || !identity) return false;
+    const profile = await getMemberProfile(identity.publicKey);
+    if (!profile || !profile.avatar_url) return false;
+
+    const payloadObj = {
+        publicKey: identity.publicKey,
+        avatar: profile.avatar_url,
+        bio: profile.bio || '',
+        contact: profile.contact_value
+            ? { value: profile.contact_value, visibility: profile.contact_visibility || 'community' }
+            : null,
+        callsign: profile.callsign,
+    };
+    const bodyString = JSON.stringify(payloadObj);
+    const signatureBytes = await signData(encodeUtf8(bodyString), hexToBytes(identity.privateKey));
+    try {
+        const res = await fetch(`${anchorUrl}/api/profile/update`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Public-Key': identity.publicKey,
+                'X-Signature': encodeBase64(signatureBytes),
+            },
+            body: bodyString,
+        });
+        if (res.ok) {
+            await AsyncStorage.removeItem('pending_profile_sync');
+            return true;
+        }
+    } catch {}
+    return false;
+}
+
+function _isProfilePhotoError(msg: string): boolean {
+    return typeof msg === 'string' && /set a profile photo/i.test(msg);
+}
+
 async function _signedRequest(endpoint: string, payload: any) {
     const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
     if (!anchorUrl) throw new Error('You are off-grid. Please connect to a BeanPool Node to perform this action.');
@@ -1715,9 +1847,28 @@ async function _signedRequest(endpoint: string, payload: any) {
                 if (txt) errorMsg = txt;
             } catch {}
         }
+        // Auto-heal stale server profile: if the user has a local avatar but the
+        // server doesn't know about it (common for users whose initial onboarding
+        // publish failed), push the profile and retry the request once.
+        if (_isProfilePhotoError(errorMsg)) {
+            const healed = await _pushProfileToServer();
+            if (healed) {
+                const retrySig = await signData(encodeUtf8(bodyString), hexToBytes(identity.privateKey));
+                const retryRes = await fetch(`${anchorUrl}${endpoint}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Public-Key': identity.publicKey,
+                        'X-Signature': encodeBase64(retrySig),
+                    },
+                    body: bodyString,
+                });
+                if (retryRes.ok) return await retryRes.json();
+            }
+        }
         throw new Error(errorMsg);
     }
-    
+
     return await res.json();
 }
 
@@ -1844,7 +1995,23 @@ export async function cancelMarketplaceTransaction(transactionId: string, cancel
 
 export async function requestMarketplacePost(postId: string, buyerPublicKey: string, hours?: number) {
     // Unlike 'accept', requesting does not lock the post. It just creates a requested transaction.
-    return _signedRequest('/api/marketplace/posts/request', { postId, buyerPublicKey, hours });
+    const res = await _signedRequest('/api/marketplace/posts/request', { postId, buyerPublicKey, hours });
+    await acquireSyncLock();
+    try {
+        const database = await getDb();
+        if (res?.transaction) {
+            const tx = res.transaction;
+            await database.runAsync(
+                'INSERT OR REPLACE INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, cover_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [tx.id, tx.postId || postId, tx.buyerPublicKey || buyerPublicKey, tx.sellerPublicKey || null, tx.credits || 0, tx.hours || null, tx.status || 'requested', tx.createdAt || new Date().toISOString(), tx.coverImage || null]
+            );
+        }
+    } catch(e) {
+        console.warn('[Escrow] Failed to save requested transaction locally:', e);
+    } finally {
+        releaseSyncLock();
+    }
+    return res;
 }
 
 export async function approveMarketplaceRequest(transactionId: string, authorPublicKey: string) {
@@ -1960,6 +2127,50 @@ export async function getMarketplaceTransactions(publicKey: string, filter?: { s
             ratedBySeller: !!r.ratedBySeller
         };
     });
+}
+
+// ===================== FINANCIALS =====================
+
+/**
+ * Return pledge history for a user: transactions sent to project_ wallets.
+ * Joins to the local projects table to get project titles.
+ */
+export async function getPledgeHistory(pubkey: string) {
+    const database = await getDb();
+    // Pledges are recorded as ledger transfers from the member to 'project_<id>'
+    const rows = await database.getAllAsync<any>(
+        `SELECT t.id, t.amount, t.memo, t.timestamp,
+                REPLACE(t.to_pubkey, 'project_', '') as project_id,
+                p.title as projectTitle
+         FROM transactions t
+         LEFT JOIN projects p ON p.id = REPLACE(t.to_pubkey, 'project_', '')
+         WHERE t.from_pubkey = ? AND t.to_pubkey LIKE 'project_%'
+         ORDER BY t.timestamp DESC LIMIT 50`,
+        [pubkey]
+    );
+    return rows.map(r => ({
+        id: r.id,
+        amount: r.amount,
+        projectId: r.project_id,
+        projectTitle: r.projectTitle || 'Community Project',
+        timestamp: r.timestamp,
+        memo: r.memo,
+    }));
+}
+
+/**
+ * Return total beans the user currently has locked in active marketplace escrow.
+ * Escrow is created when a buyer requests a post (status = 'pending' or 'requested').
+ */
+export async function getEscrowTotal(pubkey: string): Promise<number> {
+    const database = await getDb();
+    const rows = await database.getAllAsync<any>(
+        `SELECT COALESCE(SUM(credits), 0) as total
+         FROM marketplace_transactions
+         WHERE buyer_pubkey = ? AND status IN ('pending', 'requested')`,
+        [pubkey]
+    );
+    return rows[0]?.total ?? 0;
 }
 
 // ===================== FRIENDS =====================
