@@ -51,3 +51,5 @@ apps/native/prod.keystore
 *.aab
 *.ipa
 google-services.json
+
+*.pid
