@@ -17,3 +17,8 @@
 **Vulnerability:** Remaining `innerHTML` injection points were discovered in the administrative dashboard (`settings.js`), including Nominatim location search results, Trusted Connectors management, health alert descriptions, and moderation reports.
 **Learning:** Initial security patches often miss secondary or "edge" data display points. A comprehensive audit specifically targeting dangerous sinks like `innerHTML` is necessary for full remediation.
 **Prevention:** Standardized the use of a global `esc()` helper for all user-controlled data. Hardened `onclick` action handlers by escaping IDs to prevent JS string break-outs. Fixed message rendering logic to handle escaping internally while preserving system-generated HTML formatting.
+
+## 2024-05-27 - [CRITICAL] Fix Authorization Bypass in Sensitive APIs
+**Vulnerability:** Several sensitive endpoints (`/api/reports`, `/api/friends`, `/api/push-tokens`, `/api/recovery`, `/api/members/preferences`, `/api/ratings`) were missing from the `isProtected` list within the `requireSignature` middleware. This allowed attackers to bypass cryptographic signature validation and spoof actions on behalf of other users.
+**Learning:** Middleware patterns that rely on an explicit "allowlist" (or in this case, a "protectlist") are prone to human error when new endpoints are added. If an endpoint isn't explicitly listed, it defaults to unprotected.
+**Prevention:** Consider a "deny-by-default" middleware approach where all `/api/*` endpoints require signatures unless explicitly listed in a public allowlist (e.g., `/api/community/info`).

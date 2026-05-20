@@ -146,7 +146,13 @@ export async function startHttpsServer(port: number): Promise<void> {
             ctx.path.startsWith('/api/commons/projects') ||
             ctx.path.startsWith('/api/crowdfund/projects') ||
             ctx.path.startsWith('/api/invite/generate') ||
-            ctx.path.startsWith('/api/community/register');
+            ctx.path.startsWith('/api/community/register') ||
+            ctx.path.startsWith('/api/reports') ||
+            ctx.path.startsWith('/api/friends') ||
+            ctx.path.startsWith('/api/push-tokens') ||
+            ctx.path.startsWith('/api/recovery') ||
+            ctx.path.startsWith('/api/members/preferences') ||
+            ctx.path.startsWith('/api/ratings');
 
         if (!isProtected) {
             return await next();
