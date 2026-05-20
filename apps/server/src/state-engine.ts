@@ -76,8 +76,12 @@ export interface Member {
     inviteCode: string;
     homeNodeUrl?: string;
     avatarUrl?: string | null;
-    status?: 'active' | 'migrated';
+    status?: 'active' | 'migrated' | 'pruned' | 'flagged' | string;
     profileUpdatedAt?: number | null;
+    bio?: string | null;
+    contactValue?: string | null;
+    contactVisibility?: string | null;
+    lastActiveAt?: string | null;
 }
 
 export interface InviteCode {
@@ -541,6 +545,11 @@ function rowToMember(row: any): Member {
         homeNodeUrl: row.home_node_url,
         avatarUrl: row.avatar_url || null,
         profileUpdatedAt: row.profile_updated_at || null,
+        bio: row.bio || null,
+        contactValue: row.contact_value || null,
+        contactVisibility: row.contact_visibility || null,
+        status: row.status || 'active',
+        lastActiveAt: row.last_active_at || null,
     };
 }
 
@@ -992,15 +1001,53 @@ export function getMemberTrustProfile(publicKey: string): {
 
 // ===================== LEDGER =====================
 
-export function getBalance(publicKey: string): { balance: number; floor: number; tier: TierInfo; commonsBalance: number } {
+export function getVelocityGateStatus(publicKey: string): { active: boolean; dailyLimit?: number; dailyUsed?: number; unlockHours?: number } {
+    const member = getMember(publicKey);
+    if (!member?.joinedAt) return { active: false };
+
+    const { tier } = getMemberTrustProfile(publicKey);
+    if (tier.name !== 'Newcomer') return { active: false };
+
+    const ageHours = (Date.now() - new Date(member.joinedAt).getTime()) / (1000 * 60 * 60);
+    const t = getThresholds();
+    let dailyLimit: number | null = null;
+    let unlockHours = 0;
+
+    if (ageHours < t.ghostVelocityTier1Hours) {
+        dailyLimit = t.ghostVelocityTier1Limit;
+        unlockHours = Math.ceil(t.ghostVelocityTier1Hours - ageHours);
+    } else if (ageHours < t.ghostVelocityTier2Hours) {
+        dailyLimit = t.ghostVelocityTier2Limit;
+        unlockHours = Math.ceil(t.ghostVelocityTier2Hours - ageHours);
+    }
+
+    if (dailyLimit === null) return { active: false };
+
+    const recentSpend = db.prepare(`
+        SELECT COALESCE(SUM(amount), 0) as total 
+        FROM transactions 
+        WHERE from_pubkey = ? 
+          AND timestamp > datetime('now', '-24 hours')
+    `).get(publicKey) as any;
+
+    return {
+        active: true,
+        dailyLimit,
+        dailyUsed: Math.round((recentSpend?.total || 0) * 100) / 100,
+        unlockHours,
+    };
+}
+
+export function getBalance(publicKey: string): { balance: number; floor: number; tier: TierInfo; commonsBalance: number; velocityGate?: { active: boolean; dailyLimit?: number; dailyUsed?: number; unlockHours?: number } } {
     const account = ledger.getAccount(publicKey);
     const { floor, tier } = getMemberTrustProfile(publicKey);
+    const velocityGate = getVelocityGateStatus(publicKey);
     return {
         balance: Math.round(account.balance * 100) / 100,
         floor,
-
         tier,
         commonsBalance: Math.round(COMMONS_BALANCE * 100) / 100,
+        ...(velocityGate.active ? { velocityGate } : {}),
     };
 }
 
@@ -1027,7 +1074,7 @@ export function transfer(from: string, to: string, amount: number, memo: string,
         const sender = getMember(from);
         if (sender) {
             const senderTier = getMemberTrustProfile(from).tier;
-            if (senderTier.name === 'Ghost' && sender.joinedAt) {
+            if (senderTier.name === 'Newcomer' && sender.joinedAt) {
                 const ageHours = (Date.now() - new Date(sender.joinedAt).getTime()) / (1000 * 60 * 60);
                 const t = getThresholds();
                 let dailyLimit: number | null = null;
@@ -1972,7 +2019,113 @@ export function getUnreadCounts(pubkey: string): Record<string, number> {
 
 // ===================== STATE SYNC =====================
 
-export interface SyncPayload { stateHash: string; members: Member[]; posts: MarketplacePost[]; nodeId: string; }
+export interface PostPhoto {
+    post_id: string;
+    photo_data: string;
+    order_num: number;
+}
+
+export interface Project {
+    id: string;
+    creator_pubkey: string;
+    title: string;
+    description: string | null;
+    photos: string | null;
+    goal_amount: number;
+    current_amount: number;
+    deadline_at: string | null;
+    status: string;
+    created_at: string;
+}
+
+export interface SyncAccount {
+    publicKey: string;
+    balance: number;
+    lastUpdatedAt: string;
+    lastDemurrageEpoch: number;
+}
+
+export interface SyncFriend {
+    ownerPubkey: string;
+    friendPubkey: string;
+    addedAt: string;
+    isGuardian: boolean;
+}
+
+export interface SyncConversationParticipant {
+    conversationId: string;
+    publicKey: string;
+    lastReadAt: string | null;
+}
+
+export interface SyncConversation {
+    id: string;
+    type: string;
+    postId: string | null;
+    name: string | null;
+    createdBy: string | null;
+    createdAt: string;
+}
+
+export interface SyncAbuseReport {
+    id: string;
+    reporterPubkey: string;
+    targetPubkey: string;
+    targetPostId: string | null;
+    reason: string;
+    createdAt: string;
+}
+
+export interface SyncRecoveryRequest {
+    id: string;
+    oldPubkey: string;
+    newPubkey: string;
+    status: string;
+    quorumRequired: number;
+    createdAt: string;
+    cooldownUntil: string | null;
+    executedAt: string | null;
+    expiresAt: string | null;
+}
+
+export interface SyncRecoveryApproval {
+    requestId: string;
+    guardianPubkey: string;
+    decision: string;
+    createdAt: string;
+}
+
+export interface SyncMarketplaceTransaction {
+    id: string;
+    postId: string;
+    buyerPubkey: string;
+    sellerPubkey: string;
+    credits: number;
+    hours: number | null;
+    status: string;
+    createdAt: string;
+    completedAt: string | null;
+}
+
+export interface SyncPayload {
+    stateHash: string;
+    members: Member[];
+    posts: MarketplacePost[];
+    photos?: PostPhoto[];
+    projects?: Project[];
+    ratings?: Rating[];
+    accounts?: SyncAccount[];
+    transactions?: Transaction[];
+    marketplaceTransactions?: SyncMarketplaceTransaction[];
+    friends?: SyncFriend[];
+    conversations?: SyncConversation[];
+    conversationParticipants?: SyncConversationParticipant[];
+    messages?: Message[];
+    abuseReports?: SyncAbuseReport[];
+    recoveryRequests?: SyncRecoveryRequest[];
+    recoveryApprovals?: SyncRecoveryApproval[];
+    nodeId: string;
+}
 
 export function getStateHash(): string {
     const pKeys = db.prepare("SELECT public_key FROM members ORDER BY public_key").all() as any[];
@@ -1982,26 +2135,507 @@ export function getStateHash(): string {
 }
 
 export function exportSyncState(nodeId: string): SyncPayload {
-    return { stateHash: getStateHash(), nodeId, members: getAllMembers(), posts: getPosts() };
+    // Select all members
+    const members = getAllMembers();
+    
+    // Select all posts, active or inactive
+    const postRows = db.prepare("SELECT * FROM posts").all() as any[];
+    const posts: MarketplacePost[] = postRows.map(row => ({
+        id: row.id,
+        type: row.type,
+        category: row.category,
+        title: row.title,
+        description: row.description,
+        credits: row.credits,
+        priceType: row.price_type || 'fixed',
+        authorPublicKey: row.author_pubkey,
+        authorCallsign: '', // Not strictly needed for sync insert, but let's provide fallback
+        createdAt: row.created_at,
+        updatedAt: row.updated_at || row.created_at,
+        active: Boolean(row.active),
+        status: row.status,
+        repeatable: Boolean(row.repeatable),
+        acceptedBy: row.accepted_by,
+        acceptedAt: row.accepted_at,
+        pendingTransactionId: row.pending_transaction_id,
+        completedAt: row.completed_at,
+        lat: row.lat,
+        lng: row.lng,
+        originNode: row.origin_node,
+    }));
+
+    // Select all photos
+    const photos = db.prepare("SELECT * FROM post_photos").all() as PostPhoto[];
+
+    // Select all projects
+    const projects = db.prepare("SELECT * FROM projects").all() as Project[];
+
+    // Select all ratings
+    const ratingRows = db.prepare("SELECT * FROM ratings").all() as any[];
+    const ratings: Rating[] = ratingRows.map(r => ({
+        id: r.id,
+        targetPubkey: r.target_pubkey,
+        raterPubkey: r.rater_pubkey,
+        stars: r.stars,
+        comment: r.comment || '',
+        role: r.role,
+        transactionId: r.transaction_id,
+        createdAt: r.created_at,
+    }));
+
+    // Disaster Recovery table exports:
+    const accountRows = db.prepare("SELECT * FROM accounts").all() as any[];
+    const accounts: SyncAccount[] = accountRows.map(row => ({
+        publicKey: row.public_key,
+        balance: row.balance,
+        lastUpdatedAt: row.last_updated_at || row.joined_at || new Date().toISOString(),
+        lastDemurrageEpoch: row.last_demurrage_epoch,
+    }));
+
+    const transactionRows = db.prepare("SELECT * FROM transactions").all() as any[];
+    const transactions: Transaction[] = transactionRows.map(row => ({
+        id: row.id,
+        from: row.from_pubkey,
+        to: row.to_pubkey,
+        amount: row.amount,
+        memo: row.memo || '',
+        timestamp: row.timestamp,
+    }));
+
+    const marketplaceTxRows = db.prepare("SELECT * FROM marketplace_transactions").all() as any[];
+    const marketplaceTransactions: SyncMarketplaceTransaction[] = marketplaceTxRows.map(row => ({
+        id: row.id,
+        postId: row.post_id,
+        buyerPubkey: row.buyer_pubkey,
+        sellerPubkey: row.seller_pubkey,
+        credits: row.credits,
+        hours: row.hours,
+        status: row.status,
+        createdAt: row.created_at,
+        completedAt: row.completed_at,
+    }));
+
+    const friendRows = db.prepare("SELECT * FROM friends").all() as any[];
+    const friends: SyncFriend[] = friendRows.map(row => ({
+        ownerPubkey: row.owner_pubkey,
+        friendPubkey: row.friend_pubkey,
+        addedAt: row.added_at,
+        isGuardian: Boolean(row.is_guardian),
+    }));
+
+    const conversationRows = db.prepare("SELECT * FROM conversations").all() as any[];
+    const conversations: SyncConversation[] = conversationRows.map(row => ({
+        id: row.id,
+        type: row.type,
+        postId: row.post_id,
+        name: row.name,
+        createdBy: row.created_by,
+        createdAt: row.created_at,
+    }));
+
+    const participantRows = db.prepare("SELECT * FROM conversation_participants").all() as any[];
+    const conversationParticipants: SyncConversationParticipant[] = participantRows.map(row => ({
+        conversationId: row.conversation_id,
+        publicKey: row.public_key,
+        lastReadAt: row.last_read_at,
+    }));
+
+    const messageRows = db.prepare("SELECT * FROM messages").all() as any[];
+    const messages: Message[] = messageRows.map(row => ({
+        id: row.id,
+        conversationId: row.conversation_id,
+        authorPubkey: row.author_pubkey,
+        ciphertext: row.ciphertext,
+        nonce: row.nonce,
+        type: row.type as 'text' | 'system',
+        systemType: row.system_type as SystemMessageType,
+        metadata: row.metadata || undefined,
+        timestamp: row.timestamp,
+    }));
+
+    const abuseRows = db.prepare("SELECT * FROM abuse_reports").all() as any[];
+    const abuseReports: SyncAbuseReport[] = abuseRows.map(row => ({
+        id: row.id,
+        reporterPubkey: row.reporter_pubkey,
+        targetPubkey: row.target_pubkey,
+        targetPostId: row.target_post_id,
+        reason: row.reason,
+        createdAt: row.created_at,
+    }));
+
+    const recoveryReqRows = db.prepare("SELECT * FROM recovery_requests").all() as any[];
+    const recoveryRequests: SyncRecoveryRequest[] = recoveryReqRows.map(row => ({
+        id: row.id,
+        oldPubkey: row.old_pubkey,
+        newPubkey: row.new_pubkey,
+        status: row.status,
+        quorumRequired: row.quorum_required,
+        createdAt: row.created_at,
+        cooldownUntil: row.cooldown_until,
+        executedAt: row.executed_at,
+        expiresAt: row.expires_at,
+    }));
+
+    const recoveryAppRows = db.prepare("SELECT * FROM recovery_approvals").all() as any[];
+    const recoveryApprovals: SyncRecoveryApproval[] = recoveryAppRows.map(row => ({
+        requestId: row.request_id,
+        guardianPubkey: row.guardian_pubkey,
+        decision: row.decision,
+        createdAt: row.created_at,
+    }));
+
+    return {
+        stateHash: getStateHash(),
+        nodeId,
+        members,
+        posts,
+        photos,
+        projects,
+        ratings,
+        accounts,
+        transactions,
+        marketplaceTransactions,
+        friends,
+        conversations,
+        conversationParticipants,
+        messages,
+        abuseReports,
+        recoveryRequests,
+        recoveryApprovals,
+    };
 }
 
 export function importRemoteState(remote: SyncPayload): { newMembers: number; newPosts: number } {
     let newMembers = 0, newPosts = 0;
     
     db.transaction(() => {
+        // 1. Import/Upsert Members
         for (const rm of remote.members) {
             const exists = db.prepare("SELECT 1 FROM members WHERE public_key=?").get(rm.publicKey);
             if (!exists) {
-                db.prepare(`INSERT INTO members (public_key, callsign, joined_at, invited_by, invite_code, home_node_url) VALUES (?, ?, ?, ?, ?, ?)`).run(rm.publicKey, rm.callsign, rm.joinedAt, rm.invitedBy, rm.inviteCode, rm.homeNodeUrl || null);
+                db.prepare(`INSERT INTO members (public_key, callsign, joined_at, invited_by, invite_code, home_node_url, avatar_url, bio, contact_value, contact_visibility, status, last_active_at) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                    rm.publicKey,
+                    rm.callsign,
+                    rm.joinedAt,
+                    rm.invitedBy,
+                    rm.inviteCode,
+                    rm.homeNodeUrl || null,
+                    rm.avatarUrl || null,
+                    rm.bio || null,
+                    rm.contactValue || null,
+                    rm.contactVisibility || null,
+                    rm.status || 'active',
+                    rm.lastActiveAt || null
+                );
                 db.prepare(`INSERT INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, 0, 0)`).run(rm.publicKey);
                 newMembers++;
+            } else {
+                db.prepare(`UPDATE members SET 
+                    callsign = ?, 
+                    avatar_url = ?, 
+                    bio = ?, 
+                    contact_value = ?, 
+                    contact_visibility = ?, 
+                    status = ?, 
+                    last_active_at = ? 
+                    WHERE public_key = ?`).run(
+                    rm.callsign,
+                    rm.avatarUrl || null,
+                    rm.bio || null,
+                    rm.contactValue || null,
+                    rm.contactVisibility || null,
+                    rm.status || 'active',
+                    rm.lastActiveAt || null,
+                    rm.publicKey
+                );
             }
         }
+
+        // 2. Import/Upsert Posts
         for (const rp of remote.posts) {
             const exists = db.prepare("SELECT 1 FROM posts WHERE id=?").get(rp.id);
             if (!exists) {
-                db.prepare(`INSERT INTO posts (id, type, category, title, description, credits, author_pubkey, created_at, active, status, repeatable, lat, lng, origin_node) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(rp.id, rp.type, rp.category, rp.title, rp.description, rp.credits, rp.authorPublicKey, rp.createdAt, rp.active ? 1 : 0, rp.status, rp.repeatable ? 1 : 0, rp.lat ?? null, rp.lng ?? null, rp.originNode || remote.nodeId);
+                db.prepare(`INSERT INTO posts (id, type, category, title, description, credits, author_pubkey, created_at, active, status, repeatable, lat, lng, origin_node, price_type, accepted_by, accepted_at, pending_transaction_id, completed_at) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                    rp.id,
+                    rp.type,
+                    rp.category,
+                    rp.title,
+                    rp.description,
+                    rp.credits,
+                    rp.authorPublicKey,
+                    rp.createdAt,
+                    rp.active ? 1 : 0,
+                    rp.status,
+                    rp.repeatable ? 1 : 0,
+                    rp.lat ?? null,
+                    rp.lng ?? null,
+                    rp.originNode || remote.nodeId,
+                    rp.priceType || 'fixed',
+                    rp.acceptedBy || null,
+                    rp.acceptedAt || null,
+                    rp.pendingTransactionId || null,
+                    rp.completedAt || null
+                );
                 newPosts++;
+            } else {
+                db.prepare(`UPDATE posts SET 
+                    title = ?, 
+                    description = ?, 
+                    credits = ?, 
+                    active = ?, 
+                    status = ?, 
+                    repeatable = ?, 
+                    price_type = ?, 
+                    accepted_by = ?, 
+                    accepted_at = ?, 
+                    pending_transaction_id = ?, 
+                    completed_at = ?, 
+                    lat = ?, 
+                    lng = ? 
+                    WHERE id = ?`).run(
+                    rp.title,
+                    rp.description,
+                    rp.credits,
+                    rp.active ? 1 : 0,
+                    rp.status,
+                    rp.repeatable ? 1 : 0,
+                    rp.priceType || 'fixed',
+                    rp.acceptedBy || null,
+                    rp.acceptedAt || null,
+                    rp.pendingTransactionId || null,
+                    rp.completedAt || null,
+                    rp.lat ?? null,
+                    rp.lng ?? null,
+                    rp.id
+                );
+            }
+        }
+
+        // 3. Import/Upsert Post Photos
+        if (remote.photos) {
+            for (const ph of remote.photos) {
+                db.prepare(`INSERT OR REPLACE INTO post_photos (post_id, photo_data, order_num) 
+                            VALUES (?, ?, ?)`).run(
+                    ph.post_id,
+                    ph.photo_data,
+                    ph.order_num
+                );
+            }
+        }
+
+        // 4. Import/Upsert Projects
+        if (remote.projects) {
+            for (const pr of remote.projects) {
+                db.prepare(`INSERT OR REPLACE INTO projects (id, creator_pubkey, title, description, photos, goal_amount, current_amount, deadline_at, status, created_at) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                    pr.id,
+                    pr.creator_pubkey,
+                    pr.title,
+                    pr.description,
+                    pr.photos,
+                    pr.goal_amount,
+                    pr.current_amount,
+                    pr.deadline_at,
+                    pr.status,
+                    pr.created_at
+                );
+            }
+        }
+
+        // 5. Import/Upsert Ratings (Reputation system)
+        if (remote.ratings) {
+            for (const rt of remote.ratings) {
+                db.prepare(`INSERT OR REPLACE INTO ratings (id, target_pubkey, rater_pubkey, role, stars, comment, transaction_id, created_at) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                    rt.id,
+                    rt.targetPubkey,
+                    rt.raterPubkey,
+                    rt.role,
+                    rt.stars,
+                    rt.comment || null,
+                    rt.transactionId,
+                    rt.createdAt
+                );
+            }
+        }
+
+        // 6. Import/Upsert Accounts
+        if (remote.accounts) {
+            for (const acc of remote.accounts) {
+                db.prepare(`INSERT INTO accounts (public_key, balance, last_updated_at, last_demurrage_epoch)
+                            VALUES (?, ?, ?, ?)
+                            ON CONFLICT(public_key) DO UPDATE SET
+                                balance = excluded.balance,
+                                last_updated_at = excluded.last_updated_at,
+                                last_demurrage_epoch = excluded.last_demurrage_epoch`).run(
+                    acc.publicKey,
+                    acc.balance,
+                    acc.lastUpdatedAt,
+                    acc.lastDemurrageEpoch
+                );
+            }
+            // Reload LedgerManager state in memory to dynamically reflect remote ledger updates
+            const updatedAccs = db.prepare("SELECT public_key as id, balance, last_demurrage_epoch as lastDemurrageEpoch FROM accounts").all() as any[];
+            ledger.loadState(updatedAccs);
+            // Restore commons balance if COMMONS_POOL exists in remote accounts
+            const commonsAcc = remote.accounts.find(a => a.publicKey === 'COMMONS_POOL');
+            if (commonsAcc) {
+                setCommonsBalance(commonsAcc.balance);
+            }
+        }
+
+        // 7. Import Immutable Transactions (Ledger Transfers)
+        if (remote.transactions) {
+            for (const tx of remote.transactions) {
+                db.prepare(`INSERT OR IGNORE INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp)
+                            VALUES (?, ?, ?, ?, ?, ?)`).run(
+                    tx.id,
+                    tx.from,
+                    tx.to,
+                    tx.amount,
+                    tx.memo,
+                    tx.timestamp
+                );
+            }
+        }
+
+        // 8. Import/Upsert Marketplace Escrow Transactions
+        if (remote.marketplaceTransactions) {
+            for (const mt of remote.marketplaceTransactions) {
+                db.prepare(`INSERT INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, completed_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ON CONFLICT(id) DO UPDATE SET
+                                status = excluded.status,
+                                completed_at = excluded.completed_at,
+                                hours = excluded.hours,
+                                credits = excluded.credits`).run(
+                    mt.id,
+                    mt.postId,
+                    mt.buyerPubkey,
+                    mt.sellerPubkey,
+                    mt.credits,
+                    mt.hours ?? null,
+                    mt.status,
+                    mt.createdAt,
+                    mt.completedAt ?? null
+                );
+            }
+        }
+
+        // 9. Import/Upsert Friends & Guardian Relations
+        if (remote.friends) {
+            for (const fr of remote.friends) {
+                db.prepare(`INSERT INTO friends (owner_pubkey, friend_pubkey, added_at, is_guardian)
+                            VALUES (?, ?, ?, ?)
+                            ON CONFLICT(owner_pubkey, friend_pubkey) DO UPDATE SET
+                                is_guardian = excluded.is_guardian`).run(
+                    fr.ownerPubkey,
+                    fr.friendPubkey,
+                    fr.addedAt,
+                    fr.isGuardian ? 1 : 0
+                );
+            }
+        }
+
+        // 10. Import/Upsert Conversations
+        if (remote.conversations) {
+            for (const cv of remote.conversations) {
+                db.prepare(`INSERT INTO conversations (id, type, post_id, name, created_by, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                            ON CONFLICT(id) DO UPDATE SET
+                                name = excluded.name`).run(
+                    cv.id,
+                    cv.type,
+                    cv.postId || null,
+                    cv.name || null,
+                    cv.createdBy || null,
+                    cv.createdAt
+                );
+            }
+        }
+
+        // 11. Import/Upsert Conversation Participants
+        if (remote.conversationParticipants) {
+            for (const cp of remote.conversationParticipants) {
+                db.prepare(`INSERT INTO conversation_participants (conversation_id, public_key, last_read_at)
+                            VALUES (?, ?, ?)
+                            ON CONFLICT(conversation_id, public_key) DO UPDATE SET
+                                last_read_at = excluded.last_read_at`).run(
+                    cp.conversationId,
+                    cp.publicKey,
+                    cp.lastReadAt || null
+                );
+            }
+        }
+
+        // 12. Import Immutable Chat Messages
+        if (remote.messages) {
+            for (const msg of remote.messages) {
+                db.prepare(`INSERT OR IGNORE INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, system_type, metadata, timestamp)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                    msg.id,
+                    msg.conversationId,
+                    msg.authorPubkey,
+                    msg.ciphertext,
+                    msg.nonce,
+                    msg.type || 'text',
+                    msg.systemType || null,
+                    msg.metadata || null,
+                    msg.timestamp
+                );
+            }
+        }
+
+        // 13. Import Immutable Abuse Reports
+        if (remote.abuseReports) {
+            for (const ar of remote.abuseReports) {
+                db.prepare(`INSERT OR IGNORE INTO abuse_reports (id, reporter_pubkey, target_pubkey, target_post_id, reason, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?)`).run(
+                    ar.id,
+                    ar.reporterPubkey,
+                    ar.targetPubkey,
+                    ar.targetPostId || null,
+                    ar.reason,
+                    ar.createdAt
+                );
+            }
+        }
+
+        // 14. Import/Upsert Social Recovery Requests
+        if (remote.recoveryRequests) {
+            for (const rr of remote.recoveryRequests) {
+                db.prepare(`INSERT INTO recovery_requests (id, old_pubkey, new_pubkey, status, quorum_required, created_at, cooldown_until, executed_at, expires_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ON CONFLICT(id) DO UPDATE SET
+                                status = excluded.status,
+                                cooldown_until = excluded.cooldown_until,
+                                executed_at = excluded.executed_at,
+                                expires_at = excluded.expires_at`).run(
+                    rr.id,
+                    rr.oldPubkey,
+                    rr.newPubkey,
+                    rr.status,
+                    rr.quorumRequired,
+                    rr.createdAt,
+                    rr.cooldownUntil || null,
+                    rr.executedAt || null,
+                    rr.expiresAt || null
+                );
+            }
+        }
+
+        // 15. Import Immutable Recovery Approvals
+        if (remote.recoveryApprovals) {
+            for (const ra of remote.recoveryApprovals) {
+                db.prepare(`INSERT OR IGNORE INTO recovery_approvals (request_id, guardian_pubkey, decision, created_at)
+                            VALUES (?, ?, ?, ?)`).run(
+                    ra.requestId,
+                    ra.guardianPubkey,
+                    ra.decision,
+                    ra.createdAt
+                );
             }
         }
     })();
