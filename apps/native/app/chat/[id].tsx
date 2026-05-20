@@ -5,8 +5,9 @@ import { useLocalSearchParams, router, useFocusEffect, Stack } from 'expo-router
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useIdentity } from '../IdentityContext';
-import { getMessages, getConversation, insertMessage, syncMessages, syncSingleConversation, markConversationRead, completeMarketplaceTransaction, cancelMarketplaceTransaction } from '../../utils/db';
+import { getMessages, getConversation, insertMessage, syncMessages, syncSingleConversation, markConversationRead, completeMarketplaceTransaction, cancelMarketplaceTransaction, getDb } from '../../utils/db';
 import { hapticSuccess, hapticWarning } from '../../utils/haptics';
+import { ReviewModal } from '../../components/ReviewModal';
 
 export default function ChatScreen() {
     const { id } = useLocalSearchParams();
@@ -17,6 +18,7 @@ export default function ChatScreen() {
     const [postContext, setPostContext] = useState<any>(null);
     const [pendingTx, setPendingTx] = useState<{ id: string; amount: number; isPayer: boolean } | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
+    const [promptReviewForTx, setPromptReviewForTx] = useState<{ txId: string; targetPubkey: string; targetCallsign: string } | null>(null);
     const flatListRef = useRef<FlatList>(null);
     const insets = useSafeAreaInsets();
 
@@ -219,7 +221,28 @@ export default function ChatScreen() {
                     {item.systemType === 'ESCROW_RELEASED' && item.metadata?.postId && (
                         <Pressable 
                             style={[styles.systemActionBtn, { borderColor: '#f59e0b' }]}
-                            onPress={() => console.log('Reviewing post: ' + item.metadata.postId)}
+                            onPress={async () => {
+                                try {
+                                    const db = await getDb();
+                                    const txRow = await db.getFirstAsync<any>(
+                                        "SELECT id, buyer_pubkey, seller_pubkey FROM marketplace_transactions WHERE post_id=? AND status='completed' LIMIT 1",
+                                        [item.metadata.postId]
+                                    );
+                                    if (txRow && identity?.publicKey) {
+                                        const targetPubkey = txRow.buyer_pubkey === identity.publicKey ? txRow.seller_pubkey : txRow.buyer_pubkey;
+                                        setPromptReviewForTx({
+                                            txId: txRow.id,
+                                            targetPubkey,
+                                            targetCallsign: peerName
+                                        });
+                                    } else {
+                                        Alert.alert("Notice", "Transaction details not found locally. Please try viewing the post.");
+                                    }
+                                } catch (e) {
+                                    console.error(e);
+                                    Alert.alert("Error", "Could not load transaction details for rating.");
+                                }
+                            }}
                         >
                             <MaterialCommunityIcons name="star-outline" size={14} color="#f59e0b" style={{ marginRight: 4 }} />
                             <Text style={[styles.systemActionText, { color: '#f59e0b' }]}>Rate your partner</Text>
@@ -286,25 +309,35 @@ export default function ChatScreen() {
 
             {/* Inline Action Bar — Release/Cancel when escrow is pending and user is the payer */}
             {pendingTx && pendingTx.isPayer && postContext?.status === 'pending' && (
-                <View style={styles.inlineActionBar}>
-                    <Pressable 
-                        style={[styles.inlineActionBtn, styles.inlineActionRelease]}
-                        onPress={handleReleaseCredits}
-                        disabled={actionLoading}
-                    >
-                        <MaterialCommunityIcons name="check-circle-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
-                        <Text style={styles.inlineActionReleaseText}>
-                            {actionLoading ? 'Processing...' : `Release Ʀ${pendingTx.amount}`}
+                <View style={[styles.inlineActionBar, { flexDirection: 'column' }]}>
+                    <View style={{ width: '100%', marginBottom: 10 }}>
+                        <Text style={{ color: '#d97706', fontSize: 13, fontWeight: '700', textAlign: 'center', marginBottom: 4 }}>
+                            ⚠️ Action Required: Release Credits
                         </Text>
-                    </Pressable>
-                    <Pressable 
-                        style={[styles.inlineActionBtn, styles.inlineActionCancel]}
-                        onPress={handleCancelEscrow}
-                        disabled={actionLoading}
-                    >
-                        <MaterialCommunityIcons name="close-circle-outline" size={18} color="#ef4444" style={{ marginRight: 6 }} />
-                        <Text style={styles.inlineActionCancelText}>Cancel</Text>
-                    </Pressable>
+                        <Text style={{ color: '#78350f', fontSize: 11, textAlign: 'center', paddingHorizontal: 16 }}>
+                            Only release credits ONCE the provider has fulfilled the terms of the agreement. This action is final.
+                        </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <Pressable 
+                            style={[styles.inlineActionBtn, styles.inlineActionRelease]}
+                            onPress={handleReleaseCredits}
+                            disabled={actionLoading}
+                        >
+                            <MaterialCommunityIcons name="check-circle-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
+                            <Text style={styles.inlineActionReleaseText}>
+                                {actionLoading ? 'Processing...' : `Release Ʀ${pendingTx.amount}`}
+                            </Text>
+                        </Pressable>
+                        <Pressable 
+                            style={[styles.inlineActionBtn, styles.inlineActionCancel]}
+                            onPress={handleCancelEscrow}
+                            disabled={actionLoading}
+                        >
+                            <MaterialCommunityIcons name="close-circle-outline" size={18} color="#ef4444" style={{ marginRight: 6 }} />
+                            <Text style={styles.inlineActionCancelText}>Cancel</Text>
+                        </Pressable>
+                    </View>
                 </View>
             )}
 
@@ -345,6 +378,20 @@ export default function ChatScreen() {
                     </Pressable>
                 </View>
             </KeyboardAvoidingView>
+
+            {promptReviewForTx && (
+                <ReviewModal 
+                    visible={!!promptReviewForTx}
+                    txId={promptReviewForTx.txId}
+                    targetPubkey={promptReviewForTx.targetPubkey}
+                    targetCallsign={promptReviewForTx.targetCallsign}
+                    onClose={() => setPromptReviewForTx(null)}
+                    onSuccess={() => {
+                        Alert.alert("Success", "Your rating has been submitted!");
+                        setPromptReviewForTx(null);
+                    }}
+                />
+            )}
         </SafeAreaView>
     );
 }

@@ -385,7 +385,7 @@ export async function getPosts(filter?: { type?: string; category?: string }) {
         LEFT JOIN members m ON p.author_pubkey = m.public_key
         WHERE p.status IN ('active', 'pending', 'completed')
     `;
-    let params: any[] = [];
+    const params: any[] = [];
     
     if (filter?.type) {
         query += ' AND p.type = ?';
@@ -415,9 +415,10 @@ export async function getPosts(filter?: { type?: string; category?: string }) {
 export async function getPost(id: string) {
     const database = await waitForInit();
     const row = await database.getFirstAsync<any>(`
-        SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar
+        SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar, a.callsign as accepted_by_callsign, a.avatar_url as accepted_by_avatar
         FROM posts p
         LEFT JOIN members m ON p.author_pubkey = m.public_key
+        LEFT JOIN members a ON p.accepted_by = a.public_key
         WHERE p.id = ?
     `, [id]);
     if (row && typeof row.photos === 'string') {
@@ -579,6 +580,7 @@ export async function getBalance(pubkey: string) {
                         floor: balData.floor ?? floor,
                         earnedCredit: balData.earnedCredit ?? 0,
                         trustStats: balData.trustStats ?? null,
+                        velocityGate: balData.velocityGate ?? null,
                     }));
                     changed = true;
                 }
@@ -590,6 +592,7 @@ export async function getBalance(pubkey: string) {
 
     // Try to load cached tier data
     let trustStats: any = null;
+    let velocityGate: any = null;
     try {
         const cached = await AsyncStorage.getItem(`bp_tier_${pubkey}`);
         if (cached) {
@@ -598,6 +601,7 @@ export async function getBalance(pubkey: string) {
             floor = parsed.floor ?? floor;
             earnedCredit = parsed.earnedCredit ?? 0;
             trustStats = parsed.trustStats ?? null;
+            velocityGate = parsed.velocityGate ?? null;
         }
     } catch { /* ignore */ }
 
@@ -607,6 +611,7 @@ export async function getBalance(pubkey: string) {
         tier,
         earnedCredit,
         trustStats,
+        velocityGate,
         commons: commons?.balance || 0
     };
 }
@@ -1444,7 +1449,7 @@ export async function syncMessages(publicKey: string) {
                 const localConv = await txn.getFirstAsync<any>('SELECT id FROM conversations WHERE id = ?', [conv.id]);
                 if (!localConv) {
                     await txn.runAsync('INSERT INTO conversations (id, type, post_id, name, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-                        [conv.id, conv.type || 'dm', conv.postId || null, conv.name || null, conv.createdBy || '', conv.createdAt || new Date().toISOString()]);
+                        [conv.id, conv.type || 'dm', conv.postId || conv.post_id || null, conv.name || null, conv.createdBy || '', conv.createdAt || new Date().toISOString()]);
                 }
                 // Always upsert participants — they may have been missed if the conv
                 // row was inserted by another sync path that didn't include them.
@@ -1673,7 +1678,7 @@ export async function createConversationApi(type: 'dm' | 'group', participants: 
             const database = await getDb();
             await database.runAsync(
                 'INSERT OR IGNORE INTO conversations (id, type, post_id, name, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-                [conv.id, conv.type || type, conv.postId || postId || null, conv.name || name || null, conv.createdBy || createdBy, conv.createdAt || new Date().toISOString()]
+                [conv.id, conv.type || type, conv.postId || conv.post_id || postId || null, conv.name || name || null, conv.createdBy || createdBy, conv.createdAt || new Date().toISOString()]
             );
             const partList: string[] = Array.isArray(conv.participants) && conv.participants.length > 0 ? conv.participants : participants;
             for (const pub of partList) {
@@ -1870,6 +1875,14 @@ async function _signedRequest(endpoint: string, payload: any) {
     }
 
     return await res.json();
+}
+
+// Public wrapper around _signedRequest for use by other modules in the app
+// (e.g. push-notifications, settings prefs). Keeps signing centralized: any
+// new client callsite that hits a signature-protected endpoint must come
+// through here.
+export async function signedRequest(endpoint: string, payload: any) {
+    return _signedRequest(endpoint, payload);
 }
 
 export async function acceptMarketplacePost(postId: string, buyerPublicKey: string, hours?: number) {
@@ -2223,14 +2236,8 @@ export async function removeFriendLocal(ownerPubkey: string, friendPubkey: strin
 
 /** Server sync helper for friend add/remove */
 async function _syncFriendToServer(action: 'add' | 'remove', ownerPubkey: string, friendPubkey: string) {
-    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
-    if (!anchorUrl) return;
     const endpoint = action === 'add' ? '/api/friends/add' : '/api/friends/remove';
-    await fetch(`${anchorUrl}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ownerPubkey, friendPubkey })
-    });
+    await _signedRequest(endpoint, { ownerPubkey, friendPubkey });
 }
 
 /** Fetch friends from server (used by sync) */
@@ -2270,26 +2277,17 @@ export async function getRecentChatMembers(myPubkey: string, limit = 10): Promis
 // ======================== SOCIAL RECOVERY & GUARDIANS ========================
 
 export async function setGuardianApi(friendPubkey: string, isGuardian: boolean): Promise<boolean> {
-    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
-    if (!anchorUrl) return false;
     const identity = await loadIdentity();
     if (!identity) return false;
 
     // Locally update DB first
     const database = await getDb();
-    await database.runAsync(`UPDATE friends SET is_guardian=? WHERE owner_pubkey=? AND friend_pubkey=?`, 
+    await database.runAsync(`UPDATE friends SET is_guardian=? WHERE owner_pubkey=? AND friend_pubkey=?`,
         [isGuardian ? 1 : 0, identity.publicKey, friendPubkey]);
 
     try {
-        const res = await fetch(`${anchorUrl}/api/friends/guardian`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Public-Key': identity.publicKey,
-            },
-            body: JSON.stringify({ friendPubkey, isGuardian })
-        });
-        return res.ok;
+        await _signedRequest('/api/friends/guardian', { friendPubkey, isGuardian });
+        return true;
     } catch (e) {
         console.warn('[Guardians] Server sync failed:', e);
         return false;
@@ -2430,4 +2428,25 @@ export async function getMemberPosts(pubkey: string) {
         }
         return r;
     });
+}
+
+export async function getUnreadCountForPost(postId: string, myPubkey: string, peerPubkey?: string): Promise<number> {
+    const database = await getDb();
+    let query = `
+        SELECT COUNT(msg.id) as unreadCount 
+        FROM messages msg
+        JOIN conversations c ON msg.conversation_id = c.id
+        WHERE c.post_id = ?
+        AND msg.author_pubkey != ?
+        AND (msg.timestamp > IFNULL((SELECT last_read_at FROM conversation_participants WHERE conversation_id = c.id AND public_key = ?), '2000-01-01'))
+    `;
+    const params: any[] = [postId, myPubkey, myPubkey];
+
+    if (peerPubkey) {
+        query += ` AND EXISTS (SELECT 1 FROM conversation_participants cp WHERE cp.conversation_id = c.id AND cp.public_key = ?)`;
+        params.push(peerPubkey);
+    }
+
+    const row = await database.getFirstAsync<{unreadCount: number}>(query, params);
+    return row?.unreadCount || 0;
 }

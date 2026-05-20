@@ -10,7 +10,7 @@ import { resolveBundledAvatar } from '../../utils/bundled-avatars';
 import { updateCallsign, wipeIdentity } from '../../utils/identity';
 import { nativeExportIdentity } from '../../utils/native-crypto';
 import { encodeBase64, encodeUtf8, hexToBytes, signData } from '../../utils/crypto';
-import { updateMemberProfile, getMemberProfile, getPendingRecoveryRequests, approveRecoveryRequest, rejectRecoveryRequest } from '../../utils/db';
+import { updateMemberProfile, getMemberProfile, getPendingRecoveryRequests, approveRecoveryRequest, rejectRecoveryRequest, signedRequest } from '../../utils/db';
 import { getSavedNodes, SavedNode, removeSavedNode, getDatabaseFilenameForNode } from '../../utils/nodes';
 import * as FileSystem from 'expo-file-system';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -150,13 +150,17 @@ export default function SettingsScreen() {
         }
         setLoading(true);
         try {
-            await updateMemberProfile(identity.publicKey, {
+            // Only include avatar_url in the update if we have one in local state.
+            // If avatar state is null (e.g., profile fetch hasn't completed), do NOT
+            // send avatar_url at all — otherwise we'd wipe the existing avatar on the server.
+            const localUpdate: any = {
                 callsign: editCallsign.trim(),
-                avatar_url: avatar,
                 bio: bio.trim(),
                 contact_value: contact.trim(),
-                contact_visibility: contact.trim() ? contactVisibility : 'hidden'
-            });
+                contact_visibility: contact.trim() ? contactVisibility : 'hidden',
+            };
+            if (avatar) localUpdate.avatar_url = avatar;
+            await updateMemberProfile(identity.publicKey, localUpdate);
             if (editCallsign.trim() !== identity.callsign) {
                 const updated = await updateCallsign(editCallsign.trim());
                 if (updated) setIdentity(updated);
@@ -166,13 +170,14 @@ export default function SettingsScreen() {
             try {
                 const url = await AsyncStorage.getItem('beanpool_anchor_url');
                 if (url && identity) {
-                    const payloadObj = {
+                    // Same guard as local: don't send avatar=null if state hasn't loaded
+                    const payloadObj: any = {
                         publicKey: identity.publicKey,
-                        avatar: avatar,
                         bio: bio.trim(),
                         contact: contact.trim() ? { value: contact.trim(), visibility: contactVisibility } : null,
                         callsign: editCallsign.trim(),
                     };
+                    if (avatar) payloadObj.avatar = avatar;
                     const bodyString = JSON.stringify(payloadObj);
                     const privateKeyBytes = hexToBytes(identity.privateKey);
                     const messageBytes = encodeUtf8(bodyString);
@@ -903,7 +908,7 @@ export default function SettingsScreen() {
                                 </View>
                                 <Pressable style={[styles.toggle, notifChat && styles.toggleOn]} onPress={async () => {
                                     const next = !notifChat; setNotifChat(next);
-                                    try { const url = await AsyncStorage.getItem('beanpool_anchor_url'); if (url && identity?.publicKey) { await fetch(`${url}/api/members/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ publicKey: identity.publicKey, preferences: { notify_chat: next } }) }); } } catch (e) { console.warn('[Prefs]', e); }
+                                    try { if (identity?.publicKey) { await signedRequest('/api/members/preferences', { publicKey: identity.publicKey, preferences: { notify_chat: next } }); } } catch (e) { console.warn('[Prefs]', e); }
                                 }}>
                                     <View style={[styles.toggleThumb, notifChat && styles.toggleThumbOn]} />
                                 </Pressable>
@@ -916,7 +921,7 @@ export default function SettingsScreen() {
                                 </View>
                                 <Pressable style={[styles.toggle, notifMarketplace && styles.toggleOn]} onPress={async () => {
                                     const next = !notifMarketplace; setNotifMarketplace(next);
-                                    try { const url = await AsyncStorage.getItem('beanpool_anchor_url'); if (url && identity?.publicKey) { await fetch(`${url}/api/members/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ publicKey: identity.publicKey, preferences: { notify_marketplace: next } }) }); } } catch (e) { console.warn('[Prefs]', e); }
+                                    try { if (identity?.publicKey) { await signedRequest('/api/members/preferences', { publicKey: identity.publicKey, preferences: { notify_marketplace: next } }); } } catch (e) { console.warn('[Prefs]', e); }
                                 }}>
                                     <View style={[styles.toggleThumb, notifMarketplace && styles.toggleThumbOn]} />
                                 </Pressable>
@@ -929,7 +934,7 @@ export default function SettingsScreen() {
                                 </View>
                                 <Pressable style={[styles.toggle, notifEscrow && styles.toggleOn]} onPress={async () => {
                                     const next = !notifEscrow; setNotifEscrow(next);
-                                    try { const url = await AsyncStorage.getItem('beanpool_anchor_url'); if (url && identity?.publicKey) { await fetch(`${url}/api/members/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ publicKey: identity.publicKey, preferences: { notify_escrow: next } }) }); } } catch (e) { console.warn('[Prefs]', e); }
+                                    try { if (identity?.publicKey) { await signedRequest('/api/members/preferences', { publicKey: identity.publicKey, preferences: { notify_escrow: next } }); } } catch (e) { console.warn('[Prefs]', e); }
                                 }}>
                                     <View style={[styles.toggleThumb, notifEscrow && styles.toggleThumbOn]} />
                                 </Pressable>

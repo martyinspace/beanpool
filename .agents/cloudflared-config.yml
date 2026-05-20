@@ -1,0 +1,23 @@
+tunnel: c7354ceb-38c2-4d68-b693-05e7e2b00aee
+credentials-file: /home/marty/.cloudflared/c7354ceb-38c2-4d68-b693-05e7e2b00aee.json
+
+ingress:
+  - hostname: c7354ceb-38c2-4d68-b693-05e7e2b00aee.cfargotunnel.com
+    service: https://localhost:8443
+    originRequest:
+      noTLSVerify: true
+  - hostname: test.beanpool.org
+    service: https://localhost:8443
+    originRequest:
+      noTLSVerify: true
+  - hostname: mullum2.beanpool.org
+    service: https://localhost:8447
+    originRequest:
+      noTLSVerify: true
+  - hostname: review.beanpool.org
+    service: https://localhost:8445
+    originRequest:
+      noTLSVerify: true
+  - hostname: chat.socialismhub.org
+    service: http://localhost:3001
+  - service: http_status:404

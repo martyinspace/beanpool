@@ -402,20 +402,24 @@ export default function MapScreen() {
         if (postPhotos.length >= 3) return;
         Alert.alert('Add Photo', 'Choose a source', [
             { text: 'Camera', onPress: async () => {
-                const perm = await ImagePicker.requestCameraPermissionsAsync();
-                if (!perm.granted) { Alert.alert('Permission needed'); return; }
-                const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1, base64: false });
-                if (!result.canceled && result.assets[0]?.uri) {
-                    try {
-                        const manipResult = await ImageManipulator.manipulateAsync(
-                            result.assets[0].uri,
-                            [{ resize: { width: 800 } }],
-                            { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-                        );
-                        if (manipResult.base64) {
-                            setPostPhotos(prev => [...prev, `data:image/jpeg;base64,${manipResult.base64}`]);
-                        }
-                    } catch (e) { console.error("Failed to manipulate image:", e); }
+                try {
+                    const perm = await ImagePicker.requestCameraPermissionsAsync();
+                    if (!perm.granted) { Alert.alert('Permission needed'); return; }
+                    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1, base64: false });
+                    if (!result.canceled && result.assets[0]?.uri) {
+                        try {
+                            const manipResult = await ImageManipulator.manipulateAsync(
+                                result.assets[0].uri,
+                                [{ resize: { width: 800 } }],
+                                { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                            );
+                            if (manipResult.base64) {
+                                setPostPhotos(prev => [...prev, `data:image/jpeg;base64,${manipResult.base64}`]);
+                            }
+                        } catch (e) { console.error("Failed to manipulate image:", e); }
+                    }
+                } catch (e: any) {
+                    Alert.alert('Camera Unavailable', e?.message || 'Could not launch camera.');
                 }
             }},
             { text: 'Gallery', onPress: async () => {

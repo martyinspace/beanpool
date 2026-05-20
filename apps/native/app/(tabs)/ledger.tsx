@@ -14,14 +14,19 @@ import { MemberAvatar } from '../../components/MemberAvatar';
 import { BalanceInfoModal } from '../../components/info-content/BalanceInfoModal';
 import { CirculationInfoModal } from '../../components/info-content/CirculationInfoModal';
 import { CommonsInfoModal } from '../../components/CommonsInfoModal';
+import { TrustInfoModal } from '../../components/info-content/TrustInfoModal';
 
 // ── Tier constants (mirrors beanpool-core/protocol.ts) ──
+// floor: the credit limit at that tier (negative = how far into debt you can go)
+// dailyLimit: velocity gate bean limit (null = unrestricted)
 const TIERS = [
-    { name: 'Ghost',    emoji: '👻', color: '#6b7280', bg: '#f3f4f6', border: '#d1d5db', min: 0    },
-    { name: 'Resident', emoji: '🏠', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', min: 120  },
-    { name: 'Citizen',  emoji: '🏛️', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', min: 520  },
-    { name: 'Elder',    emoji: '👑', color: '#d97706', bg: '#fffbeb', border: '#fde68a', min: 1320 },
+    { name: 'Newcomer', emoji: '🌱', color: '#6b7280', bg: '#f3f4f6', border: '#d1d5db', min: 0,    floor: -80,   dailyLimit: 20, perks: ['Marketplace access', 'Receive credits'] },
+    { name: 'Resident', emoji: '🏠', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', min: 120,  floor: -200,  dailyLimit: null, perks: ['Send credits', 'Invite members', 'Full marketplace'] },
+    { name: 'Citizen',  emoji: '🏛️', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', min: 520,  floor: -600,  dailyLimit: null, perks: ['All Resident perks', 'Trusted trader status'] },
+    { name: 'Elder',    emoji: '👑', color: '#d97706', bg: '#fffbeb', border: '#fde68a', min: 1320, floor: -1400, dailyLimit: null, perks: ['All perks', 'Community governance voice'] },
 ];
+const BASE_FLOOR = -80; // Everyone starts here
+const CIRC_TICKS = [200, 500, 1000]; // Circulation rate change points
 const W_TRADES = 8, W_PARTNERS = 40, W_DAYS = 2;
 
 function getTierIndex(ec: number) {
@@ -48,6 +53,7 @@ export default function LedgerScreen() {
     const [showBalanceInfo, setShowBalanceInfo] = useState(false);
     const [showCommonsInfo, setShowCommonsInfo] = useState(false);
     const [showCirculationInfo, setShowCirculationInfo] = useState(false);
+    const [showTrustInfo, setShowTrustInfo] = useState(false);
 
     const [showSend, setShowSend] = useState(false);
     const [members, setMembers] = useState<{ publicKey: string; callsign: string }[]>([]);
@@ -136,6 +142,139 @@ export default function LedgerScreen() {
     const selectedMember = members.find(m => m.publicKey === sendTo);
     const filteredMembers = members.filter(m => m.callsign.toLowerCase().includes(memberSearch.toLowerCase()));
 
+    // ─── Credit Spectrum Bar ──────────────────────────────────────────────────
+    const renderCreditBar = () => {
+        const balance = balanceState.balance;
+
+        // Fixed visual anchor positions — evenly spaced for readability, NOT linear.
+        // 9 anchors: 4 tier floors + zero + 4 circ bracket boundaries (incl. 2000)
+        const ANCHORS: [number, number][] = [
+            [-1400, 0.04],  // Elder floor       👑
+            [-600,  0.15],  // Citizen floor      🏛️
+            [-200,  0.27],  // Resident floor     🏠
+            [-80,   0.38],  // Newcomer floor     🌱
+            [0,     0.46],  // Zero line
+            [200,   0.57],  // 0–200: 0.5% → rate changes to 1% above here
+            [500,   0.68],  // 200–500: 1% → rate changes to 1.5% above here
+            [1000,  0.79],  // 500–1000: 1.5% → rate changes to 2% above here
+            [2000,  0.91],  // 1000–2000: 2% → rate changes to 2.5% above here
+        ];
+
+        // Piecewise linear interpolation between anchors — bead tracks accurately
+        const toPos = (v: number): number => {
+            if (v <= ANCHORS[0][0]) return ANCHORS[0][1];
+            if (v >= ANCHORS[ANCHORS.length - 1][0]) return ANCHORS[ANCHORS.length - 1][1];
+            for (let i = 0; i < ANCHORS.length - 1; i++) {
+                const [v0, p0] = ANCHORS[i];
+                const [v1, p1] = ANCHORS[i + 1];
+                if (v >= v0 && v <= v1) {
+                    const t = (v - v0) / (v1 - v0);
+                    return p0 + t * (p1 - p0);
+                }
+            }
+            return 0.5;
+        };
+
+        // Named positions (extracted from ANCHORS for readability)
+        const ZERO_P  = 0.46;
+        const P_200   = 0.57;
+        const P_500   = 0.68;
+        const P_1000  = 0.79;
+        const P_2000  = 0.91;
+
+        const balancePct = toPos(balance);
+
+        // Tier markers: Elder leftmost → Newcomer just left of zero
+        const tierMarkers = [...TIERS].reverse().map(t => ({
+            ...t,
+            pos: ANCHORS.find(a => a[0] === t.floor)?.[1] ?? toPos(t.floor),
+        }));
+
+        // Circ zone ticks — correct rates per CommonsInfoModal BRACKETS:
+        // The rate shown at each marker is what applies ABOVE that point
+        const circMarkers = [
+            { v: 200,  rate: '1%',   pos: P_200  },  // above 200: 1%
+            { v: 500,  rate: '1.5%', pos: P_500  },  // above 500: 1.5%
+            { v: 1000, rate: '2%',   pos: P_1000 },  // above 1000: 2%
+            { v: 2000, rate: '2.5%', pos: P_2000 },  // above 2000: 2.5%
+        ];
+
+        const vg = balanceState.velocityGate;
+
+        return (
+            <View style={styles.creditBarOuter}>
+                <View style={styles.rulerWrap}>
+
+                    {/* ── Continuous bar: 5 colour-coded brackets matching CommonsInfoModal ── */}
+                    {/* Grey credit zone — rounded left cap starts slightly before -1400 tick */}
+                    <View style={[styles.rulerSeg, { left: '2%', width: `${ZERO_P * 100 - 2}%`, backgroundColor: '#d1d5db', borderTopLeftRadius: 6, borderBottomLeftRadius: 6, borderTopRightRadius: 0, borderBottomRightRadius: 0 }]} />
+                    {/* Green: 0–200 (0.5%) */}
+                    <View style={[styles.rulerSeg, { left: `${ZERO_P * 100}%`, width: `${(P_200 - ZERO_P) * 100}%`, backgroundColor: '#22c55e', borderRadius: 0 }]} />
+                    {/* Lime: 200–500 (1%) */}
+                    <View style={[styles.rulerSeg, { left: `${P_200 * 100}%`, width: `${(P_500 - P_200) * 100}%`, backgroundColor: '#84cc16', borderRadius: 0 }]} />
+                    {/* Yellow: 500–1000 (1.5%) */}
+                    <View style={[styles.rulerSeg, { left: `${P_500 * 100}%`, width: `${(P_1000 - P_500) * 100}%`, backgroundColor: '#eab308', borderRadius: 0 }]} />
+                    {/* Orange: 1000–2000 (2%) */}
+                    <View style={[styles.rulerSeg, { left: `${P_1000 * 100}%`, width: `${(P_2000 - P_1000) * 100}%`, backgroundColor: '#f97316', borderRadius: 0 }]} />
+                    {/* Red: 2000+ (2.5%) — rounded right cap */}
+                    <View style={[styles.rulerSeg, { left: `${P_2000 * 100}%`, right: 0, backgroundColor: '#ef4444', borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderTopRightRadius: 6, borderBottomRightRadius: 6 }]} />
+
+                    {/* ── Zero marker — only extends BELOW the line so it doesn't clip the bead label ── */}
+                    <View style={[styles.rulerZeroLine, { left: `${ZERO_P * 100}%` }]} />
+                    <Text style={[styles.rulerZeroLabel, { left: `${ZERO_P * 100}%` }]}>0</Text>
+
+                    {/* ── Tier floor ticks (left) — value then emoji below ── */}
+                    {tierMarkers.map(t => (
+                        <View key={t.name} style={[styles.rulerTickWrap, { left: `${t.pos * 100}%` }]}>
+                            <View style={[styles.rulerTickMark, { backgroundColor: '#9ca3af' }]} />
+                            <Text style={styles.rulerTickVal}>{t.floor}</Text>
+                            <Text style={styles.rulerTickSym}>{t.emoji}</Text>
+                        </View>
+                    ))}
+
+                    {/* ── Circ zone ticks (right) — value then rate below ── */}
+                    {circMarkers.map(c => (
+                        <View key={c.v} style={[styles.rulerTickWrap, { left: `${c.pos * 100}%` }]}>
+                            <View style={[styles.rulerTickMark, { backgroundColor: '#9ca3af' }]} />
+                            <Text style={styles.rulerTickVal}>{c.v}</Text>
+                            <Text style={styles.rulerTickRate}>{c.rate}</Text>
+                        </View>
+                    ))}
+
+                    {/* ── Balance bead: label above, circle on the line ── */}
+                    <View style={[styles.rulerBeadWrap, { left: `${balancePct * 100}%` }]}>
+                        <Text style={[styles.rulerBeadLabel, { color: balance >= 0 ? '#065f46' : '#991b1b' }]}>
+                            {balance >= 0 ? '+' : ''}{balance.toFixed(1)}B
+                        </Text>
+                        <View style={[styles.rulerBead, { backgroundColor: tier.color, borderColor: '#fff' }]} />
+                    </View>
+
+                </View>
+
+                {/* ── Zero equilibrium note ── */}
+                <View style={styles.rulerEquilibriumWrap}>
+                    <Text style={styles.rulerEquilibriumText}>
+                        ⚖️ Zero is the sweet spot — you've given as much as you've received. This is where the commons flows best.
+                    </Text>
+                </View>
+
+                {/* ── Velocity gate pill — Newcomer only ── */}
+                {vg?.active && (
+                    <View style={styles.velocityPill}>
+                        <MaterialCommunityIcons name="shield-check-outline" size={13} color="#6366f1" />
+                        <Text style={styles.velocityPillText}>
+                            Daily: {(vg.dailyUsed || 0).toFixed(1)} / {vg.dailyLimit}B used
+                        </Text>
+                        <Text style={styles.velocityPillDot}>·</Text>
+                        <Text style={styles.velocityPillText}>Lifts in ~{vg.unlockHours}h</Text>
+                    </View>
+                )}
+            </View>
+        );
+    };
+
+
+
     // ─── Trust Tab ───────────────────────────────────────────────────────────
     const renderTrustTab = () => (
         <ScrollView style={{ flex: 1, backgroundColor: '#f9fafb' }} contentContainerStyle={{ padding: 16, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
@@ -144,7 +283,10 @@ export default function LedgerScreen() {
             <View style={[styles.tierHero, { backgroundColor: tier.bg, borderColor: tier.border }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                     <View>
-                        <Text style={styles.tierHeroLabel}>YOUR TRUST LEVEL</Text>
+                        <Pressable style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => setShowTrustInfo(true)}>
+                            <Text style={styles.tierHeroLabel}>YOUR TRUST LEVEL</Text>
+                            <MaterialCommunityIcons name="information-outline" size={14} color="#9ca3af" style={{ marginLeft: 4 }} />
+                        </Pressable>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
                             <Text style={{ fontSize: 32 }}>{tier.emoji}</Text>
                             <Text style={[styles.tierHeroName, { color: tier.color }]}>{tier.name}</Text>
@@ -176,6 +318,10 @@ export default function LedgerScreen() {
                         <MaterialCommunityIcons name={balanceState.tier.canInvite ? 'check-circle' : 'lock-outline'} size={13} color={balanceState.tier.canInvite ? '#10b981' : '#9ca3af'} />
                         <Text style={[styles.perkText, { color: balanceState.tier.canInvite ? '#059669' : '#9ca3af' }]}>Invite Members</Text>
                     </View>
+                    <View style={[styles.perkPill, { borderColor: '#bfdbfe', backgroundColor: '#eff6ff' }]}>
+                        <MaterialCommunityIcons name="scale-balance" size={13} color="#3b82f6" />
+                        <Text style={[styles.perkText, { color: '#1d4ed8' }]}>Floor: {balanceState.floor}</Text>
+                    </View>
                 </View>
             </View>
 
@@ -191,7 +337,7 @@ export default function LedgerScreen() {
                         <Text style={styles.pathOr}>or</Text>
                         <View style={styles.pathOption}>
                             <Text style={[styles.pathNumber, { color: '#3b82f6' }]}>{partnersToLevel}</Text>
-                            <Text style={styles.pathLabel}>new partners</Text>
+                            <Text style={styles.pathLabel}>new trade partners</Text>
                         </View>
                         <Text style={styles.pathOr}>or</Text>
                         <View style={styles.pathOption}>
@@ -207,7 +353,7 @@ export default function LedgerScreen() {
             <View style={styles.achieveRow}>
                 {[
                     { icon: '🤝', label: 'TRADES',   count: tradeCount,     contrib: tradeCount * W_TRADES,     target: 50,  color: '#10b981', trackBg: '#f0fdf4' },
-                    { icon: '👥', label: 'PARTNERS', count: uniquePartners, contrib: uniquePartners * W_PARTNERS, target: 20, color: '#3b82f6', trackBg: '#eff6ff' },
+                    { icon: '👥', label: 'TRADE PARTNERS', count: uniquePartners, contrib: uniquePartners * W_PARTNERS, target: 20, color: '#3b82f6', trackBg: '#eff6ff' },
                     { icon: '📅', label: 'DAYS',     count: ageDays,        contrib: ageDays * W_DAYS,          target: 365, color: '#f97316', trackBg: '#fff7ed' },
                 ].map(a => (
                     <View key={a.label} style={[styles.achieveCard, { borderColor: a.color + '30' }]}>
@@ -229,17 +375,58 @@ export default function LedgerScreen() {
                 {TIERS.map((t, i) => {
                     const reached = tierIdx >= i;
                     const isCurrent = tierIdx === i;
+                    const hoursEquiv = Math.round(Math.abs(t.floor) / 40 * 10) / 10;
+                    const creditsNeeded = Math.max(0, t.min - ec);
                     return (
                         <View key={t.name} style={[styles.ladderRow, isCurrent && { backgroundColor: t.bg, borderColor: t.border }]}>
-                            <View style={[styles.ladderDot, { backgroundColor: reached ? t.color : '#e5e7eb', borderColor: t.color }]} />
-                            <Text style={{ fontSize: 18, width: 24, textAlign: 'center' }}>{t.emoji}</Text>
-                            <View style={{ flex: 1 }}>
-                                <Text style={[styles.ladderName, { color: reached ? t.color : '#9ca3af' }]}>
-                                    {t.name}{isCurrent ? '  ← you' : ''}
-                                </Text>
-                                <Text style={styles.ladderReq}>{t.min === 0 ? 'Starting tier' : `${t.min} credits`}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                                <View style={[styles.ladderDot, { backgroundColor: reached ? t.color : '#e5e7eb', borderColor: t.color, marginTop: 4 }]} />
+                                <Text style={{ fontSize: 18, width: 24, textAlign: 'center', marginTop: 1 }}>{t.emoji}</Text>
+                                <View style={{ flex: 1 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <Text style={[styles.ladderName, { color: reached ? t.color : '#9ca3af' }]}>
+                                            {t.name}{isCurrent ? '  ← you' : ''}
+                                        </Text>
+                                        {reached
+                                            ? <MaterialCommunityIcons name="check-circle" size={16} color={t.color} />
+                                            : creditsNeeded > 0
+                                                ? <Text style={[styles.ladderBadge, { color: t.color, borderColor: t.color + '40' }]}>{creditsNeeded} to go</Text>
+                                                : null
+                                        }
+                                    </View>
+
+                                    {/* Credits required */}
+                                    <Text style={styles.ladderReq}>
+                                        {t.min === 0 ? 'Starting tier' : `Earn ${t.min} pts via trades, partners & days`}
+                                    </Text>
+
+                                    {/* Floor info */}
+                                    <View style={styles.ladderDetail}>
+                                        <MaterialCommunityIcons name="scale-balance" size={11} color="#6b7280" />
+                                        <Text style={styles.ladderDetailText}>
+                                            Floor {t.floor} · ≈{hoursEquiv}hrs credit
+                                        </Text>
+                                    </View>
+
+                                    {/* Daily limit */}
+                                    <View style={styles.ladderDetail}>
+                                        <MaterialCommunityIcons name={t.dailyLimit ? 'shield-check-outline' : 'infinity'} size={11} color={t.dailyLimit ? '#6366f1' : '#10b981'} />
+                                        <Text style={styles.ladderDetailText}>
+                                            {t.dailyLimit ? `Daily limit: ${t.dailyLimit}B (new account protection)` : 'No daily spending limit'}
+                                        </Text>
+                                    </View>
+
+                                    {/* Perks */}
+                                    <View style={{ marginTop: 4, gap: 2 }}>
+                                        {t.perks.map(p => (
+                                            <View key={p} style={styles.ladderDetail}>
+                                                <MaterialCommunityIcons name={reached ? 'check' : 'lock-outline'} size={11} color={reached ? '#10b981' : '#d1d5db'} />
+                                                <Text style={[styles.ladderDetailText, { color: reached ? '#374151' : '#9ca3af' }]}>{p}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                </View>
                             </View>
-                            {reached && <MaterialCommunityIcons name="check-circle" size={18} color={t.color} />}
                         </View>
                     );
                 })}
@@ -272,6 +459,57 @@ export default function LedgerScreen() {
                         <Text style={styles.balCardSub}>🌱 Community Pool</Text>
                     </Pressable>
                 </View>
+
+                {/* Velocity Gate — usage meter for new accounts */}
+                {balanceState.velocityGate?.active && (() => {
+                    const vg = balanceState.velocityGate;
+                    const used = vg.dailyUsed || 0;
+                    const limit = vg.dailyLimit || 1;
+                    const pct = Math.min(1, used / limit);
+                    const remaining = Math.max(0, limit - used);
+                    const isHigh = pct >= 0.8;
+                    const isFull = pct >= 1;
+                    return (
+                        <View style={styles.velocityCard}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                                <MaterialCommunityIcons name="shield-check-outline" size={18} color="#6366f1" />
+                                <Text style={styles.velocityTitle}>New Account Protection</Text>
+                            </View>
+
+                            <Text style={styles.velocityLabel}>DAILY USAGE (24hr rolling)</Text>
+                            <View style={styles.velocityBarBg}>
+                                <View style={[styles.velocityBarFill, {
+                                    width: `${pct * 100}%`,
+                                    backgroundColor: isFull ? '#ef4444' : isHigh ? '#f59e0b' : '#6366f1',
+                                }]} />
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                                <Text style={styles.velocityUsed}>{used.toFixed(1)}B used</Text>
+                                <Text style={styles.velocityLimit}>{limit}B limit</Text>
+                            </View>
+
+                            {isFull ? (
+                                <View style={styles.velocityWarning}>
+                                    <MaterialCommunityIcons name="clock-alert-outline" size={14} color="#dc2626" />
+                                    <Text style={styles.velocityWarningText}>Daily limit reached — resets on a rolling 24hr window</Text>
+                                </View>
+                            ) : (
+                                <Text style={styles.velocityRemaining}>{remaining.toFixed(1)}B remaining today</Text>
+                            )}
+
+                            <View style={styles.velocityUnlock}>
+                                <MaterialCommunityIcons name="lock-open-variant-outline" size={14} color="#10b981" />
+                                <Text style={styles.velocityUnlockText}>
+                                    Full access unlocks in ~{vg.unlockHours}h
+                                </Text>
+                            </View>
+
+                            <Text style={styles.velocityExplainer}>
+                                To protect the community, new accounts have daily spending limits that increase over time. Keep trading to build trust!
+                            </Text>
+                        </View>
+                    );
+                })()}
 
                 {balanceState.balance > 0 && (
                     <Pressable style={[styles.circBox, amber && styles.circBoxAmber]} onPress={() => setShowCirculationInfo(true)}>
@@ -328,7 +566,14 @@ export default function LedgerScreen() {
                 <Pressable
                     style={[styles.sendBtn, showSend && styles.sendBtnOpen, !balanceState.tier.canGift && styles.sendBtnLocked]}
                     onPress={async () => {
-                        if (!balanceState.tier.canGift) return;
+                        if (!balanceState.tier.canGift) {
+                            Alert.alert(
+                                'Sending Locked', 
+                                'Your current Trust Level does not permit sending credits yet.\n\nEarn points by trading and inviting partners to reach the next tier! See the Trust Level tab for your progress.', 
+                                [{ text: 'OK' }]
+                            );
+                            return;
+                        }
                         if (!showSend) {
                             const url = await AsyncStorage.getItem('beanpool_anchor_url');
                             if (!url) { Alert.alert('Not Connected', 'Connect to a community first.', [{ text: 'Cancel' }, { text: 'Connect', onPress: () => router.push({ pathname: '/(tabs)/settings', params: { section: 'advanced' } }) }]); return; }
@@ -336,9 +581,15 @@ export default function LedgerScreen() {
                         }
                         setShowSend(!showSend); setSendError(null); setSendSuccess(false);
                     }}
-                    disabled={!balanceState.tier.canGift}
                 >
-                    <Text style={styles.sendBtnText}>{!balanceState.tier.canGift ? '🔒 Send Credits (Locked)' : showSend ? '✕ Cancel' : '💸 Send Credits'}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        <Text style={[styles.sendBtnText, !balanceState.tier.canGift && { color: '#6b7280' }]}>
+                            {!balanceState.tier.canGift ? '🔒 Send Credits (Locked)' : showSend ? '✕ Cancel' : '💸 Send Credits'}
+                        </Text>
+                        {!balanceState.tier.canGift && (
+                            <MaterialCommunityIcons name="information-outline" size={16} color="#9ca3af" />
+                        )}
+                    </View>
                 </Pressable>
 
                 {showSend && (
@@ -434,6 +685,9 @@ export default function LedgerScreen() {
                 </Pressable>
             </View>
 
+            {/* ── Credit Spectrum Bar ── */}
+            {renderCreditBar()}
+
             {/* ── Tab bar ── */}
             <View style={styles.tabBar}>
                 <Pressable style={[styles.tab, activeTab === 'trust' && [styles.tabActive, { borderBottomColor: tier.color }]]} onPress={() => setActiveTab('trust')}>
@@ -451,9 +705,9 @@ export default function LedgerScreen() {
                 <FlatList
                     data={txns}
                     keyExtractor={item => item.id}
-                    ListHeaderComponent={renderActivityHeader()}
                     renderItem={renderTxn}
-                    contentContainerStyle={styles.activityContent}
+                    ListHeaderComponent={renderActivityHeader}
+                    contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#9ca3af', paddingTop: 32, fontSize: 14 }}>No transactions yet.</Text>}
                 />
@@ -462,6 +716,7 @@ export default function LedgerScreen() {
             <BalanceInfoModal isOpen={showBalanceInfo} onClose={() => setShowBalanceInfo(false)} />
             <CommonsInfoModal isOpen={showCommonsInfo} onClose={() => setShowCommonsInfo(false)} commonsBalance={balanceState.commons} />
             <CirculationInfoModal isOpen={showCirculationInfo} onClose={() => setShowCirculationInfo(false)} />
+            <TrustInfoModal isOpen={showTrustInfo} onClose={() => setShowTrustInfo(false)} />
         </SafeAreaView>
     );
 }
@@ -501,7 +756,7 @@ const styles = StyleSheet.create({
     progressBg: { height: 10, backgroundColor: '#e5e7eb', borderRadius: 5, overflow: 'hidden' },
     progressFill: { height: '100%', borderRadius: 5 },
     progressLabel: { fontSize: 11, color: '#6b7280', fontWeight: '600' },
-    perksRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
+    perksRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
     perkPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1 },
     perkText: { fontSize: 12, fontWeight: '700' },
 
@@ -525,10 +780,13 @@ const styles = StyleSheet.create({
     achieveFooter: { fontSize: 9, color: '#9ca3af', fontWeight: '600' },
 
     ladder: { backgroundColor: '#ffffff', borderRadius: 16, overflow: 'hidden', marginBottom: 12, borderWidth: 1, borderColor: '#e5e7eb' },
-    ladderRow: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', borderColor: 'transparent' },
-    ladderDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 2 },
+    ladderRow: { padding: 14, paddingLeft: 12, gap: 0, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', borderColor: 'transparent' },
+    ladderDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 2, marginRight: 6 },
     ladderName: { fontSize: 14, fontWeight: '800' },
-    ladderReq: { fontSize: 11, color: '#9ca3af', fontWeight: '500' },
+    ladderReq: { fontSize: 11, color: '#9ca3af', fontWeight: '500', marginBottom: 4 },
+    ladderDetail: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 2 },
+    ladderDetailText: { fontSize: 11, color: '#6b7280', fontWeight: '500', flex: 1 },
+    ladderBadge: { fontSize: 10, fontWeight: '700', borderWidth: 1, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
     formula: { fontSize: 11, color: '#9ca3af', fontStyle: 'italic', textAlign: 'center', paddingBottom: 4 },
 
     // ── Activity Tab ──
@@ -590,4 +848,44 @@ const styles = StyleSheet.create({
     txnMemo: { fontSize: 12, color: '#6b7280', marginBottom: 2 },
     txnTime: { fontSize: 11, color: '#9ca3af' },
     txnAmount: { fontSize: 16, fontWeight: '800' },
+
+    // Velocity gate meter
+    velocityCard: { backgroundColor: '#1e1b4b', borderRadius: 16, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: '#4338ca' },
+    velocityTitle: { fontSize: 14, fontWeight: '800', color: '#e0e7ff', marginLeft: 8 },
+    velocityLabel: { fontSize: 10, fontWeight: '800', color: '#a5b4fc', letterSpacing: 1, textTransform: 'uppercase' as const, marginBottom: 6 },
+    velocityBarBg: { height: 8, backgroundColor: '#312e81', borderRadius: 4, overflow: 'hidden' as const },
+    velocityBarFill: { height: '100%' as const, borderRadius: 4 },
+    velocityUsed: { fontSize: 12, fontWeight: '700', color: '#c7d2fe' },
+    velocityLimit: { fontSize: 12, fontWeight: '700', color: '#818cf8' },
+    velocityRemaining: { fontSize: 12, fontWeight: '600', color: '#a5b4fc', marginTop: 6 },
+    velocityWarning: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, marginTop: 8, backgroundColor: '#450a0a', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+    velocityWarningText: { fontSize: 12, fontWeight: '700', color: '#fca5a5', flex: 1 },
+    velocityUnlock: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, marginTop: 10, backgroundColor: '#064e3b', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+    velocityUnlockText: { fontSize: 12, fontWeight: '700', color: '#6ee7b7' },
+    velocityExplainer: { fontSize: 11, color: '#818cf8', marginTop: 10, lineHeight: 16 },
+
+    // ── Credit Spectrum Bar (ruler/mercury design) ──
+    creditBarOuter: { backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10 },
+    rulerWrap: { height: 88, position: 'relative', marginBottom: 4 },
+    // Bar segments: borderRadius set per-segment in JSX for clean straight joins
+    rulerSeg: { position: 'absolute', height: 12, top: 24 },
+    // Zero line: starts at bar bottom (36) and drops below only
+    rulerZeroLine: { position: 'absolute', width: 2, height: 16, top: 36, backgroundColor: '#1f2937', marginLeft: -1 },
+    rulerZeroLabel: { position: 'absolute', top: 54, fontSize: 9, fontWeight: '700', color: '#374151', textAlign: 'center', width: 16, marginLeft: -8 },
+    // Tick wrapper: starts at bar bottom (36)
+    rulerTickWrap: { position: 'absolute', alignItems: 'center', top: 36, marginLeft: -16, width: 32 },
+    rulerTickMark: { width: 1, height: 6 },
+    rulerTickVal: { fontSize: 8, fontWeight: '600', color: '#6b7280', marginTop: 2, textAlign: 'center', width: 32 },
+    rulerTickSym: { fontSize: 11, marginTop: 1, textAlign: 'center' },
+    rulerTickRate: { fontSize: 9, fontWeight: '600', color: '#9ca3af', marginTop: 1, textAlign: 'center' },
+    // Equilibrium note centred below the zero mark
+    rulerEquilibriumWrap: { alignItems: 'center', marginTop: 2, marginBottom: 4 },
+    rulerEquilibriumText: { fontSize: 10, color: '#6b7280', fontStyle: 'italic', textAlign: 'center', lineHeight: 14 },
+    // Bead: 64px centered wrap, label above, circle below — fixed width prevents horizontal drifting
+    rulerBeadWrap: { position: 'absolute', alignItems: 'center', width: 64, top: 3, marginLeft: -32 },
+    rulerBeadLabel: { fontSize: 12, fontWeight: '800', marginBottom: 3, textAlign: 'center' },
+    rulerBead: { width: 16, height: 16, borderRadius: 8, borderWidth: 2.5, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 3 },
+    velocityPill: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5, marginTop: 6, backgroundColor: '#eef2ff', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, alignSelf: 'flex-start' as const, borderWidth: 1, borderColor: '#c7d2fe' },
+    velocityPillText: { fontSize: 11, fontWeight: '600', color: '#4f46e5' },
+    velocityPillDot: { fontSize: 11, color: '#a5b4fc' },
 });

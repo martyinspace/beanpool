@@ -136,17 +136,18 @@ export async function startHttpsServer(port: number): Promise<void> {
         const isProtected = 
             ctx.path.startsWith('/api/profile/update') ||
             ctx.path.startsWith('/api/ledger/transfer') ||
-            ctx.path.startsWith('/api/marketplace/posts') ||
-            ctx.path.startsWith('/api/marketplace/accept') ||
-            ctx.path.startsWith('/api/marketplace/complete') ||
-            ctx.path.startsWith('/api/marketplace/cancel') ||
-            ctx.path.startsWith('/api/messages/conversation') ||
-            ctx.path.startsWith('/api/messages/send') ||
-            ctx.path.startsWith('/api/messages/mark-read') ||
-            ctx.path.startsWith('/api/commons/projects') ||
-            ctx.path.startsWith('/api/crowdfund/projects') ||
+            ctx.path.startsWith('/api/marketplace/') ||
+            ctx.path.startsWith('/api/messages/') ||
+            ctx.path.startsWith('/api/commons/') ||
+            ctx.path.startsWith('/api/crowdfund/') ||
             ctx.path.startsWith('/api/invite/generate') ||
-            ctx.path.startsWith('/api/community/register');
+            ctx.path.startsWith('/api/community/register') ||
+            ctx.path.startsWith('/api/ratings') ||
+            ctx.path.startsWith('/api/reports') ||
+            ctx.path.startsWith('/api/friends/') ||
+            ctx.path.startsWith('/api/recovery/') ||
+            ctx.path.startsWith('/api/push-tokens') ||
+            ctx.path.startsWith('/api/members/preferences');
 
         if (!isProtected) {
             return await next();

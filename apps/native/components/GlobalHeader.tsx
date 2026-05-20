@@ -278,7 +278,7 @@ export function GlobalHeader() {
                                     v{appConfig.expo.version}
                                 </Text>
                                 <View style={{ position: 'absolute', bottom: -10, right: 90, flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isOffline ? '#ef4444' : '#10b981', borderWidth: 1, borderColor: '#fff' }} />
+                                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isOffline ? '#ef4444' : isGuestOnActive ? '#d97706' : '#10b981', borderWidth: 1, borderColor: '#fff' }} />
                                     <MaterialCommunityIcons 
                                         name="chevron-down" 
                                         size={20} 
@@ -297,7 +297,7 @@ export function GlobalHeader() {
                                      pathname === '/ledger' ? 'Ledger' :
                                      pathname === '/settings' ? 'Settings' : 'BeanPool'}
                                 </Text>
-                                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isOffline ? '#ef4444' : '#10b981', borderWidth: 1, borderColor: '#fff' }} />
+                                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isOffline ? '#ef4444' : isGuestOnActive ? '#d97706' : '#10b981', borderWidth: 1, borderColor: '#fff' }} />
                                 <MaterialCommunityIcons name="chevron-down" size={20} color="#ffffff" style={{ opacity: 0.8, marginTop: 2 }} />
                             </View>
                         )}

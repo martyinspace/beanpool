@@ -50,7 +50,7 @@ export const PROTOCOL_CONSTANTS = {
 
 // ===================== TYPES =====================
 
-export type TierName = 'Ghost' | 'Resident' | 'Citizen' | 'Elder';
+export type TierName = 'Newcomer' | 'Resident' | 'Citizen' | 'Elder';
 export type GenesisInviteType = 'standard' | 'trusted' | 'ambassador';
 
 export interface TierInfo {
@@ -92,7 +92,7 @@ export function getTier(floor: number): TierInfo {
     const c = PROTOCOL_CONSTANTS;
 
     if (floor > c.GHOST_THRESHOLD) {
-        return { name: 'Ghost', emoji: '👻', color: '#6b7280', canGift: false, canInvite: false };
+        return { name: 'Newcomer', emoji: '🌱', color: '#6b7280', canGift: false, canInvite: false };
     }
     if (floor > c.RESIDENT_THRESHOLD) {
         return { name: 'Resident', emoji: '🏠', color: '#3b82f6', canGift: true, canInvite: true };

@@ -10,7 +10,7 @@ import {
     getPost, updatePost, deletePost, 
     requestMarketplacePost, approveMarketplaceRequest, rejectMarketplaceRequest, cancelMarketplaceRequest,
     acceptMarketplacePost, completeMarketplaceTransaction, cancelMarketplaceTransaction, 
-    submitRating, reportAbuse, getDb, getMemberRatings, createConversationApi
+    submitRating, reportAbuse, getDb, getMemberRatings, createConversationApi, getUnreadCountForPost
 } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
 import { ReviewModal } from '../../components/ReviewModal';
@@ -70,10 +70,20 @@ export default function PostDetailModal() {
     const [submittingReport, setSubmittingReport] = useState(false);
     const [promptReviewForTx, setPromptReviewForTx] = useState<{ txId: string; targetPubkey: string; targetCallsign: string } | null>(null);
 
+    // Request Rejection Modal State
+    const [rejectModalTxId, setRejectModalTxId] = useState<string | null>(null);
+    const [rejectMessage, setRejectMessage] = useState('');
+
     const [requests, setRequests] = useState<any[]>([]);
 
     const [authorAvgRating, setAuthorAvgRating] = useState<number | null>(null);
     const [authorRatingCount, setAuthorRatingCount] = useState<number>(0);
+
+    const [targetPeerAvgRating, setTargetPeerAvgRating] = useState<number | null>(null);
+    const [targetPeerRatingCount, setTargetPeerRatingCount] = useState<number>(0);
+
+    const [unreadCount, setUnreadCount] = useState<number>(0);
+    const [reqUnreadCounts, setReqUnreadCounts] = useState<Record<string, number>>({});
 
     useFocusEffect(
         useCallback(() => {
@@ -83,25 +93,65 @@ export default function PostDetailModal() {
                 const reload = () => {
                     getPost(singleId).then(setPost);
                     getDb().then(database => {
+                        const updateActiveTx = async (tx: any) => {
+                            setActiveTx(tx);
+                            // Ensure unread badge instantly updates when sync_data_updated triggers reload
+                            if (tx && identity?.publicKey) {
+                                const postRow = await getPost(singleId);
+                                const isPayerLocal = tx.buyer_pubkey === identity.publicKey;
+                                const isOwn = identity.publicKey === postRow?.author_pubkey;
+                                const tPubkey = isPayerLocal ? tx.seller_pubkey : tx.buyer_pubkey;
+                                
+                                getUnreadCountForPost(singleId, identity.publicKey, tPubkey)
+                                    .then(setUnreadCount)
+                                    .catch(console.error);
+                            }
+                        };
+
                         if (singleTxId) {
-                            database.getFirstAsync('SELECT * FROM marketplace_transactions WHERE id = ?', [singleTxId]).then(setActiveTx);
+                            database.getFirstAsync(`
+                                SELECT t.*, m.callsign as buyer_callsign, s.callsign as seller_callsign 
+                                FROM marketplace_transactions t 
+                                LEFT JOIN members m ON t.buyer_pubkey = m.public_key 
+                                LEFT JOIN members s ON t.seller_pubkey = s.public_key 
+                                WHERE t.id = ?
+                            `, [singleTxId]).then(updateActiveTx);
                         } else if (identity) {
-                            database.getFirstAsync("SELECT * FROM marketplace_transactions WHERE post_id=? AND status='pending' AND (buyer_pubkey=? OR seller_pubkey=?) ORDER BY created_at DESC LIMIT 1", [singleId, identity.publicKey, identity.publicKey]).then(setActiveTx);
+                            database.getFirstAsync(`
+                                SELECT t.*, m.callsign as buyer_callsign, s.callsign as seller_callsign 
+                                FROM marketplace_transactions t 
+                                LEFT JOIN members m ON t.buyer_pubkey = m.public_key 
+                                LEFT JOIN members s ON t.seller_pubkey = s.public_key 
+                                WHERE t.post_id=? AND t.status='pending' AND (t.buyer_pubkey=? OR t.seller_pubkey=?) ORDER BY t.created_at DESC LIMIT 1
+                            `, [singleId, identity.publicKey, identity.publicKey]).then(updateActiveTx);
                         }
                         database.getAllAsync(`
-                            SELECT t.*, m.callsign as buyer_callsign 
+                            SELECT t.*, m.callsign as buyer_callsign, s.callsign as seller_callsign 
                             FROM marketplace_transactions t 
-                            LEFT JOIN members m ON t.buyer_pubkey = m.public_key 
+                            LEFT JOIN members m ON t.buyer_pubkey = m.public_key LEFT JOIN members s ON t.seller_pubkey = s.public_key 
                             WHERE t.post_id=? AND t.status='requested'
                         `, [singleId])
                             .then(async (res: any[]) => {
                                 const enriched = await Promise.all(res.map(async req => {
                                     try {
-                                        const r = await getMemberRatings(req.buyer_pubkey);
-                                        return { ...req, avgRating: r.average, count: r.count };
-                                    } catch(e) { return { ...req, avgRating: 0, count: 0 }; }
+                                        // Some older local rows might have null seller_pubkey even for needs. Fallback to buyer_pubkey.
+                                        const reqPubkey = (post.type === 'need' && req.seller_pubkey) ? req.seller_pubkey : req.buyer_pubkey;
+                                        const r = await getMemberRatings(reqPubkey);
+                                        return { ...req, avgRating: r.average, count: r.count, resolvedReqPubkey: reqPubkey };
+                                    } catch(e) { return { ...req, avgRating: 0, count: 0, resolvedReqPubkey: req.buyer_pubkey }; }
                                 }));
                                 setRequests(enriched);
+                                
+                                // Fetch unread counts for requests
+                                if (identity) {
+                                    const counts: Record<string, number> = {};
+                                    for (const req of enriched) {
+                                        if (req.resolvedReqPubkey) {
+                                            counts[req.id] = await getUnreadCountForPost(singleId, identity.publicKey, req.resolvedReqPubkey);
+                                        }
+                                    }
+                                    setReqUnreadCounts(counts);
+                                }
                             });
                     });
                 };
@@ -122,6 +172,32 @@ export default function PostDetailModal() {
             }).catch(console.error);
         }
     }, [post?.author_pubkey]);
+
+    useEffect(() => {
+        if (!post) return;
+        const isOwn = identity?.publicKey === post?.author_pubkey;
+        const isPayerLocal = activeTx ? activeTx.buyer_pubkey === identity?.publicKey : ((post?.type === 'offer' && !isOwn) || (post?.type === 'need' && isOwn));
+        const tPubkey = activeTx ? (isPayerLocal ? activeTx.seller_pubkey : activeTx.buyer_pubkey) : (isOwn ? post?.accepted_by : post?.author_pubkey);
+
+        if (tPubkey) {
+            getMemberRatings(tPubkey).then(res => {
+                setTargetPeerAvgRating(res.average);
+                setTargetPeerRatingCount(res.count);
+            }).catch(console.error);
+        }
+    }, [post, activeTx, identity?.publicKey]);
+
+    useEffect(() => {
+        const targetPeer = activeTx 
+            ? (activeTx.buyer_pubkey === identity?.publicKey ? activeTx.seller_pubkey : activeTx.buyer_pubkey)
+            : (identity?.publicKey === post?.author_pubkey ? post?.accepted_by : post?.author_pubkey);
+            
+        if (identity?.publicKey && post?.id && targetPeer) {
+            getUnreadCountForPost(post.id, identity.publicKey, targetPeer)
+                .then(setUnreadCount)
+                .catch(console.error);
+        }
+    }, [identity?.publicKey, post?.id, activeTx]);
 
     if (!post) {
         return (
@@ -161,7 +237,10 @@ export default function PostDetailModal() {
 
     let photos: string[] = [];
     if (post.photos) {
-        try { photos = Array.isArray(post.photos) ? post.photos : JSON.parse(post.photos); } catch {}
+        try {
+            const parsed = Array.isArray(post.photos) ? post.photos : JSON.parse(post.photos);
+            photos = parsed.filter((p: any) => typeof p === 'string' && p.length > 0);
+        } catch {}
     }
 
     const startEdit = () => {
@@ -216,7 +295,7 @@ export default function PostDetailModal() {
         ]);
     };
 
-    const myRequest = requests.find(r => r.buyer_pubkey === identity?.publicKey);
+    const myRequest = requests.find(r => r.buyer_pubkey === identity?.publicKey || r.seller_pubkey === identity?.publicKey);
 
     const handleApprove = async (transactionId: string) => {
         if (!identity) return;
@@ -227,16 +306,51 @@ export default function PostDetailModal() {
             setPost(updated);
             hapticSuccess();
             Alert.alert('Approved', 'Escrow locked successfully.');
+            
+            // Route to chat with requester
+            const req = requests.find(r => r.id === transactionId);
+            const peerPubkey = req ? (post.type === 'need' ? req.seller_pubkey : req.buyer_pubkey) : null;
+            if (peerPubkey) {
+                try {
+                    const conv = await createConversationApi('dm', [peerPubkey, identity.publicKey], identity.publicKey, undefined, post.id);
+                    if (conv) router.replace(`/chat/${conv.id}`);
+                } catch (e) {
+                    // Chat failed, fallback is normal UI refresh
+                    console.error('Failed to create chat on approve', e);
+                }
+            }
         } catch (e: any) { hapticWarning(); Alert.alert('Error', e.message); }
         setAccepting(false);
     };
 
-    const handleReject = async (transactionId: string) => {
-        if (!identity) return;
+    const handleReject = (transactionId: string) => {
+        setRejectMessage('');
+        setRejectModalTxId(transactionId);
+    };
+    
+    const confirmReject = async () => {
+        if (!identity || !rejectModalTxId) return;
+        setAccepting(true);
         try {
-            await rejectMarketplaceRequest(transactionId, identity.publicKey);
-            setRequests(prev => prev.filter(r => r.id !== transactionId));
+            const req = requests.find(r => r.id === rejectModalTxId);
+            const peerPubkey = req ? (post.type === 'need' ? req.seller_pubkey : req.buyer_pubkey) : null;
+            
+            await rejectMarketplaceRequest(rejectModalTxId, identity.publicKey);
+            
+            // Optionally send the reject message if provided
+            if (rejectMessage.trim() && peerPubkey) {
+                try {
+                    await createConversationApi('dm', [peerPubkey, identity.publicKey], identity.publicKey, rejectMessage.trim(), post.id);
+                } catch (e) {
+                    console.error('Failed to send rejection message', e);
+                }
+            }
+            
+            setRequests(prev => prev.filter(r => r.id !== rejectModalTxId));
+            setRejectModalTxId(null);
+            hapticSuccess();
         } catch (e: any) { Alert.alert('Error', e.message); }
+        setAccepting(false);
     };
 
     const handleWithdraw = async () => {
@@ -253,18 +367,22 @@ export default function PostDetailModal() {
         if (editPhotos.length >= 3) return;
         Alert.alert('Add Photo', 'Choose a source', [
             { text: 'Camera', onPress: async () => {
-                const perm = await ImagePicker.requestCameraPermissionsAsync();
-                if (!perm.granted) return;
-                const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, base64: false });
-                if (!result.canceled && result.assets[0].uri) {
-                    const manipResult = await ImageManipulator.manipulateAsync(
-                        result.assets[0].uri,
-                        [{ resize: { width: 800 } }],
-                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-                    );
-                    if (manipResult.base64) {
-                        setEditPhotos(prev => [...prev, `data:image/jpeg;base64,${manipResult.base64}`]);
+                try {
+                    const perm = await ImagePicker.requestCameraPermissionsAsync();
+                    if (!perm.granted) return;
+                    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, base64: false });
+                    if (!result.canceled && result.assets[0].uri) {
+                        const manipResult = await ImageManipulator.manipulateAsync(
+                            result.assets[0].uri,
+                            [{ resize: { width: 800 } }],
+                            { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                        );
+                        if (manipResult.base64) {
+                            setEditPhotos(prev => [...prev, `data:image/jpeg;base64,${manipResult.base64}`]);
+                        }
                     }
+                } catch (e: any) {
+                    Alert.alert('Camera Unavailable', e?.message || 'Could not launch camera.');
                 }
             }},
             { text: 'Gallery', onPress: async () => {
@@ -338,28 +456,52 @@ export default function PostDetailModal() {
                     </View>
                 </View>
 
-                {/* Author Card */}
-                <Pressable style={styles.authorCard} onPress={() => router.push({ pathname: '/public-profile', params: { publicKey: post.author_pubkey, callsign: cardAuthor } })}>
-                    <Text style={styles.authorCardLabel}>POSTED BY</Text>
-                    <View style={styles.authorRow}>
-                        <View style={styles.avatar}>
-                            <MemberAvatar avatarUrl={post.author_avatar} pubkey={post.author_pubkey} callsign={cardAuthor} size={48} borderRadius={24} />
+                {/* Author / Counterparty Card */}
+                {isOwnPost && targetPeerPubkey ? (
+                    <Pressable style={styles.authorCard} onPress={() => router.push({ pathname: '/public-profile', params: { publicKey: targetPeerPubkey, callsign: targetPeerCallsign } })}>
+                        <Text style={styles.authorCardLabel}>{isOffer ? 'ACCEPTED BY' : 'PROVIDER'}</Text>
+                        <View style={styles.authorRow}>
+                            <View style={styles.avatar}>
+                                <MemberAvatar avatarUrl={undefined} pubkey={targetPeerPubkey} callsign={targetPeerCallsign} size={48} borderRadius={24} />
+                            </View>
+                            <View style={styles.authorInfo}>
+                                <Text style={styles.authorName}>🤝 {targetPeerCallsign}</Text>
+                                <Text style={styles.authorRating}>
+                                    {targetPeerAvgRating !== null && targetPeerRatingCount > 0 ? (
+                                        <>
+                                            <Text style={{ color: '#fbbf24', letterSpacing: -1 }}>{renderBeans(targetPeerAvgRating)}</Text>
+                                            <Text> {`(${targetPeerAvgRating.toFixed(1)}) • ${targetPeerRatingCount} Reviews`}</Text>
+                                        </>
+                                    ) : (
+                                        <Text>☆☆☆☆☆ No ratings yet</Text>
+                                    )}
+                                </Text>
+                            </View>
                         </View>
-                        <View style={styles.authorInfo}>
-                            <Text style={styles.authorName}>🤝 {cardAuthor}</Text>
-                            <Text style={styles.authorRating}>
-                                {authorAvgRating !== null && authorRatingCount > 0 ? (
-                                    <>
-                                        <Text style={{ color: '#fbbf24', letterSpacing: -1 }}>{renderBeans(authorAvgRating)}</Text>
-                                        <Text> {`(${authorAvgRating.toFixed(1)}) • ${authorRatingCount} Reviews`}</Text>
-                                    </>
-                                ) : (
-                                    <Text>☆☆☆☆☆ No ratings yet</Text>
-                                )}
-                            </Text>
+                    </Pressable>
+                ) : (
+                    <Pressable style={styles.authorCard} onPress={() => router.push({ pathname: '/public-profile', params: { publicKey: post.author_pubkey, callsign: cardAuthor } })}>
+                        <Text style={styles.authorCardLabel}>POSTED BY</Text>
+                        <View style={styles.authorRow}>
+                            <View style={styles.avatar}>
+                                <MemberAvatar avatarUrl={post.author_avatar} pubkey={post.author_pubkey} callsign={cardAuthor} size={48} borderRadius={24} />
+                            </View>
+                            <View style={styles.authorInfo}>
+                                <Text style={styles.authorName}>🤝 {cardAuthor}</Text>
+                                <Text style={styles.authorRating}>
+                                    {authorAvgRating !== null && authorRatingCount > 0 ? (
+                                        <>
+                                            <Text style={{ color: '#fbbf24', letterSpacing: -1 }}>{renderBeans(authorAvgRating)}</Text>
+                                            <Text> {`(${authorAvgRating.toFixed(1)}) • ${authorRatingCount} Reviews`}</Text>
+                                        </>
+                                    ) : (
+                                        <Text>☆☆☆☆☆ No ratings yet</Text>
+                                    )}
+                                </Text>
+                            </View>
                         </View>
-                    </View>
-                </Pressable>
+                    </Pressable>
+                )}
 
                 {/* Action Buttons */}
 
@@ -438,31 +580,55 @@ export default function PostDetailModal() {
                             </>
                         )}
                         
-                        <Pressable style={styles.cancelTxBtn} disabled={accepting} onPress={() => {
-                            Alert.alert('Cancel Transaction', 'Return post to the market?', [
-                                { text: 'No', style: 'cancel' },
-                                { text: 'Yes, Cancel', style: 'destructive', onPress: async () => {
-                                    const txToCancel = activeTx?.id || post.pending_transaction_id;
-                                    if(!identity || !txToCancel) return;
-                                    setAccepting(true);
+                        {/* Escrow Communication and Cancellation Actions */}
+                        <View style={{ marginTop: 16, borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 16, gap: 12 }}>
+                            {targetPeerPubkey && (
+                                <Pressable style={styles.messageBtn} onPress={async () => {
+                                    if (!identity) return;
                                     try {
-                                        await cancelMarketplaceTransaction(txToCancel, identity.publicKey);
-                                        if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
-                                    } catch(e:any) { 
-                                        if (e.message?.includes('not found') || e.message?.includes('not authorized')) {
-                                            Alert.alert('Already Updated', 'This transaction was already cancelled or completed on another device. Your feed will automatically refresh.');
-                                            const { performSync } = require('../../services/pillar-sync');
-                                            performSync().catch(console.error);
+                                        const conv = await createConversationApi('dm', [targetPeerPubkey, identity.publicKey], identity.publicKey, undefined, post.id);
+                                        if (conv) router.push(`/chat/${conv.id}`);
+                                    } catch (e: any) {
+                                        Alert.alert("Error", e.message || "Failed to start chat.");
+                                    }
+                                }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Text style={styles.messageBtnText}>💬 Message {targetPeerCallsign}</Text>
+                                        {unreadCount > 0 && (
+                                            <View style={styles.unreadBadge}>
+                                                <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                </Pressable>
+                            )}
+
+                            <Pressable style={styles.cancelTxBtn} disabled={accepting} onPress={() => {
+                                Alert.alert('Cancel Transaction', 'Return post to the market?', [
+                                    { text: 'No', style: 'cancel' },
+                                    { text: 'Yes, Cancel', style: 'destructive', onPress: async () => {
+                                        const txToCancel = activeTx?.id || post.pending_transaction_id;
+                                        if(!identity || !txToCancel) return;
+                                        setAccepting(true);
+                                        try {
+                                            await cancelMarketplaceTransaction(txToCancel, identity.publicKey);
                                             if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
-                                        } else {
-                                            Alert.alert('Error', e.message); 
-                                        }
-                                    } finally { setAccepting(false); }
-                                }}
-                            ]);
-                        }}>
-                            <Text style={styles.cancelTxBtnText}>❌ Cancel Escrow</Text>
-                        </Pressable>
+                                        } catch(e:any) { 
+                                            if (e.message?.includes('not found') || e.message?.includes('not authorized')) {
+                                                Alert.alert('Already Updated', 'This transaction was already cancelled or completed on another device. Your feed will automatically refresh.');
+                                                const { performSync } = require('../../services/pillar-sync');
+                                                performSync().catch(console.error);
+                                                if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
+                                            } else {
+                                                Alert.alert('Error', e.message); 
+                                            }
+                                        } finally { setAccepting(false); }
+                                    }}
+                                ]);
+                            }}>
+                                <Text style={styles.cancelTxBtnText}>❌ Cancel Escrow</Text>
+                            </Pressable>
+                        </View>
                     </View>
                 )}
 
@@ -619,19 +785,30 @@ export default function PostDetailModal() {
                                             const estimatedHrs = post.price_type !== 'fixed' ? Number(acceptHours) : undefined;
                                             if (isOffer) {
                                                 await acceptMarketplacePost(post.id, identity.publicKey, estimatedHrs);
-                                                setShowAcceptConfirm(false);
-                                                router.replace({ pathname: '/(tabs)/market', params: { tab: 'deals', dealsTab: 'active' } });
                                             } else {
                                                 await requestMarketplacePost(post.id, identity.publicKey, estimatedHrs);
-                                                setShowAcceptConfirm(false);
                                                 // Optimistically add to local state
                                                 setRequests(prev => [...prev, {
-                                                    id: Crypto.randomUUID(), post_id: post.id, buyer_pubkey: identity.publicKey, seller_pubkey: post.author_pubkey,
+                                                    id: Crypto.randomUUID(), post_id: post.id, buyer_pubkey: post.author_pubkey, seller_pubkey: identity.publicKey,
                                                     credits: post.price_type === 'fixed' ? post.credits : post.credits * Number(acceptHours),
                                                     hours: post.price_type === 'fixed' ? null : Number(acceptHours), status: 'requested'
                                                 }]);
-                                                router.replace({ pathname: '/(tabs)/market', params: { tab: 'deals', dealsTab: 'pending' } });
                                             }
+                                            setShowAcceptConfirm(false);
+                                            
+                                            // Navigation Flow Improvement: Directly create conversation and jump to chat
+                                            try {
+                                                const conv = await createConversationApi('dm', [post.author_pubkey, identity.publicKey], identity.publicKey, undefined, post.id);
+                                                if (conv) {
+                                                    router.replace(`/chat/${conv.id}`);
+                                                    return;
+                                                }
+                                            } catch (chatError) {
+                                                console.error("Failed to start chat during post acceptance", chatError);
+                                            }
+                                            
+                                            // Fallback if chat fails
+                                            router.replace({ pathname: '/(tabs)/market', params: { tab: 'deals', dealsTab: 'pending' } });
                                         } catch (e: any) { 
                                             if (e.message?.includes('not found') || e.message?.includes('not active')) {
                                                 Alert.alert('Already Updated', 'This post was already accepted or modified elsewhere. Refreshing your screen...');
@@ -663,36 +840,70 @@ export default function PostDetailModal() {
                 {isOwnPost && post.status === 'active' && requests.length > 0 && (
                     <View style={styles.requestsContainer}>
                         <Text style={styles.requestsTitle}>✋ Fulfillment Requests ({requests.length})</Text>
-                        {requests.map(req => (
-                            <View key={req.id} style={styles.requestCard}>
-                                <View style={{ flex: 1, marginBottom: 8 }}>
-                                  <Pressable onPress={() => router.push({ pathname: '/public-profile', params: { publicKey: req.buyer_pubkey, callsign: req.buyer_callsign || req.buyer_pubkey.slice(0,8) } })}>
-                                      <Text style={[styles.requestName, { textDecorationLine: 'underline', color: '#fbbf24' }]}>
-                                          🤝 {req.buyer_callsign || req.buyer_pubkey.slice(0, 8)}
-                                      </Text>
-                                  </Pressable>
-                                  <Text style={{ fontSize: 12, color: '#fbbf24', marginTop: 2, fontWeight: '600' }}>
-                                    {req.count > 0 ? `★ ${req.avgRating.toFixed(1)} (${req.count} reviews)` : '☆☆☆☆☆ No ratings yet'}
-                                  </Text>
-                                  <Text style={styles.requestAmt}>{req.hours ? `${req.hours} hours estimated` : 'Offered to fulfill'}</Text>
+                        {requests.map(req => {
+                            const reqPubkey = req.resolvedReqPubkey || ((post.type === 'need' && req.seller_pubkey) ? req.seller_pubkey : req.buyer_pubkey);
+                            // Fallback gracefully if pubkey is somehow still empty
+                            const safePubkeyStr = reqPubkey ? reqPubkey.slice(0, 8) : "Unknown";
+                            
+                            let reqCallsign = safePubkeyStr;
+                            if (post.type === 'need' && req.seller_pubkey) {
+                                reqCallsign = req.seller_callsign || safePubkeyStr;
+                            } else {
+                                reqCallsign = req.buyer_callsign || safePubkeyStr;
+                            }
+                            
+                            return (
+                                <View key={req.id} style={styles.requestCard}>
+                                    <View style={{ flex: 1, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        <View style={{ flex: 1, paddingRight: 8 }}>
+                                            <Pressable onPress={() => {
+                                                if (reqPubkey) router.push({ pathname: '/public-profile', params: { publicKey: reqPubkey, callsign: reqCallsign } });
+                                            }}>
+                                                <Text style={[styles.requestName, { textDecorationLine: 'underline', color: '#fbbf24' }]} numberOfLines={1}>
+                                                    🤝 {reqCallsign}
+                                                </Text>
+                                            </Pressable>
+                                            <Text style={{ fontSize: 12, color: '#fbbf24', marginTop: 2, fontWeight: '600' }}>
+                                                {req.count > 0 ? `★ ${req.avgRating.toFixed(1)} (${req.count} reviews)` : '☆☆☆☆☆ No ratings yet'}
+                                            </Text>
+                                            <Text style={styles.requestAmt}>{req.hours ? `${req.hours} hours estimated` : 'Offered to fulfill'}</Text>
+                                        </View>
+                                        <Pressable 
+                                            style={styles.reqMessageBtn} 
+                                            onPress={async () => {
+                                                if (!identity || !reqPubkey) return;
+                                                try {
+                                                    const conv = await createConversationApi('dm', [reqPubkey, identity.publicKey], identity.publicKey, undefined, post.id);
+                                                    if (conv) router.push(`/chat/${conv.id}`);
+                                                } catch (e: any) { Alert.alert("Error", e.message); }
+                                            }}
+                                        >
+                                            <Text style={styles.reqMessageBtnText}>💬 Message</Text>
+                                            {(reqUnreadCounts[req.id] || 0) > 0 && (
+                                                <View style={styles.unreadBadgeSmall}>
+                                                    <Text style={styles.unreadBadgeTextSmall}>{reqUnreadCounts[req.id]}</Text>
+                                                </View>
+                                            )}
+                                        </Pressable>
+                                    </View>
+                                    <View style={{flexDirection: 'row', gap: 8}}>
+                                        <Pressable style={[styles.rejectBtn, accepting && {opacity: 0.5}, { flex: 1, alignItems: 'center' }]} disabled={accepting} onPress={() => handleReject(req.id)}>
+                                            <Text style={styles.rejectBtnText}>Deny</Text>
+                                        </Pressable>
+                                        <Pressable style={[styles.approveBtn, accepting && {opacity: 0.5}, { flex: 2, alignItems: 'center' }]} disabled={accepting} onPress={() => handleApprove(req.id)}>
+                                            <Text style={styles.approveBtnText}>Approve & Escrow</Text>
+                                        </Pressable>
+                                    </View>
                                 </View>
-                                <View style={{flexDirection: 'row', gap: 8}}>
-                                    <Pressable style={[styles.rejectBtn, accepting && {opacity: 0.5}]} disabled={accepting} onPress={() => handleReject(req.id)}>
-                                        <Text style={styles.rejectBtnText}>Deny</Text>
-                                    </Pressable>
-                                    <Pressable style={[styles.approveBtn, accepting && {opacity: 0.5}, { flex: 2 }]} disabled={accepting} onPress={() => handleApprove(req.id)}>
-                                        <Text style={styles.approveBtnText}>Approve & Escrow</Text>
-                                    </Pressable>
-                                </View>
-                            </View>
-                        ))}
+                            );
+                        })}
                     </View>
                 )}
 
                 {/* 4. Universal Actions for Peer (Message, Rate, Report) */}
                 {(!isOwnPost || post.status === 'pending' || post.status === 'completed' || activeTx) && (
                     <View style={[styles.otherPostActions, { marginTop: post.status === 'pending' || post.status === 'active' ? 10 : 0 }]}>
-                        {targetPeerPubkey && (
+                        {targetPeerPubkey && !((post.status === 'pending' || activeTx?.status === 'pending') && (isPayer || isPayee)) && (
                             <Pressable style={styles.messageBtn} onPress={async () => {
                                 if (!identity) return;
                                 try {
@@ -702,10 +913,16 @@ export default function PostDetailModal() {
                                     Alert.alert("Error", e.message || "Failed to start chat.");
                                 }
                             }}>
-                                <Text style={styles.messageBtnText}>💬 Message {isOwnPost ? targetPeerCallsign : ''}</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Text style={styles.messageBtnText}>💬 Message {!isOwnPost ? targetPeerCallsign : ''}</Text>
+                                    {unreadCount > 0 && (
+                                        <View style={styles.unreadBadge}>
+                                            <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
+                                        </View>
+                                    )}
+                                </View>
                             </Pressable>
                         )}
-                        
                         {identity && (post.status === 'completed' || activeTx?.status === 'completed') && (activeTx?.id || post.pending_transaction_id) && targetPeerPubkey && (
                             <View style={{ marginTop: 16 }}>
                                 <Pressable style={[styles.messageBtn, { borderColor: 'rgba(245,158,11,0.3)', backgroundColor: 'rgba(245,158,11,0.05)' }]} onPress={() => setShowRatingForm(!showRatingForm)}>
@@ -722,9 +939,9 @@ export default function PostDetailModal() {
                                         </View>
                                         <TextInput style={[styles.editInput, { minHeight: 60, marginBottom: 12 }]} value={ratingComment} onChangeText={setRatingComment} placeholder="Leave an optional comment..." placeholderTextColor="#9ca3af" multiline />
                                         <Pressable style={[styles.confirmActionBtn, { backgroundColor: myRating >= 1 ? '#f59e0b' : '#e5e7eb' }]} disabled={myRating < 1 || submittingRating} onPress={async () => {
-                                            if(!identity || !activeTx) return;
+                                            const txToRate = activeTx?.id || post.pending_transaction_id;
+                                            if(!identity || !txToRate) return;
                                             try {
-                                                const txToRate = activeTx?.id || post.pending_transaction_id;
                                                 setSubmittingRating(true);
                                                 await submitRating(identity.publicKey, targetPeerPubkey, myRating, ratingComment, txToRate);
                                                 setShowRatingForm(false);
@@ -786,6 +1003,37 @@ export default function PostDetailModal() {
                         if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
                     }}
                 />
+            )}
+            
+            {/* Reject Request Modal */}
+            {rejectModalTxId && (
+                <View style={StyleSheet.absoluteFill}>
+                    <Pressable style={styles.modalOverlay} onPress={() => setRejectModalTxId(null)}>
+                        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%' }}>
+                            <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()}>
+                                <Text style={styles.modalTitle}>Decline Offer</Text>
+                                <Text style={styles.modalSubtext}>Are you sure you want to decline this offer?</Text>
+                                <TextInput
+                                    style={[styles.editInput, { minHeight: 80, marginBottom: 16 }]}
+                                    value={rejectMessage}
+                                    onChangeText={setRejectMessage}
+                                    placeholder="Add a brief message (optional)..."
+                                    placeholderTextColor="#9ca3af"
+                                    multiline
+                                    textAlignVertical="top"
+                                />
+                                <View style={{ flexDirection: 'row', gap: 12 }}>
+                                    <Pressable style={[styles.editCancelBtn, { flex: 1 }]} onPress={() => setRejectModalTxId(null)}>
+                                        <Text style={styles.editCancelBtnText}>Cancel</Text>
+                                    </Pressable>
+                                    <Pressable style={[styles.deletePostBtn, { flex: 1, marginVertical: 0 }]} disabled={accepting} onPress={confirmReject}>
+                                        <Text style={styles.deletePostBtnText}>{accepting ? '...' : 'Decline'}</Text>
+                                    </Pressable>
+                                </View>
+                            </Pressable>
+                        </KeyboardAvoidingView>
+                    </Pressable>
+                </View>
             )}
         </View>
     );
@@ -924,9 +1172,7 @@ const styles = StyleSheet.create({
         marginBottom: 12
     },
     requestCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        flexDirection: 'column',
         backgroundColor: '#f9fafb',
         borderWidth: 1,
         borderColor: '#f3f4f6',
@@ -968,5 +1214,77 @@ const styles = StyleSheet.create({
         color: '#ef4444',
         fontSize: 13,
         fontWeight: 'bold'
+    },
+    reqMessageBtn: {
+        backgroundColor: '#ffffff',
+        borderWidth: 1,
+        borderColor: '#d1d5db',
+        borderRadius: 16,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+    },
+    reqMessageBtnText: {
+        color: '#4b5563',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        padding: 20,
+    },
+    modalContent: {
+        backgroundColor: '#ffffff',
+        borderRadius: 20,
+        padding: 24,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+        elevation: 10,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '900',
+        color: '#1f2937',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    modalSubtext: {
+        fontSize: 14,
+        color: '#6b7280',
+        marginBottom: 20,
+        textAlign: 'center',
+    },
+    unreadBadge: {
+        backgroundColor: '#ef4444',
+        borderRadius: 12,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        marginLeft: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    unreadBadgeText: {
+        color: '#ffffff',
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
+    unreadBadgeSmall: {
+        backgroundColor: '#ef4444',
+        borderRadius: 10,
+        width: 18,
+        height: 18,
+        position: 'absolute',
+        top: -6,
+        right: -6,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    unreadBadgeTextSmall: {
+        color: '#ffffff',
+        fontSize: 10,
+        fontWeight: 'bold',
     }
 });
