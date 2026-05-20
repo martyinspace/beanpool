@@ -200,7 +200,7 @@ export function GlobalHeader() {
     };
 
     const handleLocationToggle = async () => {
-        let { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+        const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
         
         if (status === 'granted') {
             Alert.alert("Location Enabled", "BeanPool currently has access to your location. To disable it, please visit your device Settings.", [

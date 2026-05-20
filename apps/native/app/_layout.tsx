@@ -30,7 +30,7 @@ function RootLayoutNav() {
             if (incomingUrl.startsWith('http')) {
                 const originMatch = incomingUrl.match(/^https?:\/\/[^\/?#]+/);
                 if (originMatch) {
-                    let extracted = originMatch[0];
+                    const extracted = originMatch[0];
                     AsyncStorage.getItem('beanpool_anchor_url').then(current => {
                         if (!mounted) return;
                         if (current !== extracted) {

@@ -327,7 +327,8 @@ export default function MapScreen() {
     // The user must explicitly request location via the GPS button.
 
     const centerOnUser = async () => {
-        let { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+        const { status: initStatus, canAskAgain } = await Location.getForegroundPermissionsAsync();
+        let status = initStatus;
         if (status !== 'granted') {
             if (canAskAgain) {
                 const res = await Location.requestForegroundPermissionsAsync();
@@ -359,7 +360,8 @@ export default function MapScreen() {
     };
 
     const useMyLocation = async () => {
-        let { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+        const { status: initStatus, canAskAgain } = await Location.getForegroundPermissionsAsync();
+        let status = initStatus;
         if (status !== 'granted') {
             if (canAskAgain) {
                 const res = await Location.requestForegroundPermissionsAsync();
