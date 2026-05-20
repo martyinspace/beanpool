@@ -3,6 +3,7 @@ import { Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
+import { signedRequest } from '../utils/db';
 
 const isExpoGo = Constants.appOwnership === 'expo';
 let Notifications: any = null;
@@ -71,19 +72,11 @@ export async function registerForPushNotifications(publicKey: string): Promise<s
         // Register with the BeanPool server
         const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
         if (anchorUrl) {
-            const res = await fetch(`${anchorUrl}/api/push-tokens`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    publicKey,
-                    token,
-                    platform: Platform.OS,
-                }),
-            });
-            if (res.ok) {
+            try {
+                await signedRequest('/api/push-tokens', { publicKey, token, platform: Platform.OS });
                 console.log('[Push] Token registered with server');
-            } else {
-                console.warn('[Push] Failed to register token with server:', res.status);
+            } catch (e: any) {
+                console.warn('[Push] Failed to register token with server:', e?.message || e);
             }
         }
 

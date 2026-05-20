@@ -10,7 +10,7 @@ import { resolveBundledAvatar } from '../../utils/bundled-avatars';
 import { updateCallsign, wipeIdentity } from '../../utils/identity';
 import { nativeExportIdentity } from '../../utils/native-crypto';
 import { encodeBase64, encodeUtf8, hexToBytes, signData } from '../../utils/crypto';
-import { updateMemberProfile, getMemberProfile, getPendingRecoveryRequests, approveRecoveryRequest, rejectRecoveryRequest } from '../../utils/db';
+import { updateMemberProfile, getMemberProfile, getPendingRecoveryRequests, approveRecoveryRequest, rejectRecoveryRequest, signedRequest } from '../../utils/db';
 import { getSavedNodes, SavedNode, removeSavedNode, getDatabaseFilenameForNode } from '../../utils/nodes';
 import * as FileSystem from 'expo-file-system';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -908,7 +908,7 @@ export default function SettingsScreen() {
                                 </View>
                                 <Pressable style={[styles.toggle, notifChat && styles.toggleOn]} onPress={async () => {
                                     const next = !notifChat; setNotifChat(next);
-                                    try { const url = await AsyncStorage.getItem('beanpool_anchor_url'); if (url && identity?.publicKey) { await fetch(`${url}/api/members/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ publicKey: identity.publicKey, preferences: { notify_chat: next } }) }); } } catch (e) { console.warn('[Prefs]', e); }
+                                    try { if (identity?.publicKey) { await signedRequest('/api/members/preferences', { publicKey: identity.publicKey, preferences: { notify_chat: next } }); } } catch (e) { console.warn('[Prefs]', e); }
                                 }}>
                                     <View style={[styles.toggleThumb, notifChat && styles.toggleThumbOn]} />
                                 </Pressable>
@@ -921,7 +921,7 @@ export default function SettingsScreen() {
                                 </View>
                                 <Pressable style={[styles.toggle, notifMarketplace && styles.toggleOn]} onPress={async () => {
                                     const next = !notifMarketplace; setNotifMarketplace(next);
-                                    try { const url = await AsyncStorage.getItem('beanpool_anchor_url'); if (url && identity?.publicKey) { await fetch(`${url}/api/members/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ publicKey: identity.publicKey, preferences: { notify_marketplace: next } }) }); } } catch (e) { console.warn('[Prefs]', e); }
+                                    try { if (identity?.publicKey) { await signedRequest('/api/members/preferences', { publicKey: identity.publicKey, preferences: { notify_marketplace: next } }); } } catch (e) { console.warn('[Prefs]', e); }
                                 }}>
                                     <View style={[styles.toggleThumb, notifMarketplace && styles.toggleThumbOn]} />
                                 </Pressable>
@@ -934,7 +934,7 @@ export default function SettingsScreen() {
                                 </View>
                                 <Pressable style={[styles.toggle, notifEscrow && styles.toggleOn]} onPress={async () => {
                                     const next = !notifEscrow; setNotifEscrow(next);
-                                    try { const url = await AsyncStorage.getItem('beanpool_anchor_url'); if (url && identity?.publicKey) { await fetch(`${url}/api/members/preferences`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ publicKey: identity.publicKey, preferences: { notify_escrow: next } }) }); } } catch (e) { console.warn('[Prefs]', e); }
+                                    try { if (identity?.publicKey) { await signedRequest('/api/members/preferences', { publicKey: identity.publicKey, preferences: { notify_escrow: next } }); } } catch (e) { console.warn('[Prefs]', e); }
                                 }}>
                                     <View style={[styles.toggleThumb, notifEscrow && styles.toggleThumbOn]} />
                                 </Pressable>

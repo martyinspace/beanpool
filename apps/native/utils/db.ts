@@ -385,7 +385,7 @@ export async function getPosts(filter?: { type?: string; category?: string }) {
         LEFT JOIN members m ON p.author_pubkey = m.public_key
         WHERE p.status IN ('active', 'pending', 'completed')
     `;
-    let params: any[] = [];
+    const params: any[] = [];
     
     if (filter?.type) {
         query += ' AND p.type = ?';
@@ -1877,6 +1877,14 @@ async function _signedRequest(endpoint: string, payload: any) {
     return await res.json();
 }
 
+// Public wrapper around _signedRequest for use by other modules in the app
+// (e.g. push-notifications, settings prefs). Keeps signing centralized: any
+// new client callsite that hits a signature-protected endpoint must come
+// through here.
+export async function signedRequest(endpoint: string, payload: any) {
+    return _signedRequest(endpoint, payload);
+}
+
 export async function acceptMarketplacePost(postId: string, buyerPublicKey: string, hours?: number) {
     const res = await _signedRequest('/api/marketplace/posts/accept', { postId, buyerPublicKey, hours });
     await acquireSyncLock();
@@ -2228,14 +2236,8 @@ export async function removeFriendLocal(ownerPubkey: string, friendPubkey: strin
 
 /** Server sync helper for friend add/remove */
 async function _syncFriendToServer(action: 'add' | 'remove', ownerPubkey: string, friendPubkey: string) {
-    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
-    if (!anchorUrl) return;
     const endpoint = action === 'add' ? '/api/friends/add' : '/api/friends/remove';
-    await fetch(`${anchorUrl}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ownerPubkey, friendPubkey })
-    });
+    await _signedRequest(endpoint, { ownerPubkey, friendPubkey });
 }
 
 /** Fetch friends from server (used by sync) */
@@ -2275,26 +2277,17 @@ export async function getRecentChatMembers(myPubkey: string, limit = 10): Promis
 // ======================== SOCIAL RECOVERY & GUARDIANS ========================
 
 export async function setGuardianApi(friendPubkey: string, isGuardian: boolean): Promise<boolean> {
-    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
-    if (!anchorUrl) return false;
     const identity = await loadIdentity();
     if (!identity) return false;
 
     // Locally update DB first
     const database = await getDb();
-    await database.runAsync(`UPDATE friends SET is_guardian=? WHERE owner_pubkey=? AND friend_pubkey=?`, 
+    await database.runAsync(`UPDATE friends SET is_guardian=? WHERE owner_pubkey=? AND friend_pubkey=?`,
         [isGuardian ? 1 : 0, identity.publicKey, friendPubkey]);
 
     try {
-        const res = await fetch(`${anchorUrl}/api/friends/guardian`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Public-Key': identity.publicKey,
-            },
-            body: JSON.stringify({ friendPubkey, isGuardian })
-        });
-        return res.ok;
+        await _signedRequest('/api/friends/guardian', { friendPubkey, isGuardian });
+        return true;
     } catch (e) {
         console.warn('[Guardians] Server sync failed:', e);
         return false;
@@ -2447,7 +2440,7 @@ export async function getUnreadCountForPost(postId: string, myPubkey: string, pe
         AND msg.author_pubkey != ?
         AND (msg.timestamp > IFNULL((SELECT last_read_at FROM conversation_participants WHERE conversation_id = c.id AND public_key = ?), '2000-01-01'))
     `;
-    let params: any[] = [postId, myPubkey, myPubkey];
+    const params: any[] = [postId, myPubkey, myPubkey];
 
     if (peerPubkey) {
         query += ` AND EXISTS (SELECT 1 FROM conversation_participants cp WHERE cp.conversation_id = c.id AND cp.public_key = ?)`;
