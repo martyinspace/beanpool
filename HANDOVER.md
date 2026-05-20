@@ -62,6 +62,8 @@
 - ✅ **Android Marker Pipeline** — All map pins and clusters pre-rendered to PNG via `react-native-view-shot` and delivered through Google Maps `BitmapDescriptor` pipeline (`image={{ uri }}` prop), bypassing Android's restrictive JSX bitmap snapshot window (~40×30dp). Cluster counts pre-rendered for 2–99 with a "99+" overflow pattern.
 - ✅ **Profile Navigation Consistency** — Author names and avatars are tappable across all marketplace surfaces (cards, map preview, community list, projects), navigating to the Trust Profile page with correct data params.
 - ✅ **Marketplace UX Modernization** — horizontal category chips (`CategoryPickerSheet`/`CategoryPickerModal`), author trust badges (`PostAuthorTrust`), active deals tracking (`MyDealsSheet`/`MyDealsModal`). Both PWA and Native.
+- ✅ **Author Request Review Flow** — Enhanced deals management allowing sellers to review buyer requests with integrated messaging and standardized decline reasons.
+- ✅ **Ledger UI Enhancements** — Corrected credit slider visual representation for negative balances and improved feedback for locked 'Send Credits' functionality.
 - ✅ **Community Search** — search and infinite scroll on the People/Community member list (native).
 - ✅ **Escrow Demurrage Exemption** — `escrow_*` synthetic wallets exempt from circulation decay, with DB persistence fix.
 - ✅ **iOS Crypto Polyfill** — SHA-512 and Ed25519 signing polyfilled for iOS via `expo-crypto`.

@@ -448,6 +448,8 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ **Haptic Feedback** — Phase 1 essentials implemented for native app interactions.
 - ✅ **Admin Dashboard Reorganization** — Redistributed System tab settings to contextual tabs; fixed login ReferenceError.
 - ✅ **Continuous Health Ping** — Added offline red dot indicator and continuous health ping to mobile app header, mapped using unique public keys to prevent UI collisions.
+- ✅ **Author Request Review Flow** — Enhanced deals management allowing sellers to review buyer requests with integrated messaging and standardized decline reasons.
+- ✅ **Ledger UI Enhancements** — Corrected credit slider visual representation for negative balances and improved feedback for locked 'Send Credits' functionality.
 
 **Coming next:**
 - Native App Polish & App Store Submission (federation parity)
@@ -458,4 +460,4 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 
 [MIT](LICENSE)
 
-_Last updated: 2026-05-18 AEST_
+_Last updated: 2026-05-20_

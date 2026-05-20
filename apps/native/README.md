@@ -82,6 +82,8 @@ apps/native/
 - **SQLite Persistence** — all posts, projects, messages, and ledger data stored locally via `expo-sqlite`
 - **14-Category Marketplace** — Food, Services, Labour, Tools, Goods, Housing, Transport, Education, Arts, Health, Care, Animals, Energy, General (PWA has 13; native adds Care ❤️)
 - **Marketplace UX Modernization** — horizontal category chips via `CategoryPickerSheet`, author trust badges (`PostAuthorTrust`), and active deals tracking (`MyDealsSheet`)
+- **Author Request Review Flow** — Enhanced deals management allowing sellers to review buyer requests with integrated messaging and standardized decline reasons
+- **Ledger UI Enhancements** — Corrected credit slider visual representation for negative balances and improved feedback for locked 'Send Credits' functionality
 - **Map Clustering (Phase 6)** — pin clustering for dense areas, modern markers with category icons, elder glow effects for founding members
 - **Map Clustering Stabilization** — Patched `react-native-map-clustering` to prevent marker disappearance on iOS scroll/zoom
 - **Android Marker Pipeline** — All map pins and clusters are pre-rendered to PNG via `react-native-view-shot` and served through the Google Maps `BitmapDescriptor` pipeline (`image={{ uri }}` prop), bypassing Android's restrictive JSX bitmap snapshot window. Cluster counts are pre-rendered for 2–99 with a "99+" overflow pattern for high-density areas.
@@ -181,8 +183,9 @@ npx expo start                      # Native dev client
 | Wipe identity | ✅ | ✅ | Double-confirm on both platforms |
 | Community search | ✅ | ✅ | Search filter on People/Community member list |
 | Community status | ✅ | — | PWA-only header health popover |
+| Author Request Review Flow | — | ✅ | Sellers can review buyer requests with integrated messages/decline reasons |
 | Federation (remote markets) | ✅ | 🔜 | Planned |
 
 ---
 
-_Last updated: 2026-05-13 AEST_
+_Last updated: 2026-05-20_
