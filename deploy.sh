@@ -22,12 +22,11 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
   set +a
 fi
 
-# Active nodes: number:name:IP:DNS:user
-# Azure nodes use azureuser + SSH key; Debian uses marty + default key
 NODES=(
-  "1:mullum2:20.211.27.68:mullum2.beanpool.org:azureuser:BeanPool"
-  "3:mullum1:192.168.1.219:mullum1.beanpool.org:marty:BeanPool"
+  "1:mullum1:20.211.27.68:mullum1.beanpool.org:azureuser:BeanPool"
+  "2:mullum2:192.168.1.219:mullum2.beanpool.org:marty:BeanPool-Mullum2"
   "4:review:192.168.1.219:review.beanpool.org:marty:BeanPool-Review"
+  "5:test:192.168.1.219:test.beanpool.org:marty:BeanPool"
 )
 
 # Package docker-compose.yml + data-preserving deploy config
@@ -35,7 +34,7 @@ echo "📦 Packaging deploy config..."
 tar -czf /tmp/beanpool-deploy.tar.gz \
     --exclude='node_modules' --exclude='.git' --exclude='dist' --exclude='.turbo' \
     --exclude='.next' --exclude='out' --exclude='archive' --exclude='apps/native' --exclude='apps/native.bak' \
-    --exclude='*.apk' --exclude='data' --exclude='.env' --exclude='.env.*' \
+    --exclude='*.apk' --exclude='data' --exclude='.env' --exclude='.env.*' --exclude='builds' \
     -C "$SCRIPT_DIR" .
 echo "✅ Package ready: $(du -h /tmp/beanpool-deploy.tar.gz | cut -f1)"
 
@@ -110,6 +109,13 @@ for NODE in "${TARGETS[@]}"; do
       sed -i 's/\"8443:8443\"/\"8446:8443\"/g' docker-compose.yml
       sed -i 's/\"4001:4001\"/\"4004:4001\"/g' docker-compose.yml
       sed -i 's/\"4002:4002\"/\"4005:4002\"/g' docker-compose.yml
+    elif [ "$DIR" = "BeanPool-Mullum2" ]; then
+      sed -i 's/\"80:8080\"/\"8448:8080\"/g' docker-compose.yml
+      sed -i 's/\"443:8443\"/\"8447:8443\"/g' docker-compose.yml
+      sed -i 's/\"8080:8080\"/\"8449:8080\"/g' docker-compose.yml
+      sed -i 's/\"8443:8443\"/\"8450:8443\"/g' docker-compose.yml
+      sed -i 's/\"4001:4001\"/\"4006:4001\"/g' docker-compose.yml
+      sed -i 's/\"4002:4002\"/\"4007:4002\"/g' docker-compose.yml
     fi
     echo \"Public IP: \$PUBLIC_IP\"
     echo \"DNS Record: \$CF_RECORD_NAME\"

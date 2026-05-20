@@ -150,13 +150,17 @@ export default function SettingsScreen() {
         }
         setLoading(true);
         try {
-            await updateMemberProfile(identity.publicKey, {
+            // Only include avatar_url in the update if we have one in local state.
+            // If avatar state is null (e.g., profile fetch hasn't completed), do NOT
+            // send avatar_url at all — otherwise we'd wipe the existing avatar on the server.
+            const localUpdate: any = {
                 callsign: editCallsign.trim(),
-                avatar_url: avatar,
                 bio: bio.trim(),
                 contact_value: contact.trim(),
-                contact_visibility: contact.trim() ? contactVisibility : 'hidden'
-            });
+                contact_visibility: contact.trim() ? contactVisibility : 'hidden',
+            };
+            if (avatar) localUpdate.avatar_url = avatar;
+            await updateMemberProfile(identity.publicKey, localUpdate);
             if (editCallsign.trim() !== identity.callsign) {
                 const updated = await updateCallsign(editCallsign.trim());
                 if (updated) setIdentity(updated);
@@ -166,13 +170,14 @@ export default function SettingsScreen() {
             try {
                 const url = await AsyncStorage.getItem('beanpool_anchor_url');
                 if (url && identity) {
-                    const payloadObj = {
+                    // Same guard as local: don't send avatar=null if state hasn't loaded
+                    const payloadObj: any = {
                         publicKey: identity.publicKey,
-                        avatar: avatar,
                         bio: bio.trim(),
                         contact: contact.trim() ? { value: contact.trim(), visibility: contactVisibility } : null,
                         callsign: editCallsign.trim(),
                     };
+                    if (avatar) payloadObj.avatar = avatar;
                     const bodyString = JSON.stringify(payloadObj);
                     const privateKeyBytes = hexToBytes(identity.privateKey);
                     const messageBytes = encodeUtf8(bodyString);

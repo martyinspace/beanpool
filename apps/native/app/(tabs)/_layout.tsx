@@ -3,7 +3,7 @@ import { GlobalHeader } from '../../components/GlobalHeader';
 import { View, Image, StyleSheet, Text } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useIdentity } from '../IdentityContext';
-import { getGlobalUnreadCount, syncMessages, getPosts } from '../../utils/db';
+import { getGlobalUnreadCount, syncMessages, getPosts, getMarketplaceTransactions } from '../../utils/db';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function TabLayout() {
@@ -41,9 +41,16 @@ export default function TabLayout() {
                 const count = await getGlobalUnreadCount(identity.publicKey);
                 setUnread(count);
 
-                // Calculate active deals
-                const allPosts = await getPosts();
-                const active = allPosts.filter((p: any) => p.status === 'pending' && (p.author_pubkey === identity.publicKey || p.accepted_by === identity.publicKey)).length;
+                // Count active deals — mirror usePendingDealsCount in MyDealsSheet so
+                // the bottom-tab Market badge matches the in-app My Deals pill.
+                const [allPosts, myTxns] = await Promise.all([
+                    getPosts(),
+                    getMarketplaceTransactions(identity.publicKey),
+                ]);
+                const active = allPosts.filter((p: any) => {
+                    if (p.status === 'pending' && (p.author_pubkey === identity.publicKey || p.accepted_by === identity.publicKey)) return true;
+                    return myTxns.some((t: any) => t.postId === p.id && (t.status === 'pending' || t.status === 'requested'));
+                }).length;
                 setDealsCount(active);
             } catch (e) {}
         };

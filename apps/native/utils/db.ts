@@ -415,9 +415,10 @@ export async function getPosts(filter?: { type?: string; category?: string }) {
 export async function getPost(id: string) {
     const database = await waitForInit();
     const row = await database.getFirstAsync<any>(`
-        SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar
+        SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar, a.callsign as accepted_by_callsign, a.avatar_url as accepted_by_avatar
         FROM posts p
         LEFT JOIN members m ON p.author_pubkey = m.public_key
+        LEFT JOIN members a ON p.accepted_by = a.public_key
         WHERE p.id = ?
     `, [id]);
     if (row && typeof row.photos === 'string') {
@@ -579,6 +580,7 @@ export async function getBalance(pubkey: string) {
                         floor: balData.floor ?? floor,
                         earnedCredit: balData.earnedCredit ?? 0,
                         trustStats: balData.trustStats ?? null,
+                        velocityGate: balData.velocityGate ?? null,
                     }));
                     changed = true;
                 }
@@ -590,6 +592,7 @@ export async function getBalance(pubkey: string) {
 
     // Try to load cached tier data
     let trustStats: any = null;
+    let velocityGate: any = null;
     try {
         const cached = await AsyncStorage.getItem(`bp_tier_${pubkey}`);
         if (cached) {
@@ -598,6 +601,7 @@ export async function getBalance(pubkey: string) {
             floor = parsed.floor ?? floor;
             earnedCredit = parsed.earnedCredit ?? 0;
             trustStats = parsed.trustStats ?? null;
+            velocityGate = parsed.velocityGate ?? null;
         }
     } catch { /* ignore */ }
 
@@ -607,6 +611,7 @@ export async function getBalance(pubkey: string) {
         tier,
         earnedCredit,
         trustStats,
+        velocityGate,
         commons: commons?.balance || 0
     };
 }
@@ -1444,7 +1449,7 @@ export async function syncMessages(publicKey: string) {
                 const localConv = await txn.getFirstAsync<any>('SELECT id FROM conversations WHERE id = ?', [conv.id]);
                 if (!localConv) {
                     await txn.runAsync('INSERT INTO conversations (id, type, post_id, name, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-                        [conv.id, conv.type || 'dm', conv.postId || null, conv.name || null, conv.createdBy || '', conv.createdAt || new Date().toISOString()]);
+                        [conv.id, conv.type || 'dm', conv.postId || conv.post_id || null, conv.name || null, conv.createdBy || '', conv.createdAt || new Date().toISOString()]);
                 }
                 // Always upsert participants — they may have been missed if the conv
                 // row was inserted by another sync path that didn't include them.
@@ -1673,7 +1678,7 @@ export async function createConversationApi(type: 'dm' | 'group', participants: 
             const database = await getDb();
             await database.runAsync(
                 'INSERT OR IGNORE INTO conversations (id, type, post_id, name, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-                [conv.id, conv.type || type, conv.postId || postId || null, conv.name || name || null, conv.createdBy || createdBy, conv.createdAt || new Date().toISOString()]
+                [conv.id, conv.type || type, conv.postId || conv.post_id || postId || null, conv.name || name || null, conv.createdBy || createdBy, conv.createdAt || new Date().toISOString()]
             );
             const partList: string[] = Array.isArray(conv.participants) && conv.participants.length > 0 ? conv.participants : participants;
             for (const pub of partList) {
@@ -2430,4 +2435,25 @@ export async function getMemberPosts(pubkey: string) {
         }
         return r;
     });
+}
+
+export async function getUnreadCountForPost(postId: string, myPubkey: string, peerPubkey?: string): Promise<number> {
+    const database = await getDb();
+    let query = `
+        SELECT COUNT(msg.id) as unreadCount 
+        FROM messages msg
+        JOIN conversations c ON msg.conversation_id = c.id
+        WHERE c.post_id = ?
+        AND msg.author_pubkey != ?
+        AND (msg.timestamp > IFNULL((SELECT last_read_at FROM conversation_participants WHERE conversation_id = c.id AND public_key = ?), '2000-01-01'))
+    `;
+    let params: any[] = [postId, myPubkey, myPubkey];
+
+    if (peerPubkey) {
+        query += ` AND EXISTS (SELECT 1 FROM conversation_participants cp WHERE cp.conversation_id = c.id AND cp.public_key = ?)`;
+        params.push(peerPubkey);
+    }
+
+    const row = await database.getFirstAsync<{unreadCount: number}>(query, params);
+    return row?.unreadCount || 0;
 }
