@@ -89,7 +89,7 @@ export function registerSyncHandler(node: Libp2p): void {
                     console.log(`[Sync] ← Hash match — no sync needed`);
                 } else {
                     // Hashes differ — send our state
-                    const payload = exportSyncState(localNodeId);
+                    const payload = await exportSyncState(localNodeId);
                     await writeToStream(stream, JSON.stringify({
                         type: 'sync_res',
                         match: false,
@@ -98,7 +98,7 @@ export function registerSyncHandler(node: Libp2p): void {
 
                     // Import their state if they included it
                     if (request.payload) {
-                        const result = importRemoteState(request.payload);
+                        const result = await importRemoteState(request.payload);
                         console.log(`[Sync] ← Imported: +${result.newMembers} members, +${result.newPosts} posts`);
                     }
                 }
@@ -123,7 +123,7 @@ export async function syncWithPeer(node: Libp2p, peerId: any): Promise<{
         const stream: any = await node.dialProtocol(peerId, PROTOCOL);
 
         const ourHash = getStateHash();
-        const ourPayload = exportSyncState(localNodeId);
+        const ourPayload = await exportSyncState(localNodeId);
 
         // Send our hash + state
         const request = JSON.stringify({
@@ -145,7 +145,7 @@ export async function syncWithPeer(node: Libp2p, peerId: any): Promise<{
         }
 
         if (response.payload) {
-            const result = importRemoteState(response.payload);
+            const result = await importRemoteState(response.payload);
             console.log(`[Sync] → ${peerId.toString().slice(-8)}: +${result.newMembers} members, +${result.newPosts} posts`);
             return { synced: true, ...result };
         }

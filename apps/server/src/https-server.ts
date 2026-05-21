@@ -104,6 +104,40 @@ export async function startHttpsServer(port: number): Promise<void> {
     // Federation CORS middleware (must be before body parser for fast OPTIONS handling)
     app.use(federationCors());
 
+    // Standard Modern Security Headers Middleware
+    app.use(async (ctx, next) => {
+        ctx.set('X-Content-Type-Options', 'nosniff');
+        ctx.set('X-Frame-Options', 'DENY');
+        ctx.set('X-XSS-Protection', '1; mode=block');
+        ctx.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'");
+        ctx.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+        await next();
+    });
+
+    // Administrative In-Memory Rate Limiter Middleware
+    const adminRateLimits = new Map<string, number[]>();
+    app.use(async (ctx, next) => {
+        if (ctx.path.startsWith('/api/local/') || ctx.path.startsWith('/api/admin/')) {
+            const ip = ctx.ip;
+            const now = Date.now();
+            const windowMs = 60 * 1000; // 1 minute
+            const limit = 60; // max 60 requests per minute
+
+            let timestamps = adminRateLimits.get(ip) || [];
+            timestamps = timestamps.filter(t => now - t < windowMs);
+
+            if (timestamps.length >= limit) {
+                ctx.status = 429;
+                ctx.body = { error: 'Too many administrative requests. Please try again in 1 minute.' };
+                return;
+            }
+
+            timestamps.push(now);
+            adminRateLimits.set(ip, timestamps);
+        }
+        await next();
+    });
+
     // JSON body parser middleware
     app.use(async (ctx, next) => {
         if (ctx.method === 'POST' || ctx.method === 'PUT' || ctx.method === 'DELETE') {
@@ -129,27 +163,14 @@ export async function startHttpsServer(port: number): Promise<void> {
 
     // Cryptographic Signature Verification Middleware
     async function requireSignature(ctx: Koa.Context, next: Koa.Next) {
-        if (ctx.method !== 'POST') {
-            return await next();
-        }
+        const isMutatingApi = (ctx.method === 'POST' || ctx.method === 'PUT' || ctx.method === 'DELETE') && ctx.path.startsWith('/api/');
+        const isBypassed =
+            ctx.path.startsWith('/api/local/') ||
+            ctx.path.startsWith('/api/admin/') ||
+            ctx.path === '/api/invite/redeem' ||
+            ctx.path === '/api/invite/redeem-offline';
 
-        const isProtected = 
-            ctx.path.startsWith('/api/profile/update') ||
-            ctx.path.startsWith('/api/ledger/transfer') ||
-            ctx.path.startsWith('/api/marketplace/') ||
-            ctx.path.startsWith('/api/messages/') ||
-            ctx.path.startsWith('/api/commons/') ||
-            ctx.path.startsWith('/api/crowdfund/') ||
-            ctx.path.startsWith('/api/invite/generate') ||
-            ctx.path.startsWith('/api/community/register') ||
-            ctx.path.startsWith('/api/ratings') ||
-            ctx.path.startsWith('/api/reports') ||
-            ctx.path.startsWith('/api/friends/') ||
-            ctx.path.startsWith('/api/recovery/') ||
-            ctx.path.startsWith('/api/push-tokens') ||
-            ctx.path.startsWith('/api/members/preferences');
-
-        if (!isProtected) {
+        if (!isMutatingApi || isBypassed) {
             return await next();
         }
 
@@ -187,24 +208,22 @@ export async function startHttpsServer(port: number): Promise<void> {
                 return;
             }
 
-            // Reject spoofed body identifiers
-            const body = (ctx as any).requestBody;
-            if (body.publicKey && body.publicKey !== pubKeyHex) throw new Error('Spoofed publicKey');
-            if (body.authorPublicKey && body.authorPublicKey !== pubKeyHex) throw new Error('Spoofed authorPublicKey');
-            if (body.authorPubkey && body.authorPubkey !== pubKeyHex) throw new Error('Spoofed authorPubkey');
-            if (body.buyerPublicKey && body.buyerPublicKey !== pubKeyHex) throw new Error('Spoofed buyerPublicKey');
-            if (body.from && body.from !== pubKeyHex) throw new Error('Spoofed from');
-            if (body.proposerPubkey && body.proposerPubkey !== pubKeyHex) throw new Error('Spoofed proposerPubkey');
-            if (body.pubkey && body.pubkey !== pubKeyHex) throw new Error('Spoofed pubkey');
-            if (body.newPubkey && body.newPubkey !== pubKeyHex) throw new Error('Spoofed newPubkey');
-            if (body.creatorPubkey && body.creatorPubkey !== pubKeyHex) throw new Error('Spoofed creatorPubkey');
-            if (body.raterPubkey && body.raterPubkey !== pubKeyHex) throw new Error('Spoofed raterPubkey');
-            if (body.voterPubkey && body.voterPubkey !== pubKeyHex) throw new Error('Spoofed voterPubkey');
-            if (body.reporterPubkey && body.reporterPubkey !== pubKeyHex) throw new Error('Spoofed reporterPubkey');
-            if (body.fromPubkey && body.fromPubkey !== pubKeyHex) throw new Error('Spoofed fromPubkey');
-            if (body.ownerPubkey && body.ownerPubkey !== pubKeyHex) throw new Error('Spoofed ownerPubkey');
-            if (body.confirmerPublicKey && body.confirmerPublicKey !== pubKeyHex) throw new Error('Spoofed confirmerPublicKey');
-            if (body.cancellerPublicKey && body.cancellerPublicKey !== pubKeyHex) throw new Error('Spoofed cancellerPublicKey');
+            // Bind cryptographically verified public key to state actor
+            ctx.state.actor = pubKeyHex;
+
+            // Generic spoof check: any body field representing the request initiator
+            // (ending in 'pubkey', 'publickey', or is 'from' or 'createdby') must match the verified public key.
+            // We exclude other non-sender fields like targetPubkey, oldPubkey, to_pubkey, invited_by to prevent false positives.
+            const body = (ctx as any).requestBody || {};
+            for (const [key, value] of Object.entries(body)) {
+                const k = key.toLowerCase();
+                const isIdentityField = k.endsWith('pubkey') || k.endsWith('publickey') || k === 'from' || k === 'createdby';
+                const isOtherEntity = k.startsWith('target') || k.startsWith('old') || k.startsWith('to') || k.startsWith('invited');
+                
+                if (isIdentityField && !isOtherEntity && typeof value === 'string' && value !== pubKeyHex) {
+                    throw new Error(`Identity mismatch: body field '${key}' does not match header public key.`);
+                }
+            }
 
         } catch (err: any) {
             ctx.status = 403;
@@ -953,13 +972,14 @@ export async function startHttpsServer(port: number): Promise<void> {
     // ===================== PROFILE API (PUBLIC) =====================
 
     router.post('/api/profile/update', async (ctx) => {
-        const { publicKey, avatar, bio, contact, callsign } = (ctx as any).requestBody || {};
-        if (!publicKey) {
+        const { avatar, bio, contact, callsign } = (ctx as any).requestBody || {};
+        const activeKey = ctx.state.actor || (ctx as any).requestBody?.publicKey;
+        if (!activeKey) {
             ctx.status = 400;
             ctx.body = { error: 'publicKey is required' };
             return;
         }
-        const profile = updateProfile(publicKey, { avatar, bio, contact, callsign });
+        const profile = updateProfile(activeKey, { avatar, bio, contact, callsign });
         if (!profile) {
             ctx.status = 404;
             ctx.body = { error: 'Member not found' };
@@ -999,7 +1019,8 @@ export async function startHttpsServer(port: number): Promise<void> {
     });
 
     router.post('/api/ledger/transfer', async (ctx) => {
-        const { from, to, amount, memo } = (ctx as any).requestBody || {};
+        const { to, amount, memo } = (ctx as any).requestBody || {};
+        const from = ctx.state.actor || (ctx as any).requestBody?.from;
         const parsedAmount = Number(amount);
         if (!from || !to || !amount) {
             ctx.status = 400;

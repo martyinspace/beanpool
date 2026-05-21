@@ -6,6 +6,8 @@ import { db, initSchema, migrateLegacyState } from './db/db.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { getPrivateKey } from './p2p.js';
+import { publicKeyToProtobuf, publicKeyFromProtobuf } from '@libp2p/crypto/keys';
 
 // Load synonym map for FTS5 search keyword expansion
 const __filename_se = fileURLToPath(import.meta.url);
@@ -2153,6 +2155,8 @@ export interface SyncPayload {
     recoveryRequests?: SyncRecoveryRequest[];
     recoveryApprovals?: SyncRecoveryApproval[];
     nodeId: string;
+    signature?: string;
+    publicKey?: string;
 }
 
 export function getStateHash(): string {
@@ -2162,7 +2166,7 @@ export function getStateHash(): string {
     return crypto.createHash('sha256').update(data).digest('hex').substring(0, 16);
 }
 
-export function exportSyncState(nodeId: string): SyncPayload {
+export async function exportSyncState(nodeId: string): Promise<SyncPayload> {
     // Select all members
     const members = getAllMembers();
     
@@ -2312,7 +2316,7 @@ export function exportSyncState(nodeId: string): SyncPayload {
         createdAt: row.created_at,
     }));
 
-    return {
+    const payload: SyncPayload = {
         stateHash: getStateHash(),
         nodeId,
         members,
@@ -2331,9 +2335,52 @@ export function exportSyncState(nodeId: string): SyncPayload {
         recoveryRequests,
         recoveryApprovals,
     };
+
+    const privateKey = getPrivateKey();
+    if (privateKey) {
+        try {
+            const rawBody = JSON.stringify(payload);
+            const signatureBytes = await privateKey.sign(new TextEncoder().encode(rawBody));
+            payload.signature = Buffer.from(signatureBytes).toString('hex');
+            payload.publicKey = Buffer.from(publicKeyToProtobuf(privateKey.publicKey)).toString('hex');
+        } catch (e: any) {
+            console.error(`[Sync] Failed to sign export payload:`, e.message || e);
+        }
+    }
+
+    return payload;
 }
 
-export function importRemoteState(remote: SyncPayload): { newMembers: number; newPosts: number } {
+export async function importRemoteState(remote: SyncPayload): Promise<{ newMembers: number; newPosts: number }> {
+    // Cryptographic validation of P2P Sync Payload
+    if (!remote.signature || !remote.publicKey) {
+        throw new Error(`[Sync] Cryptographic validation failed: Missing SyncPayload signature or publicKey`);
+    }
+
+    try {
+        // Construct the unsigned base payload to verify against
+        const { signature, publicKey, ...basePayload } = remote;
+        const serialized = JSON.stringify(basePayload);
+        
+        // Reconstruct libp2p public key
+        const pubKeyBuffer = Buffer.from(publicKey, 'hex');
+        const pubKey = publicKeyFromProtobuf(pubKeyBuffer);
+        
+        // Verify signature
+        const isValid = await pubKey.verify(
+            new TextEncoder().encode(serialized),
+            Buffer.from(signature, 'hex')
+        );
+
+        if (!isValid) {
+            throw new Error('Invalid cryptographic signature.');
+        }
+        console.log(`[Sync] ✓ Cryptographically validated sync payload from nodeId: ${remote.nodeId}`);
+    } catch (e: any) {
+        console.error(`[Sync] ❌ SyncPayload signature validation failed:`, e.message || e);
+        throw new Error(`Cryptographic sync payload verification failed: ${e.message}`);
+    }
+
     let newMembers = 0, newPosts = 0;
     
     db.transaction(() => {
