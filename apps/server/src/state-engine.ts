@@ -918,6 +918,11 @@ export function getProfiles(): Record<string, MemberProfile> {
     return map;
 }
 
+export function getAllProfiles(): MemberProfile[] {
+    const rows = db.prepare("SELECT * FROM members").all() as any[];
+    return rows.map(r => rowToProfile(r));
+}
+
 // ===================== TRUST STATS =====================
 
 /**
