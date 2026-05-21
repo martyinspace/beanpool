@@ -14,8 +14,24 @@ export interface BeanPoolIdentity {
     mnemonic?: string[];  // 12-word recovery phrase (optional for legacy identities)
 }
 
+async function migrateLegacyIdentity(): Promise<void> {
+    if (isWeb) return;
+    try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        const legacyIdentity = await AsyncStorage.getItem('beanpool:identity');
+        if (legacyIdentity) {
+            await SecureStore.setItemAsync(KEY_ID, legacyIdentity);
+            await AsyncStorage.removeItem('beanpool:identity');
+            console.log('Successfully migrated legacy identity to SecureStore');
+        }
+    } catch (e) {
+        console.error('Failed to migrate legacy identity', e);
+    }
+}
+
 export async function loadIdentity(): Promise<BeanPoolIdentity | null> {
     try {
+        await migrateLegacyIdentity();
         let data: string | null = null;
         if (isWeb) {
             data = localStorage.getItem(KEY_ID);
