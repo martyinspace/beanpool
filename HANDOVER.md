@@ -6,7 +6,7 @@
 ---
 ## Current State (2026-05-22)
 
-**BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🪶 bean reputation system, abuse reporting, **moderation centre** (batch post management, wash-trading detection, member audit), **update notifications** (Docker Desktop-style header badge with auto-check), community health dashboard, and federation protocol — deployed on **4 sovereign nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity including a custom Android map marker rendering pipeline. A new automated security journaling process using the `.jules` directory has been established to harden the codebase.
+**BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🪶 bean reputation system, abuse reporting, **moderation centre** (batch post management, wash-trading detection, member audit), **update notifications** (Docker Desktop-style header badge with auto-check), community health dashboard, and federation protocol — deployed on **4 independent nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity including a custom Android map marker rendering pipeline. A new automated security journaling process using the `.jules` directory has been established to harden the codebase.
 
 ### What's Working
 - ✅ **Dynamic Map Root** — Leaflet map defaults coordinate center to the node's `serviceRadius` config (e.g. Mullumbimby) instead of hardcoding, and handles location cleanly without async ghost-pin drops.
@@ -52,7 +52,7 @@
 - ✅ **Native SQLite Persistence** — `expo-sqlite` for local data storage (posts, projects, messages, ledger)
 - ✅ **Native Background Sync** — SQLite `dbSyncLock` Mutex Queue safely handling parallel `applyDelta` and foreground Map/Inbox requests without `database is locked` panics.
 - ✅ **Live Inbox Parity** — Base64 E2E plaintext message decryption, real-time polling, and global unread notification tab badges.
-- ✅ **Native Identity Flow** — sovereign identity creation and 12-word recovery via Expo SecureStore
+- ✅ **Native Identity Flow** — self-managed identity creation and 12-word recovery via Expo SecureStore
 - ✅ **Social Recovery (3-of-N)** — Cryptographically secure identity recovery without central admins, using 3-of-N quorum from trusted guardians. Includes Guardian Knowledge Check anti-spam and a 24-hour security cooldown. UI built in Native App.
 - ✅ **Community Projects Tab** — native-only crowdfunding feature with progress bars and proposal creation
 - ✅ **Neon-Vine Tab Bar** — branded tab navigation with artwork background and dark overlay

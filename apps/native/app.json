@@ -25,7 +25,7 @@
           "fetch",
           "fetch"
         ],
-        "NSLocationWhenInUseUsageDescription": "BeanPool relies exclusively on your device's GPS to plot your Sovereign Identity on the community map, enabling you to physically discover neighboring Marketplace needs and offers.",
+        "NSLocationWhenInUseUsageDescription": "BeanPool relies exclusively on your device's GPS to plot your independent identity on the community map, enabling you to physically discover neighboring Marketplace needs and offers.",
         "ITSAppUsesNonExemptEncryption": false
       },
       "appleTeamId": "485XM2R33S"
@@ -92,7 +92,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "BeanPool relies exclusively on your device's GPS to plot your Sovereign Identity on the community map, enabling you to physically discover neighboring Marketplace needs and offers.",
+          "locationWhenInUsePermission": "BeanPool relies exclusively on your device's GPS to plot your independent identity on the community map, enabling you to physically discover neighboring Marketplace needs and offers.",
           "isIosBackgroundLocationEnabled": false
         }
       ],

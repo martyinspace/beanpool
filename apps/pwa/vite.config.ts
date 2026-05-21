@@ -11,9 +11,9 @@ export default defineConfig({
             selfDestroying: true, // Disable service worker until offline caching is properly configured
             includeAssets: ['favicon.svg'],
             manifest: {
-                name: 'BeanPool — Sovereign Mesh',
+                name: 'BeanPool — Federated Mesh',
                 short_name: 'BeanPool',
-                description: 'Local-first sovereign community marketplace',
+                description: 'Local-first independent community marketplace',
                 theme_color: '#0a0a0a',
                 background_color: '#0a0a0a',
                 display: 'standalone',

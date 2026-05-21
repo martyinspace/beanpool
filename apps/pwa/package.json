@@ -1,7 +1,7 @@
 {
   "name": "@beanpool/pwa",
   "version": "1.0.77",
-  "description": "BeanPool PWA — Sovereign Community Interface",
+  "description": "BeanPool PWA — Federated Community Interface",
   "type": "module",
   "private": true,
   "scripts": {

@@ -6,7 +6,7 @@
 
 ## 1. Core Mechanics
 
-### 1.1 Identity (Sovereign Passports)
+### 1.1 Identity (Self-Managed Passports)
 Each participant generates an **Ed25519 keypair** locally on their device. There are no central accounts or passwords.
 *   **Callsign**: A human-readable name chosen at first boot (e.g. "Farm-Jenny") that maps to the cryptographic public key. Callsigns are editable and sync across IndexedDB and the server.
 *   **Invite Tree**: New members join by redeeming single-use invite codes, building a hierarchical accountability tree.
@@ -45,7 +45,7 @@ BeanPool relies on **Conflict-Free Replicated Data Types (CRDTs)** and cryptogra
 Nodes dial each other using a dedicated, private libp2p tunnel (e.g., `/beanpool/sync/1.0.0`) to silently transfer historical SQLite and ledger databases peer-to-peer.
 *   **Lazy State Sync**: Merkle hash comparison + delta exchange every 15 minutes. All exported sync payloads are cryptographically signed using the node's libp2p Ed25519 private key, and verified by the importing node prior to local database writing to guarantee replication payload integrity.
 *   **Handshake Protocol**: Mutual trust verification + latency measurement via Yamux streams.
-*   **Sovereign Connectors**: Manual trust relationships between nodes (peer / mirror / blocked).
+*   **Independent Connectors**: Manual trust relationships between nodes (peer / mirror / blocked).
 
 ### 2.3 GossipSub Topic Sharding
 All live transactions, pins, and map updates are broadcast over libp2p pub/sub. To handle massive scale, the protocol employs **Topic Sharding**:

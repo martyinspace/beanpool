@@ -608,7 +608,7 @@ export function WelcomePage({ onComplete }: Props) {
                             >
                                 {loading ? 'Joining...' : inviteCode.trim()
                                     ? 'Join with Invite'
-                                    : 'Create Sovereign Identity'}
+                                    : 'Create Self-Managed Identity'}
                             </button>
 
                             {/* ===== FAQs ===== */}

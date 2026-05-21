@@ -78,7 +78,7 @@ apps/native/
 
 ## Key Features
 
-- **Sovereign Identity** — Ed25519 keypair from BIP-39 12-word mnemonic, stored securely in hardware-backed Expo SecureStore (iOS Keychain / Android Keystore) with all legacy plaintext fallback lookup routines completely eliminated.
+- **Self-Managed Identity** — Ed25519 keypair from BIP-39 12-word mnemonic, stored securely in hardware-backed Expo SecureStore (iOS Keychain / Android Keystore) with all legacy plaintext fallback lookup routines completely eliminated.
 - **Client-Side Request Signing** — Signs requests natively using Ed25519 for all signature-required API routes (including profile update, ledger transfer, marketplace posts/deals, friends add/remove, set guardian, push token registration, and notification preferences).
 - **SQLite Persistence** — all posts, projects, messages, and ledger data stored locally via `expo-sqlite`
 - **14-Category Marketplace** — Food, Services, Labour, Tools, Goods, Housing, Transport, Education, Arts, Health, Care, Animals, Energy, General (PWA has 13; native adds Care ❤️)

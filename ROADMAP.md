@@ -53,7 +53,7 @@
 - ✅ **Admin Community Config** — name, email, phone in Settings → Community tab
 - ✅ **Social Recovery (3-of-N)** — Cryptographically secure identity recovery mechanism requiring quorum approval from trusted friends. Includes Guardian Knowledge Check to prevent spoofing and a 24-hour security cooldown.
 - ✅ **Native App (Expo)** — 7-tab React Native companion app achieving PWA parity: Map, Projects, Market (14 categories), Chat, People, Ledger, Settings
-- ✅ **Native SQLite + SecureStore** — local data persistence and sovereign identity storage on device
+- ✅ **Native SQLite + SecureStore** — local data persistence and self-managed identity storage on device
 - ✅ **Community Projects Tab** — native-only crowdfunding feature with progress tracking, atomic editing, and destructive rollback for escrow.
 - ✅ **Marketplace Deals Hub** — Sync'd 1-step (Offers) and 3-step (Needs) atomic escrow handshake logic across both Native and PWA.
 - ✅ **Smart CRM Inbox** — Converted messaging interfaces natively and functionally into transactional Deal tracking hubs (All/Transactions/Direct) with inline Object Attribution identifying post title and status parameters.
@@ -139,7 +139,7 @@
 ### Native App
 
 - [x] **7-Tab Native Interface** — Map, Projects, Market, Chat, People, Ledger, Settings with neon-vine branded tab bar
-- [x] **Native Identity Flow** — sovereign identity creation and 12-word recovery via Expo SecureStore
+- [x] **Native Identity Flow** — self-managed identity creation and 12-word recovery via Expo SecureStore
 - [x] **Native SQLite Persistence** — `expo-sqlite` for posts, projects, messages, ledger
 - [x] **Marketplace (14 categories)** — grid/list view, search, category filter, user blocking
 - [x] **Community Projects** — crowdfund proposals with progress bars and funding badges

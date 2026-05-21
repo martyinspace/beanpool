@@ -202,7 +202,7 @@ export function InvitePage({ identity }: Props) {
         }
 
         const inviteUrl = shortHash ? `${window.location.origin}/i/${shortHash}` : `${window.location.origin}/?invite=${code}`;
-        const messageText = `Join my Sovereign BeanPool Node: ${inviteUrl}`;
+        const messageText = `Join my BeanPool community node: ${inviteUrl}`;
         
         const shareData = {
             title: 'Join BeanPool Node',

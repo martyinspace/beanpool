@@ -1,7 +1,7 @@
 /**
  * MapPage — Community Map with Leaflet/OSM
  *
- * Matches the Lattice Sovereign Wallet map design:
+ * Matches the Lattice Self-Managed Wallet map design:
  *  - Light mode (default) with CSS invert for dark mode
  *  - Zoom controls (+/-) positioned bottom-left
  *  - GPS crosshair button for current location

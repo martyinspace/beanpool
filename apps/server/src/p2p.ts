@@ -1,5 +1,5 @@
 /**
- * libp2p P2P Transport Layer — Sovereign Node
+ * libp2p P2P Transport Layer — Federated Node
  *
  * Handles:
  * - TCP transport on port 4001

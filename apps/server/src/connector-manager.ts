@@ -1,5 +1,5 @@
 /**
- * Connector Manager — Sovereign Peer Connections
+ * Connector Manager — Independent Peer Connections
  *
  * Each node admin manually configures which peers to trust and connect to.
  * No automatic discovery, no bootstrap lists, no central coordination.

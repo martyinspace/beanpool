@@ -29,10 +29,10 @@ L.control.attribution({ position: 'bottomright', prefix: false })
 
 // ======================== NODE POLLING ========================
 const nodeIcon = L.divIcon({
-    html: '<div style="width:12px;height:12px;background:#10b981;border-radius:50%;border:2px solid #064e3b;box-shadow:0 0 10px rgba(16,185,129,0.6)"></div>',
+    html: '<div class="map-pulse-marker"><div class="map-pulse-core"></div><div class="map-pulse-glow"></div></div>',
     className: '',
-    iconSize: [12, 12],
-    iconAnchor: [6, 6],
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
 });
 
 let totalMembers = 0;

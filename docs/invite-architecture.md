@@ -46,7 +46,7 @@ When the user is entirely disconnected from the mesh, the app falls back to a se
 ### The Redemption Flow
 1. **Link Interception:** The invitee clicks the link or scans the QR code.
 2. **Routing:** Just like the online flow, the link either opens the Native App directly via Universal Links or opens the PWA Trampoline to inject the `BP-` token into the clipboard for a deferred deep link.
-3. **Cryptographic Verification:** When the invitee eventually connects to the network and hits "Create Sovereign Identity", the app sends the raw `BP-` token to the node. The node mathematically verifies the 64-byte signature against the inviter's Public Key, ensuring it hasn't expired (max 7 days), and registers the new member—all without the original inviter ever having to go online!
+3. **Cryptographic Verification:** When the invitee eventually connects to the network and hits "Create Self-Managed Identity", the app sends the raw `BP-` token to the node. The node mathematically verifies the 64-byte signature against the inviter's Public Key, ensuring it hasn't expired (max 7 days), and registers the new member—all without the original inviter ever having to go online!
 
 ---
 

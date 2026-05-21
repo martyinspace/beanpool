@@ -15,7 +15,7 @@
 | `src/https-server.ts` | 67+ REST API endpoints: community, marketplace, friends, ratings, reports, admin, version/update, push notifications, escrow lifecycle, database backup, social recovery, quadratic voting. Enforces a Deny-by-Default security posture with `ctx.state.actor` and body spoof-checking. |
 | `src/http-server.ts` | HTTP endpoint (port 80) for Let's Encrypt validation, LAN QR Poster, and HTTPS redirect |
 | `src/p2p.ts` | Core libp2p node instantiation, bootstrap logic, and gossipsub |
-| `src/connector-manager.ts` | Sovereign connectors with federation trust levels (peer/mirror/blocked) |
+| `src/connector-manager.ts` | Federated connectors with trust levels (peer/mirror/blocked) |
 | `src/federation-api.ts` | Federation CORS middleware + `/api/node/info` |
 | `src/federation-protocol.ts` | Secure Libp2p authenticated Noise streams for cross-node mesh routing |
 | `src/handshake.ts` | Mutual trust verification + latency via yamux streams |
@@ -226,7 +226,7 @@ In Settings → **Community** tab, set: Community Name, Admin Email, Admin Phone
 - Use one on your own phone to bootstrap the network, creating your deterministic Ed25519 member identity via a 12-word seed phrase recovery method.
 
 #### 5. Connect to Other Nodes (Optional)
-Settings → **Sovereign Connectors**. Choose **Peer** trust (federation) or **Mirror** (backup).
+- In Settings → **Connectors**, choose **Peer** trust (federation) or **Mirror** (backup).
 
 ---
 
@@ -359,7 +359,7 @@ Neighboring communities scaling federation can elegantly federate through a sing
 
 ## 🌐 Live Network Topology
 
-The project maintains 4 live sovereign nodes spanning bare-metal and Azure VMs. Both bare-metal nodes run on the Debian "Lighthouse" server at `192.168.1.219`, served via Cloudflare Tunnel.
+The project maintains 4 live independent nodes spanning bare-metal and Azure VMs. Both bare-metal nodes run on the Debian "Lighthouse" server at `192.168.1.219`, served via Cloudflare Tunnel.
 
 | # | Flag | Name | IP Address | DNS Name | Type | PWA |
 |---|------|------|-----------|----------|------|-----|

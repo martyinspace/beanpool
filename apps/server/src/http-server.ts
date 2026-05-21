@@ -119,7 +119,7 @@ export async function startHttpServer(port: number): Promise<void> {
       <a href="${pwaUrl}" class="btn">Open BeanPool PWA</a>
     </div>
 
-    <p class="footer">Sovereign infrastructure for sovereign communities.</p>
+    <p class="footer">Independent infrastructure for local communities.</p>
   </div>
 </body>
 </html>`;

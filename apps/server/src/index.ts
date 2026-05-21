@@ -1,7 +1,7 @@
 /**
  * BeanPool Node — Entry Point
  *
- * Boots the sovereign local gateway:
+ * Boots the independent local gateway:
  * 1. Genesis check (first-run community_id + genesis block)
  * 2. Admin password init (from ADMIN_PASSWORD env or auto-generate)
  * 3. TLS certificates (Let's Encrypt or self-signed)

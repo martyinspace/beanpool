@@ -1,6 +1,6 @@
 # BeanPool
 
-> A decentralized mutual credit protocol for sovereign communities.
+> A decentralized mutual credit protocol for independent communities.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Status: Beta](https://img.shields.io/badge/Status-Beta-emerald.svg)]()
@@ -145,7 +145,7 @@ Docker Desktop-style update detection built into each node:
 - **Server-side polling** — background timer checks GitHub Releases API every 6 hours
 - **Notification-only** — admin runs `docker compose pull && docker compose up -d` manually
 
-### 🔗 Sovereign Connectors + Federation
+### 🔗 Independent Connectors + Federation
 Node-to-node trust relationships with 3 levels:
 - **`peer`** — cross-community federation: browse remote marketplace, trade across nodes
 - **`mirror`** — complete data replication (backup/disaster recovery)
@@ -353,7 +353,7 @@ All endpoints are served on port 8443 (HTTPS):
 - **Gossip Mesh** — nodes connect via libp2p over TCP/WebSockets
 - **Federation Protocol** — peer nodes share protocol constants; cross-community trading via CORS + API
 - **Mirror Sync** — Merkle hash comparison + delta exchange every 15 minutes (backup nodes only)
-- **Sovereign Identity** — Ed25519 keypairs from 12-word BIP-39 mnemonic (deterministic, recoverable)
+- **Self-Managed Identity** — Ed25519 keypairs from 12-word BIP-39 mnemonic (deterministic, recoverable)
 - **Invite Tree** — hierarchical membership: node genesis → seed codes → admin identity → organic invites
 - **Handshake Protocol** — mutual trust verification + latency measurement via yamux streams
 - **Bean Reputation** — 5-tier community trust score with comments
@@ -432,12 +432,12 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ Native Background Sync — SQLite `dbSyncLock` Mutex Queue safely handling parallel `applyDelta` and foreground Map/Inbox requests without `database is locked` panics.
 - ✅ Offline Outbox — Draft and queue marketplace posts while offline, syncs automatically when connection restores.
 - ✅ Live Inbox Parity — Base64 E2E plaintext message decryption, real-time polling, and global unread notification tab badges.
-- ✅ Native Identity Flow — sovereign identity creation and 12-word recovery via Expo SecureStore
+- ✅ Native Identity Flow — self-managed identity creation and 12-word recovery via Expo SecureStore
 - ✅ Community Projects Tab — native-only crowdfunding feature with progress bars and proposal creation
 - ✅ Neon-Vine Tab Bar — branded tab navigation with artwork background and dark overlay
 - ✅ Guest Mode — multi-node onboarding with membership probe, guest UI indicators in header and sync status
 - ✅ Native App (Expo) — 7-tab React Native companion app: Map, Projects, Market (14 cats), Chat, People, Ledger, Settings
-- ✅ Native SQLite + SecureStore — local persistence and sovereign identity on device
+- ✅ Native SQLite + SecureStore — local persistence and self-managed identity on device
 - ✅ Map Phase 6 — pin clustering, modern markers, elder glow effects (both PWA + Native)
 - ✅ Map Clustering Stabilization — custom patching to prevent marker disappearance on iOS scroll/zoom.
 - ✅ Marketplace UX Modernization — horizontal category chips, trust badges, MyDeals sheet/modal, post author trust display
