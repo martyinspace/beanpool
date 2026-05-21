@@ -84,3 +84,28 @@ node scripts/bp-diagnose.mjs dashboard --port 3000
 ### Visual Features & Proxy
 * Open **`http://localhost:3000`** in your browser to view the premium glassmorphism dark-theme panel.
 * **CORS Proxying**: The local HTTP server acts as a backend proxy for the browser, safely relaying queries to the mesh and bypassing browser CORS blocks and self-signed certificate rejections.
+
+---
+
+## 🚀 4. Version Bumper Utility (`bump-version.mjs`)
+
+A utility script to automatically increment versions across all workspace `package.json` files, commit the changes, and create the matching Git release tag in a single step.
+
+### How to Run
+
+1. Execute the version bump specifying the increment type (`patch`, `minor`, `major`) or an explicit version number:
+   ```bash
+   # Dry-run preview of the next patch bump
+   node scripts/bump-version.mjs patch --dry-run
+   
+   # Apply patch bump, commit changes, and create git tag locally
+   node scripts/bump-version.mjs patch
+   
+   # Bump to an explicit minor version without creating a tag
+   node scripts/bump-version.mjs 1.1.0 --no-tag
+   ```
+2. **Deploy to production**: Once successfully bumped, push the code and tags to trigger the automated GitHub Actions build:
+   ```bash
+   git push && git push --tags
+   ```
+
