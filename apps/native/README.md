@@ -78,7 +78,7 @@ apps/native/
 
 ## Key Features
 
-- **Sovereign Identity** — Ed25519 keypair from BIP-39 12-word mnemonic, stored in Expo SecureStore
+- **Sovereign Identity** — Ed25519 keypair from BIP-39 12-word mnemonic, stored securely in hardware-backed Expo SecureStore (iOS Keychain / Android Keystore) with all legacy plaintext fallback lookup routines completely eliminated.
 - **Client-Side Request Signing** — Signs requests natively using Ed25519 for all signature-required API routes (including profile update, ledger transfer, marketplace posts/deals, friends add/remove, set guardian, push token registration, and notification preferences).
 - **SQLite Persistence** — all posts, projects, messages, and ledger data stored locally via `expo-sqlite`
 - **14-Category Marketplace** — Food, Services, Labour, Tools, Goods, Housing, Transport, Education, Arts, Health, Care, Animals, Energy, General (PWA has 13; native adds Care ❤️)
@@ -136,7 +136,7 @@ To gracefully bypass Apple and Google's URL parameter stripping during uninstall
 1. **Deferred Deep Linking (Clipboard Inference)**
    - Apple strictly drops URL parameters if a user must install the app completely from scratch. 
    - We solve this by having the `WelcomePage.tsx` Web Trampoline inject `navigator.clipboard.writeText()` onto the "Download App Store" buttons.
-   - On the very first native cold boot, `welcome.tsx` queries `Clipboard.hasStringAsync()`. If it spots an `INV-` or `BP-` token, it silently injects it into the workflow without aggressively dumping the user. This is permanently disabled via `AsyncStorage`'s `hasLaunched` flag to stop creepy polling.
+   - Onboarding clipboard verification is now strictly user-initiated on the first boot via a styled "Paste" action. This resolved intrusive background clipboard scanning (`Clipboard.hasStringAsync()`) that flashed platform privacy/spyware warnings, completely eliminating background clipboard polling.
 
 2. **Bypassing Expo Router Hydration Drops**
    - Relying on `useLocalSearchParams()` on Android leads to intent drops, as standard router hydration intrinsically races during cold-boot states, losing the `?invite=` query argument.

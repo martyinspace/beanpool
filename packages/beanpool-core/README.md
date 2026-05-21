@@ -43,7 +43,7 @@ BeanPool relies on **Conflict-Free Replicated Data Types (CRDTs)** and cryptogra
 
 ### 2.2 Direct P2P Stream State Synchronization
 Nodes dial each other using a dedicated, private libp2p tunnel (e.g., `/beanpool/sync/1.0.0`) to silently transfer historical SQLite and ledger databases peer-to-peer.
-*   **Lazy State Sync**: Merkle hash comparison + delta exchange every 15 minutes.
+*   **Lazy State Sync**: Merkle hash comparison + delta exchange every 15 minutes. All exported sync payloads are cryptographically signed using the node's libp2p Ed25519 private key, and verified by the importing node prior to local database writing to guarantee replication payload integrity.
 *   **Handshake Protocol**: Mutual trust verification + latency measurement via Yamux streams.
 *   **Sovereign Connectors**: Manual trust relationships between nodes (peer / mirror / blocked).
 

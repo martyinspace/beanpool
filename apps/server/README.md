@@ -11,8 +11,8 @@
 |------|---------|
 | `src/index.ts` | Main boot orchestrator — 5-stage startup |
 | `src/tls.ts` | **TLS certificate management** — LE via acme-client + self-signed fallback |
-| `src/state-engine.ts` | In-memory state: members, posts, profiles, conversations, messages, invites, ledger, ratings, reports, sybil filters |
-| `src/https-server.ts` | 55+ REST API endpoints: community, marketplace, friends, ratings, reports, admin, version/update, push notifications, escrow lifecycle, database backup, social recovery, quadratic voting (Hardened against Command Injection). |
+| `src/state-engine.ts` | In-memory state: members, posts, profiles, conversations, messages, invites, ledger, ratings, reports, sybil filters. Handles secure async cryptographic Ed25519 verification for P2P sync payloads on import. |
+| `src/https-server.ts` | 67+ REST API endpoints: community, marketplace, friends, ratings, reports, admin, version/update, push notifications, escrow lifecycle, database backup, social recovery, quadratic voting. Enforces a Deny-by-Default security posture with `ctx.state.actor` and body spoof-checking. |
 | `src/http-server.ts` | HTTP endpoint (port 80) for Let's Encrypt validation, LAN QR Poster, and HTTPS redirect |
 | `src/p2p.ts` | Core libp2p node instantiation, bootstrap logic, and gossipsub |
 | `src/connector-manager.ts` | Sovereign connectors with federation trust levels (peer/mirror/blocked) |
@@ -20,6 +20,7 @@
 | `src/federation-protocol.ts` | Secure Libp2p authenticated Noise streams for cross-node mesh routing |
 | `src/handshake.ts` | Mutual trust verification + latency via yamux streams |
 | `src/sync-protocol.ts` | Lazy state sync — Merkle hash + delta exchange |
+| `src/test-sync-signature.ts` | **Sync signature integration test** — Standalone suite verifying cryptographic P2P sync payload signing and verification |
 | `src/local-config.ts` | Admin auth (scrypt) + node config |
 | `src/dns-shim.ts` | Captive portal DNS responder to resolve `beanpool.local` locally |
 | `src/genesis.ts` | Initializes node configuration and creates the immutable genesis block |
@@ -32,7 +33,7 @@
 | `static/settings.js` | Admin settings JavaScript — login, tabs, update checks, moderation centre, health dashboard, branch stats (Hardened against Stored XSS). |
 | `../../.jules/sentinel.md` | Security audit journal maintained by the Sentinel process |
 | `../../.jules/security_backlog.md` | Security task backlog |
-| `../../scripts/verify-auth-boundary.mjs` | **Auth boundary verifier** — standalone script to test 37+ routes against the requireSignature middleware |
+| `../../scripts/verify-auth-boundary.mjs` | **Auth boundary verifier** — standalone script to test 38+ routes (114 checks) against the deny-by-default requireSignature middleware |
 
 ---
 
@@ -304,7 +305,7 @@ pnpm --filter @beanpool/server dev
 # Terminal 2: Run the verifier
 node scripts/verify-auth-boundary.mjs
 ```
-The script will run 111 checks (37 routes × 3 tests) and must print `Boundary holds.` at the end.
+The script will run 114 checks (38 routes × 3 tests) and must print `Boundary holds.` at the end.
 
 ---
 

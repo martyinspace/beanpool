@@ -6,8 +6,10 @@
 
 ## ✅ Recently Completed
 
-- ✅ **Sentinel Security Hotfix: Auth Bypass Mitigation** — Closed a critical authorization bypass in the `requireSignature` middleware. Expanded the protect-list to cover 17 sensitive endpoints (social recovery, friends/guardians, transaction approvals, push tokens) and broadened prefix-spoofing coverage.
-- ✅ **Auth Boundary Verifier** — Shipped `scripts/verify-auth-boundary.mjs` verifying all 37+ protected routes with 111 checkmarks against local running server instances.
+- ✅ **Sentinel Security Hardening & Deny-by-Default (Sentinel Sprint)** — Inverted the Koa server `requireSignature` auth filter to deny-by-default on all mutating endpoints (`POST`, `PUT`, `DELETE` under `/api/*`), eliminating opt-in vulnerabilities. Bound verified request keys to `ctx.state.actor` as the authenticated source of truth, and implemented precision spoof-checking with dynamic exclusions.
+- ✅ **Auth Boundary Verifier Upgrades** — Shipped `scripts/verify-auth-boundary.mjs` verifying all 38 protected routes with 114 checkmarks (unsigned, wrong-key, spoofed-body vectors) against running servers to prevent regression.
+- ✅ **Cryptographic P2P Sync Signature Engine** — Secured the peer-to-peer Merkle replication pipeline by signing outgoing state payloads with the node's libp2p Ed25519 private key, and verifying payload signatures before database writes. Added a standalone integration test `test-sync-signature.ts`.
+- ✅ **Native Identity SecureStore & Clipboard Privacy** — Eliminated legacy plaintext `AsyncStorage` fallback lookup routines for user private keys in favor of hardware-backed Expo `SecureStore`, and resolved OS clipboard notification warnings by switching to a user-initiated paste action.
 - ✅ **Client-side Signing Lockstep** — Signed the 4 key callsites affected by the expanded protect-list in the native app.
 - ✅ **Monorepo Flat Linting** — Implemented monorepo-wide Flat config `eslint.config.mjs` to automate cleaner code standards.
 - ✅ **Author Request Review Flow** — Enhanced deals management allowing sellers to review buyer requests with integrated messaging and standardized decline reasons.
@@ -80,8 +82,6 @@
 
 ### Identity & Security
 
-- [ ] 🔴 **Deny-by-default Middleware** — Restructure the `requireSignature` middleware to default-deny all POST/DELETE routes. This eliminates the fragile opt-in protect-list pattern and prevents future endpoint additions from accidentally leaking unauthorized access.
-- [ ] 🔴 **`ctx.state.actor` Migration** — Refactor ~25 authenticated endpoint handlers to read the actor's identity from `ctx.state.actor` instead of custom request body parameters, shutting down any potential impersonation vectors.
 - [ ] 🔴 **View Recovery Phrase** — Show stored 12-word phrase in Settings for existing mnemonic-based identities. _Users currently have no way to see their seed words after initial creation. If they didn't write them down, identity loss is permanent on device failure._ **Note:** PWA now has a private key viewer as a partial mitigation.
 - [x] 🔴 **Identity Backup Reminder** — Prompt users to export their identity if they haven't yet. _Implemented in PWA Settings as an amber warning card._
 - [ ] 🔴 **Ban / Revoke Member (Enforcement)** — `adminSetUserStatus('disabled')` exists but doesn't actually block transactions or posting. Disabled members can still transact. _Need to enforce status checks in transfer/post/messaging pathways._

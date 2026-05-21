@@ -291,6 +291,7 @@ All endpoints are served on port 8443 (HTTPS):
 | `/api/reports` | POST | Submit an abuse report |
 | `/api/admin/reports` | POST | List all abuse reports (admin auth required) |
 | `/api/local/admin/backup` | POST | Stream a complete `state.db` snapshot and config as `.tar.gz` |
+| `/api/local/admin/restore` | POST | Restore system state from an uploaded `.tar.gz` backup archive (uses `X-Admin-Password` header) |
 | `/api/messages/conversation` | POST | Create a DM or group conversation |
 | `/api/messages/send` | POST | Send a message |
 | `/api/messages/conversations/:pubkey` | GET | List conversations for a member |
@@ -413,7 +414,7 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ Community health dashboard (admin settings)
 - ✅ Moderation Centre — reported posts, health-flagged wash trading, batch operations, member audit
 - ✅ Software update notifications — Docker Desktop-style header badge, auto-check with configurable interval
-- ✅ REST APIs (55+ endpoints) including friends, ratings, reports, admin thresholds, version check, push tokens, escrow lifecycle, and quadratic voting.
+- ✅ REST APIs (67+ endpoints) including friends, ratings, reports, admin thresholds, version check, push tokens, escrow lifecycle, and quadratic voting.
 - ✅ WebSocket real-time state feed
 - ✅ Federation protocol — peer/mirror/blocked trust levels
 - ✅ Cross-community marketplace browsing (Connected Communities UI)
@@ -461,8 +462,10 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ **Continuous Health Ping** — Added offline red dot indicator and continuous health ping to mobile app header, mapped using unique public keys to prevent UI collisions.
 - ✅ **Author Request Review Flow** — Enhanced deals management allowing sellers to review buyer requests with integrated messaging and standardized decline reasons.
 - ✅ **Ledger UI Enhancements** — Corrected credit slider visual representation for negative balances and improved feedback for locked 'Send Credits' functionality.
-- ✅ **Sentinel Security Hotfix (Auth Bypass)** — Mitigated a critical authorization bypass in the `requireSignature` middleware by protecting 17 sensitive endpoints (social recovery, transaction approvals, push notification tokens, friends/guardians) and broadening route prefix matches.
-- ✅ **Auth Boundary Verification** — Shipped a standalone `scripts/verify-auth-boundary.mjs` script executing 111 test cases (37 routes × 3 vectors) against running servers to systematically prevent endpoint exposure regressions.
+- ✅ **Sentinel Security Hardening & Deny-by-Default (Sentinel)** — Inverted the Koa server `requireSignature` auth filter to deny-by-default on all mutating endpoints (`POST`, `PUT`, `DELETE` under `/api/*`), eliminating opt-in security drift. Binds verified request keys to `ctx.state.actor` as the authenticated source of truth, and enforces dynamic body spoof protection.
+- ✅ **Auth Boundary Verification** — Shipped `scripts/verify-auth-boundary.mjs` which dynamically asserts all 38 mutating endpoints across 114 test vectors (unsigned, wrong-key, spoofed-body) against the live server.
+- ✅ **Cryptographic P2P Sync Signatures** — Secured peer-to-peer Merkle replication by signing outgoing state payloads with the node's libp2p Ed25519 private key, and verifying payload signatures before database writes. Includes a dedicated `test-sync-signature.ts` integration suite.
+- ✅ **Native Identity SecureStore & Clipboard Privacy** — Eliminated plaintext fallback storage for identity private keys in favor of hardware-backed Expo `SecureStore`, and resolved OS spyware notifications by replacing background clipboard sniffing with user-initiated pasting.
 - ✅ **Monorepo ESLint Flat Config** — Configured monorepo-wide flat linting rules via `eslint.config.mjs` to maintain code health standards.
 
 **Coming next:**

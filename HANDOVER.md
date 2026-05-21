@@ -32,7 +32,7 @@
 - ✅ **Map popups → Market** — "View in Market →" button on map pins navigates to post detail
 - ✅ **Post detail → Message** — "💬 Message" creates DM and auto-opens chat
 - ✅ **Community health dashboard** — admin settings panel with member stats, tree depth, activity, flags
-- ✅ **REST APIs** — 30+ endpoints for community, invites, profiles, ledger, marketplace, messaging, ratings, reports, friends
+- ✅ **REST APIs** — 67+ protected endpoints for community, invites, profiles, ledger, marketplace, messaging, ratings, reports, friends, administrative restore, and governance.
 - ✅ **WebSocket `/ws`** — real-time state feed
 - ✅ **Federation Protocol** — peer/mirror/blocked trust levels, dynamic CORS, `/api/node/info`, verify-member
 - ✅ **Cross-Community Marketplace** — Connected Communities UI, remote post browsing, `🌐` node badges
@@ -93,8 +93,10 @@
 - ✅ **Haptic Feedback** — Phase 1 essentials implemented for native app interactions.
 - ✅ **Admin Dashboard Reorganization** — Redistributed System tab settings to contextual tabs; fixed login ReferenceError.
 - ✅ **Continuous Health Ping** — Added offline red dot indicator and continuous health ping to mobile app header, mapped using unique public keys to prevent UI collisions.
-- ✅ **Sentinel Security Hotfix: Auth Bypass Mitigation** — Shipped critical authorization bypass hotfix in the `requireSignature` middleware. Expanded the protect-list to cover 17 sensitive endpoints (social recovery, friends/guardians, transaction approvals, push tokens) and broadened prefix-spoofing coverage.
-- ✅ **Auth Boundary Verifier** — Shipped `scripts/verify-auth-boundary.mjs` verifying all 37+ protected routes with 111 checkmarks against local running server instances.
+- ✅ **Sentinel Security Hardening & Deny-by-Default (Sentinel)** — Inverted the Koa server `requireSignature` auth filter to deny-by-default on all mutating endpoints (`POST`, `PUT`, `DELETE` under `/api/*`), eliminating opt-in security drift. Binds verified request keys to `ctx.state.actor` as the authenticated source of truth, and enforces dynamic body spoof protection.
+- ✅ **Auth Boundary Verification** — Shipped `scripts/verify-auth-boundary.mjs` executing 114 test cases (38 routes × 3 vectors) against running servers to systematically prevent endpoint exposure regressions.
+- ✅ **Cryptographic P2P Sync Signatures** — Secured peer-to-peer Merkle replication by signing outgoing state payloads with the node's libp2p Ed25519 private key, and verifying payload signatures before database writes. Includes a dedicated `test-sync-signature.ts` integration suite.
+- ✅ **Native Identity SecureStore & Clipboard Privacy** — Eliminated legacy plaintext fallback lookup routines for user private keys in favor of hardware-backed Expo `SecureStore`, and resolved OS clipboard warnings by switching to a user-initiated paste action.
 - ✅ **Monorepo Flat Linting** — Implemented monorepo-wide Flat config `eslint.config.mjs` to automate cleaner code standards.
 
 ---
@@ -241,8 +243,6 @@ gh run list --limit 3
 - [ ] **Server-Side Photo Compression Pipeline** — Implementing backend logic to strictly resize/compress payloads independent of client checks.
 - [ ] **Offline PWA caching** via Service Worker
 - [ ] **Federated credit verification** (`/beanpool/verify/1.0.0`)
-- [ ] **Deny-by-default middleware** — Restructure `requireSignature` middleware to default-deny all POST/DELETE routes, preventing opt-in protect-list drift from leaking endpoints.
-- [ ] **`ctx.state.actor` migration** — Refactor ~25 endpoint handlers to read the actor's identity from `ctx.state.actor` instead of custom body parameters.
 - [ ] **`/api/invite/redeem*` proof-of-possession** — Cryptographic signature check on invite redemption to secure invite-tree operations.
 - [ ] **PWA sendRemoteTransfer unsigned POST bug** — Fix long-standing bug where the PWA client posts to `/api/ledger/transfer` without signature headers.
 

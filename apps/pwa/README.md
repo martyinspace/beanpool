@@ -36,7 +36,7 @@
 | `src/components/MyDealsModal.tsx` | Modal for viewing active marketplace deals (offers/needs in escrow) |
 | `src/components/PublicProfileModal.tsx` | Reusable modal for viewing a member's public profile and social recovery status |
 | `src/components/PostAuthorTrust.tsx` | Trust badge display for post authors (ratings, join date) |
-| `src/lib/api.ts` | Typed client for all 55+ REST endpoints (incl. friends, guardians, members, push tokens, escrow, social recovery) |
+| `src/lib/api.ts` | Typed client for all 67+ REST endpoints (incl. friends, guardians, members, push tokens, escrow, social recovery, administrative restore, and governance) |
 | `src/lib/identity.ts` | Ed25519 identity — mnemonic-derived keys, IndexedDB persistence |
 | `src/lib/mnemonic.ts` | BIP-39 mnemonic generation + WebCrypto PKCS8 key derivation |
 | `src/lib/e2e-crypto.ts` | Plaintext v1 encoding (E2E-ready data model) |
