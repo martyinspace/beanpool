@@ -45,7 +45,7 @@ export function CommonsInfoModal({ isOpen, onClose, commonsBalance }: Props) {
                         <span className="text-xl">🏛️</span>
                         <h2 className="font-bold text-nature-900 dark:text-white text-lg">Community Commons</h2>
                     </div>
-                    <button onClick={onClose} className="text-nature-500 hover:text-nature-900 dark:hover:text-white bg-transparent border-none cursor-pointer text-lg font-bold p-1">✕</button>
+                    <button onClick={onClose} className="text-nature-500 hover:text-nature-900 dark:hover:text-white bg-transparent border-none cursor-pointer text-lg font-bold p-1" aria-label="Close information modal">✕</button>
                 </div>
 
                 {/* Tabs */}

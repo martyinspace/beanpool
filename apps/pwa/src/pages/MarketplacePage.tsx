@@ -1384,6 +1384,17 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                         {radiusSettings && (
                             <span
                                 onClick={(e) => { e.stopPropagation(); setRadiusSettings(null); clearRadiusSettings(); }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setRadiusSettings(null);
+                                        clearRadiusSettings();
+                                    }
+                                }}
+                                role="button"
+                                tabIndex={0}
+                                aria-label="Clear radius"
                                 className="ml-1 text-[10px] font-black cursor-pointer hover:text-amber-900"
                             >
                                 ✕
