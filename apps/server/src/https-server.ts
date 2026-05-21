@@ -2104,6 +2104,7 @@ export async function startHttpsServer(port: number): Promise<void> {
     setInterval(() => backgroundUpdateCheck(), 6 * 60 * 60 * 1000);
 
     router.get('/api/version', (ctx) => {
+        ctx.set('Cache-Control', 'no-cache, no-store, must-revalidate');
         ctx.body = {
             version: getVersion(),
             commit: getCommitHash(),
