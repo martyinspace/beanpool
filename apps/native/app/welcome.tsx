@@ -41,6 +41,46 @@ export default function WelcomeScreen() {
     const [showAvatarPicker, setShowAvatarPicker] = useState(false);
     const [seedCopied, setSeedCopied] = useState(false);
 
+    const processFullUrl = useCallback(async (fullUrl: string) => {
+        if (fullUrl.startsWith('http')) {
+            const originMatch = fullUrl.match(/^https?:\/\/[^\/?#]+/);
+            if (originMatch) {
+                setCreateAnchorUrl(originMatch[0]);
+            }
+        }
+        const inviteMatch = fullUrl.match(/[?&]invite=([^&]+)/);
+        if (inviteMatch) {
+            setInviteCode(decodeURIComponent(inviteMatch[1]));
+        } else if (!fullUrl.startsWith('http') && (fullUrl.startsWith('BP-') || fullUrl.startsWith('INV-'))) {
+            setInviteCode(fullUrl);
+        }
+        setMode('create');
+    }, []);
+
+    const handlePasteInvite = async () => {
+        try {
+            const content = await Clipboard.getStringAsync();
+            const cleanContent = content?.trim() || '';
+            if (!cleanContent) {
+                Alert.alert("Nothing to paste", "Your clipboard is empty.");
+                return;
+            }
+
+            // Check if it's an invite token OR an invite URL to use processFullUrl
+            if (cleanContent.startsWith('BP-') || cleanContent.startsWith('INV-') ||
+                (cleanContent.startsWith('http') && cleanContent.includes('invite='))) {
+                setProcessingMagicLink(true);
+                await processFullUrl(cleanContent);
+                setTimeout(() => setProcessingMagicLink(false), 1500);
+            } else {
+                // Otherwise, just populate the input field text and don't auto-advance
+                setInviteCode(cleanContent);
+            }
+        } catch (e) {
+            Alert.alert("Failed to read clipboard", "Please try pasting the link manually.");
+        }
+    };
+
     React.useEffect(() => {
         AsyncStorage.getItem('beanpool_anchor_url').then(val => {
             if (val) {
@@ -50,22 +90,6 @@ export default function WelcomeScreen() {
         });
         
         let mounted = true;
-
-        const processFullUrl = async (fullUrl: string) => {
-            if (fullUrl.startsWith('http')) {
-                const originMatch = fullUrl.match(/^https?:\/\/[^\/?#]+/);
-                if (originMatch) {
-                    setCreateAnchorUrl(originMatch[0]);
-                }
-            }
-            const inviteMatch = fullUrl.match(/[?&]invite=([^&]+)/);
-            if (inviteMatch) {
-                setInviteCode(decodeURIComponent(inviteMatch[1]));
-            } else if (!fullUrl.startsWith('http') && (fullUrl.startsWith('BP-') || fullUrl.startsWith('INV-'))) {
-                setInviteCode(fullUrl);
-            }
-            setMode('create');
-        };
 
         const checkAutoIntercept = async () => {
             // Priority 1: Raw Expo Linking Intent (bypasses router segment hydration issues)
@@ -102,31 +126,6 @@ export default function WelcomeScreen() {
                 return;
             }
 
-            try {
-                // Tier 3 Privacy Guardrail: Ensure we don't creepily ping the clipboard on returning users
-                const hasLaunched = await AsyncStorage.getItem('bp_has_launched_before');
-                if (!hasLaunched) {
-                    await AsyncStorage.setItem('bp_has_launched_before', 'true');
-
-                    const hasCode = await Clipboard.hasStringAsync();
-                    if (hasCode) {
-                        const content = await Clipboard.getStringAsync();
-                        const cleanContent = content?.trim() || '';
-
-                        // Intercept if it's an invite token OR an invite URL
-                        if (cleanContent.startsWith('BP-') || cleanContent.startsWith('INV-') ||
-                            (cleanContent.startsWith('http') && cleanContent.includes('invite='))) {
-                            if (mounted) {
-                                setProcessingMagicLink(true);
-                                await processFullUrl(cleanContent);
-                                setTimeout(() => setProcessingMagicLink(false), 1500); // UI breathing room
-                            }
-                        }
-                    }
-                }
-            } catch (e) {
-                console.log("Clipboard read intercepted by OS or failed", e);
-            }
         };
 
         checkAutoIntercept();
@@ -529,15 +528,20 @@ export default function WelcomeScreen() {
                     <View style={styles.card}>
                         <Text style={styles.title}>🎟️ Join BeanPool</Text>
 
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Paste your invite link or code"
-                            placeholderTextColor="#9ca3af"
-                            value={inviteCode}
-                            onChangeText={setInviteCode}
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                        />
+                        <View style={styles.inputContainer}>
+                            <TextInput
+                                style={styles.inputFlex}
+                                placeholder="Paste your invite link or code"
+                                placeholderTextColor="#9ca3af"
+                                value={inviteCode}
+                                onChangeText={setInviteCode}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                            />
+                            <Pressable style={styles.pasteBtn} onPress={handlePasteInvite}>
+                                <Text style={styles.pasteBtnText}>Paste</Text>
+                            </Pressable>
+                        </View>
 
                         {inviteCode && !inviteCode.startsWith('http') && (
                             <TextInput
@@ -753,6 +757,10 @@ const styles = StyleSheet.create({
     title: { fontSize: 20, fontWeight: 'bold', color: '#111827', marginBottom: 8 },
     subtitle: { fontSize: 14, color: '#6b7280', marginBottom: 24, lineHeight: 20 },
     input: { backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#d1d5db', borderRadius: 10, padding: 14, color: '#111827', fontSize: 16, marginBottom: 16 },
+    inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff', borderWidth: 1.5, borderColor: '#d1d5db', borderRadius: 12, marginBottom: 16, overflow: 'hidden' },
+    inputFlex: { flex: 1, padding: 16, color: '#111827', fontSize: 16 },
+    pasteBtn: { backgroundColor: '#f3f4f6', paddingHorizontal: 16, paddingVertical: 12, borderLeftWidth: 1, borderColor: '#d1d5db', justifyContent: 'center' },
+    pasteBtnText: { color: '#4b5563', fontSize: 14, fontWeight: '600' },
 
     // Callsign (Step 1) — larger, labeled input
     callsignLabel: { fontSize: 18, fontWeight: '700', color: '#1f2937', marginBottom: 8, marginTop: 8 },
