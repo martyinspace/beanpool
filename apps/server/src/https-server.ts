@@ -26,6 +26,7 @@ import { getCaCertPem, getServerCertPem, getServerKeyPem, isUsingLetsEncrypt } f
 import {
     getLocalConfig, saveLocalConfig, hashPassword, verifyPassword,
     getThresholds, updateThresholds, DEFAULT_THRESHOLDS,
+    validatePasswordStrength,
 } from './local-config.js';
 import {
     getConnectors, addConnector, removeConnector,
@@ -109,7 +110,7 @@ export async function startHttpsServer(port: number): Promise<void> {
         ctx.set('X-Content-Type-Options', 'nosniff');
         ctx.set('X-Frame-Options', 'DENY');
         ctx.set('X-XSS-Protection', '1; mode=block');
-        ctx.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'");
+        ctx.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://unpkg.com https://*.tile.openstreetmap.org; connect-src 'self' https://nominatim.openstreetmap.org *; frame-ancestors 'none'");
         ctx.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
         await next();
     });
@@ -719,9 +720,10 @@ export async function startHttpsServer(port: number): Promise<void> {
             return;
         }
 
-        if (!newPassword || newPassword.length < 4) {
+        const validation = validatePasswordStrength(newPassword || '');
+        if (!validation.valid) {
             ctx.status = 400;
-            ctx.body = { error: 'New password must be at least 4 characters' };
+            ctx.body = { error: validation.error };
             return;
         }
 

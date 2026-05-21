@@ -647,6 +647,15 @@
                         <input type="password" id="new-pwd" placeholder="New password">
                         <button class="pwd-eye" aria-label="Toggle password visibility" title="Toggle password visibility">👁</button>
                     </div>
+                    <!-- Password strength requirements checklist -->
+                    <div class="pwd-requirements" id="pwd-requirements-box" style="margin-top: 0.75rem; padding: 0.75rem; border-radius: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid #1e293b; font-size: 0.75rem; color: #94a3b8; display: none;">
+                        <div style="font-weight: 600; margin-bottom: 0.4rem; color: #f8fafc;">Password must meet:</div>
+                        <div class="req-item" id="req-len" style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem; transition: color 0.2s;"><span class="icon" style="font-style: normal;">❌</span> At least 8 characters</div>
+                        <div class="req-item" id="req-upper" style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem; transition: color 0.2s;"><span class="icon" style="font-style: normal;">❌</span> At least one uppercase letter</div>
+                        <div class="req-item" id="req-lower" style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem; transition: color 0.2s;"><span class="icon" style="font-style: normal;">❌</span> At least one lowercase letter</div>
+                        <div class="req-item" id="req-num" style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem; transition: color 0.2s;"><span class="icon" style="font-style: normal;">❌</span> At least one number</div>
+                        <div class="req-item" id="req-sym" style="display: flex; align-items: center; gap: 0.4rem; transition: color 0.2s;"><span class="icon" style="font-style: normal;">❌</span> At least one symbol (!@#$%^&* etc.)</div>
+                    </div>
                 </div>
                 <div class="field">
                     <div class="pwd-wrapper">

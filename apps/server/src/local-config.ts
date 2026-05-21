@@ -130,6 +130,59 @@ export function verifyPassword(password: string, storedHash: string, storedSalt:
 }
 
 /**
+ * Validate password complexity:
+ * - Minimum 8 characters
+ * - Uppercase, lowercase, number, symbol
+ */
+export function validatePasswordStrength(password: string): { valid: boolean; error?: string } {
+    if (!password) {
+        return { valid: false, error: 'Password is required' };
+    }
+    if (password.length < 8) {
+        return { valid: false, error: 'Password must be at least 8 characters long' };
+    }
+    if (!/[A-Z]/.test(password)) {
+        return { valid: false, error: 'Password must contain at least one uppercase letter' };
+    }
+    if (!/[a-z]/.test(password)) {
+        return { valid: false, error: 'Password must contain at least one lowercase letter' };
+    }
+    if (!/[0-9]/.test(password)) {
+        return { valid: false, error: 'Password must contain at least one number' };
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>\-_]/.test(password)) {
+        return { valid: false, error: 'Password must contain at least one special character (!@#$%^&*(),.?":{}|<>_-)' };
+    }
+    return { valid: true };
+}
+
+/**
+ * Generates a high-entropy 20-character password satisfying the strength validator
+ */
+export function generateStrongPassword(): string {
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const numbers = '0123456789';
+    const symbols = '!@#$%^&*()';
+    const all = uppercase + lowercase + numbers + symbols;
+
+    let password = '';
+    // Ensure at least one from each required category
+    password += uppercase[Math.floor(Math.random() * uppercase.length)];
+    password += lowercase[Math.floor(Math.random() * lowercase.length)];
+    password += numbers[Math.floor(Math.random() * numbers.length)];
+    password += symbols[Math.floor(Math.random() * symbols.length)];
+
+    // Fill up the rest of the 20 character length
+    for (let i = 0; i < 16; i++) {
+        password += all[Math.floor(Math.random() * all.length)];
+    }
+
+    // Shuffle the characters
+    return password.split('').sort(() => 0.5 - Math.random()).join('');
+}
+
+/**
  * Initialize admin password on first boot.
  * - If config already locked → skip (password already set)
  * - If ADMIN_PASSWORD env var set → hash and save
@@ -145,12 +198,17 @@ export function initAdminPassword(): void {
 
     let password = process.env.ADMIN_PASSWORD;
 
-    if (!password) {
-        password = randomBytes(16).toString('hex');
+    if (password) {
+        const validation = validatePasswordStrength(password);
+        if (!validation.valid) {
+            throw new Error(`[Config] ADMIN_PASSWORD environment variable is invalid: ${validation.error}`);
+        }
+    } else {
+        password = generateStrongPassword();
         console.log('');
         console.log('╔══════════════════════════════════════════════╗');
         console.log('║  🔑 Auto-generated admin password:          ║');
-        console.log(`║  ${password}  ║`);
+        console.log(`║  ${password}                ║`);
         console.log('║                                              ║');
         console.log('║  Save this! It won\'t be shown again.        ║');
         console.log('╚══════════════════════════════════════════════╝');

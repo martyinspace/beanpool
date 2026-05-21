@@ -446,10 +446,56 @@
         });
 
         // ======================== CHANGE PASSWORD ========================
+        const newPwdInput = document.getElementById('new-pwd');
+        const reqBox = document.getElementById('pwd-requirements-box');
+
+        newPwdInput.addEventListener('input', () => {
+            const val = newPwdInput.value;
+            if (!val) {
+                reqBox.style.display = 'none';
+                return;
+            }
+            reqBox.style.display = 'block';
+
+            const checks = {
+                len: val.length >= 8,
+                upper: /[A-Z]/.test(val),
+                lower: /[a-z]/.test(val),
+                num: /[0-9]/.test(val),
+                sym: /[!@#$%^&*(),.?":{}|<>\-_]/.test(val)
+            };
+
+            updateReqItem('req-len', checks.len);
+            updateReqItem('req-upper', checks.upper);
+            updateReqItem('req-lower', checks.lower);
+            updateReqItem('req-num', checks.num);
+            updateReqItem('req-sym', checks.sym);
+        });
+
+        function updateReqItem(id, met) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (met) {
+                el.style.color = '#10b981';
+                el.querySelector('.icon').textContent = '✅';
+            } else {
+                el.style.color = '#ef4444';
+                el.querySelector('.icon').textContent = '❌';
+            }
+        }
+
         document.getElementById('change-pwd-btn').addEventListener('click', async () => {
             const np = document.getElementById('new-pwd').value;
             const nc = document.getElementById('new-pwd-confirm').value;
             if (!np) { showStatus('pwd-status', 'Enter a new password', 'error'); return; }
+
+            // Validate strength client-side
+            const meetsAll = np.length >= 8 && /[A-Z]/.test(np) && /[a-z]/.test(np) && /[0-9]/.test(np) && /[!@#$%^&*(),.?":{}|<>\-_]/.test(np);
+            if (!meetsAll) {
+                showStatus('pwd-status', 'Password does not meet the requirements', 'error');
+                return;
+            }
+
             if (np !== nc) { showStatus('pwd-status', 'Passwords do not match', 'error'); return; }
             try {
                 const res = await fetch(`${API}/change-password`, {
@@ -462,6 +508,7 @@
                     showStatus('pwd-status', 'Password updated!', 'success');
                     document.getElementById('new-pwd').value = '';
                     document.getElementById('new-pwd-confirm').value = '';
+                    reqBox.style.display = 'none';
                 } else {
                     const err = await res.json();
                     showStatus('pwd-status', err.error || 'Failed', 'error');
