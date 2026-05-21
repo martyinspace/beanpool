@@ -360,19 +360,21 @@ Neighboring communities scaling federation can elegantly federate through a sing
 
 The project maintains 4 live sovereign nodes spanning bare-metal and Azure VMs. Both bare-metal nodes run on the Debian "Lighthouse" server at `192.168.1.219`, served via Cloudflare Tunnel.
 
-| # | Flag | Callsign | IP Address | DNS Name | Type | PWA |
-|---|------|----------|-----------|----------|------|-----|
-| 1 | 🇦🇺 | Mullum 2 | `20.211.27.68` | `mullum2.beanpool.org` | Azure VM (AU) | [Open](https://mullum2.beanpool.org) |
-| 3 | 🏠 | Mullum 1 | `192.168.1.219` | `mullum1.beanpool.org` | Bare Metal (Cloudflare Tunnel) | [Open](https://mullum.beanpool.org:8443) |
+| # | Flag | Name | IP Address | DNS Name | Type | PWA |
+|---|------|------|-----------|----------|------|-----|
+| 1 | 🇦🇺 | Mullum 1 | `20.211.27.68` | `mullum1.beanpool.org` | Azure VM (AU) | [Open](https://mullum1.beanpool.org) |
+| 2 | 🏠 | Mullum 2 | `192.168.1.219` | `mullum2.beanpool.org` | Bare Metal (Cloudflare Tunnel) | [Open](https://mullum2.beanpool.org) |
 | 4 | 🏠 | Review | `192.168.1.219` | `review.beanpool.org` | Bare Metal (Cloudflare Tunnel) | [Open](https://review.beanpool.org) |
+| 5 | 🏠 | Test | `192.168.1.219` | `test.beanpool.org` | Bare Metal (Cloudflare Tunnel) | [Open](https://test.beanpool.org) |
 
 ### Deployment Commands
 The root `deploy.sh` manages upgrades across the mesh:
 ```bash
-bash deploy.sh           # Deploy to all 4 nodes
-bash deploy.sh 1         # Mullum 2 only
-bash deploy.sh 3         # Mullum 1 only
+bash deploy.sh           # Deploy to all nodes
+bash deploy.sh 1         # Mullum 1 only
+bash deploy.sh 2         # Mullum 2 only
 bash deploy.sh 4         # Review only
+bash deploy.sh 5         # Test only
 ```
 
 ### SSH Access
