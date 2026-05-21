@@ -2111,8 +2111,12 @@ export function createRecoveryRequest(oldPubkey: string, newPubkey: string, guar
     const guardians = getGuardiansOf(oldPubkey);
     if (guardians.length < 3) throw new Error('Account does not have enough guardians to recover');
     
-    const guardianMembers = guardians.map(getMember).filter(Boolean) as Member[];
-    const guessMatch = guardianMembers.some(m => m.callsign.toLowerCase().trim() === guardianGuessCallsign.toLowerCase().trim());
+    // ⚡ Bolt: Optimize by skipping array mapping and using short-circuiting .some()
+    const targetCallsign = guardianGuessCallsign.toLowerCase().trim();
+    const guessMatch = guardians.some(pubkey => {
+        const m = getMember(pubkey);
+        return m && m.callsign.toLowerCase().trim() === targetCallsign;
+    });
     
     if (!guessMatch) {
         throw new Error('Guardian knowledge check failed. You must provide the exact callsign of one of your guardians.');

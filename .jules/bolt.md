@@ -4,3 +4,6 @@
 ## 2026-05-18 - [O(N^2) Nested Filtering in Invite Tree Generation]
 **Learning:** In `apps/server/src/state-engine.ts`, the `getInviteTree` function previously filtered the entire `allMembers` array for every node recursively (`O(N^2)` complexity). This is a known performance anti-pattern in the codebase that can block the Node.js event loop with large datasets.
 **Action:** When performing nested array associations (like building trees from flat lists), pre-compute a lookup `Map` grouping items by their parent key (e.g. `invitedBy`) to convert nested filtering into `O(N)` key lookups.
+## 2026-05-19 - [Avoid intermediate array allocations in loops]
+**Learning:** In `state-engine.ts`, processing lists with chained array methods like `.map(getMember).filter(Boolean).some(...)` creates unnecessary intermediate arrays in memory. If the list is large, this wastes CPU cycles and memory. Additionally, performing static transformations (like string `.toLowerCase().trim()`) inside the loop iteration causes redundant processing.
+**Action:** Replace `.map().filter().some()` chains with a single short-circuiting `.some()` (or `.find()`) loop that evaluates the condition directly. Always lift static formatting or transformation logic outside the loop.
