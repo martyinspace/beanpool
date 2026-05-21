@@ -154,7 +154,7 @@ export async function performSync(): Promise<SyncResult> {
             const SecureStore = require('expo-secure-store');
             identityRaw = await SecureStore.getItemAsync('sovereign-identity');
         } catch (e) {
-            identityRaw = await AsyncStorage.getItem('beanpool:identity');
+            console.error('[Pillar Sync] Failed to get identity from SecureStore', e);
         }
 
         let pubKey = '';
