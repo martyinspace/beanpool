@@ -4,9 +4,9 @@
 > **Read this first** — then see `index.md` for a full documentation map.
 
 ---
-## Current State (2026-05-18)
+## Current State (2026-05-22)
 
-**BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🪶 bean reputation system, abuse reporting, **moderation centre** (batch post management, wash-trading detection, member audit), **update notifications** (Docker Desktop-style header badge with auto-check), community health dashboard, and federation protocol — deployed on **3 sovereign nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity including a custom Android map marker rendering pipeline. A new automated security journaling process using the `.jules` directory has been established to harden the codebase.
+**BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🪶 bean reputation system, abuse reporting, **moderation centre** (batch post management, wash-trading detection, member audit), **update notifications** (Docker Desktop-style header badge with auto-check), community health dashboard, and federation protocol — deployed on **4 sovereign nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity including a custom Android map marker rendering pipeline. A new automated security journaling process using the `.jules` directory has been established to harden the codebase.
 
 ### What's Working
 - ✅ **Dynamic Map Root** — Leaflet map defaults coordinate center to the node's `serviceRadius` config (e.g. Mullumbimby) instead of hardcoding, and handles location cleanly without async ghost-pin drops.
@@ -41,7 +41,7 @@
 - ✅ **Sanitized Local Syncing** — The native SQLite `applyDelta` and map interfaces automatically filter out synthetic guest/visitor accounts and system wallets.
 - ✅ **Handshake Protocol** — mutual trust + latency over yamux streams
 - ✅ **Let's Encrypt Auto-TLS** — DNS-01 challenge via Cloudflare API (acme-client v5)
-- ✅ **4 Live Nodes** — Mullum 2 (Azure AU), Mullum 1 (bare metal, Cloudflare Tunnel), Review (bare metal, Cloudflare Tunnel)
+- ✅ **4 Live Nodes** — Mullum 1 (Azure AU), Mullum 2 (bare metal), Review (bare metal), Test (bare metal, offline recovery database restoration test server)
 - ✅ **Node Admin Setup Guide** — comprehensive docs for new node operators
 - ✅ **Database Migration (SQLite)** — replaced JSON engine with `better-sqlite3` with WAL mode and self-healing schema migrations
 - ✅ **FTS5 Full-Text Search** — marketplace search with synonym mapping (`synonyms.json`)
@@ -98,6 +98,12 @@
 - ✅ **Cryptographic P2P Sync Signatures** — Secured peer-to-peer Merkle replication by signing outgoing state payloads with the node's libp2p Ed25519 private key, and verifying payload signatures before database writes. Includes a dedicated `test-sync-signature.ts` integration suite.
 - ✅ **Native Identity SecureStore & Clipboard Privacy** — Eliminated legacy plaintext fallback lookup routines for user private keys in favor of hardware-backed Expo `SecureStore`, and resolved OS clipboard warnings by switching to a user-initiated paste action.
 - ✅ **Monorepo Flat Linting** — Implemented monorepo-wide Flat config `eslint.config.mjs` to automate cleaner code standards.
+- ✅ **Release v1.0.76 Settings Lockout Fix** — Resolved Admin Settings CSP lockouts by explicitly permitting Leaflet, OpenStreetMap, and geocoding API domains (`https://unpkg.com`, `https://*.tile.openstreetmap.org`, `https://nominatim.openstreetmap.org`).
+- ✅ **Release v1.0.76 Password Complexity Engine** — Enforced high-entropy complexity rules (minimum 8 chars, requiring uppercase, lowercase, digit, and special character check) dynamically evaluated at system boot, settings inputs, and API boundaries.
+- ✅ **Release v1.0.77 SQLite Database Restoration** — Restored SQLite database state on the `test.beanpool.org` node using simulator datasets to recover 28 members, 21 posts, and 24 messages.
+- ✅ **Release v1.0.77 "Never" Sync Schedule** — Added a "Never (Disabled)" option to Directory settings, allowing admins to completely bypass periodic directory pushes.
+- ✅ **Production EAS Native Builds (v1.0.76-b97)** — Successfully generated production iOS ipa bundle and Android aab bundle, distributing them to local and desktop build stores.
+- ✅ **Global Mesh Node Deployment** — Automated and verified the global mesh deployment of version `v1.0.77` using `deploy.sh` across all 4 mesh nodes (`mullum1.beanpool.org`, `mullum2.beanpool.org`, `review.beanpool.org`, and `test.beanpool.org`) with valid Let's Encrypt TLS certificates.
 
 ---
 
@@ -204,13 +210,14 @@ bash deploy.sh 4         # Review (US) only
 
 | # | Node | IP | DNS | SSH User | SSH Key | Notes |
 |---|------|----|-----|----------|---------|-------|
-| 1 | Mullum 2 | `20.211.27.68` | `mullum2.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` | Azure VM (AU) |
-| 3 | Mullum 1 | `192.168.1.219` | `mullum1.beanpool.org` | `marty` | default key | Bare metal (Debian Lighthouse), served via Cloudflare Tunnel |
-| 4 | Review | `192.168.1.219` | `review.beanpool.org` | `marty` | default key | Bare metal (Debian Lighthouse), served via Cloudflare Tunnel, alternate ports |
+| 1 | Mullum 1 | `20.211.27.68` | `mullum1.beanpool.org` | `azureuser` | `~/.ssh/id_azure_lattice` | Azure VM (AU), default ports |
+| 2 | Mullum 2 | `192.168.1.219` | `mullum2.beanpool.org` | `marty` | default key | Bare metal, directory `BeanPool-Mullum2`, alternate ports (8447/8448) |
+| 4 | Review | `192.168.1.219` | `review.beanpool.org` | `marty` | default key | Bare metal, directory `BeanPool-Review`, alternate ports (8445/8081) |
+| 5 | Test | `192.168.1.219` | `test.beanpool.org` | `marty` | default key | Bare metal, directory `BeanPool`, default ports, offline SQLite recovery node |
 
 ```bash
-ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68   # Mullum 2 (Azure)
-ssh marty@192.168.1.219                                  # Mullum 1 + Review (Debian Lighthouse)
+ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68   # Mullum 1 (Azure)
+ssh marty@192.168.1.219                                  # Mullum 2 + Review + Test (Debian Lighthouse)
 ```
 
 ### Useful Debug Commands
@@ -248,4 +255,4 @@ gh run list --limit 3
 
 ---
 
-_Last updated: 2026-05-20_
+_Last updated: 2026-05-22_

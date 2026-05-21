@@ -94,6 +94,7 @@ apps/native/
 - **Push Notifications** — DM and marketplace deal alerts via Expo Push, per-member notification preferences, token registration
 - **Guest Mode** — multi-node onboarding flow with membership probe; guest indicators in header and sync status when visiting a node you're not a member of
 - **Community Search** — search and infinite scroll on the Community member list
+- **App Store & Play Store Submission** — Published/built for both stores (v1.0.76, build 97).
 - **Community Projects** — crowdfund tab with progress bars, funding badges, and proposal creation
 - **Branded Tab Bar** — neon-vine artwork background with semi-transparent overlay
 - **Post Detail View** — full-screen view with photos, credits, author info
@@ -189,4 +190,4 @@ npx expo start                      # Native dev client
 
 ---
 
-_Last updated: 2026-05-20_
+_Last updated: 2026-05-22_

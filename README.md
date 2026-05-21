@@ -11,7 +11,7 @@
 
 BeanPool is an open protocol for building a **post-extraction economy**. It connects communities through a decentralized mutual credit system where value is created through cooperation, not extraction. Nodes gossip state over a libp2p mesh, automatically applying progressive circulation (value decay) to prevent hoarding and fund a community Commons pool.
 
-**Live network:** [review.beanpool.org](https://review.beanpool.org) · [mullum.beanpool.org](https://mullum.beanpool.org:8443) — federated via peer connectors with cross-community marketplace browsing and cryptographically secure Libp2p mesh trading.
+**Live network:** [mullum1.beanpool.org](https://mullum1.beanpool.org) · [mullum2.beanpool.org](https://mullum2.beanpool.org:8447) · [review.beanpool.org](https://review.beanpool.org:8445) · [test.beanpool.org](https://test.beanpool.org) — federated via peer connectors with cross-community marketplace browsing and cryptographically secure Libp2p mesh trading.
 
 ---
 
@@ -395,7 +395,7 @@ All endpoints are served on port 8443 (HTTPS):
 
 ## Status
 
-BeanPool is in active development. The PWA is **fully functional** and a **React Native / Expo companion app** has near-complete parity with 7 tabs (Map, Projects, Market, Chat, People, Ledger, Settings), SQLite persistence, and background Merkle sync. Three nodes (Mullum 1, Mullum 2, Review) are deployed with federation protocol for cross-community trading.
+BeanPool is in active development. The PWA is **fully functional** and a **React Native / Expo companion app** has near-complete parity with 7 tabs (Map, Projects, Market, Chat, People, Ledger, Settings), SQLite persistence, and background Merkle sync. Four nodes (Mullum 1, Mullum 2, Review, Test) are deployed with federation protocol for cross-community trading.
 
 **What's working:**
 - ✅ Dynamic Node-Centered Mapping — Leaflet map bounds are dynamically tethered to the node's configured radius, and GPS pin-drop race conditions have been resolved
@@ -421,7 +421,7 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ Mirror state sync (Merkle hash + delta exchange, 15-min intervals)
 - ✅ Handshake protocol (~570ms latency between continents)
 - ✅ Let's Encrypt auto-TLS via DNS-01 challenge (Cloudflare API)
-- ✅ 4 live nodes — Mullum 2 (Azure AU), Mullum 1 (bare metal, Cloudflare Tunnel), Review (bare metal, Cloudflare Tunnel)
+- ✅ 4 live nodes — Mullum 1 (Azure AU), Mullum 2 (bare metal), Review (bare metal), and Test (bare metal, offline recovery database restoration test server)
 - ✅ Node admin setup guide with LE and no-domain instructions
 - ✅ Database (SQLite) — `better-sqlite3` with WAL mode, self-healing schema migrations
 - ✅ FTS5 full-text search — marketplace search with synonym mapping
@@ -466,7 +466,13 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ **Auth Boundary Verification** — Shipped `scripts/verify-auth-boundary.mjs` which dynamically asserts all 38 mutating endpoints across 114 test vectors (unsigned, wrong-key, spoofed-body) against the live server.
 - ✅ **Cryptographic P2P Sync Signatures** — Secured peer-to-peer Merkle replication by signing outgoing state payloads with the node's libp2p Ed25519 private key, and verifying payload signatures before database writes. Includes a dedicated `test-sync-signature.ts` integration suite.
 - ✅ **Native Identity SecureStore & Clipboard Privacy** — Eliminated plaintext fallback storage for identity private keys in favor of hardware-backed Expo `SecureStore`, and resolved OS spyware notifications by replacing background clipboard sniffing with user-initiated pasting.
-- ✅ **Monorepo ESLint Flat Config** — Configured monorepo-wide flat linting rules via `eslint.config.mjs` to maintain code health standards.
+- ✅ Monorepo ESLint Flat Config — Configured monorepo-wide flat linting rules via `eslint.config.mjs` to maintain code health standards.
+- ✅ Release v1.0.76 Settings Lockout Fix — Resolved Admin Settings CSP lockouts by explicitly permitting Leaflet, OpenStreetMap, and geocoding API domains (`https://unpkg.com`, `https://*.tile.openstreetmap.org`, `https://nominatim.openstreetmap.org`).
+- ✅ Release v1.0.76 Password Complexity Engine — Enforced high-entropy complexity rules (minimum 8 chars, requiring uppercase, lowercase, digit, and special character check) dynamically evaluated at system boot, settings inputs, and API boundaries.
+- ✅ Release v1.0.77 SQLite Database Restoration — Restored SQLite database state on the `test.beanpool.org` node using simulator datasets to recover 28 members, 21 posts, and 24 messages.
+- ✅ Release v1.0.77 "Never" Sync Schedule — Added a "Never (Disabled)" option to Directory settings, allowing admins to completely bypass periodic directory pushes.
+- ✅ Production EAS Native Builds (v1.0.76-b97) — Successfully generated production iOS ipa bundle and Android aab bundle, distributing them to local and desktop build stores.
+- ✅ Global Mesh Node Deployment — Automated and verified the global mesh deployment of version `v1.0.77` using `deploy.sh` across all 4 mesh nodes (`mullum1.beanpool.org`, `mullum2.beanpool.org`, `review.beanpool.org`, and `test.beanpool.org`) with valid Let's Encrypt TLS certificates.
 
 **Coming next:**
 - Native App Polish & App Store Submission (federation parity)
@@ -477,4 +483,4 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 
 [MIT](LICENSE)
 
-_Last updated: 2026-05-20_
+_Last updated: 2026-05-22_

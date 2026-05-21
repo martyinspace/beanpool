@@ -1,11 +1,15 @@
 # 🗺️ BeanPool Roadmap
 
-> Planned features and future work. Updated: 2026-05-20
+> Planned features and future work. Updated: 2026-05-22
 
 ---
 
 ## ✅ Recently Completed
 
+- ✅ **Release v1.0.77: SQLite Database Restoration & "Never" Syncing** — Successfully restored the SQLite database state on `test.beanpool.org` using simulator datasets to recover 28 members, 21 posts, and 24 messages. Added a "Never (Disabled)" option to Directory settings, allowing admins to completely bypass periodic directory pushes.
+- ✅ **Release v1.0.76: Settings Lockout Fix & Password Complexity** — Resolved Admin Settings CSP lockouts by explicitly permitting Leaflet, OpenStreetMap, and geocoding API domains (`https://unpkg.com`, `https://*.tile.openstreetmap.org`, `https://nominatim.openstreetmap.org`). Enforced high-entropy complexity rules (minimum 8 chars, mixed cases, digits, and special characters) validated dynamically on settings inputs, system boot, and API boundaries.
+- ✅ **Production EAS Native Builds (v1.0.76-b97)** — Successfully compiled production Android app bundle (`beanpool-android-v1.0.76-b97.aab`) and iOS app bundle (`beanpool-ios-v1.0.76-b97.ipa`) using EAS, copying them to local and desktop build stores.
+- ✅ **Global Mesh Node Deployment** — Automated and executed global mesh deployment of release `v1.0.77` using `deploy.sh` across all 4 nodes: `mullum1.beanpool.org` (Azure AU), `mullum2.beanpool.org` (Bare Metal), `review.beanpool.org` (Bare Metal), and `test.beanpool.org` (Bare Metal).
 - ✅ **Sentinel Security Hardening & Deny-by-Default (Sentinel Sprint)** — Inverted the Koa server `requireSignature` auth filter to deny-by-default on all mutating endpoints (`POST`, `PUT`, `DELETE` under `/api/*`), eliminating opt-in vulnerabilities. Bound verified request keys to `ctx.state.actor` as the authenticated source of truth, and implemented precision spoof-checking with dynamic exclusions.
 - ✅ **Auth Boundary Verifier Upgrades** — Shipped `scripts/verify-auth-boundary.mjs` verifying all 38 protected routes with 114 checkmarks (unsigned, wrong-key, spoofed-body vectors) against running servers to prevent regression.
 - ✅ **Cryptographic P2P Sync Signature Engine** — Secured the peer-to-peer Merkle replication pipeline by signing outgoing state payloads with the node's libp2p Ed25519 private key, and verifying payload signatures before database writes. Added a standalone integration test `test-sync-signature.ts`.
@@ -144,7 +148,7 @@
 - [x] **Bean Ratings (Native)** — port 🫘 rating system to native app
 - [x] **Abuse Reporting (Native)** — port reporting UI to native app
 - [x] **Push Notifications** — Message and trade alerts via Expo Push Notifications
-- [x] **App Store & Play Store Submission** — Published to both stores (v1.0.39, build 50).
+- [x] **App Store & Play Store Submission** — Published/built for both stores (v1.0.76, build 97).
 
 ---
 
