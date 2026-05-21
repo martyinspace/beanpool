@@ -61,7 +61,7 @@ export const PinVisual = React.memo<PinVisualProps>(({
         <Circle cx={CX} cy={CY} r={EMOJI_BG_R} fill="rgba(255,255,255,0.85)" />
       </Svg>
       <View collapsable={false} style={pinStyles.emojiOverlay}>
-        <Text collapsable={false} style={pinStyles.emoji}>{emoji}</Text>
+        <Text style={pinStyles.emoji}>{emoji}</Text>
       </View>
     </View>
   );

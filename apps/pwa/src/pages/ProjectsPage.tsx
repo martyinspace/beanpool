@@ -344,7 +344,7 @@ export function ProjectsPage({ identity }: Props) {
                 <div className="fixed inset-0 z-50 bg-bg-primary flex flex-col" style={{ overflowY: 'auto' }}>
                     <header className="sticky top-0 bg-nature-900 border-b border-nature-800 p-4 shadow-sm flex items-center justify-between z-10">
                         <h2 className="text-white font-bold text-lg">Propose Project</h2>
-                        <button onClick={() => setShowNewProject(false)} className="p-2 text-nature-400 hover:text-white bg-nature-800 hover:bg-nature-700 rounded-full">
+                        <button onClick={() => setShowNewProject(false)} className="p-2 text-nature-400 hover:text-white bg-nature-800 hover:bg-nature-700 rounded-full" aria-label="Close new project proposal">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -442,7 +442,7 @@ export function ProjectsPage({ identity }: Props) {
             {selectedProject && (
                 <div className="fixed inset-0 z-50 flex flex-col" style={{ backgroundColor: 'var(--bg-primary)', overflowY: 'auto' }}>
                     <header className="sticky top-0 bg-nature-900 border-b border-nature-800 p-3 shadow-md flex items-center gap-3 z-10 transition-colors">
-                        <button onClick={() => { setSelectedProject(null); setIsEditingProject(false); }} className="p-2 text-nature-400 hover:text-white bg-nature-800 hover:bg-nature-700 rounded-full transition-colors">
+                        <button onClick={() => { setSelectedProject(null); setIsEditingProject(false); }} className="p-2 text-nature-400 hover:text-white bg-nature-800 hover:bg-nature-700 rounded-full transition-colors" aria-label="Close project details">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                             </svg>

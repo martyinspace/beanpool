@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, TextInput, I
     DeviceEventEmitter, Alert, ScrollView } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useIdentity } from '../IdentityContext';
 import { getBalance, getTransactions, getMemberProfile, getAllCommunityMembers, sendTransfer, getPledgeHistory, getEscrowTotal } from '../../utils/db';

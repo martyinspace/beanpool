@@ -133,7 +133,7 @@ const ClusterMarker = ({ cluster, clustersReady }: any) => {
             <View collapsable={false} style={{ width: glow, height: glow, justifyContent: 'center', alignItems: 'center' }}>
                 <View collapsable={false} style={{ position: 'absolute', width: glow, height: glow, borderRadius: glow / 2, backgroundColor: 'rgba(59, 130, 246, 0.25)' }} />
                 <View collapsable={false} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', borderColor: '#ffffff', borderWidth: 3 }}>
-                    <Text collapsable={false} style={{ color: '#ffffff', fontWeight: '800', fontSize }}>{points}</Text>
+                    <Text style={{ color: '#ffffff', fontWeight: '800', fontSize }}>{points}</Text>
                 </View>
             </View>
         </Marker>

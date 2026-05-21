@@ -292,12 +292,16 @@ export function InvitePage({ identity }: Props) {
                                             ? 'bg-emerald-100 border-emerald-500 text-emerald-700 dark:bg-emerald-900/50 dark:border-emerald-500 dark:text-emerald-400' 
                                             : 'bg-white dark:bg-nature-800 border-nature-200 dark:border-nature-700 text-nature-900 dark:text-white hover:bg-nature-50 dark:hover:bg-nature-700'
                                     }`}
+                                    aria-label="Copy invite link"
+                                    title="Copy invite link"
                                 >
                                     {copied ? '✓ Copied!' : '📋 Copy'}
                                 </button>
                                 <button 
                                     onClick={() => handleShare(newCode)} 
                                     className="py-3 px-6 rounded-xl border-none bg-emerald-600 text-white text-[14px] font-bold cursor-pointer hover:bg-emerald-700 shadow-sm transition-all"
+                                    aria-label="Share invite link"
+                                    title="Share invite link"
                                 >
                                     📤 Share
                                 </button>
@@ -325,12 +329,16 @@ export function InvitePage({ identity }: Props) {
                                             <button 
                                                 onClick={() => handleCopyProxy(inv.code)} 
                                                 className="p-2 rounded-lg bg-oat-50 dark:bg-nature-800 border border-nature-200 dark:border-nature-700 text-nature-600 dark:text-nature-400 hover:bg-oat-100 dark:hover:bg-nature-700 cursor-pointer transition-colors shadow-sm"
+                                                aria-label="Copy invite link"
+                                                title="Copy invite link"
                                             >
                                                 📋
                                             </button>
                                             <button 
                                                 onClick={() => handleShare(inv.code)} 
                                                 className="p-2 rounded-lg bg-emerald-600 border-none text-white hover:bg-emerald-700 cursor-pointer shadow-sm transition-colors"
+                                                aria-label="Share invite link"
+                                                title="Share invite link"
                                             >
                                                 📤
                                             </button>

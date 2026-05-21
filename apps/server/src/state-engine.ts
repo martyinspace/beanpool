@@ -918,6 +918,34 @@ export function getProfiles(): Record<string, MemberProfile> {
     return map;
 }
 
+export function getAllProfiles(requesterPubkey?: string): MemberProfile[] {
+    const rows = db.prepare("SELECT * FROM members WHERE status != 'pruned'").all() as any[];
+    
+    // Batch fetch friends where friend_pubkey is the requesterPubkey
+    let friendOwners = new Set<string>();
+    if (requesterPubkey) {
+        const friendRows = db.prepare("SELECT owner_pubkey FROM friends WHERE friend_pubkey = ?").all(requesterPubkey) as any[];
+        friendOwners = new Set(friendRows.map(f => f.owner_pubkey));
+    }
+
+    const profiles: MemberProfile[] = [];
+    for (const row of rows) {
+        const profile = rowToProfile(row);
+        const publicKey = profile.publicKey;
+        if (profile.contact && requesterPubkey !== publicKey) {
+            if (profile.contact.visibility === 'hidden') {
+                profile.contact = null;
+            } else if (profile.contact.visibility === 'friends') {
+                if (!requesterPubkey || !friendOwners.has(publicKey)) {
+                    profile.contact = null;
+                }
+            }
+        }
+        profiles.push(profile);
+    }
+    return profiles;
+}
+
 // ===================== TRUST STATS =====================
 
 /**
@@ -2745,8 +2773,11 @@ export function createRecoveryRequest(oldPubkey: string, newPubkey: string, guar
     const guardians = getGuardiansOf(oldPubkey);
     if (guardians.length < 3) throw new Error('Account does not have enough guardians to recover');
     
-    const guardianMembers = guardians.map(getMember).filter(Boolean) as Member[];
-    const guessMatch = guardianMembers.some(m => m.callsign.toLowerCase().trim() === guardianGuessCallsign.toLowerCase().trim());
+    const normalizedGuess = guardianGuessCallsign.toLowerCase().trim();
+    const guessMatch = guardians.some(pubkey => {
+        const m = getMember(pubkey);
+        return m ? m.callsign.toLowerCase().trim() === normalizedGuess : false;
+    });
     
     if (!guessMatch) {
         throw new Error('Guardian knowledge check failed. You must provide the exact callsign of one of your guardians.');

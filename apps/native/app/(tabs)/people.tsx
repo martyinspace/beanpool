@@ -54,6 +54,7 @@ export default function PeopleScreen() {
     const [anchorUrl, setAnchorUrl] = useState('');
     const [canInvite, setCanInvite] = useState(true);
     const [tierName, setTierName] = useState('');
+    const [isGuest, setIsGuest] = useState(false);
 
     const [members, setMembers] = useState<any[]>([]);
     const { identity } = useIdentity();
@@ -78,8 +79,21 @@ export default function PeopleScreen() {
             loadMembers(0, '', true);
         }
         if (view === 'invites') loadOfflineInvites();
-        AsyncStorage.getItem('beanpool_anchor_url').then(val => {
-            if (val) setAnchorUrl(val);
+        AsyncStorage.getItem('beanpool_anchor_url').then(async val => {
+            if (val) {
+                setAnchorUrl(val);
+                if (identity?.publicKey) {
+                    try {
+                        const res = await fetch(`${val}/api/community/membership/${identity.publicKey}`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            setIsGuest(!data.isMember);
+                        }
+                    } catch (e) {
+                        console.warn('Failed to probe guest state in people.tsx', e);
+                    }
+                }
+            }
         }).catch(() => {});
         // Load tier data for invite gating
         if (identity?.publicKey) {
@@ -239,7 +253,36 @@ export default function PeopleScreen() {
             }
 
             if (targetNodeUrl === anchorUrl) {
-                Alert.alert('Already a Member', 'You are already a member of this community node.');
+                let isMember = false;
+                try {
+                    const res = await fetch(`${targetNodeUrl}/api/community/membership/${identity?.publicKey}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        isMember = !!data.isMember;
+                    }
+                } catch (e) {
+                    console.warn('Membership check failed, assuming Guest', e);
+                }
+
+                if (isMember) {
+                    Alert.alert('Already a Member', 'You are already a member of this community node.');
+                    setRedeeming(false);
+                    return;
+                }
+
+                // If they are in Guest Mode on the active node, redeem directly without database swap!
+                const parsedCode = normaliseInviteCode(rawInvite);
+                const { redeemInvite } = await import('../../utils/db');
+                await redeemInvite(parsedCode, identity?.callsign || 'Unknown', identity);
+
+                const { performSync } = await import('../../services/pillar-sync');
+                performSync().catch(console.error);
+
+                Alert.alert('Success', 'Invite redeemed! You have successfully registered as a member on this community.');
+                setIsGuest(false);
+                setRedeemCode('');
+                setRedeemNodeUrl('');
+                router.replace('/');
                 setRedeeming(false);
                 return;
             }
@@ -289,6 +332,39 @@ export default function PeopleScreen() {
         } finally {
             setRedeeming(false);
         }
+    };
+
+    const handleTroubleWipe = () => {
+        Alert.alert(
+            'Wipe Connection?',
+            'This will permanently delete the local database and transaction cache for this community. Your key will be preserved, and you will be routed back to the welcome screen to register with a new invite link.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Wipe & Restart',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            const { clearDB } = await import('../../utils/db');
+                            await clearDB();
+                            
+                            const activeUrl = anchorUrl;
+                            await AsyncStorage.removeItem('beanpool_anchor_url');
+                            
+                            if (activeUrl) {
+                                const { removeSavedNode } = await import('../../utils/nodes');
+                                await removeSavedNode(activeUrl);
+                            }
+                            
+                            setIsGuest(false);
+                            router.replace('/welcome');
+                        } catch (err: any) {
+                            Alert.alert('Wipe Failed', err.message);
+                        }
+                    }
+                }
+            ]
+        );
     };
 
 
@@ -360,7 +436,7 @@ export default function PeopleScreen() {
                             <Text style={[styles.pillText, isActive && styles.pillTextActive]}>
                                 {v === 'friends' && '👫 Friends'}
                                 {v === 'community' && '🏘️ Community'}
-                                {v === 'invites' && '🎟️ Invites'}
+                                {v === 'invites' && (isGuest ? '🎟️ Register' : '🎟️ Invites')}
                                 {v === 'guardians' && '🛡️ Guardians'}
                             </Text>
                         </Pressable>
@@ -547,83 +623,101 @@ export default function PeopleScreen() {
 
             {view === 'invites' && (
                 <ScrollView contentContainerStyle={styles.list}>
-                    {/* GENERATE INVITE SECTION */}
-                    <Text style={styles.sectionHeader}>📤 Invite Someone</Text>
-                    <Text style={styles.sectionDesc}>Each offline ticket can only be used once. Generate a cryptographic payload directly on this device.</Text>
-
-                    {!canInvite && (
-                        <View style={{ backgroundColor: '#374151', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#4b5563' }}>
-                            <Text style={{ color: '#9ca3af', fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
-                                👻 Invite generation unlocks at <Text style={{ color: '#c4b5fd', fontWeight: '800' }}>Resident</Text> tier.
-                                Trade on the Marketplace to build trust.
+                    {isGuest ? (
+                        <View style={{ backgroundColor: '#fffbeb', borderRadius: 12, padding: 16, marginBottom: 24, borderWidth: 1, borderColor: '#fde68a' }}>
+                            <Text style={{ color: '#d97706', fontSize: 15, fontWeight: '700', marginBottom: 4 }}>
+                                ⚠️ Guest Connection Mode
+                            </Text>
+                            <Text style={{ color: '#b45309', fontSize: 13, lineHeight: 18 }}>
+                                You are currently connected to this node in **Guest Mode**. You cannot generate invites or participate in community trade until you register your identity.
                             </Text>
                         </View>
-                    )}
+                    ) : (
+                        <>
+                            {/* GENERATE INVITE SECTION */}
+                            <Text style={styles.sectionHeader}>📤 Invite Someone</Text>
+                            <Text style={styles.sectionDesc}>Each offline ticket can only be used once. Generate a cryptographic payload directly on this device.</Text>
 
-                    <TextInput
-                        placeholder="Who is this invite for? (Optional)"
-                        value={intendedFor}
-                        onChangeText={setIntendedFor}
-                        style={styles.input}
-                        placeholderTextColor="#9ca3af"
-                        editable={canInvite}
-                    />
+                            {!canInvite && (
+                                <View style={{ backgroundColor: '#374151', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#4b5563' }}>
+                                    <Text style={{ color: '#9ca3af', fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
+                                        👻 Invite generation unlocks at <Text style={{ color: '#c4b5fd', fontWeight: '800' }}>Resident</Text> tier.
+                                        Trade on the Marketplace to build trust.
+                                    </Text>
+                                </View>
+                            )}
 
-                    <Pressable
-                        style={[styles.btnGenerate, (generating || !canInvite) && { opacity: 0.6 }]}
-                        onPress={handleGenerate}
-                        disabled={generating || !canInvite}
-                    >
-                        <Text style={styles.btnGenerateText}>{!canInvite ? '🔒 Invites Locked' : generating ? 'Generating...' : '✨ Generate Offline Ticket'}</Text>
-                    </Pressable>
+                            <TextInput
+                                placeholder="Who is this invite for? (Optional)"
+                                value={intendedFor}
+                                onChangeText={setIntendedFor}
+                                style={styles.input}
+                                placeholderTextColor="#9ca3af"
+                                editable={canInvite}
+                            />
 
-                    {newCode ? (
-                        <View style={styles.qrCard}>
-                            <Text style={styles.qrTitle}>Share this cryptographic code</Text>
-                            <View style={styles.qrBox}>
-                                <QRCode
-                                    value={`${anchorUrl}/?invite=${newCode}`}
-                                    size={180}
-                                />
-                            </View>
-                            <Pressable 
-                                style={styles.btnCopyQR}
-                                onPress={() => shareInvite(newCode)}
+                            <Pressable
+                                style={[styles.btnGenerate, (generating || !canInvite) && { opacity: 0.6 }]}
+                                onPress={handleGenerate}
+                                disabled={generating || !canInvite}
                             >
-                                <Text style={styles.btnCopyQRText}>📤 Share Invite</Text>
+                                <Text style={styles.btnGenerateText}>{!canInvite ? '🔒 Invites Locked' : generating ? 'Generating...' : '✨ Generate Offline Ticket'}</Text>
                             </Pressable>
-                        </View>
-                    ) : null}
 
-                    {invites.length > 0 && (
-                        <View style={{ marginTop: 24 }}>
-                            <Text style={styles.pendingHeader}>⏳ PENDING ({invites.length})</Text>
-                            {invites.map((inv) => (
-                                <View key={inv.code} style={styles.pendingCard}>
-                                    <View style={{ flex: 1 }}>
-                                        {inv.intendedFor ? (
-                                            <Text style={styles.pendingFor}>For: {inv.intendedFor}</Text>
-                                        ) : null}
-                                        <Text style={styles.pendingCode} numberOfLines={1} ellipsizeMode="middle">
-                                            {inv.code}
-                                        </Text>
+                            {newCode ? (
+                                <View style={styles.qrCard}>
+                                    <Text style={styles.qrTitle}>Share this cryptographic code</Text>
+                                    <View style={styles.qrBox}>
+                                        <QRCode
+                                            value={`${anchorUrl}/?invite=${newCode}`}
+                                            size={180}
+                                        />
                                     </View>
                                     <Pressable 
-                                        style={styles.btnCopySmall}
-                                        onPress={() => shareInvite(inv.code)}
+                                        style={styles.btnCopyQR}
+                                        onPress={() => shareInvite(newCode)}
                                     >
-                                        <Text style={styles.btnCopySmallText}>Share</Text>
+                                        <Text style={styles.btnCopyQRText}>📤 Share Invite</Text>
                                     </Pressable>
                                 </View>
-                            ))}
-                        </View>
+                            ) : null}
+
+                            {invites.length > 0 && (
+                                <View style={{ marginTop: 24 }}>
+                                    <Text style={styles.pendingHeader}>⏳ PENDING ({invites.length})</Text>
+                                    {invites.map((inv) => (
+                                        <View key={inv.code} style={styles.pendingCard}>
+                                            <View style={{ flex: 1 }}>
+                                                {inv.intendedFor ? (
+                                                    <Text style={styles.pendingFor}>For: {inv.intendedFor}</Text>
+                                                ) : null}
+                                                <Text style={styles.pendingCode} numberOfLines={1} ellipsizeMode="middle">
+                                                    {inv.code}
+                                                </Text>
+                                            </View>
+                                            <Pressable 
+                                                style={styles.btnCopySmall}
+                                                onPress={() => shareInvite(inv.code)}
+                                            >
+                                                <Text style={styles.btnCopySmallText}>Share</Text>
+                                            </Pressable>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+                        </>
                     )}
 
                     <View style={{ height: 1, backgroundColor: '#e5e7eb', marginVertical: 32 }} />
 
                     {/* REDEEM INVITE SECTION */}
-                    <Text style={styles.sectionHeader}>🎟️ Join Another Community</Text>
-                    <Text style={styles.sectionDesc}>Enter an invite code to join a different node. Once registered, you can switch between your accounts by tapping the title in the top banner.</Text>
+                    <Text style={styles.sectionHeader}>{isGuest ? '🎟️ Complete Registration' : '🎟️ Join Another Community'}</Text>
+                    <Text style={styles.sectionDesc}>
+                        {isGuest 
+                            ? `You are currently connected to this node (${anchorUrl}) in Guest Mode. Enter a valid invite code to register your identity and unlock full membership features.`
+                            : 'Enter an invite code to join a different node. Once registered, you can switch between your accounts by tapping the title in the top banner.'
+                        }
+                    </Text>
                     
                     <View style={{ flexDirection: 'column', gap: 8, marginBottom: 32 }}>
                         <TextInput 
@@ -652,9 +746,33 @@ export default function PeopleScreen() {
                             onPress={handleRedeem}
                             disabled={redeeming || !redeemCode.trim()}
                         >
-                            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>{redeeming ? 'Joining...' : 'Join Community'}</Text>
+                            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
+                                {redeeming 
+                                    ? (isGuest ? 'Registering...' : 'Joining...') 
+                                    : (isGuest ? 'Complete Registration' : 'Join Community')
+                                }
+                            </Text>
                         </Pressable>
                     </View>
+
+                    {isGuest && (
+                        <View style={{ marginTop: 8, backgroundColor: '#fef2f2', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#fca5a5', marginBottom: 32 }}>
+                            <Text style={{ color: '#dc2626', fontSize: 15, fontWeight: '700', marginBottom: 4 }}>
+                                🛠️ Connection Troubleshooting
+                            </Text>
+                            <Text style={{ color: '#991b1b', fontSize: 13, lineHeight: 18, marginBottom: 12 }}>
+                                If your local profile data is mismatched or out of sync with the node's server (e.g. if the node was completely wiped or reinstalled), you can wipe this community's local database cache and start fresh. Your master key and other saved communities are safe.
+                            </Text>
+                            <Pressable 
+                                style={{ backgroundColor: '#ef4444', paddingVertical: 12, borderRadius: 8, alignItems: 'center' }}
+                                onPress={handleTroubleWipe}
+                            >
+                                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>
+                                    Wipe Local Node Data & Start Fresh
+                                </Text>
+                            </Pressable>
+                        </View>
+                    )}
                 </ScrollView>
             )}
 

@@ -502,7 +502,7 @@
         // Load current version on login
         async function loadVersionInfo() {
             try {
-                const res = await fetch('/api/version');
+                const res = await fetch(`/api/version?t=${Date.now()}`);
                 if (res.ok) {
                     const data = await res.json();
                     document.getElementById('current-version').textContent = `v${data.version}`;
@@ -695,6 +695,8 @@
                     return;
                 }
                 document.getElementById('current-version').textContent = `v${data.currentVersion}`;
+                const topDisplay = document.getElementById('top-version-display');
+                if (topDisplay) topDisplay.textContent = `V${data.currentVersion}`;
                 const latestEl = document.getElementById('latest-version');
                 const badge = document.getElementById('update-badge');
                 const badgeText = document.getElementById('update-badge-text');
@@ -1802,8 +1804,11 @@
             statusEl.textContent = '';
             
             try {
-                const res = await fetch(`/api/local/admin/restore?password=${encodeURIComponent(authToken)}`, {
+                const res = await fetch(`/api/local/admin/restore`, {
                     method: 'POST',
+                    headers: {
+                        'X-Admin-Password': authToken
+                    },
                     body: file // Send as raw binary stream
                 });
 
@@ -1836,6 +1841,7 @@
 
         // ======================== INIT ========================
         async function init() {
+            loadVersionInfo();
             try {
                 const res = await fetch(`${API}/status`);
                 const data = await res.json();

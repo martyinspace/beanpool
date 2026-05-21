@@ -93,6 +93,10 @@ export default function WelcomeScreen() {
             if (params?.invite) {
                 if (mounted) {
                     setInviteCode(params.invite as string);
+                    if (params?.server) {
+                        setCreateAnchorUrl(params.server as string);
+                        setRecoveryAnchorUrl(params.server as string);
+                    }
                     setMode('create');
                 }
                 return;

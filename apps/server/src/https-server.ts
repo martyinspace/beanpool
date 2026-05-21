@@ -46,7 +46,7 @@ import {
     getCommunityInfo, addWsClient, removeWsClient,
     generateInvite, redeemInvite, redeemOfflineTicket, getInviteTree, getInvitesByMember,
     adminGenerateInvite, getMemberTrustProfile,
-    updateProfile, getProfile,
+    updateProfile, getProfile, getAllProfiles,
     createConversation, sendMessage, getConversationsByMember,
     getConversationMessages, getConversation,
     getCommunityHealth,
@@ -465,7 +465,7 @@ export async function startHttpsServer(port: number): Promise<void> {
         if (!checkAdminAuth(ctx as any)) return;
         ctx.body = {
             members: getAllMembers(),
-            profiles: getAllMembers().map(m => getProfile(m.publicKey)),
+            profiles: getAllProfiles(),
             posts: getPosts().filter(p => p.status !== 'cancelled'),
             health: getCommunityHealth(),
             reports: getReports(),
@@ -599,10 +599,10 @@ export async function startHttpsServer(port: number): Promise<void> {
     });
 
     router.post('/api/local/admin/restore', async (ctx) => {
-        // Handle auth via query param for binary uploads
-        const queryPassword = ctx.query.password;
-        if (queryPassword) {
-            (ctx as any).requestBody = { password: queryPassword };
+        // Handle auth via custom header for binary uploads to prevent password exposure in query string
+        const headerPassword = ctx.request.header['x-admin-password'];
+        if (headerPassword) {
+            (ctx as any).requestBody = { password: headerPassword };
         }
         if (!checkAdminAuth(ctx as any)) return;
 
@@ -2104,6 +2104,7 @@ export async function startHttpsServer(port: number): Promise<void> {
     setInterval(() => backgroundUpdateCheck(), 6 * 60 * 60 * 1000);
 
     router.get('/api/version', (ctx) => {
+        ctx.set('Cache-Control', 'no-cache, no-store, must-revalidate');
         ctx.body = {
             version: getVersion(),
             commit: getCommitHash(),
