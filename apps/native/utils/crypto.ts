@@ -60,7 +60,7 @@ export function encodeBase64(bytes: Uint8Array): string {
 
 export function decodeBase64(b64: string): Uint8Array {
     let bufferLength = b64.length * 0.75;
-    let len = b64.length;
+    const len = b64.length;
     let p = 0;
     let encoded1, encoded2, encoded3, encoded4;
     if (b64[b64.length - 1] === '=') { bufferLength--; if (b64[b64.length - 2] === '=') bufferLength--; }
@@ -78,7 +78,7 @@ export function decodeBase64(b64: string): Uint8Array {
 }
 
 export function encodeUtf8(str: string): Uint8Array {
-    let utf8 = [];
+    const utf8 = [];
     for (let i = 0; i < str.length; i++) {
         let charcode = str.charCodeAt(i);
         if (charcode < 0x80) utf8.push(charcode);
@@ -107,7 +107,7 @@ export function encodeUtf8(str: string): Uint8Array {
 export function decodeUtf8(bytes: Uint8Array): string {
     let str = '';
     for (let i = 0; i < bytes.length; i++) {
-        let b = bytes[i];
+        const b = bytes[i];
         if (b < 128) {
             str += String.fromCharCode(b);
         } else if (b > 191 && b < 224) {

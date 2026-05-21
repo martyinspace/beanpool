@@ -93,6 +93,9 @@
 - ✅ **Haptic Feedback** — Phase 1 essentials implemented for native app interactions.
 - ✅ **Admin Dashboard Reorganization** — Redistributed System tab settings to contextual tabs; fixed login ReferenceError.
 - ✅ **Continuous Health Ping** — Added offline red dot indicator and continuous health ping to mobile app header, mapped using unique public keys to prevent UI collisions.
+- ✅ **Sentinel Security Hotfix: Auth Bypass Mitigation** — Shipped critical authorization bypass hotfix in the `requireSignature` middleware. Expanded the protect-list to cover 17 sensitive endpoints (social recovery, friends/guardians, transaction approvals, push tokens) and broadened prefix-spoofing coverage.
+- ✅ **Auth Boundary Verifier** — Shipped `scripts/verify-auth-boundary.mjs` verifying all 37+ protected routes with 111 checkmarks against local running server instances.
+- ✅ **Monorepo Flat Linting** — Implemented monorepo-wide Flat config `eslint.config.mjs` to automate cleaner code standards.
 
 ---
 
@@ -238,7 +241,11 @@ gh run list --limit 3
 - [ ] **Server-Side Photo Compression Pipeline** — Implementing backend logic to strictly resize/compress payloads independent of client checks.
 - [ ] **Offline PWA caching** via Service Worker
 - [ ] **Federated credit verification** (`/beanpool/verify/1.0.0`)
+- [ ] **Deny-by-default middleware** — Restructure `requireSignature` middleware to default-deny all POST/DELETE routes, preventing opt-in protect-list drift from leaking endpoints.
+- [ ] **`ctx.state.actor` migration** — Refactor ~25 endpoint handlers to read the actor's identity from `ctx.state.actor` instead of custom body parameters.
+- [ ] **`/api/invite/redeem*` proof-of-possession** — Cryptographic signature check on invite redemption to secure invite-tree operations.
+- [ ] **PWA sendRemoteTransfer unsigned POST bug** — Fix long-standing bug where the PWA client posts to `/api/ledger/transfer` without signature headers.
 
 ---
 
-_Last updated: 2026-05-13_
+_Last updated: 2026-05-20_

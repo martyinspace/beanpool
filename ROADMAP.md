@@ -1,11 +1,15 @@
 # 🗺️ BeanPool Roadmap
 
-> Planned features and future work. Updated: 2026-05-18
+> Planned features and future work. Updated: 2026-05-20
 
 ---
 
 ## ✅ Recently Completed
 
+- ✅ **Sentinel Security Hotfix: Auth Bypass Mitigation** — Closed a critical authorization bypass in the `requireSignature` middleware. Expanded the protect-list to cover 17 sensitive endpoints (social recovery, friends/guardians, transaction approvals, push tokens) and broadened prefix-spoofing coverage.
+- ✅ **Auth Boundary Verifier** — Shipped `scripts/verify-auth-boundary.mjs` verifying all 37+ protected routes with 111 checkmarks against local running server instances.
+- ✅ **Client-side Signing Lockstep** — Signed the 4 key callsites affected by the expanded protect-list in the native app.
+- ✅ **Monorepo Flat Linting** — Implemented monorepo-wide Flat config `eslint.config.mjs` to automate cleaner code standards.
 - ✅ **Author Request Review Flow** — Enhanced deals management allowing sellers to review buyer requests with integrated messaging and standardized decline reasons.
 - ✅ **Ledger UI Enhancements** — Corrected credit slider visual representation for negative balances and improved feedback for locked 'Send Credits' functionality.
 - ✅ **Cross-platform Avatar Sync** — Implemented `bundled://` protocol for avatars, fixing missing pin icons and broken clustering on Android.
@@ -76,10 +80,14 @@
 
 ### Identity & Security
 
+- [ ] 🔴 **Deny-by-default Middleware** — Restructure the `requireSignature` middleware to default-deny all POST/DELETE routes. This eliminates the fragile opt-in protect-list pattern and prevents future endpoint additions from accidentally leaking unauthorized access.
+- [ ] 🔴 **`ctx.state.actor` Migration** — Refactor ~25 authenticated endpoint handlers to read the actor's identity from `ctx.state.actor` instead of custom request body parameters, shutting down any potential impersonation vectors.
 - [ ] 🔴 **View Recovery Phrase** — Show stored 12-word phrase in Settings for existing mnemonic-based identities. _Users currently have no way to see their seed words after initial creation. If they didn't write them down, identity loss is permanent on device failure._ **Note:** PWA now has a private key viewer as a partial mitigation.
 - [x] 🔴 **Identity Backup Reminder** — Prompt users to export their identity if they haven't yet. _Implemented in PWA Settings as an amber warning card._
 - [ ] 🔴 **Ban / Revoke Member (Enforcement)** — `adminSetUserStatus('disabled')` exists but doesn't actually block transactions or posting. Disabled members can still transact. _Need to enforce status checks in transfer/post/messaging pathways._
+- [ ] 🔴 **`/api/invite/redeem*` Proof-of-Possession** — Implement a cryptographic challenge-response check on the supplied `publicKey` during invite redemption to ensure the client actually holds the corresponding private key.
 - [ ] **Visitor Account Audit** — Investigate signup flow for ghost/unnamed accounts; consider enforcing mandatory profile info or redirecting to profile settings on first login.
+- [ ] 🟡 **PWA sendRemoteTransfer unsigned POST** — Fix long-standing bug where the PWA client posts to `/api/ledger/transfer` without signature headers.
 
 ### Data Lifecycle & Storage
 

@@ -435,7 +435,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             // Elder Glow: highlight established community members
             const hasElderGlow = (post.authorEnergyCycled ?? 0) >= 10000;
             
-            let html = '';
+            let html: string;
             if (useModernMarkers) {
                 html = `
                 <div style="position: relative; width: 40px; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: ${borderColor}; border-radius: 20px; box-shadow: 0 3px 4px rgba(0,0,0,0.3); ${hasElderGlow ? 'border: 2px solid #fbbf24; box-shadow: 0 0 6px rgba(251,191,36,0.8);' : ''}">

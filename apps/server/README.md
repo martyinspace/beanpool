@@ -12,7 +12,7 @@
 | `src/index.ts` | Main boot orchestrator — 5-stage startup |
 | `src/tls.ts` | **TLS certificate management** — LE via acme-client + self-signed fallback |
 | `src/state-engine.ts` | In-memory state: members, posts, profiles, conversations, messages, invites, ledger, ratings, reports, sybil filters |
-| `src/https-server.ts` | 50+ REST API endpoints: community, marketplace, friends, ratings, reports, admin, version/update, push notifications, escrow lifecycle, database backup, social recovery, quadratic voting (Hardened against Command Injection). |
+| `src/https-server.ts` | 55+ REST API endpoints: community, marketplace, friends, ratings, reports, admin, version/update, push notifications, escrow lifecycle, database backup, social recovery, quadratic voting (Hardened against Command Injection). |
 | `src/http-server.ts` | HTTP endpoint (port 80) for Let's Encrypt validation, LAN QR Poster, and HTTPS redirect |
 | `src/p2p.ts` | Core libp2p node instantiation, bootstrap logic, and gossipsub |
 | `src/connector-manager.ts` | Sovereign connectors with federation trust levels (peer/mirror/blocked) |
@@ -32,6 +32,7 @@
 | `static/settings.js` | Admin settings JavaScript — login, tabs, update checks, moderation centre, health dashboard, branch stats (Hardened against Stored XSS). |
 | `../../.jules/sentinel.md` | Security audit journal maintained by the Sentinel process |
 | `../../.jules/security_backlog.md` | Security task backlog |
+| `../../scripts/verify-auth-boundary.mjs` | **Auth boundary verifier** — standalone script to test 37+ routes against the requireSignature middleware |
 
 ---
 
@@ -285,6 +286,25 @@ bash deploy.sh        # All nodes
 bash deploy.sh 1      # Mullum 2 only
 bash deploy.sh 3 4    # Mullum 1 + Review
 ```
+
+---
+
+### 🛡️ Authentication Boundary Verification
+
+To prevent regression or accidental exposure of new endpoints, a standalone, dependency-free verification script is provided at `scripts/verify-auth-boundary.mjs`. This script tests every protected route against three attack vectors:
+1. **Unsigned requests**: Checks that requests without signature headers return `401 Unauthorized`.
+2. **Wrong-key signatures**: Checks that requests signed with a key mismatching the claimed public key return `403 Forbidden`.
+3. **Spoofed bodies**: Checks that requests with valid signatures but a spoofed `publicKey` inside the request body return `403 Forbidden`.
+
+To run the verifier:
+```bash
+# Terminal 1: Start the server
+pnpm --filter @beanpool/server dev
+
+# Terminal 2: Run the verifier
+node scripts/verify-auth-boundary.mjs
+```
+The script will run 111 checks (37 routes × 3 tests) and must print `Boundary holds.` at the end.
 
 ---
 

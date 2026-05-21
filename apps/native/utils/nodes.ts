@@ -11,7 +11,7 @@ export interface SavedNode {
 export async function getSavedNodes(): Promise<SavedNode[]> {
     try {
         const data = await AsyncStorage.getItem('beanpool_saved_nodes');
-        let nodes: SavedNode[] = data ? JSON.parse(data) : [];
+        const nodes: SavedNode[] = data ? JSON.parse(data) : [];
         
         // Auto-migrate standard legacy active node if it exists
         const currentActiveUrl = await AsyncStorage.getItem('beanpool_anchor_url');

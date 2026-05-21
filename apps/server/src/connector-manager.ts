@@ -58,8 +58,8 @@ interface StatusEntry {
 }
 
 let connectors: ConnectorConfig[] = [];
-let statuses = new Map<string, StatusEntry>();
-let retryState = new Map<string, { count: number; nextRetry: number }>();
+const statuses = new Map<string, StatusEntry>();
+const retryState = new Map<string, { count: number; nextRetry: number }>();
 let p2pNode: Libp2p | null = null;
 let handshakeTimer: ReturnType<typeof setInterval> | null = null;
 let retryTimer: ReturnType<typeof setInterval> | null = null;

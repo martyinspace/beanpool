@@ -383,7 +383,7 @@ export default function MarketScreen() {
         </View>
     );
 
-    let listData = filteredPosts;
+    const listData = filteredPosts;
 
     const renderItem = ({ item }: { item: any }) => {
         let coverImage: string | null = null;

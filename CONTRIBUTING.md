@@ -91,6 +91,8 @@ The project has a working reference implementation across three apps (BeanPool N
 - All code must be written in TypeScript.
 - All code must include tests.
 - All code must pass the project's linting and formatting checks before review.
+  - Run linting via `pnpm lint` (configured via Flat config `eslint.config.mjs`).
+- Any changes to sensitive backend POST routes must be added to and verified by the auth boundary script at `scripts/verify-auth-boundary.mjs`. Run `node scripts/verify-auth-boundary.mjs` to prove that the `requireSignature` middleware coverage holds.
 
 ---
 

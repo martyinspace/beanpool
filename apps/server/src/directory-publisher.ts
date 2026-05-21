@@ -1,6 +1,7 @@
 import { getDirectoryInfo, getNodeConfig, updateNodeConfig } from './state-engine.js';
 import { getLocalConfig } from './local-config.js';
 import { getP2PNode, getPrivateKey } from './p2p.js';
+import { publicKeyToProtobuf } from '@libp2p/crypto/keys';
 
 // The URL of the directory registry Edge Function
 const DIRECTORY_REGISTRY_URL = process.env.DIRECTORY_REGISTRY_URL || 'https://dpemwoermzkaxoctafzg.supabase.co/functions/v1/directory-register';
@@ -51,7 +52,7 @@ export async function pushDirectoryNow() {
         const rawBody = JSON.stringify(payload);
         const signatureBytes = await privateKey.sign(new TextEncoder().encode(rawBody));
         const signatureHex = Buffer.from(signatureBytes).toString('hex');
-        const pubKeyHex = Buffer.from(privateKey.publicKey.bytes).toString('hex');
+        const pubKeyHex = Buffer.from(publicKeyToProtobuf(privateKey.publicKey)).toString('hex');
 
         const res = await fetch(DIRECTORY_REGISTRY_URL, {
             method: 'POST',

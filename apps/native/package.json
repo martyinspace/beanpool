@@ -7,7 +7,8 @@
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "lint": "eslint app components constants services utils --no-error-on-unmatched-pattern"
   },
   "dependencies": {
     "@beanpool/core": "workspace:*",

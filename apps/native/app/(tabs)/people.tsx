@@ -311,7 +311,7 @@ export default function PeopleScreen() {
             const database = await getDb();
             
             let sql = 'SELECT * FROM members WHERE public_key NOT LIKE \'escrow_%\' AND public_key NOT LIKE \'project_%\'';
-            let params: any[] = [];
+            const params: any[] = [];
             
             if (query.trim()) {
                 sql += ' AND (callsign LIKE ? OR public_key LIKE ?)';

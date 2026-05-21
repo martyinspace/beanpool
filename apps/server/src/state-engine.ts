@@ -283,8 +283,8 @@ export interface NodeConfig {
 
 // ===================== STATE =====================
 
-let ledger = new LedgerManager();
-let wsClients: Set<any> = new Set();
+const ledger = new LedgerManager();
+const wsClients: Set<any> = new Set();
 
 // ===================== INIT =====================
 
@@ -3360,7 +3360,7 @@ export function recordActivity(publicKey: string) {
 
 export function getNodeConfig(): NodeConfig {
     const row = db.prepare("SELECT value FROM node_config WHERE key='node_config'").get() as any;
-    let config: any = row ? JSON.parse(row.value) : {};
+    const config: any = row ? JSON.parse(row.value) : {};
 
     let migrated = false;
     if ('publishToDirectory' in config || 'password' in config) {

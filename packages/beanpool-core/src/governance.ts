@@ -139,7 +139,7 @@ export class GovernanceManager {
             proposal.status = 'Passed';
 
             const escrowAccount = `Escrow-${proposal.id}`;
-            let success = false;
+            let success: boolean;
 
             if (proposal.origin === 'SYSTEM') {
                 // SYSTEM proposals (Grand Bounties) draw directly from the Demurrage Commons pool
