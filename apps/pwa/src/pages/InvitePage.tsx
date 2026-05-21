@@ -12,6 +12,8 @@ import { generateInvite, getMyInvites, getInviteTree, type InviteCode } from '..
 import { type BeanPoolIdentity } from '../lib/identity';
 import { QRCodeSVG } from 'qrcode.react';
 
+const QRCodeSVGComponent = QRCodeSVG as any;
+
 interface Props {
     identity: BeanPoolIdentity;
 }
@@ -280,8 +282,7 @@ export function InvitePage({ identity }: Props) {
                                 {newCode.length > 20 ? `${newCode.substring(0, 16)}...` : newCode.toUpperCase()}
                             </p>
                             <div className="bg-white rounded-xl p-4 inline-block mb-5 shadow-sm">
-                                {/* @ts-expect-error: QRCodeSVG React 19 type mismatch */}
-                                <QRCodeSVG value={`${window.location.origin}/?invite=${newCode}`} size={200} />
+                                <QRCodeSVGComponent value={`${window.location.origin}/?invite=${newCode}`} size={200} />
                             </div>
                             <div className="flex gap-3 justify-center">
                                 <button 
