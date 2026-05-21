@@ -963,7 +963,8 @@
             const publishMembers = document.getElementById('publish-members').checked;
             const publishContacts = document.getElementById('publish-contacts').checked;
             const publishHealth = document.getElementById('publish-health').checked;
-            const directoryPushIntervalHours = parseInt(document.getElementById('directory-push-interval').value) || 12;
+            const val = parseInt(document.getElementById('directory-push-interval').value);
+            const directoryPushIntervalHours = isNaN(val) ? 12 : val;
             
             const update = { publishLocation, publishMembers, publishContacts, publishHealth, directoryPushIntervalHours };
             if (!isNaN(lat) && !isNaN(lng) && km > 0) {
@@ -1027,12 +1028,16 @@
                 document.getElementById('publish-members').checked = config.publishMembers !== false;
                 document.getElementById('publish-contacts').checked = config.publishContacts !== false;
                 document.getElementById('publish-health').checked = config.publishHealth !== false;
-                if (config.directoryPushIntervalHours) {
+                if (config.directoryPushIntervalHours !== undefined) {
                     document.getElementById('directory-push-interval').value = config.directoryPushIntervalHours;
                 }
-                if (config.lastDirectoryPush) {
+                if (config.directoryPushIntervalHours === 0) {
+                    document.getElementById('last-published').innerText = 'Last published: Disabled';
+                } else if (config.lastDirectoryPush) {
                     const date = new Date(config.lastDirectoryPush);
                     document.getElementById('last-published').innerText = `Last published: ${date.toLocaleString()}`;
+                } else {
+                    document.getElementById('last-published').innerText = 'Last published: Never';
                 }
             } catch { /* ignore */ }
         }

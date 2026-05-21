@@ -10,14 +10,20 @@ let pushTimer: ReturnType<typeof setInterval> | null = null;
 
 export function initDirectoryPublisher() {
     const config = getNodeConfig();
-    const intervalHours = config.directoryPushIntervalHours || 12;
-    
-    // Convert hours to milliseconds
-    const intervalMs = intervalHours * 60 * 60 * 1000;
+    const intervalHours = config.directoryPushIntervalHours !== undefined ? config.directoryPushIntervalHours : 12;
     
     if (pushTimer) {
         clearInterval(pushTimer);
+        pushTimer = null;
     }
+    
+    if (intervalHours === 0) {
+        console.log(`[Directory] 📴 Push publisher is disabled.`);
+        return;
+    }
+    
+    // Convert hours to milliseconds
+    const intervalMs = intervalHours * 60 * 60 * 1000;
     
     pushTimer = setInterval(pushDirectoryNow, intervalMs);
     
