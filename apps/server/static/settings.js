@@ -1802,8 +1802,11 @@
             statusEl.textContent = '';
             
             try {
-                const res = await fetch(`/api/local/admin/restore?password=${encodeURIComponent(authToken)}`, {
+                const res = await fetch(`/api/local/admin/restore`, {
                     method: 'POST',
+                    headers: {
+                        'X-Admin-Password': authToken
+                    },
                     body: file // Send as raw binary stream
                 });
 

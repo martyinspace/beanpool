@@ -17,3 +17,8 @@
 **Vulnerability:** Remaining `innerHTML` injection points were discovered in the administrative dashboard (`settings.js`), including Nominatim location search results, Trusted Connectors management, health alert descriptions, and moderation reports.
 **Learning:** Initial security patches often miss secondary or "edge" data display points. A comprehensive audit specifically targeting dangerous sinks like `innerHTML` is necessary for full remediation.
 **Prevention:** Standardized the use of a global `esc()` helper for all user-controlled data. Hardened `onclick` action handlers by escaping IDs to prevent JS string break-outs. Fixed message rendering logic to handle escaping internally while preserving system-generated HTML formatting.
+
+## 2024-05-13 - [HIGH] Fix Sensitive Data Exposure in Restore Endpoint
+**Vulnerability:** The `/api/local/admin/restore` endpoint previously read the administrative password from the URL query string (`?password=...`). This exposed the sensitive token in server access logs, network proxies, and browser histories.
+**Learning:** Authentication tokens and passwords should never be transmitted in URLs, even for internal or administrative routes.
+**Prevention:** Always transmit sensitive authentication data via secure HTTP headers (e.g., `Authorization` or custom headers like `X-Admin-Password`) or within the encrypted request body.

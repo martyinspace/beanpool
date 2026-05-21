@@ -598,10 +598,10 @@ export async function startHttpsServer(port: number): Promise<void> {
     });
 
     router.post('/api/local/admin/restore', async (ctx) => {
-        // Handle auth via query param for binary uploads
-        const queryPassword = ctx.query.password;
-        if (queryPassword) {
-            (ctx as any).requestBody = { password: queryPassword };
+        // Handle auth via custom header for binary uploads to prevent password exposure in query string
+        const headerPassword = ctx.request.header['x-admin-password'];
+        if (headerPassword) {
+            (ctx as any).requestBody = { password: headerPassword };
         }
         if (!checkAdminAuth(ctx as any)) return;
 
