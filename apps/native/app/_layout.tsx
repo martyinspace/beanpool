@@ -19,6 +19,14 @@ function RootLayoutNav() {
     const segments = useSegments();
     const router = useRouter();
     const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null);
+    const isComponentMounted = useRef(true);
+
+    useEffect(() => {
+        isComponentMounted.current = true;
+        return () => {
+            isComponentMounted.current = false;
+        };
+    }, []);
 
     // Set up deep-link listeners for both cold starts and warm starts
     useEffect(() => {
@@ -47,7 +55,6 @@ function RootLayoutNav() {
     // Process incoming deep links (multi-node support and onboarding redirects)
     useEffect(() => {
         if (isLoading || !deepLinkUrl) return;
-        let mounted = true;
 
         const currentUrl = deepLinkUrl;
         // Immediately clear state to prevent double execution or infinite loops
@@ -82,7 +89,7 @@ function RootLayoutNav() {
 
         // Case 1: No active identity (New user onboarding or completely wiped DB)
         if (!identity) {
-            if (mounted) {
+            if (isComponentMounted.current) {
                 router.replace({
                     pathname: '/welcome',
                     params: {
@@ -96,98 +103,46 @@ function RootLayoutNav() {
 
         // Case 2: User has active identity (Logged in)
         AsyncStorage.getItem('beanpool_anchor_url').then(current => {
-            if (!mounted) return;
+            if (!isComponentMounted.current) return;
             const targetOrigin = extractedNodeOrigin || current;
             if (!targetOrigin) return;
 
             if (current !== targetOrigin) {
-                Alert.alert(
-                    'Switch Nodes?',
-                    `You have been invited to a community node at ${targetOrigin}. Would you like to switch your active connection to this node and redeem your invite code?`,
-                    [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                            text: 'Switch & Join',
-                            onPress: () => {
-                                closeDB()
-                                    .then(() => AsyncStorage.setItem('beanpool_anchor_url', targetOrigin))
-                                    .then(() => initDB())
-                                    .then(async () => {
-                                        if (!mounted) return;
-                                        
-                                        // Redeem!
-                                        await redeemInvite(parsedCode, identity?.callsign || 'Unknown', identity);
-
-                                        // Fetch and save new node details
-                                        try {
-                                            const healthRes = await fetch(`${targetOrigin}/api/community/health`, { method: 'GET' });
-                                            if (healthRes.ok) {
-                                                const healthData = await healthRes.json();
-                                                const remoteName = healthData.nodeName || healthData.name || targetOrigin;
-                                                const cType = healthData.currency?.type || 'image';
-                                                const cVal = healthData.currency?.value || 'bean';
-                                                const { addSavedNode } = await import('../utils/nodes');
-                                                await addSavedNode(targetOrigin, remoteName, cType, cVal);
-                                            }
-                                        } catch (e) {
-                                            console.warn('Failed to fetch node details for saving in deep link', e);
-                                        }
-
-                                        Alert.alert('Success', 'Node switched and invite redeemed successfully!');
-                                        performSync().catch(console.error);
-                                        router.replace('/(tabs)');
-                                    })
-                                    .catch(err => {
-                                        Alert.alert('Redemption Failed', err.message || String(err));
-                                    });
-                            }
-                        }
-                    ]
-                );
-            } else {
-                // Same-node deep link check Guest mode or Repair
-                const showActiveNodeDialog = (isMember: boolean) => {
+                setTimeout(() => {
+                    if (!isComponentMounted.current) return;
                     Alert.alert(
-                        isMember ? 'Already Connected' : 'Active Connection Invite',
-                        isMember
-                            ? `You are already a member of this community (${targetOrigin}). Would you like to repair/update your connection using this new invite, or wipe and start fresh?`
-                            : `You scanned an invite for your active community (${targetOrigin}). How would you like to proceed?`,
+                        'Switch Nodes?',
+                        `You have been invited to a community node at ${targetOrigin}. Would you like to switch your active connection to this node and redeem your invite code?`,
                         [
                             { text: 'Cancel', style: 'cancel' },
                             {
-                                text: 'Wipe & Join Fresh',
-                                style: 'destructive',
+                                text: 'Switch & Join',
                                 onPress: () => {
-                                    Alert.alert(
-                                        'Confirm Wipe',
-                                        'This will permanently delete your local database and transaction cache for this community. Your key will be preserved, and you will be routed back to the welcome screen to register with this invite.',
-                                        [
-                                            { text: 'Cancel', style: 'cancel' },
-                                            {
-                                                text: 'Wipe',
-                                                style: 'destructive',
-                                                onPress: async () => {
-                                                    try {
-                                                        await clearDB();
-                                                        await AsyncStorage.removeItem('beanpool_anchor_url');
-                                                        const { removeSavedNode } = await import('../utils/nodes');
-                                                        await removeSavedNode(targetOrigin);
-                                                        router.replace({ pathname: '/welcome', params: { invite: parsedCode, server: targetOrigin } });
-                                                    } catch (err: any) {
-                                                        Alert.alert('Wipe Failed', err.message);
-                                                    }
+                                    closeDB()
+                                        .then(() => AsyncStorage.setItem('beanpool_anchor_url', targetOrigin))
+                                        .then(() => initDB())
+                                        .then(async () => {
+                                            if (!isComponentMounted.current) return;
+                                            
+                                            // Redeem!
+                                            await redeemInvite(parsedCode, identity?.callsign || 'Unknown', identity);
+
+                                            // Fetch and save new node details
+                                            try {
+                                                const healthRes = await fetch(`${targetOrigin}/api/community/health`, { method: 'GET' });
+                                                if (healthRes.ok) {
+                                                    const healthData = await healthRes.json();
+                                                    const remoteName = healthData.nodeName || healthData.name || targetOrigin;
+                                                    const cType = healthData.currency?.type || 'image';
+                                                    const cVal = healthData.currency?.value || 'bean';
+                                                    const { addSavedNode } = await import('../utils/nodes');
+                                                    await addSavedNode(targetOrigin, remoteName, cType, cVal);
                                                 }
+                                            } catch (e) {
+                                                console.warn('Failed to fetch node details for saving in deep link', e);
                                             }
-                                        ]
-                                    );
-                                }
-                            },
-                            {
-                                text: 'Update Connection',
-                                onPress: () => {
-                                    redeemInvite(parsedCode, identity?.callsign || 'Unknown', identity)
-                                        .then(() => {
-                                            Alert.alert('Success', 'Invite redeemed! Your connection is repaired and registered.');
+
+                                            Alert.alert('Success', 'Node switched and invite redeemed successfully!');
                                             performSync().catch(console.error);
                                             router.replace('/(tabs)');
                                         })
@@ -198,24 +153,81 @@ function RootLayoutNav() {
                             }
                         ]
                     );
+                }, 200);
+            } else {
+                // Same-node deep link check Guest mode or Repair
+                const showActiveNodeDialog = (isMember: boolean) => {
+                    setTimeout(() => {
+                        if (!isComponentMounted.current) return;
+                        Alert.alert(
+                            isMember ? 'Already Connected' : 'Active Connection Invite',
+                            isMember
+                                ? `You are already a member of this community (${targetOrigin}). Would you like to repair/update your connection using this new invite, or wipe and start fresh?`
+                                : `You scanned an invite for your active community (${targetOrigin}). How would you like to proceed?`,
+                            [
+                                { text: 'Cancel', style: 'cancel' },
+                                {
+                                    text: 'Wipe & Join Fresh',
+                                    style: 'destructive',
+                                    onPress: () => {
+                                        Alert.alert(
+                                            'Confirm Wipe',
+                                            'This will permanently delete your local database and transaction cache for this community. Your key will be preserved, and you will be routed back to the welcome screen to register with this invite.',
+                                            [
+                                                { text: 'Cancel', style: 'cancel' },
+                                                {
+                                                    text: 'Wipe',
+                                                    style: 'destructive',
+                                                    onPress: async () => {
+                                                        try {
+                                                            await clearDB();
+                                                            await AsyncStorage.removeItem('beanpool_anchor_url');
+                                                            const { removeSavedNode } = await import('../utils/nodes');
+                                                            await removeSavedNode(targetOrigin);
+                                                            router.replace({ pathname: '/welcome', params: { invite: parsedCode, server: targetOrigin } });
+                                                        } catch (err: any) {
+                                                            Alert.alert('Wipe Failed', err.message);
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        );
+                                    }
+                                },
+                                {
+                                    text: 'Update Connection',
+                                    onPress: () => {
+                                        redeemInvite(parsedCode, identity?.callsign || 'Unknown', identity)
+                                            .then(() => {
+                                                Alert.alert('Success', 'Invite redeemed! Your connection is repaired and registered.');
+                                                performSync().catch(console.error);
+                                                router.replace('/(tabs)');
+                                            })
+                                            .catch(err => {
+                                                Alert.alert('Redemption Failed', err.message || String(err));
+                                            });
+                                    }
+                                }
+                            ]
+                        );
+                    }, 200);
                 };
 
                 fetch(`${targetOrigin}/api/community/membership/${identity.publicKey}`)
                     .then(res => res.ok ? res.json() : null)
                     .then(data => {
-                        if (!mounted) return;
+                        if (!isComponentMounted.current) return;
                         const isMember = !!(data && data.isMember);
                         showActiveNodeDialog(isMember);
                     })
                     .catch(err => {
                         console.warn('Failed to check membership on same-node deep link', err);
-                        if (!mounted) return;
+                        if (!isComponentMounted.current) return;
                         // Fallback to active member flow since node is already saved
                         showActiveNodeDialog(true);
                     });
             }
         });
-        return () => { mounted = false; };
     }, [deepLinkUrl, identity, isLoading]);
 
     useEffect(() => {
