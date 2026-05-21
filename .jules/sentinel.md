@@ -28,3 +28,19 @@
 **Learning:** Passing credentials or high-privilege administrative keys via URL query strings is insecure because HTTP paths are frequently logged or transmitted to third parties (e.g., via Referer headers or browser extensions).
 **Prevention:** Relocated administrative authorization to a custom HTTP request header (`X-Admin-Password`). Updated the server to parse the password from this header and updated `settings.js` to transmit the key in the HTTP headers of the `POST` restore request rather than in the URL.
 
+## 2026-05-21 - [Sentinel] Deny-by-Default Boundaries & Cryptographic P2P Sync Hardening
+**Vulnerability:** 
+1. The `requireSignature` auth filter previously used an "opt-in" allowlist, meaning new mutating API routes were unauthenticated by default.
+2. Naive body spoof checks blocked legitimate cross-identity fields like rating targets (`targetPubkey`) and recovery keys (`oldPubkey`).
+3. P2P sync data was imported directly into SQLite without peer cryptographic verification, exposing nodes to replica-poisoning/spoofing.
+**Learning:** 
+1. High-security boundaries must fail-secure (deny-by-default) rather than relying on developer opt-in.
+2. Spoof protection must distinguish between the request initiator and other entities.
+3. Decentralized sync must cryptographically assert peer identity using stable node keypairs rather than blindly trusting transport channels.
+**Prevention:**
+1. Flipped middleware to deny-by-default, allowlisting only public and admin password routes.
+2. Implemented precision-scoped body spoof checking by matching initiator keys while excluding non-sender fields (`target*`, `old*`, `to*`, `invited*`).
+3. Refactored mutating routes to consume verified `ctx.state.actor`.
+4. Cryptographically secured P2P sync using Ed25519 payload signing (`exportSyncState`) and public key protobuf verification (`importRemoteState`).
+5. Added administrative sliding-window rate limiting (60 req/min per IP) and standard global modern security headers.
+
