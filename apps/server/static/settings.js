@@ -1,7 +1,7 @@
         const esc = s => String(s||'').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 
         const API = '/api/local';
-        let authToken = null;
+        let authToken = sessionStorage.getItem('bp-admin-token') || null;
         let settingsMap, settingsMarker;
         let radiusCircle;
 
@@ -209,6 +209,7 @@
                     return;
                 }
                 authToken = password;
+                sessionStorage.setItem('bp-admin-token', password);
                 initLogsWs();
                 let dashboardData = null;
                 const dashRes = await fetch(`${API}/dashboard`);
@@ -222,6 +223,7 @@
                 loadThresholds();
                 loadCommunityInfo();
                 loadAdminData();
+                switchTab(sessionStorage.getItem('bp-settings-tab') || 'identity');
                 setTimeout(() => {
                     initMap(
                         parseFloat(document.getElementById('cfg-lat').value) || null,
@@ -2273,6 +2275,45 @@
         // ======================== INIT ========================
         async function init() {
             loadVersionInfo();
+
+            const storedToken = sessionStorage.getItem('bp-admin-token');
+            if (storedToken) {
+                try {
+                    const verifyRes = await fetch(`${API}/verify-password`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password: storedToken })
+                    });
+                    if (verifyRes.ok) {
+                        authToken = storedToken;
+                        initLogsWs();
+                        let dashboardData = null;
+                        const dashRes = await fetch(`${API}/dashboard`);
+                        if (dashRes.ok) {
+                            dashboardData = await dashRes.json();
+                            hydrateSettings(dashboardData);
+                        }
+                        showView('settings');
+                        loadHealthDashboard();
+                        loadThresholds();
+                        loadCommunityInfo();
+                        loadAdminData();
+                        switchTab(sessionStorage.getItem('bp-settings-tab') || 'identity');
+                        setTimeout(() => {
+                            initMap(
+                                parseFloat(document.getElementById('cfg-lat').value) || null,
+                                parseFloat(document.getElementById('cfg-lng').value) || null
+                            );
+                            if (dashboardData && dashboardData.connectors) plotSisterNodes(dashboardData.connectors);
+                            maybeAutoCheck();
+                        }, 150);
+                        return; // Auto-login successful
+                    }
+                } catch (e) {
+                    console.error('Auto-login verification failed:', e);
+                }
+            }
+
             try {
                 const res = await fetch(`${API}/status`);
                 const data = await res.json();

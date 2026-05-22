@@ -410,6 +410,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             if (genesisMember) {
                 const invite = adminGenerateInvite(genesisMember.publicKey, genesisType);
                 if (invite) {
+                    logger.info('ADMIN', `Seed invite generated: ${invite.code} [${genesisType}]`);
                     const tierLabels: Record<string, string> = { standard: '👻 Ghost', trusted: '🏠 Resident', ambassador: '🏛️ Citizen' };
                     ctx.body = { success: true, code: invite.code, type: genesisType, tierLabel: tierLabels[genesisType], message: `${tierLabels[genesisType]} invite generated` };
                     return;
