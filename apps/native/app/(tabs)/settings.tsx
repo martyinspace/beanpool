@@ -239,8 +239,8 @@ export default function SettingsScreen() {
             await redeemInvite(redeemInviteCode.trim(), identity?.callsign || 'Unknown', identity);
             
             // Kick off a background sync immediately so they pull the node's ledger
-            const { performSync } = await import('../../services/pillar-sync');
-            performSync().catch(console.error);
+            const { requestSync } = await import('../../services/pillar-sync');
+            requestSync().catch(console.error);
 
             Alert.alert('Success', 'Invite redeemed successfully on current node! Syncing data...');
             setRedeemInviteCode('');
@@ -312,11 +312,14 @@ export default function SettingsScreen() {
                             await clearDB();
                             await initDB();
                             
-                            const { performSync } = await import('../../services/pillar-sync');
-                            performSync().then((res: any) => {
-                                if (res?.success) Alert.alert("Success", "Local database rebuilt.");
-                                else Alert.alert("Sync Error", res?.errorMessage || "Failed to fetch data.");
-                            });
+                            const { requestSync } = await import('../../services/pillar-sync');
+                            requestSync()
+                                .then(() => {
+                                    Alert.alert("Success", "Local database rebuilt and sync triggered.");
+                                })
+                                .catch((err: any) => {
+                                    Alert.alert("Sync Error", err?.message || "Failed to fetch data.");
+                                });
                         } catch (e: any) {
                             Alert.alert("Error", String(e.message || e));
                         } finally {
@@ -350,9 +353,8 @@ export default function SettingsScreen() {
             await closeDB();
             await initDB();
 
-            const { performSync } = await import('../../services/pillar-sync');
-            performSync()
-                .then((res: any) => { if (!res?.success) console.warn("Sync failed after URL update:", res?.errorMessage); })
+            const { requestSync } = await import('../../services/pillar-sync');
+            requestSync()
                 .catch((err: any) => console.error("Sync caught an error:", err));
 
             Alert.alert("Node Added", "You have successfully connected to the new community.");

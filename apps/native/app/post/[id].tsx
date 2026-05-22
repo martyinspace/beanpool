@@ -616,8 +616,8 @@ export default function PostDetailModal() {
                                         } catch(e:any) { 
                                             if (e.message?.includes('not found') || e.message?.includes('not authorized')) {
                                                 Alert.alert('Already Updated', 'This transaction was already cancelled or completed on another device. Your feed will automatically refresh.');
-                                                const { performSync } = require('../../services/pillar-sync');
-                                                performSync().catch(console.error);
+                                                const { requestSync } = require('../../services/pillar-sync');
+                                                requestSync().catch(console.error);
                                                 if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
                                             } else {
                                                 Alert.alert('Error', e.message); 
@@ -812,8 +812,8 @@ export default function PostDetailModal() {
                                         } catch (e: any) { 
                                             if (e.message?.includes('not found') || e.message?.includes('not active')) {
                                                 Alert.alert('Already Updated', 'This post was already accepted or modified elsewhere. Refreshing your screen...');
-                                                const { performSync } = require('../../services/pillar-sync');
-                                                performSync().catch(console.error);
+                                                const { requestSync } = require('../../services/pillar-sync');
+                                                requestSync().catch(console.error);
                                                 setShowAcceptConfirm(false);
                                             } else {
                                                 Alert.alert('Error', e.message); 
