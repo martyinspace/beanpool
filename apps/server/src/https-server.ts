@@ -37,6 +37,8 @@ import { federationCors, mountFederationRoutes } from './federation-api.js';
 import { federatedRelayMessage, federatedVerifyMember } from './federation-protocol.js';
 import { getP2PNode } from './p2p.js';
 import { WebSocketServer } from 'ws';
+import os from 'node:os';
+import { logger, addLogClient, removeLogClient } from './logger.js';
 import {
     registerMember, getMembers, getAllMembers, getMember,
     getBalance, transfer, getTransactions,
@@ -366,11 +368,13 @@ export async function startHttpsServer(port: number): Promise<void> {
 
         if (!config.adminHash || !config.salt ||
             !verifyPassword(password, config.adminHash, config.salt)) {
+            logger.security('AUTH', 'Failed administrative login attempt.');
             ctx.status = 401;
             ctx.body = { error: 'Invalid password' };
             return;
         }
 
+        logger.security('AUTH', 'Successful administrative login.');
         ctx.body = { success: true };
     });
 
@@ -382,6 +386,7 @@ export async function startHttpsServer(port: number): Promise<void> {
 
         if (!password || !config.adminHash || !config.salt ||
             !verifyPassword(password, config.adminHash, config.salt)) {
+            logger.security('AUTH', 'Unauthorized attempt to generate invite code.');
             ctx.status = 401;
             ctx.body = { error: 'Invalid password' };
             return;
@@ -427,7 +432,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             return;
         }
 
-        console.log(`🌱 Seed invite generated: ${invite.code} [${genesisType}]`);
+        logger.info('ADMIN', `Seed invite generated: ${invite.code} [${genesisType}]`);
         ctx.body = { success: true, code: invite.code, type: genesisType, message: 'Genesis member created + seed invite generated' };
     });
 
@@ -493,6 +498,96 @@ export async function startHttpsServer(port: number): Promise<void> {
             memberStats: getMemberStats(),
         };
     });
+
+    router.post('/api/local/admin/logs', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        const { level, category, searchQuery, limit = 100, offset = 0 } = (ctx as any).requestBody || {};
+
+        let sql = 'SELECT * FROM system_logs WHERE 1=1';
+        const params: any[] = [];
+
+        if (level && level !== 'ALL') {
+            sql += ' AND level = ?';
+            params.push(level);
+        }
+        if (category && category !== 'ALL') {
+            sql += ' AND category = ?';
+            params.push(category);
+        }
+        if (searchQuery) {
+            sql += ' AND message LIKE ?';
+            params.push(`%${searchQuery}%`);
+        }
+
+        sql += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
+        params.push(limit, offset);
+
+        try {
+            const rows = db.prepare(sql).all(...params) as any[];
+            ctx.body = { success: true, logs: rows };
+        } catch (e: any) {
+            console.error('Error fetching logs:', e);
+            ctx.status = 500;
+            ctx.body = { error: e.message };
+        }
+    });
+
+    router.post('/api/local/admin/diagnostics', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+
+        try {
+            const cpusCount = os.cpus().length;
+            const cpuLoad = Math.min(Math.round((os.loadavg()[0] / cpusCount) * 100), 100);
+
+            const totalMem = os.totalmem();
+            const freeMem = os.freemem();
+            const usedMem = totalMem - freeMem;
+            const ramUsage = Math.round((usedMem / totalMem) * 100);
+
+            const DATA_DIR = process.env.BEANPOOL_DATA_DIR || path.join(process.cwd(), 'data');
+            const dbPath = path.join(DATA_DIR, 'state.db');
+            let dbSize = 0;
+            let walSize = 0;
+            try {
+                if (fs.existsSync(dbPath)) {
+                    dbSize = fs.statSync(dbPath).size;
+                }
+                const walPath = `${dbPath}-wal`;
+                if (fs.existsSync(walPath)) {
+                    walSize = fs.statSync(walPath).size;
+                }
+            } catch (err) {}
+
+            const connectors = getConnectors() || [];
+            const activePeers = connectors.filter(c => c.connected).length;
+            const totalPeers = connectors.length;
+
+            ctx.body = {
+                success: true,
+                diagnostics: {
+                    cpuLoad,
+                    cpusCount,
+                    totalMem,
+                    freeMem,
+                    usedMem,
+                    ramUsage,
+                    dbSize,
+                    walSize,
+                    uptime: Math.round(process.uptime()),
+                    activePeers,
+                    totalPeers,
+                    nodeVersion: process.version,
+                    platform: process.platform,
+                    arch: process.arch
+                }
+            };
+        } catch (e: any) {
+            console.error('Error fetching diagnostics:', e);
+            ctx.status = 500;
+            ctx.body = { error: e.message };
+        }
+    });
+
 
     router.post('/api/local/admin/posts/:id/delete', async (ctx) => {
         if (!checkAdminAuth(ctx as any)) return;
@@ -2291,17 +2386,37 @@ export async function startHttpsServer(port: number): Promise<void> {
 
         // WebSocket upgrade handler
         const wss = new WebSocketServer({ noServer: true });
+        const logsWss = new WebSocketServer({ noServer: true });
+
         server.on('upgrade', (req, socket, head) => {
-            if (req.url === '/ws') {
+            const reqUrl = req.url || '';
+            const parsedUrl = new URL(reqUrl, 'https://localhost');
+            const pathname = parsedUrl.pathname;
+
+            if (pathname === '/ws') {
                 wss.handleUpgrade(req, socket, head, (ws) => {
                     addWsClient(ws);
                     ws.on('close', () => removeWsClient(ws));
                     ws.on('error', () => removeWsClient(ws));
                 });
+            } else if (pathname === '/ws/logs') {
+                const auth = parsedUrl.searchParams.get('auth');
+                const config = getLocalConfig();
+                if (!auth || !config.adminHash || !config.salt || !verifyPassword(auth, config.adminHash, config.salt)) {
+                    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                    socket.destroy();
+                    return;
+                }
+                logsWss.handleUpgrade(req, socket, head, (ws) => {
+                    addLogClient(ws);
+                    ws.on('close', () => removeLogClient(ws));
+                    ws.on('error', () => removeLogClient(ws));
+                });
             } else {
                 socket.destroy();
             }
         });
+
 
         server.listen(port, () => {
             console.log(`🔒 PWA + Settings + API (HTTPS) listening on https://0.0.0.0:${port}`);
