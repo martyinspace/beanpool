@@ -1961,25 +1961,13 @@
                 try {
                     const parsed = typeof log.metadata === 'string' ? JSON.parse(log.metadata) : log.metadata;
                     if (parsed && Object.keys(parsed).length > 0) {
-                        metadataHtml = `
-                            <details style="margin-top: 0.2rem; cursor: pointer;">
-                                <summary style="color: #64748b; font-size: 0.65rem; font-weight: 600;">View Metadata</summary>
-                                <div class="log-meta">${esc(JSON.stringify(parsed, null, 2))}</div>
-                            </details>
-                        `;
+                        metadataHtml = `<details><summary>View Metadata</summary><div class="log-meta">${esc(JSON.stringify(parsed, null, 2))}</div></details>`;
                     }
                 } catch (err) {}
             }
 
-            row.innerHTML = `
-                <span class="log-time">[${esc(timeStr)}]</span>
-                <span class="log-lvl ${levelClass}">${esc(log.level)}</span>
-                <span class="log-cat">${esc(log.category)}</span>
-                <div style="flex: 1;">
-                    <span class="log-msg">${esc(log.message)}</span>
-                    ${metadataHtml}
-                </div>
-            `;
+            const msgClean = log.message ? log.message.trim() : '';
+            row.innerHTML = `<span class="log-time">[${esc(timeStr)}]</span><span class="log-lvl ${levelClass}">${esc(log.level)}</span><span class="log-cat">${esc(log.category)}</span><div style="flex: 1;"><span class="log-msg">${esc(msgClean)}</span>${metadataHtml}</div>`;
 
             feed.appendChild(row);
 

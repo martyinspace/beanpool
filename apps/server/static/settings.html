@@ -552,6 +552,31 @@
             white-space: pre-wrap;
             overflow-x: auto;
         }
+        .log-row details {
+            margin-top: 0.15rem;
+        }
+        .log-row details:not([open]) {
+            margin-bottom: 0;
+        }
+        .log-row details[open] {
+            margin-bottom: 0.25rem;
+        }
+        .log-row details summary {
+            color: #64748b;
+            font-size: 0.65rem;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            outline: none;
+        }
+        .log-row details summary:hover {
+            color: #94a3b8;
+        }
+        .log-row details:not([open]) .log-meta {
+            display: none !important;
+            user-select: none !important;
+            visibility: hidden !important;
+        }
         .export-dropdown-container:hover #log-export-options {
             display: block !important;
         }
