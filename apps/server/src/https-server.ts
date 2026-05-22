@@ -1365,48 +1365,63 @@ export async function startHttpsServer(port: number): Promise<void> {
             ctx.body = { error: 'type, title, and authorPublicKey are required' };
             return;
         }
-        const post = createPost(
-            type, category || 'other', title, description || '',
-            Number(credits) || 0, priceType === 'hourly' ? 'hourly' : 'fixed', authorPublicKey,
-            lat != null ? Number(lat) : undefined,
-            lng != null ? Number(lng) : undefined,
-            photos,
-            repeatable === true || repeatable === 'true',
-            id
-        );
-        if (!post) {
+        try {
+            const post = createPost(
+                type, category || 'other', title, description || '',
+                Number(credits) || 0, priceType === 'hourly' ? 'hourly' : 'fixed', authorPublicKey,
+                lat != null ? Number(lat) : undefined,
+                lng != null ? Number(lng) : undefined,
+                photos,
+                repeatable === true || repeatable === 'true',
+                id
+            );
+            if (!post) {
+                ctx.status = 400;
+                ctx.body = { error: 'Failed — author must be a registered member' };
+                return;
+            }
+            ctx.body = { success: true, post };
+        } catch (e: any) {
             ctx.status = 400;
-            ctx.body = { error: 'Failed — author must be a registered member' };
-            return;
+            ctx.body = { error: e.message || 'Failed to create post' };
         }
-        ctx.body = { success: true, post };
     });
 
     router.post('/api/marketplace/posts/remove', async (ctx) => {
-        const { id, authorPublicKey } = (ctx as any).requestBody || {};
-        if (!id || !authorPublicKey) {
+        try {
+            const { id, authorPublicKey } = (ctx as any).requestBody || {};
+            if (!id || !authorPublicKey) {
+                ctx.status = 400;
+                ctx.body = { error: 'id and authorPublicKey are required' };
+                return;
+            }
+            const removed = removePost(id, authorPublicKey);
+            ctx.body = { success: removed };
+        } catch (e: any) {
             ctx.status = 400;
-            ctx.body = { error: 'id and authorPublicKey are required' };
-            return;
+            ctx.body = { error: e.message || 'Failed to remove post' };
         }
-        const removed = removePost(id, authorPublicKey);
-        ctx.body = { success: removed };
     });
 
     router.post('/api/marketplace/posts/update', async (ctx) => {
-        const { id, authorPublicKey, ...updates } = (ctx as any).requestBody || {};
-        if (!id || !authorPublicKey) {
+        try {
+            const { id, authorPublicKey, ...updates } = (ctx as any).requestBody || {};
+            if (!id || !authorPublicKey) {
+                ctx.status = 400;
+                ctx.body = { error: 'id and authorPublicKey are required' };
+                return;
+            }
+            const post = updatePost(id, authorPublicKey, updates);
+            if (!post) {
+                ctx.status = 404;
+                ctx.body = { error: 'Post not found or not owned by you' };
+                return;
+            }
+            ctx.body = { success: true, post };
+        } catch (e: any) {
             ctx.status = 400;
-            ctx.body = { error: 'id and authorPublicKey are required' };
-            return;
+            ctx.body = { error: e.message || 'Failed to update post' };
         }
-        const post = updatePost(id, authorPublicKey, updates);
-        if (!post) {
-            ctx.status = 404;
-            ctx.body = { error: 'Post not found or not owned by you' };
-            return;
-        }
-        ctx.body = { success: true, post };
     });
 
     // ===================== MARKETPLACE TRANSACTIONS =====================
@@ -1533,25 +1548,35 @@ export async function startHttpsServer(port: number): Promise<void> {
     });
 
     router.post('/api/marketplace/posts/pause', async (ctx) => {
-        const { postId, authorPublicKey } = (ctx as any).requestBody || {};
-        if (!postId || !authorPublicKey) {
+        try {
+            const { postId, authorPublicKey } = (ctx as any).requestBody || {};
+            if (!postId || !authorPublicKey) {
+                ctx.status = 400;
+                ctx.body = { error: 'postId and authorPublicKey are required' };
+                return;
+            }
+            const success = pausePost(postId, authorPublicKey);
+            ctx.body = { success };
+        } catch (e: any) {
             ctx.status = 400;
-            ctx.body = { error: 'postId and authorPublicKey are required' };
-            return;
+            ctx.body = { error: e.message || 'Failed to pause post' };
         }
-        const success = pausePost(postId, authorPublicKey);
-        ctx.body = { success };
     });
 
     router.post('/api/marketplace/posts/resume', async (ctx) => {
-        const { postId, authorPublicKey } = (ctx as any).requestBody || {};
-        if (!postId || !authorPublicKey) {
+        try {
+            const { postId, authorPublicKey } = (ctx as any).requestBody || {};
+            if (!postId || !authorPublicKey) {
+                ctx.status = 400;
+                ctx.body = { error: 'postId and authorPublicKey are required' };
+                return;
+            }
+            const success = resumePost(postId, authorPublicKey);
+            ctx.body = { success };
+        } catch (e: any) {
             ctx.status = 400;
-            ctx.body = { error: 'postId and authorPublicKey are required' };
-            return;
+            ctx.body = { error: e.message || 'Failed to resume post' };
         }
-        const success = resumePost(postId, authorPublicKey);
-        ctx.body = { success };
     });
 
     router.get('/api/marketplace/transactions', async (ctx) => {
