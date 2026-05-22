@@ -595,7 +595,10 @@
                 <h1>🫘 Node <span>Settings</span><span id="top-version-display" style="color: gold; font-size: 0.55em; margin-left: 10px; vertical-align: middle; font-weight: normal; font-family: monospace;"></span><a href="#" id="update-badge" onclick="switchTab('system');document.getElementById('update-panel').scrollIntoView({behavior:'smooth'});return false;" style="display:none;font-size:0.4em;margin-left:8px;vertical-align:middle;color:#3b82f6;text-decoration:none;font-weight:600;font-family:'Inter',sans-serif;animation:updatePulse 2s ease-in-out infinite;"><span style="display:inline-block;width:8px;height:8px;background:#3b82f6;border-radius:50%;margin-right:4px;vertical-align:middle;box-shadow:0 0 6px rgba(59,130,246,0.6);"></span><span id="update-badge-text">update available</span></a></h1>
                 <div class="peer-id" id="hdr-peer-id"></div>
             </div>
-            <a href="/" class="btn btn-outline btn-sm">← Back</a>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <button id="logout-btn" class="btn btn-outline btn-sm hidden" style="color: #f87171; border-color: rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.05);">🔒 Logout</button>
+                <a href="/" class="btn btn-outline btn-sm">← Back</a>
+            </div>
         </div>
 
         <!-- ========== LOGIN VIEW ========== -->

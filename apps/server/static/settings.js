@@ -39,6 +39,10 @@
         function showView(name) {
             document.getElementById('view-login').classList.toggle('hidden', name !== 'login');
             document.getElementById('view-settings').classList.toggle('hidden', name !== 'settings');
+            const logoutBtn = document.getElementById('logout-btn');
+            if (logoutBtn) {
+                logoutBtn.classList.toggle('hidden', name !== 'settings');
+            }
         }
 
         // ======================== TAB SWITCHING ========================
@@ -2259,6 +2263,32 @@
 
         document.getElementById('btn-export-txt').addEventListener('click', () => exportLogsHistory('txt'));
         document.getElementById('btn-export-json').addEventListener('click', () => exportLogsHistory('json'));
+
+        function logout() {
+            authToken = null;
+            sessionStorage.removeItem('bp-admin-token');
+            sessionStorage.removeItem('bp-settings-tab');
+
+            if (logsWs) {
+                try {
+                    logsWs.close();
+                } catch (e) {}
+                logsWs = null;
+            }
+
+            // Reset fields
+            document.getElementById('login-password').value = '';
+            const statusEl = document.getElementById('login-status');
+            if (statusEl) {
+                statusEl.className = 'status-msg';
+                statusEl.textContent = '';
+            }
+
+            // Show login view
+            showView('login');
+        }
+
+        document.getElementById('logout-btn').addEventListener('click', logout);
 
         // ======================== INIT ========================
         async function init() {
