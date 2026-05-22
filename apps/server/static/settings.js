@@ -64,6 +64,19 @@
             if (tabName === 'comms') loadAdminInbox();
             if (tabName === 'commons') { loadCommonsData(); loadNodeConfig(); loadThresholdGroup(COMMONS_THRESHOLD_KEYS); }
             if (tabName === 'network') loadThresholdGroup(NETWORK_THRESHOLD_KEYS);
+            if (tabName === 'diagnostics') {
+                unseenWarningErrorCount = 0;
+                updateDiagBadge();
+                loadLogsHistory();
+                loadDiagnostics();
+                if (diagnosticsInterval) clearInterval(diagnosticsInterval);
+                diagnosticsInterval = setInterval(loadDiagnostics, 3000);
+            } else {
+                if (diagnosticsInterval) {
+                    clearInterval(diagnosticsInterval);
+                    diagnosticsInterval = null;
+                }
+            }
         }
 
         document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -196,6 +209,7 @@
                     return;
                 }
                 authToken = password;
+                initLogsWs();
                 let dashboardData = null;
                 const dashRes = await fetch(`${API}/dashboard`);
                 if (dashRes.ok) {
@@ -1890,6 +1904,371 @@
             }
         }
         window.uploadBackup = uploadBackup;
+
+        // ======================== DIAGNOSTICS & LOGS ========================
+        let logsWs = null;
+        let isLogsPaused = false;
+        let logsBuffer = [];
+        let unseenWarningErrorCount = 0;
+        let diagnosticsInterval = null;
+
+        function updateDiagBadge() {
+            const badge = document.getElementById('diag-badge');
+            if (!badge) return;
+            if (unseenWarningErrorCount > 0) {
+                badge.textContent = `⚠️ ${unseenWarningErrorCount}`;
+                badge.style.display = 'inline-block';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        function matchesFilter(log) {
+            const levelFilter = document.getElementById('log-filter-level').value;
+            const catFilter = document.getElementById('log-filter-category').value;
+            const searchVal = document.getElementById('log-search').value.toLowerCase().trim();
+
+            if (levelFilter !== 'ALL' && log.level !== levelFilter) return false;
+            if (catFilter !== 'ALL' && log.category !== catFilter) return false;
+            if (searchVal && !log.message.toLowerCase().includes(searchVal)) return false;
+
+            return true;
+        }
+
+        function appendLogToTerminal(log) {
+            const feed = document.getElementById('log-terminal-feed');
+            if (!feed) return;
+
+            const row = document.createElement('div');
+            row.className = 'log-row';
+
+            let timeStr = log.timestamp;
+            try {
+                const date = new Date(log.timestamp);
+                const hrs = String(date.getHours()).padStart(2, '0');
+                const mins = String(date.getMinutes()).padStart(2, '0');
+                const secs = String(date.getSeconds()).padStart(2, '0');
+                const ms = String(date.getMilliseconds()).padStart(3, '0');
+                timeStr = `${hrs}:${mins}:${secs}.${ms}`;
+            } catch (e) {}
+
+            const levelClass = log.level.toLowerCase();
+            
+            let metadataHtml = '';
+            if (log.metadata) {
+                try {
+                    const parsed = typeof log.metadata === 'string' ? JSON.parse(log.metadata) : log.metadata;
+                    if (parsed && Object.keys(parsed).length > 0) {
+                        metadataHtml = `
+                            <details style="margin-top: 0.2rem; cursor: pointer;">
+                                <summary style="color: #64748b; font-size: 0.65rem; font-weight: 600;">View Metadata</summary>
+                                <div class="log-meta">${esc(JSON.stringify(parsed, null, 2))}</div>
+                            </details>
+                        `;
+                    }
+                } catch (err) {}
+            }
+
+            row.innerHTML = `
+                <span class="log-time">[${esc(timeStr)}]</span>
+                <span class="log-lvl ${levelClass}">${esc(log.level)}</span>
+                <span class="log-cat">${esc(log.category)}</span>
+                <div style="flex: 1;">
+                    <span class="log-msg">${esc(log.message)}</span>
+                    ${metadataHtml}
+                </div>
+            `;
+
+            feed.appendChild(row);
+
+            while (feed.childNodes.length > 1000) {
+                feed.removeChild(feed.firstChild);
+            }
+
+            if (!isLogsPaused) {
+                feed.scrollTop = feed.scrollHeight;
+            }
+
+            const countEl = document.getElementById('log-buffered-count');
+            if (countEl) {
+                countEl.textContent = `${feed.childNodes.length} logs shown`;
+            }
+        }
+
+        async function loadLogsHistory() {
+            if (!authToken) return;
+            const level = document.getElementById('log-filter-level').value;
+            const category = document.getElementById('log-filter-category').value;
+            const searchQuery = document.getElementById('log-search').value.trim();
+
+            try {
+                const res = await fetch(`${API}/admin/logs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        password: authToken,
+                        level,
+                        category,
+                        searchQuery,
+                        limit: 500
+                    })
+                });
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+
+                const feed = document.getElementById('log-terminal-feed');
+                if (feed) {
+                    feed.innerHTML = '';
+                    if (data.logs && data.logs.length > 0) {
+                        const chronological = [...data.logs].reverse();
+                        chronological.forEach(log => {
+                            appendLogToTerminal(log);
+                        });
+                    } else {
+                        feed.innerHTML = '<div style="color: #475569; text-align: center; padding: 2rem;">No logs matched the filters.</div>';
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load logs history:', err);
+            }
+        }
+
+        function formatUptime(seconds) {
+            const d = Math.floor(seconds / (3600 * 24));
+            const h = Math.floor((seconds % (3600 * 24)) / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+
+            if (d > 0) return `${d}d ${h}h`;
+            if (h > 0) return `${h}h ${m}m`;
+            if (m > 0) return `${m}m ${s}s`;
+            return `${s}s`;
+        }
+
+        async function loadDiagnostics() {
+            if (!authToken) return;
+            try {
+                const res = await fetch(`${API}/admin/diagnostics`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken })
+                });
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                const diag = data.diagnostics;
+
+                if (!diag) return;
+
+                // CPU Circular Gauge
+                const cpuValEl = document.getElementById('cpu-gauge-val');
+                const cpuTextEl = document.getElementById('cpu-load-text');
+                const cpuCoresEl = document.getElementById('cpu-cores');
+                if (cpuValEl && cpuTextEl) {
+                    const percent = Math.min(Math.max(diag.cpuLoad, 0), 100);
+                    cpuValEl.setAttribute('stroke-dasharray', `${percent}, 100`);
+                    cpuTextEl.textContent = `${percent}%`;
+
+                    let color = '#10b981';
+                    if (percent > 80) color = '#ef4444';
+                    else if (percent > 50) color = '#f59e0b';
+                    cpuValEl.style.stroke = color;
+                }
+                if (cpuCoresEl) {
+                    cpuCoresEl.textContent = `${diag.cpusCount} CPU Cores`;
+                }
+
+                // RAM Progress Bar
+                const ramUsageText = document.getElementById('ram-usage-text');
+                const ramBar = document.getElementById('ram-usage-bar');
+                const ramPercentEl = document.getElementById('ram-used-percent');
+                const ramFreeEl = document.getElementById('ram-free-gb');
+                if (ramUsageText && ramBar) {
+                    const usedGB = (diag.usedMem / (1024 * 1024 * 1024)).toFixed(2);
+                    const totalGB = (diag.totalMem / (1024 * 1024 * 1024)).toFixed(2);
+                    const freeGB = (diag.freeMem / (1024 * 1024 * 1024)).toFixed(2);
+                    
+                    ramUsageText.textContent = `${usedGB} / ${totalGB} GB`;
+                    ramPercentEl.textContent = `${diag.ramUsage}%`;
+                    ramFreeEl.textContent = `${freeGB} GB`;
+
+                    ramBar.style.width = `${diag.ramUsage}%`;
+                    
+                    let color = 'linear-gradient(90deg, #3b82f6, #60a5fa)';
+                    if (diag.ramUsage > 85) color = 'linear-gradient(90deg, #ef4444, #f87171)';
+                    else if (diag.ramUsage > 60) color = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
+                    ramBar.style.background = color;
+                }
+
+                // Database & System Metrics
+                const dbTotalSizeEl = document.getElementById('db-total-size');
+                const dbWalSizeEl = document.getElementById('db-wal-size');
+                const sysUptimeEl = document.getElementById('sys-uptime');
+                const sysOsArchEl = document.getElementById('sys-os-arch');
+
+                if (dbTotalSizeEl) {
+                    const dbMB = (diag.dbSize / (1024 * 1024)).toFixed(2);
+                    dbTotalSizeEl.textContent = `${dbMB} MB`;
+                }
+                if (dbWalSizeEl) {
+                    const walMB = (diag.walSize / (1024 * 1024)).toFixed(2);
+                    dbWalSizeEl.textContent = `${walMB} MB`;
+                }
+                if (sysUptimeEl) {
+                    sysUptimeEl.textContent = formatUptime(diag.uptime);
+                }
+                if (sysOsArchEl) {
+                    sysOsArchEl.textContent = `${diag.platform} (${diag.arch})`;
+                }
+
+            } catch (err) {
+                console.error('Failed to fetch hardware diagnostics:', err);
+            }
+        }
+
+        function initLogsWs() {
+            if (logsWs && (logsWs.readyState === WebSocket.CONNECTING || logsWs.readyState === WebSocket.OPEN)) {
+                return;
+            }
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/logs?auth=${encodeURIComponent(authToken)}`;
+
+            logsWs = new WebSocket(wsUrl);
+
+            logsWs.onopen = () => {
+                const statusBanner = document.getElementById('log-ws-status');
+                if (statusBanner) {
+                    statusBanner.innerHTML = '<span>● Connected to System Events Stream</span>';
+                    statusBanner.style.color = '#34d399';
+                    statusBanner.style.background = 'rgba(16, 185, 129, 0.1)';
+                    statusBanner.style.borderTop = '1px solid rgba(16, 185, 129, 0.2)';
+                }
+            };
+
+            logsWs.onmessage = (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    if (msg.type === 'log') {
+                        const log = msg.data;
+                        
+                        const currentTab = sessionStorage.getItem('bp-settings-tab') || 'identity';
+                        if (currentTab !== 'diagnostics') {
+                            if (log.level === 'WARN' || log.level === 'ERROR' || log.level === 'SECURITY') {
+                                unseenWarningErrorCount++;
+                                updateDiagBadge();
+                            }
+                        }
+
+                        logsBuffer.unshift(log);
+                        if (logsBuffer.length > 2500) {
+                            logsBuffer.pop();
+                        }
+
+                        if (matchesFilter(log)) {
+                            appendLogToTerminal(log);
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error handling ws log message:', err);
+                }
+            };
+
+            logsWs.onclose = () => {
+                const statusBanner = document.getElementById('log-ws-status');
+                if (statusBanner) {
+                    statusBanner.innerHTML = '<span>○ Disconnected. Attempting reconnection...</span>';
+                    statusBanner.style.color = '#f87171';
+                    statusBanner.style.background = 'rgba(239, 68, 68, 0.1)';
+                    statusBanner.style.borderTop = '1px solid rgba(239, 68, 68, 0.2)';
+                }
+                if (authToken) {
+                    setTimeout(initLogsWs, 3000);
+                }
+            };
+
+            logsWs.onerror = (err) => {
+                console.error('Logs WebSocket error:', err);
+            };
+        }
+
+        async function exportLogsHistory(format) {
+            if (!authToken) return;
+            const level = document.getElementById('log-filter-level').value;
+            const category = document.getElementById('log-filter-category').value;
+            const searchQuery = document.getElementById('log-search').value.trim();
+
+            try {
+                const res = await fetch(`${API}/admin/logs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        password: authToken,
+                        level,
+                        category,
+                        searchQuery,
+                        limit: 2500
+                    })
+                });
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                const logs = data.logs || [];
+
+                let blob;
+                let filename = `beanpool-logs-${new Date().toISOString().split('T')[0]}`;
+
+                if (format === 'json') {
+                    blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
+                    filename += '.json';
+                } else {
+                    const text = logs.map(log => {
+                        const time = log.timestamp;
+                        const meta = log.metadata ? `\nMetadata: ${log.metadata}` : '';
+                        return `[${time}] [${log.level}] [${log.category}] ${log.message}${meta}`;
+                    }).join('\n');
+                    blob = new Blob([text], { type: 'text/plain' });
+                    filename += '.txt';
+                }
+
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                alert('Export failed: ' + err.message);
+            }
+        }
+
+        // Setup Diagnostics Controls
+        document.getElementById('log-filter-level').addEventListener('change', loadLogsHistory);
+        document.getElementById('log-filter-category').addEventListener('change', loadLogsHistory);
+        
+        let logSearchTimeout;
+        document.getElementById('log-search').addEventListener('input', () => {
+            clearTimeout(logSearchTimeout);
+            logSearchTimeout = setTimeout(loadLogsHistory, 300);
+        });
+
+        document.getElementById('btn-log-pause').addEventListener('click', () => {
+            isLogsPaused = !isLogsPaused;
+            document.getElementById('btn-log-pause').textContent = isLogsPaused ? '▶️ Play' : '⏸️ Pause';
+        });
+
+        document.getElementById('btn-log-clear').addEventListener('click', () => {
+            const feed = document.getElementById('log-terminal-feed');
+            if (feed) feed.innerHTML = '';
+            const countEl = document.getElementById('log-buffered-count');
+            if (countEl) countEl.textContent = '0 logs shown';
+        });
+
+        document.getElementById('btn-export-txt').addEventListener('click', () => exportLogsHistory('txt'));
+        document.getElementById('btn-export-json').addEventListener('click', () => exportLogsHistory('json'));
 
         // ======================== INIT ========================
         async function init() {

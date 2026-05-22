@@ -6,6 +6,12 @@
 
 ## ✅ Recently Completed
 
+- ✅ **Admin Log & Diagnostic Screen (Release v1.0.78)** — Built a secure, real-time administrative console and hardware resource monitoring dashboard for the BeanPool node settings panel.
+  - **Security & Redaction**: Designed a multi-phase regex sanitization engine to strip BIP39 mnemonics, PEM private keys, plain passwords/secrets, and hex seeds before database write or WebSocket broadcast.
+  - **Resource Telemetry**: Integrated a glassmorphic visual telemetry deck featuring circular CPU load gauge widgets (with pulsating HSL colors), linear RAM allocation bars, and real-time database/WAL file metrics.
+  - **Interactive Terminal Feed**: Engineered a real-time event log viewer with category/level filters, instant text searches, pause/play scroll freeze controls, and console clears.
+  - **Exporting Options**: Added support for exporting and downloading logs in both Plain Text (`.txt`) and Raw JSON (`.json`) formats.
+  - **Alert Badges**: Implemented an automated background warning/error listener that updates a glowing badge counter next to the "Diagnostics & Logs" tab button in the header when the user is active on another settings tab.
 - ✅ **Release v1.0.77: SQLite Database Restoration & "Never" Syncing** — Successfully restored the SQLite database state on `test.beanpool.org` using simulator datasets to recover 28 members, 21 posts, and 24 messages. Added a "Never (Disabled)" option to Directory settings, allowing admins to completely bypass periodic directory pushes.
 - ✅ **Release v1.0.76: Settings Lockout Fix & Password Complexity** — Resolved Admin Settings CSP lockouts by explicitly permitting Leaflet, OpenStreetMap, and geocoding API domains (`https://unpkg.com`, `https://*.tile.openstreetmap.org`, `https://nominatim.openstreetmap.org`). Enforced high-entropy complexity rules (minimum 8 chars, mixed cases, digits, and special characters) validated dynamically on settings inputs, system boot, and API boundaries.
 - ✅ **Production EAS Native Builds (v1.0.76-b97)** — Successfully compiled production Android app bundle (`beanpool-android-v1.0.76-b97.aab`) and iOS app bundle (`beanpool-ios-v1.0.76-b97.ipa`) using EAS, copying them to local and desktop build stores.
@@ -149,6 +155,16 @@
 - [x] **Abuse Reporting (Native)** — port reporting UI to native app
 - [x] **Push Notifications** — Message and trade alerts via Expo Push Notifications
 - [x] **App Store & Play Store Submission** — Published/built for both stores (v1.0.76, build 97).
+
+## 🚀 Proposed Advanced P2P Upgrades (Mesh Hardening)
+
+These represent next-generation design specifications for decentralized, federated mutual credit:
+
+- [ ] **Multi-Sig Peer Arbitration & Crowd Juries** — Safe resolution mechanism for disputed escrow transactions. Neutral, high-trust Citizens/Elders can act as temporary peer jurists to release or refund escrows without admin centralization.
+- [ ] **Double-Signed Cryptographic Offline Receipts** — Tamper-evident face-to-face offline transactions. Alice and Bob perform a 2-way scan handshake to generate an Ed25519-signed proof-of-transaction, guaranteeing that offline SQLite logs cannot be altered.
+- [ ] **Topographical Web-of-Trust Throttling** — Advanced Sybil-resistance utilizing topographical path-diversity algorithms (e.g. EigenTrust/SybilLimit). Collusive puppet rings are identified by graph bottlenecks, capping their dynamic credit floor.
+- [ ] **Zero-Knowledge Multi-Hop Credit Routing** — Ripple/Lightning-style routed transactions over federated node trust-lines. Enables cross-node transfers across nodes without direct mirror/peer synchronization.
+- [ ] **Algorithmic Demurrage Tuning** — Dynamic circulation value decay (holding fees) calculated based on currency velocity to self-stabilize the P2P economy organically.
 
 ---
 
