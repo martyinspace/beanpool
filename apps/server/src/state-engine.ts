@@ -853,12 +853,21 @@ export function getInviteTree(rootPubkey?: string): InviteTreeNode[] {
         return buildSubtree(rootPubkey);
     }
 
-    return allMembers
-        .filter(m => (m.invitedBy === 'genesis' || m.publicKey === 'genesis') && m.publicKey !== 'SYSTEM' && !m.publicKey.startsWith('escrow_'))
-        .map(m => ({
-            publicKey: m.publicKey, callsign: m.callsign, joinedAt: m.joinedAt, inviteCode: m.inviteCode,
-            children: buildSubtree(m.publicKey),
-        }));
+    const genesisRoots = allMembers.filter(m => (m.invitedBy === 'genesis' || m.publicKey === 'genesis') && m.publicKey !== 'SYSTEM' && !m.publicKey.startsWith('escrow_'));
+    if (genesisRoots.length === 0) {
+        // Restored DB fallback: treat members with null/missing invitedBy as root(s)
+        const roots = allMembers.filter(m => (!m.invitedBy || m.invitedBy === 'system') && m.publicKey !== 'SYSTEM' && !m.publicKey.startsWith('escrow_'));
+        if (roots.length > 0) {
+            return roots.map(m => ({
+                publicKey: m.publicKey, callsign: m.callsign, joinedAt: m.joinedAt, inviteCode: m.inviteCode || '',
+                children: buildSubtree(m.publicKey),
+            }));
+        }
+    }
+    return genesisRoots.map(m => ({
+        publicKey: m.publicKey, callsign: m.callsign, joinedAt: m.joinedAt, inviteCode: m.inviteCode || '',
+        children: buildSubtree(m.publicKey),
+    }));
 }
 
 // ===================== PROFILES =====================
@@ -3673,7 +3682,7 @@ export function getGovernanceCredits(pubkey: string): { totalCredits: number; us
 
 export function createVotingRound(adminPubkey: string, projectIds: string[], closesAt: string): VotingRound | null {
     const admin = getMember(adminPubkey);
-    if (!admin || admin.invitedBy !== 'genesis' || getActiveRound()) return null;
+    if (!admin || (admin.invitedBy !== 'genesis' && admin.invitedBy !== null && admin.invitedBy !== undefined) || getActiveRound()) return null;
 
     const projects = getAllProjects();
     for (const pid of projectIds) {

@@ -400,7 +400,13 @@ export async function startHttpsServer(port: number): Promise<void> {
         if (info.memberCount > 0) {
             // Already have members — generate a tiered invite from the genesis member
             const members = getAllMembers();
-            const genesisMember = members.find(m => m.invitedBy === 'genesis');
+            let genesisMember = members.find(m => m.invitedBy === 'genesis');
+            if (!genesisMember) {
+                // Restored DB fallback: find the 'Admin' or first non-system member to act as genesis
+                genesisMember = members.find(m => m.callsign === 'Admin')
+                    || members.find(m => m.publicKey !== 'SYSTEM' && !m.publicKey.startsWith('escrow_'))
+                    || members[0];
+            }
             if (genesisMember) {
                 const invite = adminGenerateInvite(genesisMember.publicKey, genesisType);
                 if (invite) {
