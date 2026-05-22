@@ -8,7 +8,7 @@
 import { useState, useEffect } from 'react';
 import { type BeanPoolIdentity } from '../lib/identity';
 import { exportIdentity } from '../lib/identity-transfer';
-import { getMemberProfile, type MemberProfile } from '../lib/api';
+import { getMemberProfile, redeemInvite, type MemberProfile } from '../lib/api';
 import { resolveAvatarUrl } from '../lib/avatar';
 import { ProfilePage } from './ProfilePage';
 import { type Theme } from '../lib/useTheme';
@@ -32,11 +32,13 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
         setUseModernMarkers(next);
         localStorage.setItem('beanpool_modern_markers', String(next));
     };
-    const [mode, setMode] = useState<'menu' | 'export' | 'import' | 'profile'>('menu');
+    const [mode, setMode] = useState<'menu' | 'export' | 'import' | 'profile' | 'advanced'>('menu');
     const [pin, setPin] = useState('');
     const [exportUri, setExportUri] = useState('');
     const [importUri, setImportUri] = useState('');
     const [importPin, setImportPin] = useState('');
+    const [redeemInviteCode, setRedeemInviteCode] = useState('');
+    const [redeemLoading, setRedeemLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState<string | null>(null);
@@ -99,6 +101,47 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
             setError(e.message || 'Decrypt error. Wrong PIN?');
         } finally {
             setLoading(false);
+        }
+    }
+
+    async function handleRedeemInvite() {
+        if (!redeemInviteCode.trim()) return;
+        setRedeemLoading(true);
+        setError(null);
+        setSuccess(null);
+        try {
+            await redeemInvite(redeemInviteCode.trim(), identity.publicKey, identity.callsign);
+            setSuccess('Invite redeemed successfully on current node!');
+            setRedeemInviteCode('');
+        } catch (e: any) {
+            setError(e.message || 'Redemption failed.');
+        } finally {
+            setRedeemLoading(false);
+        }
+    }
+
+    async function handleForceResync() {
+        if (window.confirm("Are you sure you want to clear the local client cache and force a complete resync from this community node?")) {
+            setLoading(true);
+            setError(null);
+            setSuccess(null);
+            try {
+                // Clear PWA client cache items
+                sessionStorage.clear();
+                localStorage.removeItem('beanpool-sync-state');
+                localStorage.removeItem(`bp_offline_invites_${identity.publicKey}`);
+                localStorage.removeItem('bp_geo_settings');
+                localStorage.removeItem('bp_peer_prefs');
+                localStorage.removeItem('beanpool-privacy-tier');
+                
+                setSuccess('Cache cleared. Resynced & reloading application...');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } catch (e: any) {
+                setError("Resync failed: " + e.message);
+                setLoading(false);
+            }
         }
     }
 
@@ -198,6 +241,13 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                             className="w-full py-4 px-5 rounded-2xl bg-white dark:bg-nature-900 text-nature-900 dark:text-white font-bold border border-nature-200 dark:border-nature-800 shadow-sm hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors text-left flex items-center justify-between group"
                         >
                             <span>📥 Import Identity</span>
+                            <span className="text-nature-400 dark:text-nature-500 group-hover:text-nature-600 dark:group-hover:text-nature-300 transition-colors">→</span>
+                        </button>
+                        <button
+                            onClick={() => { setMode('advanced'); setRedeemInviteCode(''); setError(null); setSuccess(null); }}
+                            className="w-full py-4 px-5 rounded-2xl bg-white dark:bg-nature-900 text-nature-900 dark:text-white font-bold border border-nature-200 dark:border-nature-800 shadow-sm hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors text-left flex items-center justify-between group"
+                        >
+                            <span>⚙️ Advanced / Subsystem</span>
                             <span className="text-nature-400 dark:text-nature-500 group-hover:text-nature-600 dark:group-hover:text-nature-300 transition-colors">→</span>
                         </button>
                     </div>
@@ -452,6 +502,74 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                 )}
 
 
+
+                {mode === 'advanced' && (
+                    <div className="bg-white dark:bg-nature-900 rounded-2xl p-6 shadow-soft border border-nature-200 dark:border-nature-800 animate-in fade-in slide-in-from-bottom-2 duration-300 transition-colors">
+                        <h3 className="text-lg font-bold text-nature-950 dark:text-white mb-3 m-0 transition-colors">⚙️ Advanced Settings</h3>
+                        <p className="text-nature-600 dark:text-nature-400 text-sm mb-5 leading-relaxed transition-colors">
+                            Manage referral connections and client-side database/state cache sync.
+                        </p>
+
+                        {/* Section 1: Redeem Invite */}
+                        <div className="mb-6 border-b border-nature-100 dark:border-nature-800/80 pb-6">
+                            <h4 className="text-sm font-bold text-nature-800 dark:text-nature-200 mb-2">🎟️ Redeem / Update Invite</h4>
+                            <p className="text-xs text-nature-500 dark:text-nature-400 mb-3 leading-relaxed">
+                                Associate this client profile with a referral or new parent node to sync marketplace products and permissions.
+                            </p>
+                            <input
+                                type="text"
+                                value={redeemInviteCode}
+                                onChange={(e) => setRedeemInviteCode(e.target.value)}
+                                placeholder="Enter Invite Code (e.g. BEAN-XXXX)"
+                                className="w-full py-2.5 px-4 mb-3 rounded-xl border border-nature-200 dark:border-nature-800 bg-oat-50/50 dark:bg-nature-950/50 text-nature-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-terra-300 dark:focus:ring-terra-600 transition-all font-mono text-sm placeholder:font-sans placeholder:text-sm"
+                                autoCapitalize="characters"
+                                autoCorrect="false"
+                            />
+                            <button
+                                onClick={handleRedeemInvite}
+                                disabled={redeemLoading || !redeemInviteCode.trim()}
+                                className={`w-full py-2.5 rounded-xl font-bold transition-all shadow-sm text-sm ${
+                                    !redeemLoading && redeemInviteCode.trim()
+                                        ? 'bg-nature-900 dark:bg-white text-white dark:text-nature-900 hover:bg-nature-800 dark:hover:bg-oat-100 hover:shadow-md'
+                                        : 'bg-oat-200 dark:bg-nature-800 text-oat-500 dark:text-nature-500 cursor-not-allowed'
+                                }`}
+                            >
+                                {redeemLoading ? 'Redeeming...' : 'Redeem Code'}
+                            </button>
+                        </div>
+
+                        {/* Section 2: Reset Node Client Cache */}
+                        <div className="mb-6">
+                            <h4 className="text-sm font-bold text-nature-800 dark:text-nature-200 mb-2">🔄 Reset Client Cache & Resync</h4>
+                            <p className="text-xs text-nature-500 dark:text-nature-400 mb-3 leading-relaxed">
+                                Clears the local sessionStorage and offline cursors (invites, map preferences, and privacy tiers) to perform a clean sync from the node.
+                            </p>
+                            <button
+                                onClick={handleForceResync}
+                                disabled={loading}
+                                className={`w-full py-2.5 rounded-xl font-bold border transition-all text-sm shadow-sm ${
+                                    !loading
+                                        ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30'
+                                        : 'bg-oat-200 dark:bg-nature-800 text-oat-500 dark:text-nature-500 border-transparent cursor-not-allowed'
+                                }`}
+                            >
+                                {loading ? 'Clearing Cache...' : 'Reset Cache & Resync'}
+                            </button>
+                        </div>
+
+                        {/* Feedback Messages */}
+                        {error && <p className="text-red-500 dark:text-red-400 text-sm mb-4 font-medium px-1 animate-pulse">{error}</p>}
+                        {success && <p className="text-emerald-600 dark:text-emerald-400 text-sm mb-4 font-medium px-1">{success}</p>}
+
+                        {/* Back Button */}
+                        <button
+                            onClick={() => { setMode('menu'); setError(null); setSuccess(null); }}
+                            className="w-full py-3 rounded-xl font-semibold bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors"
+                        >
+                            Back to Settings
+                        </button>
+                    </div>
+                )}
 
                 {mode === 'profile' && (
                     <div className="bg-white dark:bg-nature-900 rounded-2xl shadow-soft border border-nature-200 dark:border-nature-800 overflow-hidden transition-colors">
