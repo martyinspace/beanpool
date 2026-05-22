@@ -387,3 +387,32 @@ export async function getCachedTransactions(): Promise<any[]> {
     const raw = await AsyncStorage.getItem(kTransactions);
     return raw ? JSON.parse(raw) : [];
 }
+
+let syncPromise: Promise<SyncResult> | null = null;
+let needsAnotherSync = false;
+
+/**
+ * Coordinated request wrapper. Ensures that only one performSync executes at a time.
+ * If another sync is requested while one is already running, it queues a single trailing
+ * sync to execute immediately after the current sync finishes, ensuring no events are missed.
+ */
+export async function requestSync(): Promise<void> {
+    if (syncPromise) {
+        needsAnotherSync = true;
+        return;
+    }
+
+    syncPromise = performSync().catch(err => {
+        console.error('[Sync Queue] Sync failed:', err);
+        return { success: false, merkleRoot: null, deltaCount: 0, durationMs: 0, aborted: false, errorMessage: String(err) };
+    }).finally(() => {
+        syncPromise = null;
+        if (needsAnotherSync) {
+            needsAnotherSync = false;
+            requestSync();
+        }
+    });
+
+    await syncPromise;
+}
+

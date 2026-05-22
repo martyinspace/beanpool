@@ -275,8 +275,8 @@ export default function PeopleScreen() {
                 const { redeemInvite } = await import('../../utils/db');
                 await redeemInvite(parsedCode, identity?.callsign || 'Unknown', identity);
 
-                const { performSync } = await import('../../services/pillar-sync');
-                performSync().catch(console.error);
+                const { requestSync } = await import('../../services/pillar-sync');
+                requestSync().catch(console.error);
 
                 Alert.alert('Success', 'Invite redeemed! You have successfully registered as a member on this community.');
                 setIsGuest(false);
@@ -299,8 +299,8 @@ export default function PeopleScreen() {
             try {
                 await redeemInvite(parsedCode, identity?.callsign || 'Unknown', identity);
                 
-                const { performSync } = await import('../../services/pillar-sync');
-                performSync().catch(console.error);
+                const { requestSync } = await import('../../services/pillar-sync');
+                requestSync().catch(console.error);
 
                 try {
                     const healthRes = await fetch(`${targetNodeUrl}/api/community/health`, { method: 'GET' });

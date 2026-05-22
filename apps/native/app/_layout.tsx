@@ -5,7 +5,8 @@ import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
 import { Alert, LogBox, AppState, AppStateStatus } from 'react-native';
 import { registerPillarSync } from '../services/background-task';
-import { performSync } from '../services/pillar-sync';
+import { requestSync } from '../services/pillar-sync';
+import { startWebSocketSync, stopWebSocketSync } from '../services/ws-client';
 import { registerForPushNotifications, setupNotificationResponseHandler } from '../services/push-notifications';
 import { initDB, clearDB, closeDB, redeemInvite } from '../utils/db';
 import { normaliseInviteCode, extractInviteToken, extractNodeOrigin } from '../utils/invite-parser';
@@ -143,7 +144,7 @@ function RootLayoutNav() {
                                             }
 
                                             Alert.alert('Success', 'Node switched and invite redeemed successfully!');
-                                            performSync().catch(console.error);
+                                            requestSync().catch(console.error);
                                             router.replace('/(tabs)');
                                         })
                                         .catch(err => {
@@ -200,7 +201,7 @@ function RootLayoutNav() {
                                         redeemInvite(parsedCode, identity?.callsign || 'Unknown', identity)
                                             .then(() => {
                                                 Alert.alert('Success', 'Invite redeemed! Your connection is repaired and registered.');
-                                                performSync().catch(console.error);
+                                                requestSync().catch(console.error);
                                                 router.replace('/(tabs)');
                                             })
                                             .catch(err => {
@@ -276,31 +277,29 @@ export default function RootLayout() {
     const appState = useRef(AppState.currentState);
 
     useEffect(() => {
+        // Start the real-time WebSocket connection manager
+        startWebSocketSync();
+
         initDB()
             .then(() => registerPillarSync())
             // Trigger Immediate foreground sync
-            .then(() => performSync())
-            .then((result) => {
-                if (!result.success) {
-                    console.log('[Init Sync] Soft failure on initial sync:', result.errorMessage);
-                }
-            })
+            .then(() => requestSync())
             .catch(err => {
                 console.error('[Init DB] Error:', err);
                 Alert.alert('DB Error', String(err));
             });
 
-        // Set up foreground polling every 15 seconds
+        // Set up foreground polling fallback every 5 minutes (safety net)
         const intervalId = setInterval(() => {
             if (appState.current === 'active') {
-                performSync();
+                requestSync();
             }
-        }, 15000);
+        }, 300000);
 
         // App state listener to trigger sync when returning to foreground
         const subscription = AppState.addEventListener('change', nextAppState => {
             if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-                performSync();
+                requestSync();
                 // Clear app icon badge when user opens the app
                 try {
                     const Notif = require('expo-notifications');
@@ -313,6 +312,8 @@ export default function RootLayout() {
         return () => {
             clearInterval(intervalId);
             subscription.remove();
+            // Stop and clean up the WebSocket connection
+            stopWebSocketSync();
         };
     }, []);
 
