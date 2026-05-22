@@ -13,3 +13,6 @@
 **Learning:** In `createRecoveryRequest()`, validating guardian guess callsigns was previously done by mapping the guardian public keys to member profiles, filtering out empty profiles, and then executing `.some()` against the resulting array. This led to unnecessary allocations (`.map()` and `.filter()`) and executed database lookups for all guardians even if a match was found in the first element.
 **Action:** Refactored the lookups using `guardians.some(...)` with hoisted, pre-normalized callsign comparison. This enables short-circuiting database reads and completely avoids intermediate array allocations.
 
+## 2026-05-22 - [In-memory N+1 fetch replacing targeted query]
+**Learning:** Found multiple instances where we needed a single member by public key, but the code was doing `getMembers().find(...)`. `getMembers()` executes a `SELECT * FROM members` query without limits, returning potentially thousands of records into an array just to scan them in memory to find a single element. This pattern is disastrous for both memory and event loop performance in a large instance.
+**Action:** Always replace `getMembers().find(predicate)` with `getMember(id)` when looking for an entity by its primary key, to use the SQLite index via an O(1) direct row fetch.
