@@ -148,18 +148,73 @@ function main() {
     }
   }
 
+  // 3.5. Update apps/native/app.json
+  const appJsonPath = path.resolve(ROOT_DIR, 'apps/native/app.json');
+  if (fs.existsSync(appJsonPath)) {
+    try {
+      const appJson = JSON.parse(fs.readFileSync(appJsonPath, 'utf8'));
+      if (appJson.expo) {
+        const prevVer = appJson.expo.version;
+        appJson.expo.version = nextVersion;
+        
+        let prevBuild = 'unknown';
+        if (appJson.expo.ios && appJson.expo.ios.buildNumber) {
+          prevBuild = appJson.expo.ios.buildNumber;
+          const nextBuildNum = parseInt(appJson.expo.ios.buildNumber, 10) + 1;
+          appJson.expo.ios.buildNumber = String(nextBuildNum);
+        }
+        if (appJson.expo.android && appJson.expo.android.versionCode) {
+          appJson.expo.android.versionCode = parseInt(appJson.expo.android.versionCode, 10) + 1;
+        }
+        
+        if (!isDryRun) {
+          fs.writeFileSync(appJsonPath, JSON.stringify(appJson, null, 2) + '\n', 'utf8');
+          log(`   apps/native/app.json: ${YELLOW}${prevVer} (Build ${prevBuild})${RESET} → ${GREEN}${nextVersion} (Build ${appJson.expo.ios.buildNumber})${RESET} ${GREEN}✔${RESET}`);
+          updatedFilesPaths.push(appJsonPath);
+        } else {
+          log(`   apps/native/app.json: ${YELLOW}${prevVer} (Build ${prevBuild})${RESET} → ${GREEN}${nextVersion} (Build ${appJson.expo.ios.buildNumber})${RESET} (dry-run)`);
+        }
+      }
+    } catch (e) {
+      logError(`Failed to update apps/native/app.json: ${e.message}`);
+    }
+  }
+
+  // 3.6. Update apps/server/src/state-engine.ts
+  const stateEnginePath = path.resolve(ROOT_DIR, 'apps/server/src/state-engine.ts');
+  if (fs.existsSync(stateEnginePath)) {
+    try {
+      let content = fs.readFileSync(stateEnginePath, 'utf8');
+      const versionRegex = /version:\s*'([^']+)'/;
+      const match = content.match(versionRegex);
+      if (match) {
+        const prevVer = match[1];
+        if (!isDryRun) {
+          content = content.replace(versionRegex, `version: '${nextVersion}'`);
+          fs.writeFileSync(stateEnginePath, content, 'utf8');
+          log(`   apps/server/src/state-engine.ts: version: ${YELLOW}'${prevVer}'${RESET} → ${GREEN}'${nextVersion}'${RESET} ${GREEN}✔${RESET}`);
+          updatedFilesPaths.push(stateEnginePath);
+        } else {
+          log(`   apps/server/src/state-engine.ts: version: ${YELLOW}'${prevVer}'${RESET} → ${GREEN}'${nextVersion}'${RESET} (dry-run)`);
+        }
+      }
+    } catch (e) {
+      logError(`Failed to update apps/server/src/state-engine.ts: ${e.message}`);
+    }
+  }
+
   if (isDryRun) {
     logSuccess(`\n[DRY RUN SUCCESS] All package versions parsed cleanly.`);
     log(`Next steps without --dry-run:`);
     log(`  1. Write versions to files`);
-    if (!noCommit) log(`  2. Run: git add ${PACKAGE_FILES.join(' ')}`);
+    if (!noCommit) log(`  2. Run: git add ${PACKAGE_FILES.join(' ')} apps/native/app.json apps/server/src/state-engine.ts`);
     if (!noCommit) log(`  3. Run: git commit -m "chore: bump version to v${nextVersion}"`);
     if (!noTag) log(`  4. Run: git tag v${nextVersion}`);
     log(`  5. Run: git push && git push --tags`);
     process.exit(0);
   }
 
-  logSuccess(`\nAll package.json files updated to v${nextVersion}!`);
+  logSuccess(`\nAll version targets updated to v${nextVersion}!`);
 
   // 4. Git Operations
   if (noCommit) {
@@ -177,9 +232,10 @@ function main() {
 
   log(`\n${BOLD}Git Operations:${RESET}`);
   try {
-    // Stage package.json files
-    execSync(`git add ${PACKAGE_FILES.join(' ')}`, { cwd: ROOT_DIR });
-    log(`   git add package.json files... ${GREEN}✔${RESET}`);
+    // Stage all updated files
+    const relPathsToStage = updatedFilesPaths.map(p => path.relative(ROOT_DIR, p));
+    execSync(`git add ${relPathsToStage.join(' ')}`, { cwd: ROOT_DIR });
+    log(`   git add updated files... ${GREEN}✔${RESET}`);
 
     // Commit
     const commitMsg = `chore: bump version to v${nextVersion}`;

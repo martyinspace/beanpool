@@ -3166,7 +3166,7 @@ export function getPostCount(filter?: { type?: string; category?: string; status
 // ===================== COMMUNITY HEALTH =====================
 
 export interface HealthFlag { type: 'wash_trading' | 'isolated_branch' | 'inactive_member' | 'invite_spam' | 'sybil_funnel'; severity: 'warning' | 'alert'; description: string; members: string[]; }
-export interface CommunityHealth { nodeName: string; currency: { type: string; value: string }; tree: any; activity: any; flags: HealthFlag[]; reportCount: number; }
+export interface CommunityHealth { nodeName: string; version: string; minAppVersion: string; currency: { type: string; value: string }; tree: any; activity: any; flags: HealthFlag[]; reportCount: number; }
 
 export function getCommunityHealth(): CommunityHealth {
     const now = Date.now();
@@ -3362,6 +3362,8 @@ export function getCommunityHealth(): CommunityHealth {
     
     return {
         nodeName: getDirectoryInfo()?.name || 'Local Discovery',
+        version: '1.0.78',
+        minAppVersion: '1.0.75',
         currency: { type: config.currencyType || 'image', value: config.currencyValue || 'bean' },
         tree: { totalMembers, maxDepth: 0, widestBranch: { callsign: 'db-optimized', children: 0 }, avgBranchSize: 0 },
         activity: {

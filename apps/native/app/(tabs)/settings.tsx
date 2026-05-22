@@ -19,7 +19,10 @@ import appConfig from '../../app.json';
 
 export default function SettingsScreen() {
     const { identity, setIdentity } = useIdentity();
-    const [mode, setMode] = useState<'menu' | 'profile' | 'export' | 'import' | 'seed' | 'advanced' | 'wipe' | 'notifications' | 'recovery-requests'>('menu');
+    const [mode, setMode] = useState<'menu' | 'profile' | 'export' | 'import' | 'seed' | 'advanced' | 'wipe' | 'notifications' | 'recovery-requests' | 'diagnostics'>('menu');
+    const [dbStats, setDbStats] = useState<{ members: number, posts: number, transactions: number, messages: number, integrity: string } | null>(null);
+    const [diagLoading, setDiagLoading] = useState(false);
+    const [dbSize, setDbSize] = useState<string>('0.0 MB');
     const params = useLocalSearchParams<{ section?: string }>();
 
     // Deep-link: auto-open sections from other pages
@@ -55,6 +58,29 @@ export default function SettingsScreen() {
             }).catch(() => {});
         }
     }, []);
+
+    const loadDiagnostics = async () => {
+        setDiagLoading(true);
+        try {
+            const { getDatabaseStats } = await import('../../utils/db');
+            const stats = await getDatabaseStats();
+            setDbStats(stats);
+            
+            // Get database size
+            const url = await AsyncStorage.getItem('beanpool_anchor_url');
+            const dbFilename = getDatabaseFilenameForNode(url);
+            const fileInfo = await FileSystem.getInfoAsync((FileSystem as any).documentDirectory + 'SQLite/' + dbFilename);
+            if (fileInfo.exists) {
+                setDbSize(`${(fileInfo.size / 1024 / 1024).toFixed(2)} MB`);
+            } else {
+                setDbSize('0.0 MB');
+            }
+        } catch (e) {
+            console.error('Failed loading diagnostics:', e);
+        } finally {
+            setDiagLoading(false);
+        }
+    };
     
     // Advanced subsystem state
     const [newAnchorInput, setNewAnchorInput] = useState('');
@@ -632,6 +658,17 @@ export default function SettingsScreen() {
                 {/* ─── Advanced ─── */}
                 <Text style={styles.sectionHeader}>SYSTEM</Text>
                 <View style={styles.menuGroup}>
+                    <Pressable style={styles.menuBtn} onPress={async () => {
+                        setMode('diagnostics');
+                        await loadDiagnostics();
+                    }}>
+                        <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>📊</Text></View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.menuText}>Database Health & Stats</Text>
+                            <Text style={styles.menuSub}>Local storage metrics & integrity checks</Text>
+                        </View>
+                        <Text style={styles.menuChevron}>›</Text>
+                    </Pressable>
                     <Pressable style={[styles.menuBtn, styles.menuBtnLast]} onPress={() => setMode('advanced')}>
                         <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>⚙️</Text></View>
                         <View style={{ flex: 1 }}>
@@ -1043,6 +1080,85 @@ export default function SettingsScreen() {
                     <Pressable style={[styles.primaryBtn, { backgroundColor: '#10b981' }, advancedLoading && { opacity: 0.5 }]} onPress={handleUpdateAnchor} disabled={advancedLoading}>
                         {advancedLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Add & Connect</Text>}
                     </Pressable>
+
+                    <Pressable style={styles.backBtn} onPress={() => setMode('menu')}>
+                        <Text style={styles.backBtnText}>← Back</Text>
+                    </Pressable>
+                </View>
+            )}
+
+            {mode === 'diagnostics' && (
+                <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>📊 Database Diagnostics & Health</Text>
+                    <Text style={styles.infoText}>
+                        Transparency metrics for your local off-grid database cache. Structural check verifies zero data corruption natively.
+                    </Text>
+
+                    {diagLoading ? (
+                        <View style={{ marginVertical: 40, alignItems: 'center' }}>
+                            <ActivityIndicator size="large" color="#8b5cf6" />
+                            <Text style={{ marginTop: 12, color: '#6b7280', fontWeight: '600' }}>Running Structural Integrity Check...</Text>
+                        </View>
+                    ) : (
+                        <>
+                            {/* Health Pill Indicator */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f3f4f6', padding: 14, borderRadius: 12, marginBottom: 20 }}>
+                                <Text style={{ fontWeight: 'bold', color: '#374151' }}>SQLite Database Health:</Text>
+                                <View style={{ backgroundColor: dbStats?.integrity === 'ok' ? '#d1fae5' : '#fee2e2', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: dbStats?.integrity === 'ok' ? '#34d399' : '#fca5a5' }}>
+                                    <Text style={{ color: dbStats?.integrity === 'ok' ? '#065f46' : '#b91c1c', fontWeight: 'bold', fontSize: 13 }}>
+                                        {dbStats?.integrity === 'ok' ? '🟢 Healthy / Secure' : `🔴 Corrupted: ${dbStats?.integrity}`}
+                                    </Text>
+                                </View>
+                            </View>
+
+                            {/* Stats Grid */}
+                            <Text style={styles.label}>LOCAL RECORD CACHE</Text>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 8 }}>
+                                <View style={{ width: '48%', backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 14, marginBottom: 12 }}>
+                                    <Text style={{ fontSize: 24, marginBottom: 2 }}>👥</Text>
+                                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }}>{dbStats?.members ?? 0}</Text>
+                                    <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }}>Cached Members</Text>
+                                </View>
+                                <View style={{ width: '48%', backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 14, marginBottom: 12 }}>
+                                    <Text style={{ fontSize: 24, marginBottom: 2 }}>🛒</Text>
+                                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }}>{dbStats?.posts ?? 0}</Text>
+                                    <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }}>Active Marketplace Posts</Text>
+                                </View>
+                                <View style={{ width: '48%', backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 14, marginBottom: 12 }}>
+                                    <Text style={{ fontSize: 24, marginBottom: 2 }}>💸</Text>
+                                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }}>{dbStats?.transactions ?? 0}</Text>
+                                    <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }}>Ledger Transactions</Text>
+                                </View>
+                                <View style={{ width: '48%', backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 14, marginBottom: 12 }}>
+                                    <Text style={{ fontSize: 24, marginBottom: 2 }}>💬</Text>
+                                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }}>{dbStats?.messages ?? 0}</Text>
+                                    <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }}>Encrypted Messages</Text>
+                                </View>
+                            </View>
+
+                            {/* Storage allocation */}
+                            <Text style={styles.label}>STORAGE ALLOCATION</Text>
+                            <View style={{ backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 14, marginTop: 8, marginBottom: 20 }}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                                    <Text style={{ fontSize: 13, color: '#6b7280', fontWeight: '600' }}>Active DB File size:</Text>
+                                    <Text style={{ fontSize: 13, color: '#111827', fontWeight: 'bold' }}>{dbSize}</Text>
+                                </View>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                    <Text style={{ fontSize: 13, color: '#6b7280', fontWeight: '600' }}>Active Connection Node:</Text>
+                                    <Text style={{ fontSize: 11, color: '#6b7280', fontFamily: 'monospace' }}>{anchorUrl ? anchorUrl.slice(0, 32) : 'Detecting...'}{anchorUrl && anchorUrl.length > 32 ? '...' : ''}</Text>
+                                </View>
+                            </View>
+
+                            {/* Action Buttons */}
+                            <Pressable 
+                                style={[styles.primaryBtn, { backgroundColor: '#8b5cf6', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 }]} 
+                                onPress={loadDiagnostics}
+                            >
+                                <Text style={{ fontSize: 16 }}>🔄</Text>
+                                <Text style={styles.primaryBtnText}>Re-Run Structural Diagnostic Check</Text>
+                            </Pressable>
+                        </>
+                    )}
 
                     <Pressable style={styles.backBtn} onPress={() => setMode('menu')}>
                         <Text style={styles.backBtnText}>← Back</Text>

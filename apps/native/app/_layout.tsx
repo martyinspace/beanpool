@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Stack, useRouter, useSegments, useGlobalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
-import { Alert, LogBox, AppState, AppStateStatus } from 'react-native';
+import { Alert, LogBox, AppState, AppStateStatus, View, Text, Pressable } from 'react-native';
 import { registerPillarSync } from '../services/background-task';
 import { requestSync } from '../services/pillar-sync';
 import { startWebSocketSync, stopWebSocketSync } from '../services/ws-client';
@@ -12,6 +12,7 @@ import { initDB, clearDB, closeDB, redeemInvite } from '../utils/db';
 import { normaliseInviteCode, extractInviteToken, extractNodeOrigin } from '../utils/invite-parser';
 import { IdentityProvider, useIdentity } from './IdentityContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import appConfig from '../app.json';
 
 LogBox.ignoreLogs(['ProgressBarAndroid', 'Clipboard', 'PushNotificationIOS', 'has been extracted']);
 
@@ -21,11 +22,68 @@ function RootLayoutNav() {
     const router = useRouter();
     const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null);
     const isComponentMounted = useRef(true);
+    const [updateRequired, setUpdateRequired] = useState(false);
+    const [latestVersion, setLatestVersion] = useState('');
 
     useEffect(() => {
         isComponentMounted.current = true;
         return () => {
             isComponentMounted.current = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        let active = true;
+        
+        async function checkAppVersion() {
+            try {
+                const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+                if (!anchorUrl) return;
+
+                const res = await fetch(`${anchorUrl}/api/community/health?_t=${Date.now()}`);
+                if (!res.ok) return;
+
+                const data = await res.json();
+                if (data.minAppVersion) {
+                    const localVersion = appConfig.expo.version;
+                    
+                    const parseVersion = (v: string) => v.split('.').map(Number);
+                    const localParts = parseVersion(localVersion);
+                    const minParts = parseVersion(data.minAppVersion);
+                    
+                    let isOutdated = false;
+                    for (let i = 0; i < 3; i++) {
+                        const localPart = localParts[i] || 0;
+                        const minPart = minParts[i] || 0;
+                        if (localPart < minPart) {
+                            isOutdated = true;
+                            break;
+                        } else if (localPart > minPart) {
+                            break;
+                        }
+                    }
+
+                    if (isOutdated && active) {
+                        setUpdateRequired(true);
+                        setLatestVersion(data.version || data.minAppVersion);
+                    }
+                }
+            } catch (err) {
+                console.warn('[Version Check] Failed to check for critical updates:', err);
+            }
+        }
+
+        checkAppVersion();
+
+        const subscription = AppState.addEventListener('change', nextAppState => {
+            if (nextAppState === 'active') {
+                checkAppVersion();
+            }
+        });
+
+        return () => {
+            active = false;
+            subscription.remove();
         };
     }, []);
 
@@ -259,6 +317,47 @@ function RootLayoutNav() {
     }, []);
 
     if (isLoading) return null; // Or a splash screen
+
+    if (updateRequired) {
+        const localVersion = appConfig.expo.version;
+        return (
+            <View style={{ flex: 1, backgroundColor: '#022c22', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+                <StatusBar style="light" />
+                <View style={{ width: 120, height: 120, borderRadius: 60, backgroundColor: '#064e3b', justifyContent: 'center', alignItems: 'center', marginBottom: 28, borderWidth: 3, borderColor: '#10b981', shadowColor: '#10b981', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 8 }}>
+                    <Text style={{ fontSize: 56 }}>📲</Text>
+                </View>
+                <Text style={{ fontSize: 26, fontWeight: '900', color: '#ffffff', letterSpacing: 0.5, marginBottom: 12, textAlign: 'center' }}>
+                    Critical Update Required
+                </Text>
+                <Text style={{ fontSize: 15, color: '#a7f3d0', textAlign: 'center', lineHeight: 22, marginBottom: 36, paddingHorizontal: 8 }}>
+                    To keep your off-grid sovereign wallet synchronized with the community ledger, you must upgrade your app.
+                </Text>
+
+                <View style={{ width: '100%', backgroundColor: '#064e3b', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#065f46', marginBottom: 36 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <Text style={{ color: '#6ee7b7', fontSize: 13, fontWeight: '700' }}>Your Current Version:</Text>
+                        <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '800', fontFamily: 'monospace' }}>v{localVersion}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ color: '#6ee7b7', fontSize: 13, fontWeight: '700' }}>Minimum Required:</Text>
+                        <Text style={{ color: '#34d399', fontSize: 13, fontWeight: '800', fontFamily: 'monospace' }}>v{latestVersion}</Text>
+                    </View>
+                </View>
+
+                <Pressable 
+                    style={({ pressed }) => [
+                        { width: '100%', backgroundColor: '#10b981', paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', shadowColor: '#10b981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+                        pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }
+                    ]}
+                    onPress={() => {
+                        Linking.openURL('https://beanpool.org/download');
+                    }}
+                >
+                    <Text style={{ color: '#022c22', fontSize: 16, fontWeight: '900', letterSpacing: 0.5 }}>Download Update</Text>
+                </Pressable>
+            </View>
+        );
+    }
 
     return (
         <Stack screenOptions={{ headerShown: false }}>

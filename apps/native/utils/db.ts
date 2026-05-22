@@ -2450,3 +2450,49 @@ export async function getUnreadCountForPost(postId: string, myPubkey: string, pe
     const row = await database.getFirstAsync<{unreadCount: number}>(query, params);
     return row?.unreadCount || 0;
 }
+
+export async function getDatabaseStats() {
+    const database = await getDb();
+    
+    let membersCount = 0;
+    let postsCount = 0;
+    let txCount = 0;
+    let msgCount = 0;
+    let integrity = 'Unknown';
+
+    try {
+        const membersRow = await database.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM members');
+        membersCount = membersRow?.count || 0;
+    } catch (e) {}
+
+    try {
+        const postsRow = await database.getFirstAsync<{ count: number }>("SELECT COUNT(*) as count FROM posts WHERE status IN ('active', 'pending')");
+        postsCount = postsRow?.count || 0;
+    } catch (e) {}
+
+    try {
+        const txRow = await database.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM transactions');
+        txCount = txRow?.count || 0;
+    } catch (e) {}
+
+    try {
+        const msgRow = await database.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM messages');
+        msgCount = msgRow?.count || 0;
+    } catch (e) {}
+    
+    try {
+        const integrityRow = await database.getFirstAsync<{ integrity_check: string }>('PRAGMA integrity_check');
+        integrity = integrityRow?.integrity_check || 'ok';
+    } catch (e: any) {
+        integrity = e.message || 'error';
+    }
+
+    return {
+        members: membersCount,
+        posts: postsCount,
+        transactions: txCount,
+        messages: msgCount,
+        integrity
+    };
+}
+
