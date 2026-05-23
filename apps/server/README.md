@@ -327,13 +327,26 @@ The nodes will instantly handshake over the Yamux stream protocol, exchange Merk
 ### 2. Automated Failover (Cloudflare Load Balancing)
 
 Because both nodes now possess the identical live state, automate failover at the DNS layer:
-1. In Cloudflare, go to **Traffic -> Load Balancing**.
-2. Create an **Active-Passive (Failover)** pool:
-   - Primary: `mullum1.beanpool.org`
-   - Backup: `mullum2.beanpool.org`
-3. Configure a **Health Check** to ping your primary server every 60 seconds.
 
-If `mullum1` loses power, Cloudflare instantly re-routes to `mullum2` transparently with zero data inconsistency.
+> [!WARNING]
+> **CRITICAL: NEVER USE ACTIVE-ACTIVE (ROUND-ROBIN) ROUTING**
+> Since node-to-node mirroring runs on a periodic sync interval (default 30 seconds), there is a brief eventual consistency window (sync lag) before state changes on the primary propagate to backups. 
+> 
+> If you configure your load balancer to distribute user traffic evenly between active nodes (Active-Active round-robin), user requests will inevitably cross nodes before sync completes. A user will create a post, send a message, or transfer credits on Node A, and their subsequent request will hit Node B where the new data is missing—causing severe UI regressions, duplicate transactions, or "404 Not Found" errors.
+> 
+> **You MUST configure the Load Balancer as Active-Passive (Failover)** where all client traffic is pinned strictly to a single **Primary** node. Backups act purely as warm, passive replication standby clones. 
+> 
+> For 3-node setups, you must define a strict priority order (**Primary -> Secondary -> Tertiary failover**) so that all user traffic stays on a single node and only cascades down to the next priority target during a hardware fault or rolling update.
+
+**Steps:**
+1. In Cloudflare, go to **Traffic -> Load Balancing**.
+2. Create an **Active-Passive (Failover)** pool with strict priority ordering:
+   - **Primary:** `mullum1.beanpool.org` (Priority 1)
+   - **Backup / Secondary:** `mullum2.beanpool.org` (Priority 2)
+   - **Tertiary (if 3-node):** `mullum3.beanpool.org` (Priority 3)
+3. Configure a **Health Check** to ping your active server every 60 seconds.
+
+If your primary node loses power or is pulled down for a rolling update, Cloudflare instantly re-routes all user traffic to the secondary node transparently with zero data inconsistency.
 
 ### 3. Merging Two Separate Communities
 
