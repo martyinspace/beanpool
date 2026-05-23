@@ -26,6 +26,19 @@ const fetchWithTimeout = async (resource: RequestInfo, options: RequestInit & { 
     }
 };
 
+function isVersionOlder(local: string, latest: string): boolean {
+    const parse = (v: string) => v.split('.').map(Number);
+    const localParts = parse(local);
+    const latestParts = parse(latest);
+    for (let i = 0; i < 3; i++) {
+        const localPart = localParts[i] || 0;
+        const latestPart = latestParts[i] || 0;
+        if (localPart < latestPart) return true;
+        if (localPart > latestPart) return false;
+    }
+    return false;
+}
+
 export function GlobalHeader() {
     const insets = useSafeAreaInsets();
     const pathname = usePathname();
@@ -33,6 +46,7 @@ export function GlobalHeader() {
     const [locationEnabled, setLocationEnabled] = useState(false);
     const [dropdownVisible, setDropdownVisible] = useState(false);
     const [savedNodes, setSavedNodes] = useState<(SavedNode & { status: 'pinging' | 'online' | 'guest' | 'offline' })[]>([]);
+    const [softUpdateVersion, setSoftUpdateVersion] = useState<string | null>(null);
     const [switching, setSwitching] = useState(false);
     const [activeNode, setActiveNode] = useState<string | null>(null);
     const [activeSyncTime, setActiveSyncTime] = useState<number | null>(null);
@@ -56,6 +70,45 @@ export function GlobalHeader() {
                 const r = await fetchWithTimeout(`${active}/api/community/health`, { timeout: 3000 });
                 if (r.ok) {
                     if (isMounted) setIsOffline(false);
+                    const data = await r.json();
+                    
+                    if (data.version && isMounted) {
+                        const now = Date.now();
+                        const lastCheckStr = await AsyncStorage.getItem('beanpool_last_version_check_time');
+                        const lastChecked = lastCheckStr ? parseInt(lastCheckStr, 10) : 0;
+                        const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+                        
+                        if (now - lastChecked > ONE_DAY_MS || !lastCheckStr) {
+                            const localVersion = appConfig.expo.version;
+                            if (isVersionOlder(localVersion, data.version)) {
+                                const dismissedKey = `beanpool_dismissed_update_${data.version}`;
+                                const isDismissed = await AsyncStorage.getItem(dismissedKey);
+                                if (!isDismissed && isMounted) {
+                                    setSoftUpdateVersion(data.version);
+                                } else if (isMounted) {
+                                    setSoftUpdateVersion(null);
+                                }
+                            } else if (isMounted) {
+                                setSoftUpdateVersion(null);
+                            }
+                            await AsyncStorage.setItem('beanpool_last_version_check_time', String(now));
+                            await AsyncStorage.setItem('beanpool_latest_known_version', data.version);
+                        } else {
+                            // Use cached status
+                            const latestKnown = await AsyncStorage.getItem('beanpool_latest_known_version');
+                            if (latestKnown && isVersionOlder(appConfig.expo.version, latestKnown)) {
+                                const dismissedKey = `beanpool_dismissed_update_${latestKnown}`;
+                                const isDismissed = await AsyncStorage.getItem(dismissedKey);
+                                if (!isDismissed && isMounted) {
+                                    setSoftUpdateVersion(latestKnown);
+                                } else if (isMounted) {
+                                    setSoftUpdateVersion(null);
+                                }
+                            } else if (isMounted) {
+                                setSoftUpdateVersion(null);
+                            }
+                        }
+                    }
                 } else {
                     if (isMounted) setIsOffline(true);
                 }
@@ -64,9 +117,9 @@ export function GlobalHeader() {
             }
         };
         pingActive();
-        const iv = setInterval(pingActive, 10000);
+        const iv = setInterval(pingActive, 30000); // gentler 30s interval for online status indicator
         return () => { isMounted = false; clearInterval(iv); };
-    }, [pathname]);
+    }, []);
 
     useEffect(() => {
         (async () => {
@@ -327,6 +380,37 @@ export function GlobalHeader() {
                 </View>
             </View>
 
+            {softUpdateVersion && (
+                <View style={styles.softUpdateBanner}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                        <Text style={{ fontSize: 18 }}>💡</Text>
+                        <Text style={styles.softUpdateText} numberOfLines={2}>
+                            Update available: upgrade to v{softUpdateVersion} for the latest community features!
+                        </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <TouchableOpacity 
+                            style={styles.softUpdateUpgradeBtn}
+                            onPress={() => {
+                                Linking.openURL('https://beanpool.org/download');
+                            }}
+                        >
+                            <Text style={styles.softUpdateUpgradeText}>Upgrade</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                            style={styles.softUpdateDismissBtn}
+                            onPress={async () => {
+                                const dismissedKey = `beanpool_dismissed_update_${softUpdateVersion}`;
+                                await AsyncStorage.setItem(dismissedKey, 'true');
+                                setSoftUpdateVersion(null);
+                            }}
+                        >
+                            <MaterialCommunityIcons name="close" size={16} color="#ffffff" />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
+
             <Modal visible={dropdownVisible} transparent animationType="fade">
                 <Pressable style={styles.modalBg} onPress={() => setDropdownVisible(false)}>
                     <View style={[styles.modalContent, { marginTop: insets.top + 80 }]}>
@@ -487,4 +571,39 @@ const styles = StyleSheet.create({
     nodeSubText: { fontSize: 13, color: '#6b7280', marginTop: 2 },
     nodeText: { fontSize: 16, color: '#374151', fontWeight: '500', flex: 1 },
     activeNodeText: { color: '#8b5cf6' },
+    softUpdateBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#064e3b',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#059669',
+        gap: 12,
+    },
+    softUpdateText: {
+        color: '#ffffff',
+        fontSize: 13,
+        fontWeight: '700',
+        flex: 1,
+    },
+    softUpdateUpgradeBtn: {
+        backgroundColor: '#10b981',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    softUpdateUpgradeText: {
+        color: '#022c22',
+        fontSize: 12,
+        fontWeight: '900',
+    },
+    softUpdateDismissBtn: {
+        padding: 4,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
 });

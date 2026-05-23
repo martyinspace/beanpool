@@ -13,7 +13,7 @@ import { encodeBase64, encodeUtf8, hexToBytes, signData } from '../../utils/cryp
 import { updateMemberProfile, getMemberProfile, getPendingRecoveryRequests, approveRecoveryRequest, rejectRecoveryRequest, signedRequest } from '../../utils/db';
 import { getSavedNodes, SavedNode, removeSavedNode, getDatabaseFilenameForNode } from '../../utils/nodes';
 import * as FileSystem from 'expo-file-system/legacy';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import Constants from 'expo-constants';
 import appConfig from '../../app.json';
 
@@ -48,11 +48,18 @@ export default function SettingsScreen() {
     const [remoteStats, setRemoteStats] = useState<{ members: number, posts: number, transactions: number } | null>(null);
     const params = useLocalSearchParams<{ section?: string }>();
 
-    // Deep-link: auto-open sections from other pages
-    useEffect(() => {
-        if (params.section === 'advanced') setMode('advanced');
-        if (params.section === 'profile') setMode('profile');
-    }, [params.section]);
+    // Reset to the main menu when settings is focused, or auto-open deep-linked sections
+    useFocusEffect(
+        React.useCallback(() => {
+            if (params.section === 'advanced') {
+                setMode('advanced');
+            } else if (params.section === 'profile') {
+                setMode('profile');
+            } else {
+                setMode('menu');
+            }
+        }, [params.section])
+    );
 
     // Notification preference state
     const [notifChat, setNotifChat] = useState(true);
@@ -150,12 +157,28 @@ export default function SettingsScreen() {
                         cleanUrl = cleanUrl.slice(0, -1);
                     }
                     const res = await fetch(`${cleanUrl}/api/community/info?_t=${Date.now()}`);
-                    if (res.ok) {
+                     if (res.ok) {
                         const data = await res.json();
+                        let remoteTxCount = data.transactionCount || 0;
+                        
+                        if (identity?.publicKey) {
+                            try {
+                                const txRes = await fetch(`${cleanUrl}/api/ledger/transactions?publicKey=${identity.publicKey}&limit=200&_t=${Date.now()}`);
+                                if (txRes.ok) {
+                                    const txData = await txRes.json();
+                                    if (Array.isArray(txData)) {
+                                        remoteTxCount = txData.length;
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn('[Diagnostics] Failed fetching remote personal transactions count:', e);
+                            }
+                        }
+
                         setRemoteStats({
                             members: data.memberCount || 0,
                             posts: data.postCount || 0,
-                            transactions: data.transactionCount || 0
+                            transactions: remoteTxCount
                         });
                     }
                 } catch (err) {
@@ -416,11 +439,21 @@ export default function SettingsScreen() {
                     onPress: async () => {
                         setAdvancedLoading(true);
                         try {
-                            const dbFilename = getDatabaseFilenameForNode(targetUrl);
-                            await AsyncStorage.multiRemove([
-                                `pillar_sync_${dbFilename}_last-sync`,
-                                `pillar_sync_${dbFilename}_checkpoint`
-                            ]);
+                            const urlsToClear = [
+                                targetUrl,
+                                await AsyncStorage.getItem('beanpool_anchor_url'),
+                                null,
+                                'https://test.beanpool.org',
+                                'https://review.beanpool.org:8443',
+                                'https://beanpool.org:8443'
+                            ];
+                            const keysToRemove: string[] = [];
+                            for (const u of urlsToClear) {
+                                const filename = getDatabaseFilenameForNode(u);
+                                keysToRemove.push(`pillar_sync_${filename}_last-sync`);
+                                keysToRemove.push(`pillar_sync_${filename}_checkpoint`);
+                            }
+                            await AsyncStorage.multiRemove(keysToRemove);
                             const { clearDB, initDB } = await import('../../utils/db');
                             await clearDB();
                             await initDB();
@@ -1191,15 +1224,49 @@ export default function SettingsScreen() {
                         </View>
                     ) : (
                         <>
-                            {/* Health Pill Indicator */}
-                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f3f4f6', padding: 14, borderRadius: 12, marginBottom: 20 }}>
-                                <Text style={{ fontWeight: 'bold', color: '#374151' }}>SQLite Database Health:</Text>
-                                <View style={{ backgroundColor: dbStats?.integrity === 'ok' ? '#d1fae5' : '#fee2e2', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: dbStats?.integrity === 'ok' ? '#34d399' : '#fca5a5' }}>
-                                    <Text style={{ color: dbStats?.integrity === 'ok' ? '#065f46' : '#b91c1c', fontWeight: 'bold', fontSize: 13 }}>
-                                        {dbStats?.integrity === 'ok' ? '🟢 Healthy / Secure' : `🔴 Corrupted: ${dbStats?.integrity}`}
-                                    </Text>
-                                </View>
-                            </View>
+                             {/* Database Health & Sync Status Indicator */}
+                             <View style={{ backgroundColor: '#f3f4f6', padding: 14, borderRadius: 12, marginBottom: 20 }}>
+                                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                      <Text style={{ fontWeight: 'bold', color: '#374151' }}>Database Status:</Text>
+                                      {(() => {
+                                          const hasIntegrityError = dbStats && dbStats.integrity !== 'ok';
+                                          const isSynced = !remoteStats || (dbStats && 
+                                              dbStats.members === remoteStats.members &&
+                                              dbStats.posts === remoteStats.posts &&
+                                              dbStats.transactions === remoteStats.transactions);
+
+                                          let pillBg = '#d1fae5';
+                                          let pillBorder = '#34d399';
+                                          let textColor = '#065f46';
+                                          let displayText = '🟢 Healthy & Synced';
+
+                                          if (hasIntegrityError) {
+                                              pillBg = '#fee2e2';
+                                              pillBorder = '#fca5a5';
+                                              textColor = '#b91c1c';
+                                              displayText = `🔴 Corrupted: ${dbStats?.integrity}`;
+                                          } else if (!remoteStats) {
+                                              pillBg = '#e5e7eb';
+                                              pillBorder = '#d1d5db';
+                                              textColor = '#4b5563';
+                                              displayText = '⚪ Offline / Local-First';
+                                          } else if (!isSynced) {
+                                              pillBg = '#ffedd5';
+                                              pillBorder = '#fdba74';
+                                              textColor = '#c2410c';
+                                              displayText = '⚠️ Out of Sync';
+                                          }
+
+                                          return (
+                                              <View style={{ backgroundColor: pillBg, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: pillBorder }}>
+                                                  <Text style={{ color: textColor, fontWeight: 'bold', fontSize: 13 }}>
+                                                      {displayText}
+                                                  </Text>
+                                              </View>
+                                          );
+                                      })()}
+                                 </View>
+                             </View>
 
                             {/* Stats Grid */}
                             <Text style={styles.label}>LOCAL RECORD CACHE</Text>
