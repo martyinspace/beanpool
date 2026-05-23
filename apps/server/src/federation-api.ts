@@ -11,7 +11,7 @@
 import type Koa from 'koa';
 import type Router from '@koa/router';
 import { getPeerOrigins, getConnectorsByLevel } from './connector-manager.js';
-import { getMembers, getPosts, getBalance, createConversation, sendMessage, registerVisitor } from './state-engine.js';
+import { getMembers, getMember, getPosts, getBalance, createConversation, sendMessage, registerVisitor } from './state-engine.js';
 import { getLocalConfig } from './local-config.js';
 
 /**
@@ -81,8 +81,8 @@ export function mountFederationRoutes(router: Router): void {
             return;
         }
 
-        const members = getMembers();
-        const member = members.find(m => m.publicKey === publicKey);
+        // ⚡ Bolt: Use O(1) indexed getMember lookup instead of O(N) getMembers().find() allocation
+        const member = getMember(publicKey);
 
         if (!member) {
             ctx.body = { isMember: false };
@@ -111,8 +111,8 @@ export function mountFederationRoutes(router: Router): void {
         }
 
         // Verify recipient exists locally
-        const members = getMembers();
-        const recipient = members.find(m => m.publicKey === recipientPublicKey);
+        // ⚡ Bolt: Use O(1) indexed getMember lookup instead of O(N) getMembers().find() allocation
+        const recipient = getMember(recipientPublicKey);
         if (!recipient) {
             ctx.status = 404;
             ctx.body = { error: 'Recipient not found on this node' };
