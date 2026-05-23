@@ -128,6 +128,7 @@ for NODE in "${TARGETS[@]}"; do
     echo \"Public IP: \$PUBLIC_IP\"
     echo \"DNS Record: \$CF_RECORD_NAME\"
     sudo docker image prune -f 2>/dev/null || true
+    sudo docker network create beanpool-shared 2>/dev/null || true
     sudo -E docker compose -p $PROJ_NAME pull
     sudo -E docker compose -p $PROJ_NAME up -d
   " 2>&1
