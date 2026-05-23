@@ -93,6 +93,34 @@ export default function SettingsScreen() {
             const dbFilename = getDatabaseFilenameForNode(dbUrl);
             const dbPath = getDatabaseFilePath(dbFilename);
             console.log('[Diagnostics] Computed Database Path:', dbPath);
+            
+            // Log local directory structures to diagnose exact database location
+            try {
+                const docDir = FileSystem.documentDirectory;
+                console.log('[Diagnostics] FileSystem.documentDirectory:', docDir);
+                if (docDir) {
+                    const docFiles = await FileSystem.readDirectoryAsync(docDir);
+                    console.log('[Diagnostics] Files in docDir:', docFiles);
+                    try {
+                        const sqFiles = await FileSystem.readDirectoryAsync(docDir + 'SQLite/');
+                        console.log('[Diagnostics] Files in docDir/SQLite:', sqFiles);
+                    } catch (e) {
+                        console.log('[Diagnostics] No SQLite/ subfolder found in docDir');
+                    }
+                    if (Platform.OS === 'android') {
+                        try {
+                            const dbDir = docDir.replace('/files/', '/databases/');
+                            const dbFiles = await FileSystem.readDirectoryAsync(dbDir);
+                            console.log('[Diagnostics] Files in databases sibling dir:', dbFiles);
+                        } catch (e) {
+                            console.log('[Diagnostics] No databases sibling folder found');
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('[Diagnostics] Directory scan failed:', err);
+            }
+
             const fileInfo = await FileSystem.getInfoAsync(dbPath);
             console.log('[Diagnostics] File Info:', fileInfo);
             if (fileInfo.exists) {
@@ -119,7 +147,7 @@ export default function SettingsScreen() {
                         if (data && data.activity) {
                             const act = data.activity;
                             setRemoteStats({
-                                members: (act.activeMemberCount || 0) + (act.inactiveMemberCount || 0),
+                                members: data.tree?.totalMembers || (act.activeMemberCount || 0) + (act.inactiveMemberCount || 0),
                                 posts: act.totalPosts || 0,
                                 transactions: act.totalTransactions || 0
                             });
