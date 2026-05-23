@@ -149,17 +149,14 @@ export default function SettingsScreen() {
                     if (cleanUrl.endsWith('/')) {
                         cleanUrl = cleanUrl.slice(0, -1);
                     }
-                    const res = await fetch(`${cleanUrl}/api/community/health?_t=${Date.now()}`);
+                    const res = await fetch(`${cleanUrl}/api/community/info?_t=${Date.now()}`);
                     if (res.ok) {
                         const data = await res.json();
-                        if (data && data.activity) {
-                            const act = data.activity;
-                            setRemoteStats({
-                                members: data.tree?.totalMembers || (act.activeMemberCount || 0) + (act.inactiveMemberCount || 0),
-                                posts: act.totalPosts || 0,
-                                transactions: act.totalTransactions || 0
-                            });
-                        }
+                        setRemoteStats({
+                            members: data.memberCount || 0,
+                            posts: data.postCount || 0,
+                            transactions: data.transactionCount || 0
+                        });
                     }
                 } catch (err) {
                     console.warn('[Diagnostics] Could not fetch remote stats for comparison:', err);
