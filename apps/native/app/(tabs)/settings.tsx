@@ -12,8 +12,7 @@ import { nativeExportIdentity } from '../../utils/native-crypto';
 import { encodeBase64, encodeUtf8, hexToBytes, signData } from '../../utils/crypto';
 import { updateMemberProfile, getMemberProfile, getPendingRecoveryRequests, approveRecoveryRequest, rejectRecoveryRequest, signedRequest } from '../../utils/db';
 import { getSavedNodes, SavedNode, removeSavedNode, getDatabaseFilenameForNode } from '../../utils/nodes';
-import * as FileSystem from 'expo-file-system';
-import { File } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { router, useLocalSearchParams } from 'expo-router';
 import Constants from 'expo-constants';
 import appConfig from '../../app.json';
@@ -93,9 +92,11 @@ export default function SettingsScreen() {
             }
             const dbFilename = getDatabaseFilenameForNode(dbUrl);
             const dbPath = getDatabaseFilePath(dbFilename);
-            const file = new File(dbPath);
-            if (file.exists && file.size !== null) {
-                const sizeBytes = file.size;
+            console.log('[Diagnostics] Computed Database Path:', dbPath);
+            const fileInfo = await FileSystem.getInfoAsync(dbPath);
+            console.log('[Diagnostics] File Info:', fileInfo);
+            if (fileInfo.exists) {
+                const sizeBytes = fileInfo.size;
                 if (sizeBytes >= 1024 * 1024) {
                     setDbSize(`${(sizeBytes / 1024 / 1024).toFixed(2)} MB`);
                 } else {
@@ -159,8 +160,8 @@ export default function SettingsScreen() {
                 const enriched = await Promise.all(nodes.map(async node => {
                     let size = 0;
                     try {
-                        const file = new File(getDatabaseFilePath(getDatabaseFilenameForNode(node.url)));
-                        if (file.exists && file.size !== null) size = file.size;
+                        const fileInfo = await FileSystem.getInfoAsync(getDatabaseFilePath(getDatabaseFilenameForNode(node.url)));
+                        if (fileInfo.exists) size = fileInfo.size;
                     } catch(e) {}
                     return { ...node, status: 'pinging' as const, sizeBytes: size };
                 }));
