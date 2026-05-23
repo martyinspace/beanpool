@@ -284,8 +284,8 @@ git push --tags
 To deploy immediately (without waiting for auto-detection):
 ```bash
 bash deploy.sh        # All nodes
-bash deploy.sh 1      # Mullum 2 only
-bash deploy.sh 3 4    # Mullum 1 + Review
+bash deploy.sh 2      # Mullum 2 only
+bash deploy.sh 1 4    # Mullum 1 + Review
 ```
 
 ---
@@ -356,11 +356,11 @@ If your primary node loses power or is pulled down for a rolling update, Cloudfl
 ### 4. Rolling Updates (Zero Downtime)
 
 For infrastructure upgrades or standard node bin-pull deployments without user disruption:
-1. Deploy new container code to Backup Node.
-2. Down-time trips the Load Balancer -> Users map to Primary.
-3. Catch-Up sync kicks off organically when Backup reconnects.
-4. Deploy new container code to Primary Node.
-5. Failover flips users back to Backup Node while Primary updates.
+1. **Deploy to Backup/Secondary Node:** Update the backup node container (e.g. `mullum2`). Since all active users are pinned to the Primary node, they experience zero disruption.
+2. **Re-Sync:** Once the backup node boots back up, it automatically performs an organic catch-up sync with the Primary.
+3. **Deploy to Primary Node:** Run the update on the Primary node container (e.g. `mullum1`).
+4. **Transparent Failover:** When the primary node stops, the load balancer's health check is tripped, transparently re-routing all active users to the already-updated Secondary/Backup node.
+5. **Auto-Restore:** Once the Primary node finishes updating and passes the health check, the load balancer automatically restores all traffic back to the Primary node.
 
 ### 5. Federating with a Mirrored Community
 
@@ -401,7 +401,7 @@ To prevent this, the server integrates a self-healing socket pruner:
 
 ## 🌐 Live Network Topology
 
-The project maintains 4 live independent nodes spanning bare-metal and Azure VMs. Both bare-metal nodes run on the Debian "Lighthouse" server at `192.168.1.219`, served via Cloudflare Tunnel.
+The project maintains 4 live independent nodes spanning bare-metal and Azure VMs. All three bare-metal nodes run on the Debian "Lighthouse" server at `192.168.1.219`, served via Cloudflare Tunnel.
 
 | # | Flag | Name | IP Address | DNS Name | Type | PWA |
 |---|------|------|-----------|----------|------|-----|
