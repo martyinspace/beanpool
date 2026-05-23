@@ -355,6 +355,35 @@ Neighboring communities scaling federation can elegantly federate through a sing
 1. External node (`review`) adds ONE connector pointing to `mullum.beanpool.org` (the Load Balancer).
 2. The admins residing across the Target Mirrored infrastructure must log into BOTH `mullum1` and `mullum2` to explicitly establish mutual trust `peer` rules referencing `review`'s public attributes.
 
+### 6. P2P Mirroring over a Cloudflare Tunnel (Secure WebSockets)
+
+Decentralized nodes running behind a Cloudflare Tunnel (`cloudflared`) on private/residential networks cannot accept raw TCP connections (port `4001`) inbound. Since Cloudflare Tunnels are optimized for standard web protocols (HTTP/HTTPS/WebSockets over `80`/`443`), raw P2P mirroring must be routed over secure WebSockets (`wss`) instead:
+
+1. **Dedicated DNS Setup (Proxied)**:
+   - Create a CNAME record on Cloudflare (e.g. `p2p-mullum2.beanpool.org`) pointing to your canonical tunnel ID.
+   - **Crucial**: The record must be orange-clouded (`proxied: true`). If grey-clouded, it resolves to Cloudflare's virtual routing IPv6 space (`fd10:aec2:5dae::`) causing `Network is unreachable` errors.
+2. **Ingress Routing Configuration**:
+   - In `/etc/cloudflared/config.yml` on the host machine, map the P2P subdomain directly to your container's local libp2p WebSocket port:
+     ```yaml
+     ingress:
+       - hostname: p2p-mullum2.beanpool.org
+         service: http://localhost:4007  # Mapped via Docker to container port 4002
+     ```
+3. **P2P Multiaddress Format**:
+   - Remote nodes must dial the tunnel-routed node using the secure WebSocket DNS address on port `443` (not the default libp2p port):
+     ```text
+     /dns4/p2p-mullum2.beanpool.org/tcp/443/wss/p2p/PEER_ID
+     ```
+
+### 7. Self-Healing Stale Socket Drops
+
+When a mirrored node is restarted, the remote node may retain a "stale" yamux socket reference. Because the socket is dead but libp2p retains a stale connection reference, the node gets stuck in an asymmetric `Outbound Only` state with failing handshakes.
+
+To prevent this, the server integrates a self-healing socket pruner:
+- **Continuous Handshake Checks**: The node runs a periodic handshake routine every 10 seconds.
+- **Auto-Hangup**: If a handshake fails on a node marked as `connected`, the node logs the failure, resets all internal connection flags, and forcefully executes `p2pNode.hangUp(peerId)` to purge the stale socket.
+- **Auto-Recovery**: The connection retry loop automatically dials a clean, fresh Yamux stream, establishing a fully mutual, bidirectional synced state within 30 seconds of a restart.
+
 ---
 
 ## 🌐 Live Network Topology

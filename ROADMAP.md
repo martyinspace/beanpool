@@ -6,9 +6,20 @@
 
 ## ✅ Recently Completed
 
-- ✅ **Release v1.0.85: App Store Lookups & Decoupled Version Bumping** — Completely decoupled the versioning timeline of the native companion app and server nodes, automating App Store/Play Store query integrations.
+- ✅ **Release v1.0.86: Self-Healing Stale Socket Drops** — Resolved the Yamux socket reference hang-up issue occurring after node restarts, preventing asymmetric handshake failures.
+  - **Auto-Pruning & Active Hangup**: Implemented proactive catch-block connection purging in `connector-manager.ts` that detects failed P2P handshakes, clears connection status immediately, and forcefully terminates stale sockets (`p2pNode.hangUp`).
+  - **Automated Reconnect Recovery**: Leveraged retry-loop dials on fresh sockets, restoring mutual trust handshake sync states bidirectionally in under 30 seconds of node boot.
+- ✅ **Release v1.0.85: App Store Lookups & Secure WebSocket P2P Tunneling** — Completely decoupled the client and server release pipelines, and enabled stable bidirectional P2P mirroring for nodes behind Cloudflare Tunnels.
   - **Direct Store Queries**: Rewrote client version checking to hit unauthenticated public store APIs—Apple iTunes Search Lookup on iOS and regular expression matching on Google Play HTML scripts on Android—bypassing local node reliance.
   - **Decoupled Version Bumper**: Expanded `bump-version.mjs` with `--native` and `--server` split bumping flags, supporting dedicated Git tag namespaces (`native-v*`, `server-v*`) and custom commits to match review cycles.
+  - **Subdomain WebSocket Routing**: Registered orange-clouded `p2p-mullum2.beanpool.org` CNAMEs routed through host-mapped ingress configs to local libp2p WebSocket ports.
+  - **Secure WebSocket Multiaddress**: Migrated peer-connector setups to standard secure WebSocket (`wss`) format over port `443` to bypass Cloudflare inbound TCP restrictions.
+- ✅ **Release v1.0.84: Mobile Diagnostics UI Fixes** — Fixed rendering bottlenecks and platform-specific path lookup issues.
+  - **SQLite File Size Resolution**: Patched platform-aware DB path lookups (`getDatabaseFilePath`) in Android companion app to properly display SQLite file sizes.
+  - **Remote Node URL Sanitization**: Resolved trailing slash anchor-query URL parsing bugs preventing direct comparison visual dashboards from displaying remote comparison data.
+- ✅ **Release v1.0.83: Database Diagnostics Panel & Version Enforcement** — Shipped native SQLite structural diagnostics and community version gates.
+  - **Integrity Checks & Counters**: Added active `PRAGMA integrity_check` scans and multi-table counters (Members, Posts, DMs, Txns) displaying database health indicators in settings.
+  - **Minimum Version Enforcement**: Expanded Koa health endpoint with `minAppVersion` limits matched dynamically against local build versions on client boot to overlay updates prompt.
 - ✅ **Release v1.0.82: Real-time Node Parity & Database Diagnostics** — Implemented client-side SQLite sync status indicators and resync mechanisms in Settings.
   - **Local/Remote Parity Indicator**: Displays dynamic status pills (`Healthy & Synced`, `Out of Sync`, `Offline / Local-First`) by comparing local SQLite table counts against remote node transactions, posts, and member totals.
   - **Resync Cache Clearing**: Hooked version throttling and dismissed update states into the "Clear DB Cache" settings action, allowing immediate refresh during testing.

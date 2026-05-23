@@ -398,6 +398,8 @@ All endpoints are served on port 8443 (HTTPS):
 BeanPool is in active development. The PWA is **fully functional** and a **React Native / Expo companion app** has near-complete parity with 7 tabs (Map, Projects, Market, Chat, People, Ledger, Settings), SQLite persistence, and background Merkle sync. Four nodes (Mullum 1, Mullum 2, Review, Test) are deployed with federation protocol for cross-community trading.
 
 **What's working:**
+- ✅ **P2P WebSocket Tunneling & Self-Healing (v1.0.85 / v1.0.86)** — Establish stable bidirectional P2P mirroring through Cloudflare Tunnels (port `443` secure WebSockets) using orange-clouded DNS subdomains (e.g. `p2p-mullum2.beanpool.org`). Automatic periodic Yamux handshake checks prune stale socket references forcefully using `p2pNode.hangUp` and trigger clean recovery dials within 30 seconds of a node restart.
+- ✅ **SQLite Diagnostics & Health Gates (v1.0.83 / v1.0.84)** — Active `PRAGMA integrity_check` scans and multi-table counters (Members, Posts, DMs, Txns) displaying database health indicators in Settings. Includes Koa health check `minAppVersion` gates matched dynamically on client boot to overlay updates.
 - ✅ Dynamic Node-Centered Mapping — Leaflet map bounds are dynamically tethered to the node's configured radius, and GPS pin-drop race conditions have been resolved
 - ✅ Invite-only membership with single-use codes + hierarchical invite tree
 - ✅ 12-word BIP-39 seed phrase — deterministic Ed25519 key derivation + recovery
@@ -483,4 +485,4 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 
 [MIT](LICENSE)
 
-_Last updated: 2026-05-22_
+_Last updated: 2026-05-23_
