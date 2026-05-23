@@ -53,32 +53,8 @@ function readFromStream(stream: any, timeoutMs = 30000): Promise<string> {
 
         (async () => {
             const chunks: Uint8Array[] = [];
-            let checkInterval: any = null;
             try {
-                if (stream.remoteWriteStatus === 'closed' || stream.status === 'closed') {
-                    if (stream.readBuffer?.byteLength === 0 || !stream.readBuffer) {
-                        clearTimeout(timer);
-                        resolve('');
-                        return;
-                    }
-                }
-
-                let isDone = false;
-                checkInterval = setInterval(() => {
-                    const isClosed = stream.remoteWriteStatus === 'closed' || stream.status === 'closed';
-                    const isBufferEmpty = stream.readBuffer?.byteLength === 0 || !stream.readBuffer;
-                    if (isClosed && isBufferEmpty) {
-                        clearInterval(checkInterval);
-                        isDone = true;
-                        clearTimeout(timer);
-                        const binaryData = Buffer.concat(chunks);
-                        resolve(decoder.decode(binaryData));
-                    }
-                }, 50);
-
                 for await (const chunk of stream) {
-                    if (isDone) break;
-
                     if (chunk instanceof Uint8Array) {
                         chunks.push(chunk);
                     } else if (typeof chunk.subarray === 'function') {
@@ -86,14 +62,23 @@ function readFromStream(stream: any, timeoutMs = 30000): Promise<string> {
                     } else {
                         chunks.push(Uint8Array.from(chunk));
                     }
+
+                    // Try parsing as JSON to see if we have the complete payload
+                    const text = decoder.decode(Buffer.concat(chunks));
+                    try {
+                        JSON.parse(text);
+                        clearTimeout(timer);
+                        resolve(text);
+                        return;
+                    } catch (e) {
+                        // Incomplete JSON, continue reading chunks
+                    }
                 }
 
-                if (checkInterval) clearInterval(checkInterval);
                 clearTimeout(timer);
-                const binaryData = Buffer.concat(chunks);
-                resolve(decoder.decode(binaryData));
+                const finalRaw = decoder.decode(Buffer.concat(chunks));
+                resolve(finalRaw);
             } catch (err) {
-                if (checkInterval) clearInterval(checkInterval);
                 clearTimeout(timer);
                 reject(err);
             }
