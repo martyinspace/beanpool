@@ -23,6 +23,7 @@ export default function SettingsScreen() {
     const [dbStats, setDbStats] = useState<{ members: number, posts: number, transactions: number, messages: number, integrity: string } | null>(null);
     const [diagLoading, setDiagLoading] = useState(false);
     const [dbSize, setDbSize] = useState<string>('0.0 MB');
+    const [remoteStats, setRemoteStats] = useState<{ members: number, posts: number, transactions: number } | null>(null);
     const params = useLocalSearchParams<{ section?: string }>();
 
     // Deep-link: auto-open sections from other pages
@@ -61,19 +62,46 @@ export default function SettingsScreen() {
 
     const loadDiagnostics = async () => {
         setDiagLoading(true);
+        setRemoteStats(null);
         try {
             const { getDatabaseStats } = await import('../../utils/db');
             const stats = await getDatabaseStats();
             setDbStats(stats);
             
-            // Get database size
+            // Get database size with normalized review/prod checks
             const url = await AsyncStorage.getItem('beanpool_anchor_url');
-            const dbFilename = getDatabaseFilenameForNode(url);
+            setAnchorUrl(url || 'Local discovery (or offline)');
+            
+            let dbUrl = url;
+            if (dbUrl === 'https://review.beanpool.org:8443' || dbUrl === 'https://beanpool.org:8443') {
+                dbUrl = null;
+            }
+            const dbFilename = getDatabaseFilenameForNode(dbUrl);
             const fileInfo = await FileSystem.getInfoAsync((FileSystem as any).documentDirectory + 'SQLite/' + dbFilename);
             if (fileInfo.exists) {
                 setDbSize(`${(fileInfo.size / 1024 / 1024).toFixed(2)} MB`);
             } else {
                 setDbSize('0.0 MB');
+            }
+
+            // Fetch remote health stats for visual compare
+            if (url && url.startsWith('http')) {
+                try {
+                    const res = await fetch(`${url}/api/community/health?_t=${Date.now()}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data && data.activity) {
+                            const act = data.activity;
+                            setRemoteStats({
+                                members: (act.activeMemberCount || 0) + (act.inactiveMemberCount || 0),
+                                posts: act.totalPosts || 0,
+                                transactions: act.totalTransactions || 0
+                            });
+                        }
+                    }
+                } catch (err) {
+                    console.warn('[Diagnostics] Could not fetch remote stats for comparison:', err);
+                }
             }
         } catch (e) {
             console.error('Failed loading diagnostics:', e);
@@ -342,6 +370,9 @@ export default function SettingsScreen() {
                             requestSync()
                                 .then(() => {
                                     Alert.alert("Success", "Local database rebuilt and sync triggered.");
+                                    if (mode === 'diagnostics') {
+                                        loadDiagnostics();
+                                    }
                                 })
                                 .catch((err: any) => {
                                     Alert.alert("Sync Error", err?.message || "Failed to fetch data.");
@@ -1118,21 +1149,41 @@ export default function SettingsScreen() {
                                     <Text style={{ fontSize: 24, marginBottom: 2 }}>👥</Text>
                                     <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }}>{dbStats?.members ?? 0}</Text>
                                     <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }}>Cached Members</Text>
+                                    {remoteStats && (
+                                        <Text style={{ fontSize: 10, color: dbStats?.members === remoteStats.members ? '#10b981' : '#d97706', fontWeight: 'bold', marginTop: 4 }}>
+                                            {dbStats?.members === remoteStats.members ? '🟢 Node In Sync' : `⚠️ Node has ${remoteStats.members}`}
+                                        </Text>
+                                    )}
                                 </View>
                                 <View style={{ width: '48%', backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 14, marginBottom: 12 }}>
                                     <Text style={{ fontSize: 24, marginBottom: 2 }}>🛒</Text>
                                     <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }}>{dbStats?.posts ?? 0}</Text>
-                                    <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }}>Active Marketplace Posts</Text>
+                                    <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }}>Active Posts</Text>
+                                    {remoteStats && (
+                                        <Text style={{ fontSize: 10, color: dbStats?.posts === remoteStats.posts ? '#10b981' : '#d97706', fontWeight: 'bold', marginTop: 4 }}>
+                                            {dbStats?.posts === remoteStats.posts ? '🟢 Node In Sync' : `⚠️ Node has ${remoteStats.posts}`}
+                                        </Text>
+                                    )}
                                 </View>
                                 <View style={{ width: '48%', backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 14, marginBottom: 12 }}>
                                     <Text style={{ fontSize: 24, marginBottom: 2 }}>💸</Text>
                                     <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }}>{dbStats?.transactions ?? 0}</Text>
                                     <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }}>Ledger Transactions</Text>
+                                    {remoteStats && (
+                                        <Text style={{ fontSize: 10, color: dbStats?.transactions === remoteStats.transactions ? '#10b981' : '#d97706', fontWeight: 'bold', marginTop: 4 }}>
+                                            {dbStats?.transactions === remoteStats.transactions ? '🟢 Node In Sync' : `⚠️ Node has ${remoteStats.transactions}`}
+                                        </Text>
+                                    )}
                                 </View>
                                 <View style={{ width: '48%', backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 14, marginBottom: 12 }}>
                                     <Text style={{ fontSize: 24, marginBottom: 2 }}>💬</Text>
                                     <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }}>{dbStats?.messages ?? 0}</Text>
                                     <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }}>Encrypted Messages</Text>
+                                    {remoteStats && (
+                                        <Text style={{ fontSize: 10, color: '#10b981', fontWeight: 'bold', marginTop: 4 }}>
+                                            🟢 Local First Offline
+                                        </Text>
+                                    )}
                                 </View>
                             </View>
 
@@ -1156,6 +1207,15 @@ export default function SettingsScreen() {
                             >
                                 <Text style={{ fontSize: 16 }}>🔄</Text>
                                 <Text style={styles.primaryBtnText}>Re-Run Structural Diagnostic Check</Text>
+                            </Pressable>
+
+                            {/* Re-Sync Database Button */}
+                            <Pressable 
+                                style={[styles.primaryBtn, { backgroundColor: '#fee2e2', borderWidth: 1, borderColor: '#fca5a5', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 12 }]} 
+                                onPress={() => handleForceResync(anchorUrl)}
+                            >
+                                <Text style={{ fontSize: 16 }}>⚡</Text>
+                                <Text style={[styles.primaryBtnText, { color: '#b91c1c' }]}>Force Clear & Re-Sync Database</Text>
                             </Pressable>
                         </>
                     )}
