@@ -9,7 +9,7 @@
  */
 
 import type { Libp2p } from 'libp2p';
-import { isPeerTrusted, type TrustLevel } from './connector-manager.js';
+import { isPeerTrusted, updateInboundHandshakeStatus, type TrustLevel } from './connector-manager.js';
 
 const PROTOCOL = '/beanpool/handshake/1.0.0';
 const encoder = new TextEncoder();
@@ -110,6 +110,13 @@ export function registerHandshakeHandler(node: Libp2p): void {
             // Check if the remote peer is in OUR connectors list
             const { trusted, trustLevel } = isPeerTrusted(remotePeerId);
 
+            // Update inbound connection/handshake status on our end if trusted
+            if (trusted) {
+                const initiatorTrusted = request.youAreTrusted === true;
+                const initiatorTrustLevel = request.trustLevel || null;
+                updateInboundHandshakeStatus(remotePeerId, initiatorTrusted, initiatorTrustLevel);
+            }
+
             const response = JSON.stringify({
                 type: 'handshake_res',
                 ts: Date.now(),
@@ -137,10 +144,13 @@ export async function sendHandshake(node: Libp2p, peerId: any): Promise<Handshak
     try {
         stream = await node.dialProtocol(peerId, PROTOCOL);
 
+        const { trusted, trustLevel } = isPeerTrusted(peerId.toString());
         const request = JSON.stringify({
             type: 'handshake_req',
             ts: Date.now(),
             peerId: node.peerId.toString(), // Include our peerId so handler can identify us
+            youAreTrusted: trusted,
+            trustLevel: trustLevel,
         });
 
         // Start reading before writing (duplex stream — concurrent read/write)

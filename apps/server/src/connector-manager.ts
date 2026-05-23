@@ -164,6 +164,34 @@ export function initConnectorManager(node: Libp2p): void {
     // Track connection/disconnection events
     node.addEventListener('peer:connect', (evt) => {
         const peerId = evt.detail.toString();
+
+        // Initialize status for this peer ID if we have a connector
+        for (const connector of connectors) {
+            let matches = false;
+            if (connector.address) {
+                const match = connector.address.match(/\/p2p\/([^/]+)/);
+                if (match && match[1] === peerId) {
+                    matches = true;
+                }
+            }
+            const status = statuses.get(connector.address);
+            if (status?.peerId === peerId) {
+                matches = true;
+            }
+
+            if (matches) {
+                let status = statuses.get(connector.address);
+                if (!status) {
+                    status = newStatus();
+                    statuses.set(connector.address, status);
+                }
+                status.peerId = peerId;
+                status.connected = true;
+                status.error = null;
+                retryState.delete(connector.address);
+            }
+        }
+
         for (const [addr, status] of statuses.entries()) {
             if (status.peerId === peerId) {
                 status.connected = true;
@@ -442,7 +470,17 @@ export function getConnectorByAddress(address: string): ConnectorStatus | null {
  * Used by the handshake handler to respond to trust queries.
  */
 export function isPeerTrusted(peerId: string): { trusted: boolean; trustLevel: TrustLevel | null } {
-    const status = getConnectors().find(c => c.peerId === peerId && c.trustLevel !== 'blocked');
+    const status = getConnectors().find(c => {
+        if (c.trustLevel === 'blocked') return false;
+        if (c.peerId === peerId) return true;
+        if (c.address) {
+            const match = c.address.match(/\/p2p\/([^/]+)/);
+            if (match && match[1] === peerId) {
+                return true;
+            }
+        }
+        return false;
+    });
     if (status) {
         return { trusted: true, trustLevel: status.trustLevel };
     }
@@ -466,4 +504,46 @@ export function getPeerOrigins(): string[] {
 /** Get the active libp2p node instance for dialing federation streams */
 export function getP2pNode(): Libp2p | null {
     return p2pNode;
+}
+
+/**
+ * Update the handshake status of an inbound trusted peer connection.
+ */
+export function updateInboundHandshakeStatus(peerId: string, initiatorTrusted: boolean, initiatorTrustLevel: TrustLevel | null): void {
+    for (const connector of connectors) {
+        let matches = false;
+        if (connector.address) {
+            const match = connector.address.match(/\/p2p\/([^/]+)/);
+            if (match && match[1] === peerId) {
+                matches = true;
+            }
+        }
+        const status = statuses.get(connector.address);
+        if (status?.peerId === peerId) {
+            matches = true;
+        }
+
+        if (matches) {
+            let status = statuses.get(connector.address);
+            if (!status) {
+                status = newStatus();
+                statuses.set(connector.address, status);
+            }
+            status.peerId = peerId;
+            status.connected = true;
+            status.error = null;
+            
+            // Mutual trust is true if both we trust them and they trust us
+            const ourTrust = isPeerTrusted(peerId);
+            status.mutualTrust = ourTrust.trusted && initiatorTrusted;
+            status.remoteTrustLevel = initiatorTrustLevel;
+            status.lastVerified = Date.now();
+            
+            // Clear retry state
+            retryState.delete(connector.address);
+            
+            logger.info('P2P', `[Connectors] Inbound handshake verified for ${connector.callsign || connector.address}: mutual=${status.mutualTrust}`);
+            return;
+        }
+    }
 }
