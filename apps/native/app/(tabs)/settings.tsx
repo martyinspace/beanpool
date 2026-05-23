@@ -447,7 +447,10 @@ export default function SettingsScreen() {
                                 'https://review.beanpool.org:8443',
                                 'https://beanpool.org:8443'
                             ];
-                            const keysToRemove: string[] = [];
+                            const keysToRemove: string[] = [
+                                'beanpool_last_version_check_time',
+                                'beanpool_latest_known_version'
+                            ];
                             for (const u of urlsToClear) {
                                 const filename = getDatabaseFilenameForNode(u);
                                 keysToRemove.push(`pillar_sync_${filename}_last-sync`);
