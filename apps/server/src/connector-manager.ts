@@ -18,6 +18,7 @@ import { multiaddr } from '@multiformats/multiaddr';
 import type { Libp2p } from 'libp2p';
 import { sendHandshake } from './handshake.js';
 import { registerSyncHandler, setLocalNodeId, syncWithPeer } from './sync-protocol.js';
+import { logger } from './logger.js';
 
 const DATA_DIR = process.env.BEANPOOL_DATA_DIR || path.join(process.cwd(), 'data');
 const CONNECTORS_PATH = path.join(DATA_DIR, 'connectors.json');
@@ -87,14 +88,14 @@ function migrateConnector(c: any): ConnectorConfig {
         read_only: 'peer',
     };
     if (trustMap[c.trustLevel]) {
-        console.log(`[Connectors] Migrated ${c.callsign || c.address}: ${c.trustLevel} → ${trustMap[c.trustLevel]}`);
+        logger.info('P2P', `[Connectors] Migrated ${c.callsign || c.address}: ${c.trustLevel} → ${trustMap[c.trustLevel]}`);
         c.trustLevel = trustMap[c.trustLevel];
     }
 
     // Fix known typos
     if (c.address && c.address.includes(',')) {
         const fixed = c.address.replace(/,/g, '.');
-        console.log(`[Connectors] Fixed typo: ${c.address} → ${fixed}`);
+        logger.info('P2P', `[Connectors] Fixed typo: ${c.address} → ${fixed}`);
         c.address = fixed;
     }
 
@@ -119,14 +120,14 @@ function loadConnectors(): void {
                 (c.address && c.address.includes(','))
             );
             connectors = raw.map(migrateConnector);
-            console.log(`[Connectors] Loaded ${connectors.length} connector(s) from disk.`);
+            logger.info('P2P', `[Connectors] Loaded ${connectors.length} connector(s) from disk.`);
             if (needsMigration) {
                 saveConnectors();
-                console.log(`[Connectors] ✅ Migration complete — saved updated connectors.json`);
+                logger.info('P2P', `[Connectors] ✅ Migration complete — saved updated connectors.json`);
             }
         }
     } catch (e) {
-        console.warn('[Connectors] Failed to load connectors:', e);
+        logger.warn('P2P', '[Connectors] Failed to load connectors:', e);
         connectors = [];
     }
 }
@@ -194,9 +195,9 @@ export function initConnectorManager(node: Libp2p): void {
 
     // Auto-connect all enabled connectors after a short delay (let libp2p fully init)
     if (connectors.some(c => c.enabled)) {
-        console.log(`[Connectors] 🔄 Auto-connecting ${connectors.filter(c => c.enabled).length} enabled connector(s) in 5s...`);
+        logger.info('P2P', `[Connectors] 🔄 Auto-connecting ${connectors.filter(c => c.enabled).length} enabled connector(s) in 5s...`);
         setTimeout(() => {
-            connectAll().catch(e => console.warn('[Connectors] Auto-connect error:', e));
+            connectAll().catch(e => logger.warn('P2P', '[Connectors] Auto-connect error:', e));
         }, 5000);
     }
 
@@ -277,19 +278,19 @@ function startRetryLoop(): void {
             const retry = retryState.get(connector.address) || { count: 0, nextRetry: 0 };
             if (Date.now() < retry.nextRetry) continue; // Not time yet
 
-            console.log(`[Connectors] 🔄 Retry #${retry.count + 1} → ${connector.callsign || connector.address}`);
+            logger.info('P2P', `[Connectors] 🔄 Retry #${retry.count + 1} → ${connector.callsign || connector.address}`);
             const success = await connectToAddress(connector.address);
 
             if (success) {
                 retryState.delete(connector.address);
-                console.log(`[Connectors] ✅ Reconnected to ${connector.callsign || connector.address}`);
+                logger.info('P2P', `[Connectors] ✅ Reconnected to ${connector.callsign || connector.address}`);
             } else {
                 // Exponential backoff
                 retry.count++;
                 const delay = Math.min(RETRY_INTERVAL_MS * Math.pow(2, retry.count - 1), MAX_RETRY_DELAY_MS);
                 retry.nextRetry = Date.now() + delay;
                 retryState.set(connector.address, retry);
-                console.log(`[Connectors] ⏳ Next retry for ${connector.callsign || connector.address} in ${Math.round(delay / 1000)}s`);
+                logger.info('P2P', `[Connectors] ⏳ Next retry for ${connector.callsign || connector.address} in ${Math.round(delay / 1000)}s`);
             }
         }
     }, RETRY_INTERVAL_MS);
@@ -316,7 +317,7 @@ export async function connectToAddress(address: string): Promise<boolean> {
         status.peerId = conn.remotePeer.toString();
         status.lastVerified = Date.now();
         status.error = null;
-        console.log(`[Connectors] ✅ Connected to ${address} (PeerId: ${status.peerId})`);
+        logger.info('P2P', `[Connectors] ✅ Connected to ${address} (PeerId: ${status.peerId})`);
 
         // Immediately run handshake to check mutual trust
         try {
@@ -324,10 +325,10 @@ export async function connectToAddress(address: string): Promise<boolean> {
             status.mutualTrust = result.mutualTrust;
             status.remoteTrustLevel = result.remoteTrustLevel;
             status.latencyMs = result.latencyMs;
-            console.log(`[Connectors] 🤝 Handshake with ${address}: mutual=${result.mutualTrust} latency=${result.latencyMs}ms`);
+            logger.info('P2P', `[Connectors] 🤝 Handshake with ${address}: mutual=${result.mutualTrust} latency=${result.latencyMs}ms`);
         } catch (e: any) {
-            console.warn(`[Connectors] ⚠️  Handshake failed with ${address} — peer may not support protocol yet`);
-            console.warn(`    ${e.stack || e.message || e}`);
+            logger.warn('P2P', `[Connectors] ⚠️  Handshake failed with ${address} — peer may not support protocol yet`);
+            logger.warn('P2P', `    ${e.stack || e.message || e}`);
             status.mutualTrust = false;
         }
 
@@ -335,7 +336,7 @@ export async function connectToAddress(address: string): Promise<boolean> {
     } catch (e: any) {
         status.connected = false;
         status.error = e.message || 'Connection failed';
-        console.warn(`[Connectors] ❌ Failed to connect to ${address}: ${status.error}`);
+        logger.error('P2P', `[Connectors] ❌ Failed to connect to ${address}: ${status.error}`);
         return false;
     }
 }
@@ -360,7 +361,7 @@ export async function disconnectFromAddress(address: string): Promise<void> {
         status.latencyMs = null;
         status.error = null;
     }
-    console.log(`[Connectors] Disconnected from ${address}`);
+    logger.info('P2P', `[Connectors] Disconnected from ${address}`);
 }
 
 export function addConnector(address: string, trustLevel: TrustLevel, callsign?: string, publicUrl?: string): ConnectorConfig {
@@ -393,7 +394,7 @@ export function addConnector(address: string, trustLevel: TrustLevel, callsign?:
 
     connectors.push(connector);
     saveConnectors();
-    console.log(`[Connectors] Added connector: ${address} (trust: ${trustLevel})`);
+    logger.info('P2P', `[Connectors] Added connector: ${address} (trust: ${trustLevel})`);
     return connector;
 }
 
@@ -404,7 +405,7 @@ export function removeConnector(address: string): boolean {
     connectors.splice(idx, 1);
     statuses.delete(address);
     saveConnectors();
-    console.log(`[Connectors] Removed connector: ${address}`);
+    logger.info('P2P', `[Connectors] Removed connector: ${address}`);
     return true;
 }
 

@@ -16,6 +16,7 @@ import {
     getStateHash, exportSyncState, importRemoteState,
     type SyncPayload,
 } from './state-engine.js';
+import { logger } from './logger.js';
 
 const PROTOCOL = '/beanpool/sync/1.0.0';
 const encoder = new TextEncoder();
@@ -86,7 +87,7 @@ export function registerSyncHandler(node: Libp2p): void {
                         type: 'sync_res',
                         match: true,
                     }));
-                    console.log(`[Sync] ← Hash match — no sync needed`);
+                    logger.sync('P2P', `[Sync] ← Hash match — no sync needed`);
                 } else {
                     // Hashes differ — send our state
                     const payload = await exportSyncState(localNodeId);
@@ -99,16 +100,16 @@ export function registerSyncHandler(node: Libp2p): void {
                     // Import their state if they included it
                     if (request.payload) {
                         const result = await importRemoteState(request.payload);
-                        console.log(`[Sync] ← Imported: +${result.newMembers} members, +${result.newPosts} posts`);
+                        logger.sync('P2P', `[Sync] ← Imported: +${result.newMembers} members, +${result.newPosts} posts`);
                     }
                 }
             }
         } catch (e: any) {
-            console.error(`[Sync] Handler error:`, e.message || e);
+            logger.error('P2P', `[Sync] Handler error: ${e.message || e}`);
         }
     });
 
-    console.log(`[Sync] Protocol handler registered: ${PROTOCOL}`);
+    logger.info('P2P', `[Sync] Protocol handler registered: ${PROTOCOL}`);
 }
 
 /**
@@ -140,19 +141,19 @@ export async function syncWithPeer(node: Libp2p, peerId: any): Promise<{
         const response = JSON.parse(raw);
 
         if (response.match) {
-            console.log(`[Sync] → ${peerId.toString().slice(-8)}: Already in sync ✓`);
+            logger.sync('P2P', `[Sync] → ${peerId.toString().slice(-8)}: Already in sync ✓`);
             return { synced: false, newMembers: 0, newPosts: 0 };
         }
 
         if (response.payload) {
             const result = await importRemoteState(response.payload);
-            console.log(`[Sync] → ${peerId.toString().slice(-8)}: +${result.newMembers} members, +${result.newPosts} posts`);
+            logger.sync('P2P', `[Sync] → ${peerId.toString().slice(-8)}: +${result.newMembers} members, +${result.newPosts} posts`);
             return { synced: true, ...result };
         }
 
         return { synced: false, newMembers: 0, newPosts: 0 };
     } catch (e: any) {
-        console.error(`[Sync] Failed with ${peerId.toString().slice(-8)}:`, e.message || e);
+        logger.error('P2P', `[Sync] Failed with ${peerId.toString().slice(-8)}: ${e.message || e}`);
         return { synced: false, newMembers: 0, newPosts: 0 };
     }
 }
