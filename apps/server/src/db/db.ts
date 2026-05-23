@@ -55,6 +55,13 @@ export function initSchema() {
         db.exec("ALTER TABLE ratings RENAME TO ratings_corrupted;");
     }
 
+    // Ensure all tables have updated_at columns so schema.sql triggers/indexes can compile successfully
+    try { db.prepare(`ALTER TABLE members ADD COLUMN updated_at DATETIME`).run(); } catch { }
+    try { db.prepare(`ALTER TABLE post_photos ADD COLUMN updated_at DATETIME`).run(); } catch { }
+    try { db.prepare(`ALTER TABLE marketplace_transactions ADD COLUMN updated_at DATETIME`).run(); } catch { }
+    try { db.prepare(`ALTER TABLE projects ADD COLUMN updated_at DATETIME`).run(); } catch { }
+    try { db.prepare(`ALTER TABLE recovery_requests ADD COLUMN updated_at DATETIME`).run(); } catch { }
+
     const schemaSql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
     db.exec(schemaSql);
 
