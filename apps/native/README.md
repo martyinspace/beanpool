@@ -79,6 +79,9 @@ apps/native/
 ## Key Features
 
 - **Self-Managed Identity** — Ed25519 keypair from BIP-39 12-word mnemonic, stored securely in hardware-backed Expo SecureStore (iOS Keychain / Android Keystore) with all legacy plaintext fallback lookup routines completely eliminated.
+- **Official App & Play Store Update Checks** — Querying unauthenticated store APIs (iTunes Lookup for iOS, regex parsing of Play details HTML scripts for Android) on a 24-hour throttled check, showing an organic header upgrade banner decoupled from node updates.
+- **Decoupled Release Versioning** — Support for individual native-only bumps (`node scripts/bump-version.mjs patch --native`) and Git tags (`native-v*`), decoupling review times from server nodes.
+- **Real-time Node Parity Settings** — Displaying sync status indicators (`🟢 Synced`, `⚠️ Out of Sync`, `⚪ Offline / Local-First`) under SQLite cache details by querying table aggregates against live remote transactions, posts, and member sizes.
 - **Client-Side Request Signing** — Signs requests natively using Ed25519 for all signature-required API routes (including profile update, ledger transfer, marketplace posts/deals, friends add/remove, set guardian, push token registration, and notification preferences).
 - **SQLite Persistence** — all posts, projects, messages, and ledger data stored locally via `expo-sqlite`
 - **14-Category Marketplace** — Food, Services, Labour, Tools, Goods, Housing, Transport, Education, Arts, Health, Care, Animals, Energy, General (PWA has 13; native adds Care ❤️)
@@ -94,7 +97,7 @@ apps/native/
 - **Push Notifications** — DM and marketplace deal alerts via Expo Push, per-member notification preferences, token registration
 - **Guest Mode** — multi-node onboarding flow with membership probe; guest indicators in header and sync status when visiting a node you're not a member of
 - **Community Search** — search and infinite scroll on the Community member list
-- **App Store & Play Store Submission** — Published/built for both stores (v1.0.76, build 97).
+- **App Store & Play Store Submission** — Published/built for both stores (v1.0.85, build 102).
 - **Community Projects** — crowdfund tab with progress bars, funding badges, and proposal creation
 - **Branded Tab Bar** — neon-vine artwork background with semi-transparent overlay
 - **Post Detail View** — full-screen view with photos, credits, author info

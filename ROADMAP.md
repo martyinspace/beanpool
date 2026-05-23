@@ -6,6 +6,12 @@
 
 ## ✅ Recently Completed
 
+- ✅ **Release v1.0.85: App Store Lookups & Decoupled Version Bumping** — Completely decoupled the versioning timeline of the native companion app and server nodes, automating App Store/Play Store query integrations.
+  - **Direct Store Queries**: Rewrote client version checking to hit unauthenticated public store APIs—Apple iTunes Search Lookup on iOS and regular expression matching on Google Play HTML scripts on Android—bypassing local node reliance.
+  - **Decoupled Version Bumper**: Expanded `bump-version.mjs` with `--native` and `--server` split bumping flags, supporting dedicated Git tag namespaces (`native-v*`, `server-v*`) and custom commits to match review cycles.
+- ✅ **Release v1.0.82: Real-time Node Parity & Database Diagnostics** — Implemented client-side SQLite sync status indicators and resync mechanisms in Settings.
+  - **Local/Remote Parity Indicator**: Displays dynamic status pills (`Healthy & Synced`, `Out of Sync`, `Offline / Local-First`) by comparing local SQLite table counts against remote node transactions, posts, and member totals.
+  - **Resync Cache Clearing**: Hooked version throttling and dismissed update states into the "Clear DB Cache" settings action, allowing immediate refresh during testing.
 - ✅ **Admin Log & Diagnostic Screen (Release v1.0.78)** — Built a secure, real-time administrative console and hardware resource monitoring dashboard for the BeanPool node settings panel.
   - **Security & Redaction**: Designed a multi-phase regex sanitization engine to strip BIP39 mnemonics, PEM private keys, plain passwords/secrets, and hex seeds before database write or WebSocket broadcast.
   - **Resource Telemetry**: Integrated a glassmorphic visual telemetry deck featuring circular CPU load gauge widgets (with pulsating HSL colors), linear RAM allocation bars, and real-time database/WAL file metrics.
