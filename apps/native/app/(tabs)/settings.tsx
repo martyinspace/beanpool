@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Alert, Image, Share, Linking } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Alert, Image, Share, Linking, Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useIdentity } from '../IdentityContext';
 import * as SecureStore from 'expo-secure-store';
@@ -12,10 +12,24 @@ import { nativeExportIdentity } from '../../utils/native-crypto';
 import { encodeBase64, encodeUtf8, hexToBytes, signData } from '../../utils/crypto';
 import { updateMemberProfile, getMemberProfile, getPendingRecoveryRequests, approveRecoveryRequest, rejectRecoveryRequest, signedRequest } from '../../utils/db';
 import { getSavedNodes, SavedNode, removeSavedNode, getDatabaseFilenameForNode } from '../../utils/nodes';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { router, useLocalSearchParams } from 'expo-router';
 import Constants from 'expo-constants';
 import appConfig from '../../app.json';
+
+function getDatabaseFilePath(dbFilename: string): string {
+    if (!FileSystem.documentDirectory) return '';
+    if (Platform.OS === 'android') {
+        const docDir = FileSystem.documentDirectory;
+        if (docDir.endsWith('/files/')) {
+            return docDir.slice(0, -7) + '/databases/' + dbFilename;
+        } else if (docDir.includes('/files')) {
+            return docDir.replace('/files', '/databases') + dbFilename;
+        }
+        return docDir + 'databases/' + dbFilename;
+    }
+    return FileSystem.documentDirectory + 'SQLite/' + dbFilename;
+}
 
 export default function SettingsScreen() {
     const { identity, setIdentity } = useIdentity();
@@ -77,7 +91,8 @@ export default function SettingsScreen() {
                 dbUrl = null;
             }
             const dbFilename = getDatabaseFilenameForNode(dbUrl);
-            const fileInfo = await FileSystem.getInfoAsync((FileSystem as any).documentDirectory + 'SQLite/' + dbFilename);
+            const dbPath = getDatabaseFilePath(dbFilename);
+            const fileInfo = await FileSystem.getInfoAsync(dbPath);
             if (fileInfo.exists) {
                 setDbSize(`${(fileInfo.size / 1024 / 1024).toFixed(2)} MB`);
             } else {
@@ -87,7 +102,11 @@ export default function SettingsScreen() {
             // Fetch remote health stats for visual compare
             if (url && url.startsWith('http')) {
                 try {
-                    const res = await fetch(`${url}/api/community/health?_t=${Date.now()}`);
+                    let cleanUrl = url.trim();
+                    if (cleanUrl.endsWith('/')) {
+                        cleanUrl = cleanUrl.slice(0, -1);
+                    }
+                    const res = await fetch(`${cleanUrl}/api/community/health?_t=${Date.now()}`);
                     if (res.ok) {
                         const data = await res.json();
                         if (data && data.activity) {
@@ -134,7 +153,7 @@ export default function SettingsScreen() {
                 const enriched = await Promise.all(nodes.map(async node => {
                     let size = 0;
                     try {
-                        const fileInfo = await FileSystem.getInfoAsync((FileSystem as any).documentDirectory + 'SQLite/' + getDatabaseFilenameForNode(node.url));
+                        const fileInfo = await FileSystem.getInfoAsync(getDatabaseFilePath(getDatabaseFilenameForNode(node.url)));
                         if (fileInfo.exists) size = fileInfo.size;
                     } catch(e) {}
                     return { ...node, status: 'pinging' as const, sizeBytes: size };
@@ -325,7 +344,7 @@ export default function SettingsScreen() {
                             await removeSavedNode(targetUrl);
                             setSavedNodes(remainingNodes);
                             try {
-                                await FileSystem.deleteAsync((FileSystem as any).documentDirectory + 'SQLite/' + getDatabaseFilenameForNode(targetUrl), { idempotent: true });
+                                await FileSystem.deleteAsync(getDatabaseFilePath(getDatabaseFilenameForNode(targetUrl)), { idempotent: true });
                             } catch(e) {}
                             
                             // Automatically pivot to the next available node
@@ -341,7 +360,7 @@ export default function SettingsScreen() {
         setSavedNodes(prev => prev.filter(n => n.url !== targetUrl));
         // Optional: Physically delete the dormant .db file from the OS folder
         try {
-            await FileSystem.deleteAsync((FileSystem as any).documentDirectory + 'SQLite/' + getDatabaseFilenameForNode(targetUrl), { idempotent: true });
+            await FileSystem.deleteAsync(getDatabaseFilePath(getDatabaseFilenameForNode(targetUrl)), { idempotent: true });
         } catch(e) {}
     }
 
@@ -453,7 +472,7 @@ export default function SettingsScreen() {
                         // Physically delete dormant DB files for all saved nodes to reclaim disk space
                         for (const node of savedNodes) {
                             try {
-                                await FileSystem.deleteAsync((FileSystem as any).documentDirectory + 'SQLite/' + getDatabaseFilenameForNode(node.url), { idempotent: true });
+                                await FileSystem.deleteAsync(getDatabaseFilePath(getDatabaseFilenameForNode(node.url)), { idempotent: true });
                             } catch (e) {}
                         }
                         
