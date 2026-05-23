@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { LedgerManager, COMMONS_BALANCE, setCommonsBalance, calculateDynamicFloor, getTier, getGenesisEarnedCredit, PROTOCOL_CONSTANTS } from '@beanpool/core';
 import type { TrustStats, TierInfo, GenesisInviteType } from '@beanpool/core';
 import { getThresholds, getLocalConfig } from './local-config.js';
-import { db, initSchema, migrateLegacyState } from './db/db.js';
+import { db, initSchema, migrateLegacyState, writeTombstone } from './db/db.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -1366,6 +1366,13 @@ export function updatePost(id: string, authorPublicKey: string, updates: Partial
             db.prepare(query).run(...params);
         }
         if (updates.photos !== undefined) {
+            // Tombstone existing photos before deletion so mirrors propagate the
+            // removal. Any (post_id, order_num) that gets re-inserted below will
+            // win over the tombstone at import time (newer updated_at).
+            const existingPhotos = db.prepare(`SELECT order_num FROM post_photos WHERE post_id=?`).all(id) as { order_num: number }[];
+            for (const ph of existingPhotos) {
+                writeTombstone('post_photos', `${id}|${ph.order_num}`);
+            }
             db.prepare(`DELETE FROM post_photos WHERE post_id=?`).run(id);
             const insertPhoto = db.prepare(`INSERT INTO post_photos (post_id, photo_data, order_num) VALUES (?, ?, ?)`);
             updates.photos.slice(0, 3).forEach((p, idx) => insertPhoto.run(id, p, idx));
@@ -2796,6 +2803,9 @@ export function addFriend(ownerPubkey: string, friendPubkey: string): FriendEntr
 
 export function removeFriend(ownerPubkey: string, friendPubkey: string): boolean {
     const res = db.prepare("DELETE FROM friends WHERE owner_pubkey=? AND friend_pubkey=?").run(ownerPubkey, friendPubkey);
+    if (res.changes > 0) {
+        writeTombstone('friends', `${ownerPubkey}|${friendPubkey}`);
+    }
     return res.changes > 0;
 }
 

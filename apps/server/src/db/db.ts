@@ -23,6 +23,19 @@ db.pragma('journal_mode = WAL');
 db.pragma('synchronous = NORMAL');
 db.pragma('foreign_keys = OFF');
 
+/**
+ * Record a hard-delete in the tombstones table so delta-sync can propagate it.
+ * `rowKey` is the serialized primary key — for compound keys, join components
+ * with `|` (e.g. `${ownerPubkey}|${friendPubkey}`). INSERT OR REPLACE means
+ * re-deleting a re-created row just refreshes the tombstone timestamp.
+ */
+export function writeTombstone(tableName: string, rowKey: string): void {
+    db.prepare(
+        `INSERT OR REPLACE INTO tombstones (table_name, row_key, deleted_at)
+         VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`
+    ).run(tableName, rowKey);
+}
+
 // Function to initialize schema
 export function initSchema() {
     const userVersion = db.pragma('user_version', { simple: true }) as number;
@@ -76,6 +89,39 @@ export function initSchema() {
     try { db.prepare(`ALTER TABLE abuse_reports ADD COLUMN status TEXT DEFAULT 'pending'`).run(); } catch { }
     // Perf: Add index to conversation_participants
     try { db.prepare(`CREATE INDEX IF NOT EXISTS idx_conversation_participants_pubkey ON conversation_participants(public_key)`).run(); } catch { }
+
+    // Phase 2 delta sync: add updated_at columns + indexes to mutable tables that
+    // didn't previously track row-level mutation timestamps. Backfill from the
+    // most recent existing timestamp so cursor scans don't miss pre-migration rows.
+    try {
+        db.prepare(`ALTER TABLE members ADD COLUMN updated_at DATETIME`).run();
+        db.prepare(`UPDATE members SET updated_at = COALESCE(profile_updated_at, last_active_at, joined_at) WHERE updated_at IS NULL`).run();
+    } catch { }
+    try { db.prepare(`CREATE INDEX IF NOT EXISTS idx_members_updated_at ON members(updated_at)`).run(); } catch { }
+
+    try {
+        db.prepare(`ALTER TABLE post_photos ADD COLUMN updated_at DATETIME`).run();
+        db.prepare(`UPDATE post_photos SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE updated_at IS NULL`).run();
+    } catch { }
+    try { db.prepare(`CREATE INDEX IF NOT EXISTS idx_post_photos_updated_at ON post_photos(updated_at)`).run(); } catch { }
+
+    try {
+        db.prepare(`ALTER TABLE marketplace_transactions ADD COLUMN updated_at DATETIME`).run();
+        db.prepare(`UPDATE marketplace_transactions SET updated_at = COALESCE(completed_at, created_at) WHERE updated_at IS NULL`).run();
+    } catch { }
+    try { db.prepare(`CREATE INDEX IF NOT EXISTS idx_marketplace_transactions_updated_at ON marketplace_transactions(updated_at)`).run(); } catch { }
+
+    try {
+        db.prepare(`ALTER TABLE projects ADD COLUMN updated_at DATETIME`).run();
+        db.prepare(`UPDATE projects SET updated_at = created_at WHERE updated_at IS NULL`).run();
+    } catch { }
+    try { db.prepare(`CREATE INDEX IF NOT EXISTS idx_projects_updated_at ON projects(updated_at)`).run(); } catch { }
+
+    try {
+        db.prepare(`ALTER TABLE recovery_requests ADD COLUMN updated_at DATETIME`).run();
+        db.prepare(`UPDATE recovery_requests SET updated_at = COALESCE(executed_at, cooldown_until, created_at) WHERE updated_at IS NULL`).run();
+    } catch { }
+    try { db.prepare(`CREATE INDEX IF NOT EXISTS idx_recovery_requests_updated_at ON recovery_requests(updated_at)`).run(); } catch { }
 }
 
 // Function to migrate from legacy JSON state
@@ -482,8 +528,9 @@ export function deleteCrowdfundProject(projectId: string, requesterPubkey: strin
             db.prepare(`UPDATE accounts SET balance = balance - ?, last_updated_at = CURRENT_TIMESTAMP WHERE public_key = ?`).run(totalRefunded, escrowPubkey);
         }
 
-        // Shred the Project
+        // Shred the Project — and tombstone it so mirrors propagate the delete.
         db.prepare(`DELETE FROM projects WHERE id = ?`).run(projectId);
+        writeTombstone('projects', projectId);
     });
 
     executeDelete();

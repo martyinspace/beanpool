@@ -12,8 +12,10 @@ CREATE TABLE IF NOT EXISTS members (
     contact_value TEXT,
     contact_visibility TEXT,
     status TEXT DEFAULT 'active',
-    last_active_at DATETIME
+    last_active_at DATETIME,
+    updated_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+CREATE INDEX IF NOT EXISTS idx_members_updated_at ON members(updated_at);
 
 -- 2. Invite Codes
 CREATE TABLE IF NOT EXISTS invite_codes (
@@ -79,8 +81,10 @@ CREATE TABLE IF NOT EXISTS post_photos (
     post_id TEXT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
     photo_data TEXT NOT NULL,
     order_num INTEGER NOT NULL,
+    updated_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     PRIMARY KEY (post_id, order_num)
 );
+CREATE INDEX IF NOT EXISTS idx_post_photos_updated_at ON post_photos(updated_at);
 
 -- 5. Marketplace Transactions
 CREATE TABLE IF NOT EXISTS marketplace_transactions (
@@ -92,8 +96,10 @@ CREATE TABLE IF NOT EXISTS marketplace_transactions (
     hours REAL,
     status TEXT DEFAULT 'pending',
     created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    completed_at DATETIME
+    completed_at DATETIME,
+    updated_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+CREATE INDEX IF NOT EXISTS idx_marketplace_transactions_updated_at ON marketplace_transactions(updated_at);
 
 -- 6. Messaging & Chat
 CREATE TABLE IF NOT EXISTS conversations (
@@ -173,8 +179,10 @@ CREATE TABLE IF NOT EXISTS projects (
     current_amount INTEGER DEFAULT 0,
     deadline_at DATETIME,
     status TEXT DEFAULT 'ACTIVE', -- 'ACTIVE', 'FUNDED', 'FAILED', 'COMPLETED'
-    created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+CREATE INDEX IF NOT EXISTS idx_projects_updated_at ON projects(updated_at);
 
 -- 10. Invite Links (Deferred Deep Linking Shortener)
 CREATE TABLE IF NOT EXISTS invite_links (
@@ -234,8 +242,10 @@ CREATE TABLE IF NOT EXISTS recovery_requests (
     created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     cooldown_until DATETIME,
     executed_at DATETIME,
-    expires_at DATETIME
+    expires_at DATETIME,
+    updated_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+CREATE INDEX IF NOT EXISTS idx_recovery_requests_updated_at ON recovery_requests(updated_at);
 
 CREATE TABLE IF NOT EXISTS recovery_approvals (
     request_id TEXT NOT NULL REFERENCES recovery_requests(id) ON DELETE CASCADE,
@@ -258,3 +268,67 @@ CREATE TABLE IF NOT EXISTS system_logs (
 CREATE INDEX IF NOT EXISTS idx_system_logs_timestamp ON system_logs(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_system_logs_level ON system_logs(level);
 
+-- 16. Tombstones — track hard-deleted rows so delta sync can propagate deletes.
+-- row_key is the serialized primary key (e.g. "post_id", or "owner|friend" for compound keys).
+CREATE TABLE IF NOT EXISTS tombstones (
+    table_name TEXT NOT NULL,
+    row_key TEXT NOT NULL,
+    deleted_at DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (table_name, row_key)
+);
+CREATE INDEX IF NOT EXISTS idx_tombstones_deleted_at ON tombstones(deleted_at);
+
+-- 17. Per-peer sync cursors — tracks the timestamp of the last successful delta sync
+-- with each peer, so the next pull only requests rows updated after that point.
+CREATE TABLE IF NOT EXISTS sync_cursors (
+    peer_id TEXT PRIMARY KEY,
+    last_synced_at DATETIME NOT NULL,
+    last_sync_attempt_at DATETIME NOT NULL
+);
+
+-- 18. updated_at touch triggers — auto-bump the row mutation watermark on UPDATE
+-- so every write path participates in cursor-based delta sync without per-callsite
+-- code changes. The WHEN guard skips firing when the caller explicitly set
+-- updated_at (e.g. the sync importer applying a remote row with its own timestamp),
+-- and prevents recursion (which is also disabled by the SQLite default
+-- PRAGMA recursive_triggers = OFF).
+
+CREATE TRIGGER IF NOT EXISTS members_touch_updated_at
+AFTER UPDATE ON members
+FOR EACH ROW
+WHEN NEW.updated_at IS OLD.updated_at
+BEGIN
+    UPDATE members SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE rowid = NEW.rowid;
+END;
+
+CREATE TRIGGER IF NOT EXISTS post_photos_touch_updated_at
+AFTER UPDATE ON post_photos
+FOR EACH ROW
+WHEN NEW.updated_at IS OLD.updated_at
+BEGIN
+    UPDATE post_photos SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE rowid = NEW.rowid;
+END;
+
+CREATE TRIGGER IF NOT EXISTS marketplace_transactions_touch_updated_at
+AFTER UPDATE ON marketplace_transactions
+FOR EACH ROW
+WHEN NEW.updated_at IS OLD.updated_at
+BEGIN
+    UPDATE marketplace_transactions SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE rowid = NEW.rowid;
+END;
+
+CREATE TRIGGER IF NOT EXISTS projects_touch_updated_at
+AFTER UPDATE ON projects
+FOR EACH ROW
+WHEN NEW.updated_at IS OLD.updated_at
+BEGIN
+    UPDATE projects SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE rowid = NEW.rowid;
+END;
+
+CREATE TRIGGER IF NOT EXISTS recovery_requests_touch_updated_at
+AFTER UPDATE ON recovery_requests
+FOR EACH ROW
+WHEN NEW.updated_at IS OLD.updated_at
+BEGIN
+    UPDATE recovery_requests SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE rowid = NEW.rowid;
+END;
