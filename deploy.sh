@@ -27,6 +27,7 @@ NODES=(
   "2:mullum2:192.168.1.219:mullum2.beanpool.org:marty:BeanPool-Mullum2"
   "4:review:192.168.1.219:review.beanpool.org:marty:BeanPool-Review"
   "5:test:192.168.1.219:test.beanpool.org:marty:BeanPool"
+  "6:test-mirror:192.168.1.219:test-mirror.beanpool.org:marty:BeanPool-TestMirror"
 )
 
 # Package docker-compose.yml + data-preserving deploy config
@@ -116,6 +117,13 @@ for NODE in "${TARGETS[@]}"; do
       sed -i 's/\"8443:8443\"/\"8450:8443\"/g' docker-compose.yml
       sed -i 's/\"4001:4001\"/\"4006:4001\"/g' docker-compose.yml
       sed -i 's/\"4002:4002\"/\"4007:4002\"/g' docker-compose.yml
+    elif [ "$DIR" = "BeanPool-TestMirror" ]; then
+      sed -i 's/\"80:8080\"/\"8083:8080\"/g' docker-compose.yml
+      sed -i 's/\"443:8443\"/\"8451:8443\"/g' docker-compose.yml
+      sed -i 's/\"8080:8080\"/\"8084:8080\"/g' docker-compose.yml
+      sed -i 's/\"8443:8443\"/\"8452:8443\"/g' docker-compose.yml
+      sed -i 's/\"4001:4001\"/\"4008:4001\"/g' docker-compose.yml
+      sed -i 's/\"4002:4002\"/\"4009:4002\"/g' docker-compose.yml
     fi
     echo \"Public IP: \$PUBLIC_IP\"
     echo \"DNS Record: \$CF_RECORD_NAME\"

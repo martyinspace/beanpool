@@ -50,7 +50,11 @@ function readFromStream(stream: any, timeoutMs = 30000): Promise<string> {
 
             if (bufLen > 0) {
                 if (!dataSeenAt) dataSeenAt = Date.now();
-                if (remoteWriteClosed || Date.now() - dataSeenAt > 500 || stream.status === 'closed') {
+                // Resolve when:
+                //  - remote closed their write side (we have all data), OR
+                //  - we've had no new data for 10000ms (allow for slow/chunked network transfer), OR
+                //  - stream is fully closed
+                if (remoteWriteClosed || Date.now() - dataSeenAt > 10000 || stream.status === 'closed') {
                     clearInterval(pollInterval);
                     clearTimeout(timer);
                     resolve(decoder.decode(stream.readBuffer.subarray()));

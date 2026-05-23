@@ -36,6 +36,7 @@ const VERSION = '1.1.0';
 
 const DEFAULT_NODES = [
     'https://test.beanpool.org',
+    'https://test-mirror.beanpool.org',
     'https://review.beanpool.org',
     'https://mullum1.beanpool.org',
     'https://mullum2.beanpool.org',
