@@ -26,8 +26,11 @@ export interface HandshakeResult {
  * and the remote write side is closed (or we have data after a short wait).
  */
 function readFromStream(stream: any, timeoutMs = 10000): Promise<string> {
+    const streamId = Math.random().toString(36).substring(2, 8);
+    console.log(`[Handshake DBG][${streamId}] readFromStream started. remoteWriteStatus=${stream.remoteWriteStatus}, status=${stream.status}, readBufferLength=${stream.readBuffer?.byteLength}`);
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
+            console.log(`[Handshake DBG][${streamId}] timeout triggered after ${timeoutMs}ms`);
             reject(new Error('Read timeout'));
         }, timeoutMs);
 
@@ -37,6 +40,7 @@ function readFromStream(stream: any, timeoutMs = 10000): Promise<string> {
             try {
                 if (stream.remoteWriteStatus === 'closed' || stream.status === 'closed') {
                     if (stream.readBuffer?.byteLength === 0 || !stream.readBuffer) {
+                        console.log(`[Handshake DBG][${streamId}] stream pre-closed with empty buffer. Resolving empty string.`);
                         clearTimeout(timer);
                         resolve('');
                         return;
@@ -44,10 +48,16 @@ function readFromStream(stream: any, timeoutMs = 10000): Promise<string> {
                 }
 
                 let isDone = false;
+                let tickCount = 0;
                 checkInterval = setInterval(() => {
                     const isClosed = stream.remoteWriteStatus === 'closed' || stream.status === 'closed';
                     const isBufferEmpty = stream.readBuffer?.byteLength === 0 || !stream.readBuffer;
+                    tickCount++;
+                    if (tickCount % 40 === 0 || isClosed) {
+                        console.log(`[Handshake DBG][${streamId}] poll status tick: isClosed=${isClosed}, isBufferEmpty=${isBufferEmpty}, chunksCollected=${chunks.length}, readBufferLength=${stream.readBuffer?.byteLength}`);
+                    }
                     if (isClosed && isBufferEmpty) {
+                        console.log(`[Handshake DBG][${streamId}] loop exit condition met in poll. Resolving.`);
                         clearInterval(checkInterval);
                         isDone = true;
                         clearTimeout(timer);
@@ -56,8 +66,13 @@ function readFromStream(stream: any, timeoutMs = 10000): Promise<string> {
                     }
                 }, 50);
 
+                console.log(`[Handshake DBG][${streamId}] entering for await loop...`);
                 for await (const chunk of stream) {
-                    if (isDone) break;
+                    console.log(`[Handshake DBG][${streamId}] iterator yielded chunk: size=${chunk.byteLength || chunk.length || 'unknown'}`);
+                    if (isDone) {
+                        console.log(`[Handshake DBG][${streamId}] iterator yielded but isDone is true. Breaking loop.`);
+                        break;
+                    }
 
                     if (chunk instanceof Uint8Array) {
                         chunks.push(chunk);
@@ -67,12 +82,14 @@ function readFromStream(stream: any, timeoutMs = 10000): Promise<string> {
                         chunks.push(Uint8Array.from(chunk));
                     }
                 }
+                console.log(`[Handshake DBG][${streamId}] exited for await loop gracefully.`);
 
                 if (checkInterval) clearInterval(checkInterval);
                 clearTimeout(timer);
                 const binaryData = Buffer.concat(chunks);
                 resolve(decoder.decode(binaryData));
-            } catch (err) {
+            } catch (err: any) {
+                console.log(`[Handshake DBG][${streamId}] error in hybrid loop: ${err.message || err}`);
                 if (checkInterval) clearInterval(checkInterval);
                 clearTimeout(timer);
                 reject(err);
@@ -85,9 +102,15 @@ function readFromStream(stream: any, timeoutMs = 10000): Promise<string> {
  * Write data to a stream using AbstractStream's send() and close write side.
  */
 async function writeToStream(stream: any, data: string): Promise<void> {
+    console.log(`[Handshake DBG] writeToStream: sending ${data.length} bytes...`);
     await stream.send(encoder.encode(data));
+    console.log(`[Handshake DBG] writeToStream: send completed. closeWrite exists: ${typeof stream.closeWrite === 'function'}`);
     if (typeof stream.closeWrite === 'function') {
+        console.log(`[Handshake DBG] writeToStream: calling closeWrite()`);
         await stream.closeWrite();
+        console.log(`[Handshake DBG] writeToStream: closeWrite completed!`);
+    } else {
+        console.log(`[Handshake DBG] writeToStream: closeWrite does not exist on this stream!`);
     }
 }
 
