@@ -18,4 +18,11 @@ services:
       - CF_RECORD_NAME=${CF_RECORD_NAME}
     volumes:
       - ./data:/data
+    networks:
+      - default
+      - beanpool-shared
     restart: unless-stopped
+
+networks:
+  beanpool-shared:
+    external: true
