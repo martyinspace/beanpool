@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Image, Alert, Linking, Modal, Pressable } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Image, Alert, Linking, Modal, Pressable, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -72,19 +72,48 @@ export function GlobalHeader() {
                     if (isMounted) setIsOffline(false);
                     const data = await r.json();
                     
-                    if (data.version && isMounted) {
-                        const now = Date.now();
-                        const lastCheckStr = await AsyncStorage.getItem('beanpool_last_version_check_time');
-                        const lastChecked = lastCheckStr ? parseInt(lastCheckStr, 10) : 0;
-                        const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+                    const now = Date.now();
+                    const lastCheckStr = await AsyncStorage.getItem('beanpool_last_version_check_time');
+                    const lastChecked = lastCheckStr ? parseInt(lastCheckStr, 10) : 0;
+                    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+                    
+                    if (now - lastChecked > ONE_DAY_MS || !lastCheckStr) {
+                        let latestVersion: string | null = null;
                         
-                        if (now - lastChecked > ONE_DAY_MS || !lastCheckStr) {
+                        if (Platform.OS === 'ios') {
+                            try {
+                                const iosRes = await fetchWithTimeout('https://itunes.apple.com/lookup?bundleId=org.beanpool.pillar&_t=' + now, { timeout: 4000 });
+                                if (iosRes.ok) {
+                                    const iosData = await iosRes.json();
+                                    if (iosData.results && iosData.results.length > 0) {
+                                        latestVersion = iosData.results[0].version;
+                                    }
+                                }
+                            } catch (err) {
+                                console.warn('[VersionCheck] Apple Store check failed:', err);
+                            }
+                        } else {
+                            try {
+                                const androidRes = await fetchWithTimeout('https://play.google.com/store/apps/details?id=org.beanpool.pillar&hl=en&_t=' + now, { timeout: 4000 });
+                                if (androidRes.ok) {
+                                    const html = await androidRes.text();
+                                    const match = html.match(/\[\[\["([0-9]+\.[0-9]+\.[0-9]+)"\]\]\]/);
+                                    if (match) {
+                                        latestVersion = match[1];
+                                    }
+                                }
+                            } catch (err) {
+                                console.warn('[VersionCheck] Google Play check failed:', err);
+                            }
+                        }
+                        
+                        if (latestVersion && isMounted) {
                             const localVersion = appConfig.expo.version;
-                            if (isVersionOlder(localVersion, data.version)) {
-                                const dismissedKey = `beanpool_dismissed_update_${data.version}`;
+                            if (isVersionOlder(localVersion, latestVersion)) {
+                                const dismissedKey = `beanpool_dismissed_update_${latestVersion}`;
                                 const isDismissed = await AsyncStorage.getItem(dismissedKey);
                                 if (!isDismissed && isMounted) {
-                                    setSoftUpdateVersion(data.version);
+                                    setSoftUpdateVersion(latestVersion);
                                 } else if (isMounted) {
                                     setSoftUpdateVersion(null);
                                 }
@@ -92,21 +121,21 @@ export function GlobalHeader() {
                                 setSoftUpdateVersion(null);
                             }
                             await AsyncStorage.setItem('beanpool_last_version_check_time', String(now));
-                            await AsyncStorage.setItem('beanpool_latest_known_version', data.version);
-                        } else {
-                            // Use cached status
-                            const latestKnown = await AsyncStorage.getItem('beanpool_latest_known_version');
-                            if (latestKnown && isVersionOlder(appConfig.expo.version, latestKnown)) {
-                                const dismissedKey = `beanpool_dismissed_update_${latestKnown}`;
-                                const isDismissed = await AsyncStorage.getItem(dismissedKey);
-                                if (!isDismissed && isMounted) {
-                                    setSoftUpdateVersion(latestKnown);
-                                } else if (isMounted) {
-                                    setSoftUpdateVersion(null);
-                                }
+                            await AsyncStorage.setItem('beanpool_latest_known_version', latestVersion);
+                        }
+                    } else {
+                        // Use cached status
+                        const latestKnown = await AsyncStorage.getItem('beanpool_latest_known_version');
+                        if (latestKnown && isVersionOlder(appConfig.expo.version, latestKnown)) {
+                            const dismissedKey = `beanpool_dismissed_update_${latestKnown}`;
+                            const isDismissed = await AsyncStorage.getItem(dismissedKey);
+                            if (!isDismissed && isMounted) {
+                                setSoftUpdateVersion(latestKnown);
                             } else if (isMounted) {
                                 setSoftUpdateVersion(null);
                             }
+                        } else if (isMounted) {
+                            setSoftUpdateVersion(null);
                         }
                     }
                 } else {
