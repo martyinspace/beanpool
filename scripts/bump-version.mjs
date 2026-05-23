@@ -62,6 +62,15 @@ function main() {
   const noTag = args.includes('--no-tag');
   const noCommit = args.includes('--no-commit');
   
+  const isNative = args.includes('--native') || args.includes('--native-only');
+  const isServer = args.includes('--server') || args.includes('--server-only');
+  const mode = isNative ? 'native' : (isServer ? 'server' : 'all');
+
+  if (isNative && isServer) {
+    logError("Cannot specify both --native and --server flags.");
+    process.exit(1);
+  }
+
   // Filter out options from positional arguments
   const positionalArgs = args.filter(a => !a.startsWith('--'));
   
@@ -72,23 +81,52 @@ function main() {
 
   const targetArg = positionalArgs[0].toLowerCase();
 
-  // 1. Read current version from root package.json
-  const rootPkgPath = path.resolve(ROOT_DIR, 'package.json');
-  if (!fs.existsSync(rootPkgPath)) {
-    logError(`Root package.json not found at: ${rootPkgPath}`);
-    process.exit(1);
+  // 1. Read current version from the appropriate package
+  let currentVersion = '0.0.0';
+  
+  if (mode === 'native') {
+    const appJsonPath = path.resolve(ROOT_DIR, 'apps/native/app.json');
+    if (!fs.existsSync(appJsonPath)) {
+      logError(`apps/native/app.json not found!`);
+      process.exit(1);
+    }
+    try {
+      const appJson = JSON.parse(fs.readFileSync(appJsonPath, 'utf8'));
+      currentVersion = appJson.expo?.version || '0.0.0';
+    } catch (e) {
+      logError(`Failed to parse apps/native/app.json: ${e.message}`);
+      process.exit(1);
+    }
+    logInfo(`[NATIVE MODE] Current version: ${BOLD}${YELLOW}${currentVersion}${RESET}`);
+  } else if (mode === 'server') {
+    const serverPkgPath = path.resolve(ROOT_DIR, 'apps/server/package.json');
+    if (!fs.existsSync(serverPkgPath)) {
+      logError(`apps/server/package.json not found!`);
+      process.exit(1);
+    }
+    try {
+      const serverPkg = JSON.parse(fs.readFileSync(serverPkgPath, 'utf8'));
+      currentVersion = serverPkg.version || '0.0.0';
+    } catch (e) {
+      logError(`Failed to parse apps/server/package.json: ${e.message}`);
+      process.exit(1);
+    }
+    logInfo(`[SERVER MODE] Current version: ${BOLD}${YELLOW}${currentVersion}${RESET}`);
+  } else {
+    const rootPkgPath = path.resolve(ROOT_DIR, 'package.json');
+    if (!fs.existsSync(rootPkgPath)) {
+      logError(`Root package.json not found at: ${rootPkgPath}`);
+      process.exit(1);
+    }
+    try {
+      const rootPkg = JSON.parse(fs.readFileSync(rootPkgPath, 'utf8'));
+      currentVersion = rootPkg.version || '0.0.0';
+    } catch (e) {
+      logError(`Failed to parse root package.json: ${e.message}`);
+      process.exit(1);
+    }
+    logInfo(`[ALL MONOREPO MODE] Current version: ${BOLD}${YELLOW}${currentVersion}${RESET}`);
   }
-
-  let rootPkg;
-  try {
-    rootPkg = JSON.parse(fs.readFileSync(rootPkgPath, 'utf8'));
-  } catch (e) {
-    logError(`Failed to parse root package.json: ${e.message}`);
-    process.exit(1);
-  }
-
-  const currentVersion = rootPkg.version || '0.0.0';
-  logInfo(`Current version: ${BOLD}${YELLOW}${currentVersion}${RESET}`);
 
   // 2. Parse target version
   let nextVersion;
@@ -115,9 +153,30 @@ function main() {
 
   log(`\n${BOLD}Updating Package Files:${RESET}`);
   
+  // Define files to update based on mode
+  let targetPackageFiles = [];
+  if (mode === 'native') {
+    targetPackageFiles = ['apps/native/package.json'];
+  } else if (mode === 'server') {
+    targetPackageFiles = [
+      'package.json',
+      'packages/beanpool-core/package.json',
+      'apps/server/package.json',
+      'apps/pwa/package.json'
+    ];
+  } else {
+    targetPackageFiles = [
+      'package.json',
+      'packages/beanpool-core/package.json',
+      'apps/server/package.json',
+      'apps/pwa/package.json',
+      'apps/native/package.json'
+    ];
+  }
+
   // 3. Update version in files
   const updatedFilesPaths = [];
-  for (const relPath of PACKAGE_FILES) {
+  for (const relPath of targetPackageFiles) {
     const fullPath = path.resolve(ROOT_DIR, relPath);
     if (!fs.existsSync(fullPath)) {
       logWarn(`File not found, skipping: ${relPath}`);
@@ -138,68 +197,68 @@ function main() {
       log(`   ${relPath}: ${YELLOW}${prevVersion}${RESET} → ${GREEN}${nextVersion}${RESET} (dry-run)`);
     } else {
       pkg.version = nextVersion;
-      // Also update workspace dependency references if any
-      if (pkg.dependencies && pkg.dependencies['@beanpool/core']) {
-        // If it was workspace:* or pinned, keep it
-      }
       fs.writeFileSync(fullPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8');
       log(`   ${relPath}: ${YELLOW}${prevVersion}${RESET} → ${GREEN}${nextVersion}${RESET} ${GREEN}✔${RESET}`);
       updatedFilesPaths.push(fullPath);
     }
   }
 
-  // 3.5. Update apps/native/app.json
-  const appJsonPath = path.resolve(ROOT_DIR, 'apps/native/app.json');
-  if (fs.existsSync(appJsonPath)) {
-    try {
-      const appJson = JSON.parse(fs.readFileSync(appJsonPath, 'utf8'));
-      if (appJson.expo) {
-        const prevVer = appJson.expo.version;
-        appJson.expo.version = nextVersion;
-        
-        let prevBuild = 'unknown';
-        if (appJson.expo.ios && appJson.expo.ios.buildNumber) {
-          prevBuild = appJson.expo.ios.buildNumber;
-          const nextBuildNum = parseInt(appJson.expo.ios.buildNumber, 10) + 1;
-          appJson.expo.ios.buildNumber = String(nextBuildNum);
+  // 3.5. Update apps/native/app.json if in native or all mode
+  if (mode === 'native' || mode === 'all') {
+    const appJsonPath = path.resolve(ROOT_DIR, 'apps/native/app.json');
+    if (fs.existsSync(appJsonPath)) {
+      try {
+        const appJson = JSON.parse(fs.readFileSync(appJsonPath, 'utf8'));
+        if (appJson.expo) {
+          const prevVer = appJson.expo.version;
+          appJson.expo.version = nextVersion;
+          
+          let prevBuild = 'unknown';
+          if (appJson.expo.ios && appJson.expo.ios.buildNumber) {
+            prevBuild = appJson.expo.ios.buildNumber;
+            const nextBuildNum = parseInt(appJson.expo.ios.buildNumber, 10) + 1;
+            appJson.expo.ios.buildNumber = String(nextBuildNum);
+          }
+          if (appJson.expo.android && appJson.expo.android.versionCode) {
+            appJson.expo.android.versionCode = parseInt(appJson.expo.android.versionCode, 10) + 1;
+          }
+          
+          if (!isDryRun) {
+            fs.writeFileSync(appJsonPath, JSON.stringify(appJson, null, 2) + '\n', 'utf8');
+            log(`   apps/native/app.json: ${YELLOW}${prevVer} (Build ${prevBuild})${RESET} → ${GREEN}${nextVersion} (Build ${appJson.expo.ios.buildNumber})${RESET} ${GREEN}✔${RESET}`);
+            updatedFilesPaths.push(appJsonPath);
+          } else {
+            log(`   apps/native/app.json: ${YELLOW}${prevVer} (Build ${prevBuild})${RESET} → ${GREEN}${nextVersion} (Build ${appJson.expo.ios.buildNumber})${RESET} (dry-run)`);
+          }
         }
-        if (appJson.expo.android && appJson.expo.android.versionCode) {
-          appJson.expo.android.versionCode = parseInt(appJson.expo.android.versionCode, 10) + 1;
-        }
-        
-        if (!isDryRun) {
-          fs.writeFileSync(appJsonPath, JSON.stringify(appJson, null, 2) + '\n', 'utf8');
-          log(`   apps/native/app.json: ${YELLOW}${prevVer} (Build ${prevBuild})${RESET} → ${GREEN}${nextVersion} (Build ${appJson.expo.ios.buildNumber})${RESET} ${GREEN}✔${RESET}`);
-          updatedFilesPaths.push(appJsonPath);
-        } else {
-          log(`   apps/native/app.json: ${YELLOW}${prevVer} (Build ${prevBuild})${RESET} → ${GREEN}${nextVersion} (Build ${appJson.expo.ios.buildNumber})${RESET} (dry-run)`);
-        }
+      } catch (e) {
+        logError(`Failed to update apps/native/app.json: ${e.message}`);
       }
-    } catch (e) {
-      logError(`Failed to update apps/native/app.json: ${e.message}`);
     }
   }
 
-  // 3.6. Update apps/server/src/state-engine.ts
-  const stateEnginePath = path.resolve(ROOT_DIR, 'apps/server/src/state-engine.ts');
-  if (fs.existsSync(stateEnginePath)) {
-    try {
-      let content = fs.readFileSync(stateEnginePath, 'utf8');
-      const versionRegex = /version:\s*'([^']+)'/;
-      const match = content.match(versionRegex);
-      if (match) {
-        const prevVer = match[1];
-        if (!isDryRun) {
-          content = content.replace(versionRegex, `version: '${nextVersion}'`);
-          fs.writeFileSync(stateEnginePath, content, 'utf8');
-          log(`   apps/server/src/state-engine.ts: version: ${YELLOW}'${prevVer}'${RESET} → ${GREEN}'${nextVersion}'${RESET} ${GREEN}✔${RESET}`);
-          updatedFilesPaths.push(stateEnginePath);
-        } else {
-          log(`   apps/server/src/state-engine.ts: version: ${YELLOW}'${prevVer}'${RESET} → ${GREEN}'${nextVersion}'${RESET} (dry-run)`);
+  // 3.6. Update apps/server/src/state-engine.ts if in server or all mode
+  if (mode === 'server' || mode === 'all') {
+    const stateEnginePath = path.resolve(ROOT_DIR, 'apps/server/src/state-engine.ts');
+    if (fs.existsSync(stateEnginePath)) {
+      try {
+        let content = fs.readFileSync(stateEnginePath, 'utf8');
+        const versionRegex = /version:\s*'([^']+)'/;
+        const match = content.match(versionRegex);
+        if (match) {
+          const prevVer = match[1];
+          if (!isDryRun) {
+            content = content.replace(versionRegex, `version: '${nextVersion}'`);
+            fs.writeFileSync(stateEnginePath, content, 'utf8');
+            log(`   apps/server/src/state-engine.ts: version: ${YELLOW}'${prevVer}'${RESET} → ${GREEN}'${nextVersion}'${RESET} ${GREEN}✔${RESET}`);
+            updatedFilesPaths.push(stateEnginePath);
+          } else {
+            log(`   apps/server/src/state-engine.ts: version: ${YELLOW}'${prevVer}'${RESET} → ${GREEN}'${nextVersion}'${RESET} (dry-run)`);
+          }
         }
+      } catch (e) {
+        logError(`Failed to update apps/server/src/state-engine.ts: ${e.message}`);
       }
-    } catch (e) {
-      logError(`Failed to update apps/server/src/state-engine.ts: ${e.message}`);
     }
   }
 
@@ -207,9 +266,18 @@ function main() {
     logSuccess(`\n[DRY RUN SUCCESS] All package versions parsed cleanly.`);
     log(`Next steps without --dry-run:`);
     log(`  1. Write versions to files`);
-    if (!noCommit) log(`  2. Run: git add ${PACKAGE_FILES.join(' ')} apps/native/app.json apps/server/src/state-engine.ts`);
-    if (!noCommit) log(`  3. Run: git commit -m "chore: bump version to v${nextVersion}"`);
-    if (!noTag) log(`  4. Run: git tag v${nextVersion}`);
+    const filesToStage = updatedFilesPaths.map(p => path.relative(ROOT_DIR, p));
+    if (!noCommit) log(`  2. Run: git add ${filesToStage.join(' ')}`);
+    
+    const commitMsg = mode === 'native' ? `chore(native): bump version to v${nextVersion}`
+                    : mode === 'server' ? `chore(server): bump version to v${nextVersion}`
+                    : `chore: bump version to v${nextVersion}`;
+    const tagName = mode === 'native' ? `native-v${nextVersion}`
+                  : mode === 'server' ? `server-v${nextVersion}`
+                  : `v${nextVersion}`;
+                  
+    if (!noCommit) log(`  3. Run: git commit -m "${commitMsg}"`);
+    if (!noTag) log(`  4. Run: git tag ${tagName}`);
     log(`  5. Run: git push && git push --tags`);
     process.exit(0);
   }
@@ -238,7 +306,9 @@ function main() {
     log(`   git add updated files... ${GREEN}✔${RESET}`);
 
     // Commit
-    const commitMsg = `chore: bump version to v${nextVersion}`;
+    const commitMsg = mode === 'native' ? `chore(native): bump version to v${nextVersion}`
+                    : mode === 'server' ? `chore(server): bump version to v${nextVersion}`
+                    : `chore: bump version to v${nextVersion}`;
     execSync(`git commit -m "${commitMsg}"`, { cwd: ROOT_DIR, stdio: 'ignore' });
     log(`   git commit -m "${commitMsg}"... ${GREEN}✔${RESET}`);
 
@@ -246,7 +316,9 @@ function main() {
       logInfo('Skipping git release tag as requested (--no-tag).');
     } else {
       // Tag
-      const tagName = `v${nextVersion}`;
+      const tagName = mode === 'native' ? `native-v${nextVersion}`
+                    : mode === 'server' ? `server-v${nextVersion}`
+                    : `v${nextVersion}`;
       // Remove tag first if it exists locally to avoid conflict
       try {
         execSync(`git tag -d ${tagName}`, { cwd: ROOT_DIR, stdio: 'ignore' });
@@ -257,8 +329,13 @@ function main() {
     }
 
     log(`\n${BOLD}${GREEN}🎉 Version bump successful!${RESET}`);
-    log(`To trigger the build & push Docker image, run:`);
-    log(`  ${BOLD}git push && git push --tags${RESET}\n`);
+    if (mode === 'server' || mode === 'all') {
+      log(`To trigger the build & push Docker image, run:`);
+      log(`  ${BOLD}git push && git push --tags${RESET}\n`);
+    } else {
+      log(`Git tag is ready. To push native release tag, run:`);
+      log(`  ${BOLD}git push && git push --tags${RESET}\n`);
+    }
 
   } catch (e) {
     logError(`Git operation failed: ${e.message}`);
@@ -299,16 +376,18 @@ function printHelp() {
   log(`  major                 Increments the major version (e.g. 1.0.47 -> 2.0.0)`);
   log(``);
   log(`Explicit Version:`);
-  log(`  1.0.48                Bumps all files to exactly "1.0.48"`);
+  log(`  1.0.48                Bumps all target files to exactly "1.0.48"`);
   log(``);
   log(`Options:`);
-  log(`  --dry-run             Preview changes without modifying files or running git`);
-  log(`  --no-tag              Skip creating a git tag (only updates files and commits)`);
-  log(`  --no-commit           Skip git commit and tag (only modifies package.json files)`);
+  log(`  --native, --native-only  Only bump companion app versions (apps/native/package.json & app.json)`);
+  log(`  --server, --server-only  Only bump backend server nodes (package.json, apps/server, core, pwa, state-engine)`);
+  log(`  --dry-run                Preview changes without modifying files or running git`);
+  log(`  --no-tag                 Skip creating a git tag (only updates files and commits)`);
+  log(`  --no-commit              Skip git commit and tag (only modifies files)`);
   log(``);
   log(`Examples:`);
-  log(`  node scripts/bump-version.mjs patch`);
-  log(`  node scripts/bump-version.mjs 1.1.0 --dry-run`);
+  log(`  node scripts/bump-version.mjs patch --native`);
+  log(`  node scripts/bump-version.mjs 1.1.0 --server --dry-run`);
 }
 
 main();
