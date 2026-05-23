@@ -15,7 +15,7 @@
 | `src/https-server.ts` | 67+ REST API endpoints: community, marketplace, friends, ratings, reports, admin, version/update, push notifications, escrow lifecycle, database backup, social recovery, quadratic voting. Enforces a Deny-by-Default security posture with `ctx.state.actor` and body spoof-checking. |
 | `src/http-server.ts` | HTTP endpoint (port 80) for Let's Encrypt validation, LAN QR Poster, and HTTPS redirect |
 | `src/p2p.ts` | Core libp2p node instantiation, bootstrap logic, and gossipsub |
-| `src/connector-manager.ts` | Federated connectors with trust levels (peer/mirror/blocked) |
+| `src/connector-manager.ts` | Federated connectors with trust levels (mirror/peer — *experimental*, blocked) |
 | `src/federation-api.ts` | Federation CORS middleware + `/api/node/info` |
 | `src/federation-protocol.ts` | Secure Libp2p authenticated Noise streams for cross-node mesh routing |
 | `src/handshake.ts` | Mutual trust verification + latency via yamux streams |
@@ -329,24 +329,23 @@ The nodes will instantly handshake over the Yamux stream protocol, exchange Merk
 Because both nodes now possess the identical live state, automate failover at the DNS layer:
 
 > [!WARNING]
-> **CRITICAL: NEVER USE ACTIVE-ACTIVE (ROUND-ROBIN) ROUTING**
-> Since node-to-node mirroring runs on a periodic sync interval (default 30 seconds), there is a brief eventual consistency window (sync lag) before state changes on the primary propagate to backups. 
+> **CRITICAL: NEVER USE ACTIVE‑ACTIVE (ROUND‑ROBIN) ROUTING**
+> The mirror connector sync runs on a **30 second interval** (default). During this window there is a consistency lag before state changes on the primary propagate to backups.
+> If you configure a load balancer to distribute traffic evenly (active‑active), a client request may hit a backup node that has not yet received the latest state, leading to missing posts, duplicate transactions, or `404 Not Found` errors.
 > 
-> If you configure your load balancer to distribute user traffic evenly between active nodes (Active-Active round-robin), user requests will inevitably cross nodes before sync completes. A user will create a post, send a message, or transfer credits on Node A, and their subsequent request will hit Node B where the new data is missing—causing severe UI regressions, duplicate transactions, or "404 Not Found" errors.
+> **YOU MUST configure the load balancer as ACTIVE‑PASSIVE (FAILOVER)** so that all client traffic is pinned to a single **Primary** node. Backups remain warm standby replicas.
 > 
-> **You MUST configure the Load Balancer as Active-Passive (Failover)** where all client traffic is pinned strictly to a single **Primary** node. Backups act purely as warm, passive replication standby clones. 
-> 
-> For 3-node setups, you must define a strict priority order (**Primary -> Secondary -> Tertiary failover**) so that all user traffic stays on a single node and only cascades down to the next priority target during a hardware fault or rolling update.
+> For a 3‑node deployment, define a strict priority chain (**Primary → Secondary → Tertiary**) so traffic only moves to the next node when the higher‑priority node is unavailable.
 
 **Steps:**
-1. In Cloudflare, go to **Traffic -> Load Balancing**.
-2. Create an **Active-Passive (Failover)** pool with strict priority ordering:
-   - **Primary:** `mullum1.beanpool.org` (Priority 1)
-   - **Backup / Secondary:** `mullum2.beanpool.org` (Priority 2)
-   - **Tertiary (if 3-node):** `mullum3.beanpool.org` (Priority 3)
-3. Configure a **Health Check** to ping your active server every 60 seconds.
+1. In Cloudflare, navigate to **Traffic → Load Balancing**.
+2. Create an **Active‑Passive (Failover)** pool with priority ordering:
+   - **Primary:** `mullum1.beanpool.org` (Priority 1)
+   - **Secondary / Backup:** `mullum2.beanpool.org` (Priority 2)
+   - **Tertiary (optional):** `mullum3.beanpool.org` (Priority 3)
+3. Add a **Health Check** (e.g., HTTP GET `/healthz`) that pings the active server every **60 seconds**.
 
-If your primary node loses power or is pulled down for a rolling update, Cloudflare instantly re-routes all user traffic to the secondary node transparently with zero data inconsistency.
+If the primary node goes down or is taken offline for an update, Cloudflare will instantly fail over all traffic to the secondary node, preserving a consistent user experience.
 
 ### 3. Merging Two Separate Communities
 

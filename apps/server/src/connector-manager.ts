@@ -21,6 +21,8 @@ import { registerSyncHandler, setLocalNodeId, syncWithPeer } from './sync-protoc
 import { logger } from './logger.js';
 
 const DATA_DIR = process.env.BEANPOOL_DATA_DIR || path.join(process.cwd(), 'data');
+// Experimental peer‑connector toggle – defaults to off for production safety
+export const ENABLE_PEER_CONNECTORS = process.env.ENABLE_PEER_CONNECTORS === 'true';
 const CONNECTORS_PATH = path.join(DATA_DIR, 'connectors.json');
 const HANDSHAKE_INTERVAL_MS = 10_000; // 10 seconds
 const RETRY_INTERVAL_MS = 30_000;     // 30 seconds
@@ -183,18 +185,20 @@ export function initConnectorManager(node: Libp2p): void {
         }
     });
 
-    // Start periodic handshake for trust verification + latency
-    handshakeTimer = setInterval(handshakeConnectedPeers, HANDSHAKE_INTERVAL_MS);
+    // Start periodic handshake for trust verification — only when peer connectors are enabled
+    if (ENABLE_PEER_CONNECTORS) {
+        handshakeTimer = setInterval(handshakeConnectedPeers, HANDSHAKE_INTERVAL_MS);
+    }
 
-    // Register sync handler and start periodic sync
+    // Register sync handler and start periodic sync (mirrors always stay active)
     setLocalNodeId(node.peerId.toString());
     registerSyncHandler(node);
     syncTimer = setInterval(syncConnectedPeers, SYNC_INTERVAL_MS);
     // Do an initial sync 30s after boot
     setTimeout(syncConnectedPeers, 30_000);
 
-    // Auto-connect all enabled connectors after a short delay (let libp2p fully init)
-    if (connectors.some(c => c.enabled)) {
+    // Auto‑connect only if peer connectors are enabled
+    if (ENABLE_PEER_CONNECTORS && connectors.some(c => c.enabled)) {
         logger.info('P2P', `[Connectors] 🔄 Auto-connecting ${connectors.filter(c => c.enabled).length} enabled connector(s) in 5s...`);
         setTimeout(() => {
             connectAll().catch(e => logger.warn('P2P', '[Connectors] Auto-connect error:', e));
@@ -452,6 +456,8 @@ export function getConnectorsByLevel(level: TrustLevel): ConnectorStatus[] {
 
 /** Get CORS-allowed origins from peer connectors (for federation CORS middleware) */
 export function getPeerOrigins(): string[] {
+    // When experimental peer connectors are disabled, expose no origins
+    if (!ENABLE_PEER_CONNECTORS) return [];
     return getConnectors()
         .filter(c => c.trustLevel === 'peer' && c.publicUrl)
         .map(c => c.publicUrl!);
