@@ -229,9 +229,18 @@ async function handshakeConnectedPeers(): Promise<void> {
             status.lastVerified = Date.now();
             status.error = null;
         } catch (e: any) {
+            status.connected = false;
             status.mutualTrust = false;
             status.remoteTrustLevel = null;
-            status.error = 'Handshake failed';
+            status.latencyMs = null;
+            status.error = `Handshake failed: ${e.message}`;
+            logger.warn('P2P', `[Connectors] Handshake failed with ${connector.callsign || connector.address}: ${e.message}`);
+            if (status.peerId) {
+                try {
+                    const { peerIdFromString } = await import('@libp2p/peer-id');
+                    await p2pNode.hangUp(peerIdFromString(status.peerId));
+                } catch {}
+            }
         }
     }
 }
