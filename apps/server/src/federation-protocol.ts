@@ -20,60 +20,56 @@ const decoder = new TextDecoder();
 function readFromStream(stream: any, timeoutMs = 10000): Promise<string> {
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
-            cleanup();
             reject(new Error('Read timeout'));
         }, timeoutMs);
 
-        const chunks: Uint8Array[] = [];
-
-        const onMessage = (evt: any) => {
-            const data = evt.detail || evt.data;
-            if (data) {
-                if (data instanceof Uint8Array) {
-                    chunks.push(data);
-                } else if (typeof data.subarray === 'function') {
-                    chunks.push(data.subarray());
-                } else {
-                    chunks.push(Uint8Array.from(data));
+        (async () => {
+            const chunks: Uint8Array[] = [];
+            let checkInterval: any = null;
+            try {
+                if (stream.remoteWriteStatus === 'closed' || stream.status === 'closed') {
+                    if (stream.readBuffer?.byteLength === 0 || !stream.readBuffer) {
+                        clearTimeout(timer);
+                        resolve('');
+                        return;
+                    }
                 }
-            }
-        };
 
-        const onClose = (evt: any) => {
-            cleanup();
-            const binaryData = Buffer.concat(chunks);
-            resolve(decoder.decode(binaryData));
-        };
+                let isDone = false;
+                checkInterval = setInterval(() => {
+                    const isClosed = stream.remoteWriteStatus === 'closed' || stream.status === 'closed';
+                    const isBufferEmpty = stream.readBuffer?.byteLength === 0 || !stream.readBuffer;
+                    if (isClosed && isBufferEmpty) {
+                        clearInterval(checkInterval);
+                        isDone = true;
+                        clearTimeout(timer);
+                        const binaryData = Buffer.concat(chunks);
+                        resolve(decoder.decode(binaryData));
+                    }
+                }, 50);
 
-        const onRemoteCloseWrite = () => {
-            if (stream.readBuffer?.byteLength > 0) {
-                return;
-            }
-            cleanup();
-            const binaryData = Buffer.concat(chunks);
-            resolve(decoder.decode(binaryData));
-        };
+                for await (const chunk of stream) {
+                    if (isDone) break;
 
-        const cleanup = () => {
-            clearTimeout(timer);
-            stream.removeEventListener('message', onMessage);
-            stream.removeEventListener('close', onClose);
-            stream.removeEventListener('remoteCloseWrite', onRemoteCloseWrite);
-        };
-
-        stream.addEventListener('message', onMessage);
-        stream.addEventListener('close', onClose);
-        stream.addEventListener('remoteCloseWrite', onRemoteCloseWrite);
-
-        if (stream.remoteWriteStatus === 'closed' || stream.status === 'closed') {
-            queueMicrotask(() => {
-                if (stream.readBuffer?.byteLength === 0 || !stream.readBuffer) {
-                    cleanup();
-                    const binaryData = Buffer.concat(chunks);
-                    resolve(decoder.decode(binaryData));
+                    if (chunk instanceof Uint8Array) {
+                        chunks.push(chunk);
+                    } else if (typeof chunk.subarray === 'function') {
+                        chunks.push(chunk.subarray());
+                    } else {
+                        chunks.push(Uint8Array.from(chunk));
+                    }
                 }
-            });
-        }
+
+                if (checkInterval) clearInterval(checkInterval);
+                clearTimeout(timer);
+                const binaryData = Buffer.concat(chunks);
+                resolve(decoder.decode(binaryData));
+            } catch (err) {
+                if (checkInterval) clearInterval(checkInterval);
+                clearTimeout(timer);
+                reject(err);
+            }
+        })();
     });
 }
 
