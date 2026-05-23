@@ -19,16 +19,24 @@ import appConfig from '../../app.json';
 
 function getDatabaseFilePath(dbFilename: string): string {
     if (!FileSystem.documentDirectory) return '';
+    const docDir = FileSystem.documentDirectory;
+    
     if (Platform.OS === 'android') {
-        const docDir = FileSystem.documentDirectory;
         if (docDir.endsWith('/files/')) {
             return docDir.slice(0, -7) + '/databases/' + dbFilename;
         } else if (docDir.includes('/files')) {
             return docDir.replace('/files', '/databases') + dbFilename;
         }
         return docDir + 'databases/' + dbFilename;
+    } else if (Platform.OS === 'ios') {
+        if (docDir.endsWith('/Documents/')) {
+            return docDir.slice(0, -11) + '/Library/Application Support/SQLite/' + dbFilename;
+        } else if (docDir.includes('/Documents')) {
+            return docDir.replace('/Documents', '/Library/Application Support/SQLite') + dbFilename;
+        }
+        return docDir + 'SQLite/' + dbFilename;
     }
-    return FileSystem.documentDirectory + 'SQLite/' + dbFilename;
+    return docDir + 'SQLite/' + dbFilename;
 }
 
 export default function SettingsScreen() {
