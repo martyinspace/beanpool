@@ -1,6 +1,6 @@
 {
   "name": "beanpool-monorepo",
-  "version": "1.0.86",
+  "version": "1.0.87",
   "private": true,
   "scripts": {
     "build": "dotenv -- turbo run build",

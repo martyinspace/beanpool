@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Stack, useRouter, useSegments, useGlobalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
-import { Alert, LogBox, AppState, AppStateStatus, View, Text, Pressable } from 'react-native';
+import { Alert, LogBox, AppState, AppStateStatus, View, Text, Pressable, Platform } from 'react-native';
 import { registerPillarSync } from '../services/background-task';
 import { requestSync } from '../services/pillar-sync';
 import { startWebSocketSync, stopWebSocketSync } from '../services/ws-client';
@@ -350,7 +350,10 @@ function RootLayoutNav() {
                         pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }
                     ]}
                     onPress={() => {
-                        Linking.openURL('https://beanpool.org/download');
+                        const storeUrl = Platform.OS === 'ios'
+                            ? 'https://apps.apple.com/us/app/bean-pool/id6761870086'
+                            : 'https://play.google.com/store/apps/details?id=org.beanpool.pillar';
+                        Linking.openURL(storeUrl);
                     }}
                 >
                     <Text style={{ color: '#022c22', fontSize: 16, fontWeight: '900', letterSpacing: 0.5 }}>Download Update</Text>
@@ -376,6 +379,24 @@ export default function RootLayout() {
     const appState = useRef(AppState.currentState);
 
     useEffect(() => {
+        async function handleAppUpgrade() {
+            try {
+                const lastRunVersion = await AsyncStorage.getItem('beanpool_last_run_version');
+                const currentVersion = appConfig.expo.version;
+                if (lastRunVersion !== currentVersion) {
+                    await AsyncStorage.removeItem('beanpool_latest_known_version');
+                    await AsyncStorage.removeItem('beanpool_last_version_check_time');
+                    if (lastRunVersion) {
+                        await AsyncStorage.removeItem(`beanpool_dismissed_update_${lastRunVersion}`);
+                    }
+                    await AsyncStorage.setItem('beanpool_last_run_version', currentVersion);
+                }
+            } catch (e) {
+                console.warn('[Upgrade] Failed to handle app upgrade cache clear:', e);
+            }
+        }
+        handleAppUpgrade();
+
         // Start the real-time WebSocket connection manager
         startWebSocketSync();
 

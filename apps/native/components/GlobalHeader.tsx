@@ -97,7 +97,7 @@ export function GlobalHeader() {
                                 const androidRes = await fetchWithTimeout('https://play.google.com/store/apps/details?id=org.beanpool.pillar&hl=en&_t=' + now, { timeout: 4000 });
                                 if (androidRes.ok) {
                                     const html = await androidRes.text();
-                                    const match = html.match(/\[\[\["([0-9]+\.[0-9]+\.[0-9]+)"\]\]\]/);
+                                    const match = html.match(/\[\[\["([0-9]+\.[0-9]+\.[0-9]+)"\]\]/);
                                     if (match) {
                                         latestVersion = match[1];
                                     }
@@ -421,7 +421,10 @@ export function GlobalHeader() {
                         <TouchableOpacity 
                             style={styles.softUpdateUpgradeBtn}
                             onPress={() => {
-                                Linking.openURL('https://beanpool.org/download');
+                                const storeUrl = Platform.OS === 'ios'
+                                    ? 'https://apps.apple.com/us/app/bean-pool/id6761870086'
+                                    : 'https://play.google.com/store/apps/details?id=org.beanpool.pillar';
+                                Linking.openURL(storeUrl);
                             }}
                         >
                             <Text style={styles.softUpdateUpgradeText}>Upgrade</Text>
