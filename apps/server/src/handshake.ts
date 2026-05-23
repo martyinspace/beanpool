@@ -124,39 +124,48 @@ export function registerHandshakeHandler(node: Libp2p): void {
  */
 export async function sendHandshake(node: Libp2p, peerId: any): Promise<HandshakeResult> {
     const start = performance.now();
+    let stream: any = null;
 
-    const stream: any = await node.dialProtocol(peerId, PROTOCOL);
-
-    const request = JSON.stringify({
-        type: 'handshake_req',
-        ts: Date.now(),
-        peerId: node.peerId.toString(), // Include our peerId so handler can identify us
-    });
-
-    // Start reading before writing (duplex stream — concurrent read/write)
-    const readPromise = readFromStream(stream);
-    readPromise.catch(() => {}); // Prevent unhandled rejection if writeToStream throws or exits early
-
-    // Write request
-    await writeToStream(stream, request);
-
-    // Wait for response
-    const raw = await readPromise;
-    const latencyMs = Math.round(performance.now() - start);
-
-    let response: any;
     try {
-        response = JSON.parse(raw);
-    } catch {
-        console.error(`[Handshake] Failed to parse response: "${raw.substring(0, 80)}"`);
-        return { mutualTrust: false, remoteTrustLevel: null, latencyMs };
+        stream = await node.dialProtocol(peerId, PROTOCOL);
+
+        const request = JSON.stringify({
+            type: 'handshake_req',
+            ts: Date.now(),
+            peerId: node.peerId.toString(), // Include our peerId so handler can identify us
+        });
+
+        // Start reading before writing (duplex stream — concurrent read/write)
+        const readPromise = readFromStream(stream);
+        readPromise.catch(() => {}); // Prevent unhandled rejection if writeToStream throws or exits early
+
+        // Write request
+        await writeToStream(stream, request);
+
+        // Wait for response
+        const raw = await readPromise;
+        const latencyMs = Math.round(performance.now() - start);
+
+        let response: any;
+        try {
+            response = JSON.parse(raw);
+        } catch {
+            console.error(`[Handshake] Failed to parse response: "${raw.substring(0, 80)}"`);
+            return { mutualTrust: false, remoteTrustLevel: null, latencyMs };
+        }
+
+        console.log(`[Handshake] → ${peerId.toString().slice(-8)}: mutual=${!!response.youAreTrusted} latency=${latencyMs}ms`);
+
+        return {
+            mutualTrust: !!response.youAreTrusted,
+            remoteTrustLevel: response.trustLevel || null,
+            latencyMs,
+        };
+    } finally {
+        if (stream) {
+            try {
+                stream.close();
+            } catch {}
+        }
     }
-
-    console.log(`[Handshake] → ${peerId.toString().slice(-8)}: mutual=${!!response.youAreTrusted} latency=${latencyMs}ms`);
-
-    return {
-        mutualTrust: !!response.youAreTrusted,
-        remoteTrustLevel: response.trustLevel || null,
-        latencyMs,
-    };
 }

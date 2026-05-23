@@ -153,15 +153,24 @@ export function registerFederationHandler(node: Libp2p): void {
  * Initiator (Sender) side: Verify remote member over Libp2p
  */
 export async function federatedVerifyMember(node: Libp2p, targetPeerId: any, publicKey: string): Promise<any> {
-    const stream: any = await node.dialProtocol(targetPeerId, PROTOCOL);
-    const request = JSON.stringify({ action: 'verify_member', publicKey });
-    
-    const readPromise = readFromStream(stream);
-    readPromise.catch(() => {}); // Prevent unhandled rejection if writeToStream throws or exits early
-    await writeToStream(stream, request);
-    
-    const raw = await readPromise;
-    return JSON.parse(raw);
+    let stream: any = null;
+    try {
+        stream = await node.dialProtocol(targetPeerId, PROTOCOL);
+        const request = JSON.stringify({ action: 'verify_member', publicKey });
+        
+        const readPromise = readFromStream(stream);
+        readPromise.catch(() => {}); // Prevent unhandled rejection if writeToStream throws or exits early
+        await writeToStream(stream, request);
+        
+        const raw = await readPromise;
+        return JSON.parse(raw);
+    } finally {
+        if (stream) {
+            try {
+                stream.close();
+            } catch {}
+        }
+    }
 }
 
 /**
@@ -172,13 +181,22 @@ export async function federatedRelayMessage(
     targetPeerId: any, 
     payload: { senderPublicKey: string; senderCallsign?: string; senderNodeUrl?: string; recipientPublicKey: string; ciphertext: string; nonce: string; }
 ): Promise<any> {
-    const stream: any = await node.dialProtocol(targetPeerId, PROTOCOL);
-    const request = JSON.stringify({ action: 'relay_message', ...payload });
-    
-    const readPromise = readFromStream(stream);
-    readPromise.catch(() => {}); // Prevent unhandled rejection if writeToStream throws or exits early
-    await writeToStream(stream, request);
-    
-    const raw = await readPromise;
-    return JSON.parse(raw);
+    let stream: any = null;
+    try {
+        stream = await node.dialProtocol(targetPeerId, PROTOCOL);
+        const request = JSON.stringify({ action: 'relay_message', ...payload });
+        
+        const readPromise = readFromStream(stream);
+        readPromise.catch(() => {}); // Prevent unhandled rejection if writeToStream throws or exits early
+        await writeToStream(stream, request);
+        
+        const raw = await readPromise;
+        return JSON.parse(raw);
+    } finally {
+        if (stream) {
+            try {
+                stream.close();
+            } catch {}
+        }
+    }
 }

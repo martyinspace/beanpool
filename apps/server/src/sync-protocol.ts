@@ -120,8 +120,9 @@ export async function syncWithPeer(node: Libp2p, peerId: any): Promise<{
     newMembers: number;
     newPosts: number;
 }> {
+    let stream: any = null;
     try {
-        const stream: any = await node.dialProtocol(peerId, PROTOCOL);
+        stream = await node.dialProtocol(peerId, PROTOCOL);
 
         const ourHash = getStateHash();
         const ourPayload = await exportSyncState(localNodeId);
@@ -155,5 +156,11 @@ export async function syncWithPeer(node: Libp2p, peerId: any): Promise<{
     } catch (e: any) {
         logger.error('P2P', `[Sync] Failed with ${peerId.toString().slice(-8)}: ${e.message || e}`);
         return { synced: false, newMembers: 0, newPosts: 0 };
+    } finally {
+        if (stream) {
+            try {
+                stream.close();
+            } catch {}
+        }
     }
 }
