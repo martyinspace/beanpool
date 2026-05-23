@@ -20,29 +20,29 @@ const decoder = new TextDecoder();
 function readFromStream(stream: any, timeoutMs = 10000): Promise<string> {
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
-            clearInterval(pollInterval);
-            const bufLen = stream.readBuffer?.byteLength || 0;
-            if (bufLen > 0) {
-                resolve(decoder.decode(stream.readBuffer.subarray()));
-            } else {
-                reject(new Error('Read timeout'));
-            }
+            reject(new Error('Read timeout'));
         }, timeoutMs);
 
-        let dataSeenAt = 0;
-        const pollInterval = setInterval(() => {
-            const bufLen = stream.readBuffer?.byteLength || 0;
-            const remoteWriteClosed = stream.remoteWriteStatus === 'closed';
-
-            if (bufLen > 0) {
-                if (!dataSeenAt) dataSeenAt = Date.now();
-                if (remoteWriteClosed || Date.now() - dataSeenAt > 100 || stream.status === 'closed') {
-                    clearInterval(pollInterval);
-                    clearTimeout(timer);
-                    resolve(decoder.decode(stream.readBuffer.subarray()));
+        (async () => {
+            const chunks: Uint8Array[] = [];
+            try {
+                for await (const chunk of stream) {
+                    if (chunk instanceof Uint8Array) {
+                        chunks.push(chunk);
+                    } else if (typeof chunk.subarray === 'function') {
+                        chunks.push(chunk.subarray());
+                    } else {
+                        chunks.push(Uint8Array.from(chunk));
+                    }
                 }
+                clearTimeout(timer);
+                const binaryData = Buffer.concat(chunks);
+                resolve(decoder.decode(binaryData));
+            } catch (err) {
+                clearTimeout(timer);
+                reject(err);
             }
-        }, 10);
+        })();
     });
 }
 

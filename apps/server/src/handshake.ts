@@ -28,38 +28,29 @@ export interface HandshakeResult {
 function readFromStream(stream: any, timeoutMs = 10000): Promise<string> {
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
-            clearInterval(pollInterval);
-            const bufLen = stream.readBuffer?.byteLength || 0;
-            if (bufLen > 0) {
-                resolve(decoder.decode(stream.readBuffer.subarray()));
-            } else {
-                reject(new Error('Read timeout'));
-            }
+            reject(new Error('Read timeout'));
         }, timeoutMs);
 
-        let lastBufLen = 0;
-        let lastDataSeenAt = Date.now();
-        const pollInterval = setInterval(() => {
-            const bufLen = stream.readBuffer?.byteLength || 0;
-            const remoteWriteClosed = stream.remoteWriteStatus === 'closed';
-
-            if (bufLen > 0) {
-                if (bufLen > lastBufLen) {
-                    lastBufLen = bufLen;
-                    lastDataSeenAt = Date.now();
+        (async () => {
+            const chunks: Uint8Array[] = [];
+            try {
+                for await (const chunk of stream) {
+                    if (chunk instanceof Uint8Array) {
+                        chunks.push(chunk);
+                    } else if (typeof chunk.subarray === 'function') {
+                        chunks.push(chunk.subarray());
+                    } else {
+                        chunks.push(Uint8Array.from(chunk));
+                    }
                 }
-
-                // Resolve when:
-                //  - remote closed their write side (we have all data), OR
-                //  - we have seen no new data for 200ms, OR
-                //  - stream is fully closed
-                if (remoteWriteClosed || Date.now() - lastDataSeenAt > 200 || stream.status === 'closed') {
-                    clearInterval(pollInterval);
-                    clearTimeout(timer);
-                    resolve(decoder.decode(stream.readBuffer.subarray()));
-                }
+                clearTimeout(timer);
+                const binaryData = Buffer.concat(chunks);
+                resolve(decoder.decode(binaryData));
+            } catch (err) {
+                clearTimeout(timer);
+                reject(err);
             }
-        }, 10); // Poll every 10ms for responsive latency
+        })();
     });
 }
 

@@ -1,24 +1,38 @@
 /**
- * BeanPool Sync Protocol — /beanpool/sync/1.0.0
+ * BeanPool Sync Protocol
  *
- * Lazy state synchronization between connected nodes.
+ * Lazy state synchronization between mirrored nodes.
  *
- * Flow:
- *   1. Initiator sends { type: 'sync_req', stateHash }
- *   2. If hashes differ, responder sends { type: 'sync_res', payload: SyncPayload }
- *   3. Both sides import the other's state (dedup handled by importRemoteState)
+ * Two protocol versions are registered:
  *
- * Runs periodically (every 15 minutes by default).
+ *   /beanpool/sync/1.0.0          (legacy, single-roundtrip)
+ *     Initiator pre-bundles full state and sends it alongside its hash.
+ *     Responder short-circuits the return payload on hash match, but the
+ *     initiator's payload is wasted on every quiet tick.
+ *
+ *   /beanpool/sync/hash/2.0.0     (hash probe)
+ *   /beanpool/sync/payload/2.0.0  (full payload exchange — only on mismatch)
+ *     Initiator first exchanges only the 16-char stateHash (~80 bytes each way).
+ *     If the hashes match, no payload is built, signed, or transmitted.
+ *     If they differ, a second stream is opened on the payload protocol and
+ *     both sides exchange + import their full payloads — same semantics as v1.
+ *
+ * Initiators try v2 first and fall back to v1 if the peer doesn't speak it,
+ * so nodes can be upgraded one at a time.
+ *
+ * Sync runs periodically (every 30s by default).
  */
 
 import type { Libp2p } from 'libp2p';
 import {
     getStateHash, exportSyncState, importRemoteState,
-    type SyncPayload,
 } from './state-engine.js';
 import { logger } from './logger.js';
 
-const PROTOCOL = '/beanpool/sync/1.0.0';
+const PROTOCOL_V1 = '/beanpool/sync/1.0.0';
+const PROTOCOL_V2_HASH = '/beanpool/sync/hash/2.0.0';
+const PROTOCOL_V2_PAYLOAD = '/beanpool/sync/payload/2.0.0';
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -34,38 +48,29 @@ export function setLocalNodeId(id: string) {
 function readFromStream(stream: any, timeoutMs = 30000): Promise<string> {
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
-            clearInterval(pollInterval);
-            const bufLen = stream.readBuffer?.byteLength || 0;
-            if (bufLen > 0) {
-                resolve(decoder.decode(stream.readBuffer.subarray()));
-            } else {
-                reject(new Error('Sync read timeout'));
-            }
+            reject(new Error('Sync read timeout'));
         }, timeoutMs);
 
-        let lastBufLen = 0;
-        let lastDataSeenAt = Date.now();
-        const pollInterval = setInterval(() => {
-            const bufLen = stream.readBuffer?.byteLength || 0;
-            const remoteWriteClosed = stream.remoteWriteStatus === 'closed';
-
-            if (bufLen > 0) {
-                if (bufLen > lastBufLen) {
-                    lastBufLen = bufLen;
-                    lastDataSeenAt = Date.now();
+        (async () => {
+            const chunks: Uint8Array[] = [];
+            try {
+                for await (const chunk of stream) {
+                    if (chunk instanceof Uint8Array) {
+                        chunks.push(chunk);
+                    } else if (typeof chunk.subarray === 'function') {
+                        chunks.push(chunk.subarray());
+                    } else {
+                        chunks.push(Uint8Array.from(chunk));
+                    }
                 }
-
-                // Resolve when:
-                //  - remote closed their write side (we have all data), OR
-                //  - we have seen no new data for 300ms, OR
-                //  - stream is fully closed
-                if (remoteWriteClosed || Date.now() - lastDataSeenAt > 300 || stream.status === 'closed') {
-                    clearInterval(pollInterval);
-                    clearTimeout(timer);
-                    resolve(decoder.decode(stream.readBuffer.subarray()));
-                }
+                clearTimeout(timer);
+                const binaryData = Buffer.concat(chunks);
+                resolve(decoder.decode(binaryData));
+            } catch (err) {
+                clearTimeout(timer);
+                reject(err);
             }
-        }, 50);
+        })();
     });
 }
 
@@ -76,11 +81,153 @@ async function writeToStream(stream: any, data: string): Promise<void> {
     }
 }
 
-/**
- * Register the sync protocol handler (responder side).
- */
-export function registerSyncHandler(node: Libp2p): void {
-    node.handle(PROTOCOL, async (incomingData: any) => {
+function closeStreamSafe(stream: any) {
+    if (!stream) return;
+    try { stream.close(); } catch {}
+}
+
+// libp2p surfaces protocol-negotiation failures with a few different codes/messages
+// depending on transport; treat any of these as "peer doesn't speak v2".
+function isUnsupportedProtocol(err: any): boolean {
+    const msg = (err?.message || '').toLowerCase();
+    const code = err?.code || '';
+    return (
+        code === 'ERR_UNSUPPORTED_PROTOCOL' ||
+        msg.includes('unsupported protocol') ||
+        msg.includes('protocol selection failed') ||
+        msg.includes('protocols not supported')
+    );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                          v2 — Hash-first protocol                           */
+/* -------------------------------------------------------------------------- */
+
+function registerHashHandlerV2(node: Libp2p): void {
+    node.handle(PROTOCOL_V2_HASH, async (incomingData: any) => {
+        const stream = incomingData.stream || incomingData;
+        try {
+            const raw = await readFromStream(stream, 15000);
+            const request = JSON.parse(raw);
+
+            if (request.type !== 'hash_req' || typeof request.stateHash !== 'string') {
+                logger.warn('P2P', `[Sync v2] ← Malformed hash_req from peer`);
+                return;
+            }
+
+            const ourHash = getStateHash();
+            const match = request.stateHash === ourHash;
+
+            await writeToStream(stream, JSON.stringify({
+                type: 'hash_res',
+                stateHash: ourHash,
+                match,
+            }));
+
+            // Silent on match (runs every 30s — would flood the 2500-row log buffer).
+            if (!match) {
+                logger.sync('P2P', `[Sync v2] ← Hash mismatch (peer ${request.stateHash} vs ours ${ourHash}) — awaiting payload stream`);
+            }
+        } catch (e: any) {
+            logger.error('P2P', `[Sync v2] Hash handler error: ${e.message || e}`);
+        }
+    });
+}
+
+function registerPayloadHandlerV2(node: Libp2p): void {
+    node.handle(PROTOCOL_V2_PAYLOAD, async (incomingData: any) => {
+        const stream = incomingData.stream || incomingData;
+        try {
+            const raw = await readFromStream(stream, 30000);
+            const request = JSON.parse(raw);
+
+            if (request.type !== 'payload' || !request.payload) {
+                logger.warn('P2P', `[Sync v2] ← Malformed payload message from peer`);
+                return;
+            }
+
+            // Send our payload back before importing so the initiator can read
+            // and start importing in parallel with our own import work.
+            const ourPayload = await exportSyncState(localNodeId);
+            await writeToStream(stream, JSON.stringify({
+                type: 'payload',
+                payload: ourPayload,
+            }));
+
+            const result = await importRemoteState(request.payload);
+            logger.sync('P2P', `[Sync v2] ← Imported: +${result.newMembers} members, +${result.newPosts} posts`);
+        } catch (e: any) {
+            logger.error('P2P', `[Sync v2] Payload handler error: ${e.message || e}`);
+        }
+    });
+}
+
+async function syncWithPeerV2(node: Libp2p, peerId: any): Promise<{
+    synced: boolean;
+    newMembers: number;
+    newPosts: number;
+}> {
+    let hashStream: any = null;
+    let payloadStream: any = null;
+    try {
+        hashStream = await node.dialProtocol(peerId, PROTOCOL_V2_HASH);
+
+        const ourHash = getStateHash();
+        const readHashPromise = readFromStream(hashStream, 15000);
+        readHashPromise.catch(() => {});
+
+        await writeToStream(hashStream, JSON.stringify({
+            type: 'hash_req',
+            stateHash: ourHash,
+        }));
+
+        const hashRaw = await readHashPromise;
+        const hashResp = JSON.parse(hashRaw);
+
+        if (hashResp.match) {
+            // Silent on match (every-30s flood prevention).
+            return { synced: false, newMembers: 0, newPosts: 0 };
+        }
+
+        logger.sync('P2P', `[Sync v2] → ${peerId.toString().slice(-8)}: hash mismatch (peer ${hashResp.stateHash} vs ours ${ourHash}) — exchanging payloads`);
+
+        closeStreamSafe(hashStream);
+        hashStream = null;
+
+        payloadStream = await node.dialProtocol(peerId, PROTOCOL_V2_PAYLOAD);
+
+        const ourPayload = await exportSyncState(localNodeId);
+        const readPayloadPromise = readFromStream(payloadStream, 30000);
+        readPayloadPromise.catch(() => {});
+
+        await writeToStream(payloadStream, JSON.stringify({
+            type: 'payload',
+            payload: ourPayload,
+        }));
+
+        const payloadRaw = await readPayloadPromise;
+        const payloadResp = JSON.parse(payloadRaw);
+
+        if (payloadResp.type !== 'payload' || !payloadResp.payload) {
+            logger.warn('P2P', `[Sync v2] → ${peerId.toString().slice(-8)}: malformed payload response`);
+            return { synced: false, newMembers: 0, newPosts: 0 };
+        }
+
+        const result = await importRemoteState(payloadResp.payload);
+        logger.sync('P2P', `[Sync v2] → ${peerId.toString().slice(-8)}: +${result.newMembers} members, +${result.newPosts} posts`);
+        return { synced: true, ...result };
+    } finally {
+        closeStreamSafe(hashStream);
+        closeStreamSafe(payloadStream);
+    }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                            v1 — Legacy protocol                             */
+/* -------------------------------------------------------------------------- */
+
+function registerSyncHandlerV1(node: Libp2p): void {
+    node.handle(PROTOCOL_V1, async (incomingData: any) => {
         const stream = incomingData.stream || incomingData;
 
         try {
@@ -91,14 +238,12 @@ export function registerSyncHandler(node: Libp2p): void {
                 const ourHash = getStateHash();
 
                 if (request.stateHash === ourHash) {
-                    // Hashes match — no sync needed
                     await writeToStream(stream, JSON.stringify({
                         type: 'sync_res',
                         match: true,
                     }));
-                    logger.sync('P2P', `[Sync] ← Hash match — no sync needed`);
+                    logger.sync('P2P', `[Sync v1] ← Hash match — no sync needed`);
                 } else {
-                    // Hashes differ — send our state
                     const payload = await exportSyncState(localNodeId);
                     await writeToStream(stream, JSON.stringify({
                         type: 'sync_res',
@@ -106,37 +251,30 @@ export function registerSyncHandler(node: Libp2p): void {
                         payload,
                     }));
 
-                    // Import their state if they included it
                     if (request.payload) {
                         const result = await importRemoteState(request.payload);
-                        logger.sync('P2P', `[Sync] ← Imported: +${result.newMembers} members, +${result.newPosts} posts`);
+                        logger.sync('P2P', `[Sync v1] ← Imported: +${result.newMembers} members, +${result.newPosts} posts`);
                     }
                 }
             }
         } catch (e: any) {
-            logger.error('P2P', `[Sync] Handler error: ${e.message || e}`);
+            logger.error('P2P', `[Sync v1] Handler error: ${e.message || e}`);
         }
     });
-
-    logger.info('P2P', `[Sync] Protocol handler registered: ${PROTOCOL}`);
 }
 
-/**
- * Initiate a sync with a connected peer.
- */
-export async function syncWithPeer(node: Libp2p, peerId: any): Promise<{
+async function syncWithPeerV1(node: Libp2p, peerId: any): Promise<{
     synced: boolean;
     newMembers: number;
     newPosts: number;
 }> {
     let stream: any = null;
     try {
-        stream = await node.dialProtocol(peerId, PROTOCOL);
+        stream = await node.dialProtocol(peerId, PROTOCOL_V1);
 
         const ourHash = getStateHash();
         const ourPayload = await exportSyncState(localNodeId);
 
-        // Send our hash + state
         const request = JSON.stringify({
             type: 'sync_req',
             stateHash: ourHash,
@@ -144,32 +282,65 @@ export async function syncWithPeer(node: Libp2p, peerId: any): Promise<{
         });
 
         const readPromise = readFromStream(stream);
-        readPromise.catch(() => {}); // Prevent unhandled rejection if writeToStream throws or exits early
+        readPromise.catch(() => {});
         await writeToStream(stream, request);
 
         const raw = await readPromise;
         const response = JSON.parse(raw);
 
         if (response.match) {
-            logger.sync('P2P', `[Sync] → ${peerId.toString().slice(-8)}: Already in sync ✓`);
+            logger.sync('P2P', `[Sync v1] → ${peerId.toString().slice(-8)}: Already in sync ✓`);
             return { synced: false, newMembers: 0, newPosts: 0 };
         }
 
         if (response.payload) {
             const result = await importRemoteState(response.payload);
-            logger.sync('P2P', `[Sync] → ${peerId.toString().slice(-8)}: +${result.newMembers} members, +${result.newPosts} posts`);
+            logger.sync('P2P', `[Sync v1] → ${peerId.toString().slice(-8)}: +${result.newMembers} members, +${result.newPosts} posts`);
             return { synced: true, ...result };
         }
 
         return { synced: false, newMembers: 0, newPosts: 0 };
-    } catch (e: any) {
-        logger.error('P2P', `[Sync] Failed with ${peerId.toString().slice(-8)}: ${e.message || e}`);
-        return { synced: false, newMembers: 0, newPosts: 0 };
     } finally {
-        if (stream) {
+        closeStreamSafe(stream);
+    }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                Public API                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Register all sync protocol handlers (v1 + v2).
+ */
+export function registerSyncHandler(node: Libp2p): void {
+    registerSyncHandlerV1(node);
+    registerHashHandlerV2(node);
+    registerPayloadHandlerV2(node);
+    logger.info('P2P', `[Sync] Protocol handlers registered: ${PROTOCOL_V1}, ${PROTOCOL_V2_HASH}, ${PROTOCOL_V2_PAYLOAD}`);
+}
+
+/**
+ * Initiate a sync with a connected peer.
+ * Tries v2 first; falls back to v1 if the peer doesn't speak it.
+ */
+export async function syncWithPeer(node: Libp2p, peerId: any): Promise<{
+    synced: boolean;
+    newMembers: number;
+    newPosts: number;
+}> {
+    try {
+        return await syncWithPeerV2(node, peerId);
+    } catch (e: any) {
+        if (isUnsupportedProtocol(e)) {
+            logger.info('P2P', `[Sync] Peer ${peerId.toString().slice(-8)} doesn't speak v2 — falling back to v1`);
             try {
-                stream.close();
-            } catch {}
+                return await syncWithPeerV1(node, peerId);
+            } catch (e2: any) {
+                logger.error('P2P', `[Sync] v1 fallback failed with ${peerId.toString().slice(-8)}: ${e2.message || e2}`);
+                return { synced: false, newMembers: 0, newPosts: 0 };
+            }
         }
+        logger.error('P2P', `[Sync] v2 failed with ${peerId.toString().slice(-8)}: ${e.message || e}`);
+        return { synced: false, newMembers: 0, newPosts: 0 };
     }
 }
