@@ -1940,7 +1940,7 @@ export async function acceptMarketplacePost(postId: string, buyerPublicKey: stri
 
 export async function completeMarketplaceTransaction(transactionId: string, confirmerPublicKey: string, finalHours?: number) {
     const res = await _signedRequest('/api/marketplace/transactions/complete', { transactionId, confirmerPublicKey, finalHours });
-    console.log(`[Escrow] Server complete response:`, JSON.stringify(res));
+    console.log(`[Escrow] Server complete response: success=${res?.success}, txId=${res?.transaction?.id}`);
     await acquireSyncLock();
     try {
         const database = await getDb();

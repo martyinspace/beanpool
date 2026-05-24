@@ -1112,7 +1112,7 @@ export function getBalance(publicKey: string): { balance: number; floor: number;
 
 export function transfer(from: string, to: string, amount: number, memo: string, method?: 'direct' | 'escrow'): Transaction | null {
     if (from !== 'genesis') assertMemberActive(from);
-    if (amount <= 0) return null;
+    if (amount < 0) return null;
     // Only register real members — skip synthetic wallets (escrow_*, project_*, etc.)
     if (!from.startsWith('escrow_') && !from.startsWith('project_') && !getMember(from)) registerVisitor(from);
     if (!to.startsWith('escrow_') && !to.startsWith('project_') && !getMember(to)) registerVisitor(to);

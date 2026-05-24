@@ -150,7 +150,8 @@ export class LedgerManager {
      * @param floorOverride - The sender's dynamic credit floor (e.g. -420). If omitted, uses legacy default (-100).
      */
     transfer(fromId: string, toId: string, amount: number, floorOverride?: number): boolean {
-        if (amount <= 0) return false;
+        if (amount < 0) return false;
+        if (amount === 0) return true; // 0-credit transfer is always a no-op success
         if (fromId === toId) return false;
 
         const currentEpoch = this.getCurrentEpoch();
