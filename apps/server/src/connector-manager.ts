@@ -292,12 +292,34 @@ async function handshakeConnectedPeers(): Promise<void> {
             status.remoteTrustLevel = null;
             status.latencyMs = null;
             status.error = `Handshake failed: ${e.message}`;
-            logger.warn('P2P', `[Connectors] Handshake failed with ${connector.callsign || connector.address}: ${e.message}`);
+
+            const msg = (e.message || '').toLowerCase();
+            const isTransient = msg.includes('closed') || msg.includes('reset') || msg.includes('timeout');
+
+            if (isTransient) {
+                logger.info('P2P', `[Connectors] Handshake failed with ${connector.callsign || connector.address}: ${e.message} (normal connection lifecycle refresh)`);
+            } else {
+                logger.warn('P2P', `[Connectors] Handshake failed with ${connector.callsign || connector.address}: ${e.message}`);
+            }
+
             if (status.peerId) {
                 try {
                     const { peerIdFromString } = await import('@libp2p/peer-id');
                     await p2pNode.hangUp(peerIdFromString(status.peerId));
                 } catch {}
+            }
+
+            if (isTransient) {
+                // Schedule instant reconnection to minimize sync downtime
+                setTimeout(() => {
+                    if (connector.enabled) {
+                        const currentStatus = statuses.get(connector.address);
+                        if (!currentStatus?.connected) {
+                            logger.info('P2P', `[Connectors] 🔄 Attempting immediate reconnection to ${connector.callsign || connector.address} after stream close...`);
+                            connectToAddress(connector.address).catch(() => {});
+                        }
+                    }
+                }, 1000);
             }
         }
     }
@@ -333,6 +355,17 @@ async function syncConnectedPeers(): Promise<void> {
                     const { peerIdFromString } = await import('@libp2p/peer-id');
                     await p2pNode.hangUp(peerIdFromString(status.peerId!));
                 } catch {}
+
+                // Schedule instant reconnection to minimize sync downtime
+                setTimeout(() => {
+                    if (connector.enabled) {
+                        const currentStatus = statuses.get(connector.address);
+                        if (!currentStatus?.connected) {
+                            logger.info('P2P', `[Connectors] 🔄 Attempting immediate reconnection to ${connector.callsign || connector.address} after sync stream close...`);
+                            connectToAddress(connector.address).catch(() => {});
+                        }
+                    }
+                }, 1000);
             }
         }
     }
