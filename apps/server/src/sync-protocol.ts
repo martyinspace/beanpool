@@ -26,8 +26,27 @@
 import type { Libp2p } from 'libp2p';
 import {
     getStateHash, exportSyncState, importRemoteState,
+    type ImportResult,
 } from './state-engine.js';
 import { logger } from './logger.js';
+
+/**
+ * Format an ImportResult into a compact log fragment that only mentions
+ * categories with actual activity. Falls back to "no changes" if everything
+ * is zero (the importer ran but the source DB had nothing new for us).
+ *
+ * `+N` = new rows, `~N` = updated rows.
+ */
+function formatImportResult(r: ImportResult): string {
+    const parts: string[] = [];
+    if (r.newMembers || r.updatedMembers) parts.push(`members+${r.newMembers}/~${r.updatedMembers}`);
+    if (r.newPosts || r.updatedPosts) parts.push(`posts+${r.newPosts}/~${r.updatedPosts}`);
+    if (r.newTransactions) parts.push(`txns+${r.newTransactions}`);
+    if (r.accountChanges) parts.push(`accounts~${r.accountChanges}`);
+    if (r.marketplaceTxns) parts.push(`escrow~${r.marketplaceTxns}`);
+    if (r.newMessages) parts.push(`msgs+${r.newMessages}`);
+    return parts.length === 0 ? 'no changes' : parts.join(', ');
+}
 
 const PROTOCOL_V1 = '/beanpool/sync/1.0.0';
 const PROTOCOL_V2_HASH = '/beanpool/sync/hash/2.0.0';
@@ -167,7 +186,7 @@ function registerPayloadHandlerV2(node: Libp2p): void {
             }));
 
             const result = await importRemoteState(request.payload);
-            logger.sync('P2P', `[Sync v2] ← Imported: +${result.newMembers} members, +${result.newPosts} posts`);
+            logger.sync('P2P', `[Sync v2] ← Imported: ${formatImportResult(result)}`);
         } catch (e: any) {
             logger.error('P2P', `[Sync v2] Payload handler error: ${e.message || e}`);
         }
@@ -226,7 +245,7 @@ async function syncWithPeerV2(node: Libp2p, peerId: any): Promise<{
         }
 
         const result = await importRemoteState(payloadResp.payload);
-        logger.sync('P2P', `[Sync v2] → ${peerId.toString().slice(-8)}: +${result.newMembers} members, +${result.newPosts} posts`);
+        logger.sync('P2P', `[Sync v2] → ${peerId.toString().slice(-8)}: ${formatImportResult(result)}`);
         return { synced: true, ...result };
     } finally {
         closeStreamSafe(hashStream);
@@ -265,7 +284,7 @@ function registerSyncHandlerV1(node: Libp2p): void {
 
                     if (request.payload) {
                         const result = await importRemoteState(request.payload);
-                        logger.sync('P2P', `[Sync v1] ← Imported: +${result.newMembers} members, +${result.newPosts} posts`);
+                        logger.sync('P2P', `[Sync v1] ← Imported: ${formatImportResult(result)}`);
                     }
                 }
             }
@@ -307,7 +326,7 @@ async function syncWithPeerV1(node: Libp2p, peerId: any): Promise<{
 
         if (response.payload) {
             const result = await importRemoteState(response.payload);
-            logger.sync('P2P', `[Sync v1] → ${peerId.toString().slice(-8)}: +${result.newMembers} members, +${result.newPosts} posts`);
+            logger.sync('P2P', `[Sync v1] → ${peerId.toString().slice(-8)}: ${formatImportResult(result)}`);
             return { synced: true, ...result };
         }
 

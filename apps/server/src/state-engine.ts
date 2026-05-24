@@ -2367,7 +2367,18 @@ export async function exportSyncState(nodeId: string): Promise<SyncPayload> {
     return payload;
 }
 
-export async function importRemoteState(remote: SyncPayload): Promise<{ newMembers: number; newPosts: number }> {
+export interface ImportResult {
+    newMembers: number;
+    updatedMembers: number;
+    newPosts: number;
+    updatedPosts: number;
+    newTransactions: number;
+    accountChanges: number;
+    marketplaceTxns: number;
+    newMessages: number;
+}
+
+export async function importRemoteState(remote: SyncPayload): Promise<ImportResult> {
     // Cryptographic validation of P2P Sync Payload
     if (!remote.signature || !remote.publicKey) {
         throw new Error(`[Sync] Cryptographic validation failed: Missing SyncPayload signature or publicKey`);
@@ -2398,13 +2409,15 @@ export async function importRemoteState(remote: SyncPayload): Promise<{ newMembe
     }
 
     let newMembers = 0, newPosts = 0;
-    
+    let updatedMembers = 0, updatedPosts = 0;
+    let newTransactions = 0, accountChanges = 0, marketplaceTxns = 0, newMessages = 0;
+
     db.transaction(() => {
         // 1. Import/Upsert Members
         for (const rm of remote.members) {
             const exists = db.prepare("SELECT 1 FROM members WHERE public_key=?").get(rm.publicKey);
             if (!exists) {
-                db.prepare(`INSERT INTO members (public_key, callsign, joined_at, invited_by, invite_code, home_node_url, avatar_url, bio, contact_value, contact_visibility, status, last_active_at) 
+                db.prepare(`INSERT INTO members (public_key, callsign, joined_at, invited_by, invite_code, home_node_url, avatar_url, bio, contact_value, contact_visibility, status, last_active_at)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
                     rm.publicKey,
                     rm.callsign,
@@ -2422,14 +2435,14 @@ export async function importRemoteState(remote: SyncPayload): Promise<{ newMembe
                 db.prepare(`INSERT INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, 0, 0)`).run(rm.publicKey);
                 newMembers++;
             } else {
-                db.prepare(`UPDATE members SET 
-                    callsign = ?, 
-                    avatar_url = ?, 
-                    bio = ?, 
-                    contact_value = ?, 
-                    contact_visibility = ?, 
-                    status = ?, 
-                    last_active_at = ? 
+                const res = db.prepare(`UPDATE members SET
+                    callsign = ?,
+                    avatar_url = ?,
+                    bio = ?,
+                    contact_value = ?,
+                    contact_visibility = ?,
+                    status = ?,
+                    last_active_at = ?
                     WHERE public_key = ?`).run(
                     rm.callsign,
                     rm.avatarUrl || null,
@@ -2440,6 +2453,7 @@ export async function importRemoteState(remote: SyncPayload): Promise<{ newMembe
                     rm.lastActiveAt || null,
                     rm.publicKey
                 );
+                if (res.changes > 0) updatedMembers++;
             }
         }
 
@@ -2471,20 +2485,20 @@ export async function importRemoteState(remote: SyncPayload): Promise<{ newMembe
                 );
                 newPosts++;
             } else {
-                db.prepare(`UPDATE posts SET 
-                    title = ?, 
-                    description = ?, 
-                    credits = ?, 
-                    active = ?, 
-                    status = ?, 
-                    repeatable = ?, 
-                    price_type = ?, 
-                    accepted_by = ?, 
-                    accepted_at = ?, 
-                    pending_transaction_id = ?, 
-                    completed_at = ?, 
-                    lat = ?, 
-                    lng = ? 
+                const res = db.prepare(`UPDATE posts SET
+                    title = ?,
+                    description = ?,
+                    credits = ?,
+                    active = ?,
+                    status = ?,
+                    repeatable = ?,
+                    price_type = ?,
+                    accepted_by = ?,
+                    accepted_at = ?,
+                    pending_transaction_id = ?,
+                    completed_at = ?,
+                    lat = ?,
+                    lng = ?
                     WHERE id = ?`).run(
                     rp.title,
                     rp.description,
@@ -2501,6 +2515,7 @@ export async function importRemoteState(remote: SyncPayload): Promise<{ newMembe
                     rp.lng ?? null,
                     rp.id
                 );
+                if (res.changes > 0) updatedPosts++;
             }
         }
 
@@ -2555,7 +2570,7 @@ export async function importRemoteState(remote: SyncPayload): Promise<{ newMembe
         // 6. Import/Upsert Accounts
         if (remote.accounts) {
             for (const acc of remote.accounts) {
-                db.prepare(`INSERT INTO accounts (public_key, balance, last_updated_at, last_demurrage_epoch)
+                const res = db.prepare(`INSERT INTO accounts (public_key, balance, last_updated_at, last_demurrage_epoch)
                             VALUES (?, ?, ?, ?)
                             ON CONFLICT(public_key) DO UPDATE SET
                                 balance = excluded.balance,
@@ -2566,6 +2581,7 @@ export async function importRemoteState(remote: SyncPayload): Promise<{ newMembe
                     acc.lastUpdatedAt,
                     acc.lastDemurrageEpoch
                 );
+                if (res.changes > 0) accountChanges++;
             }
             // Reload LedgerManager state in memory to dynamically reflect remote ledger updates
             const updatedAccs = db.prepare("SELECT public_key as id, balance, last_demurrage_epoch as lastDemurrageEpoch FROM accounts").all() as any[];
@@ -2580,7 +2596,7 @@ export async function importRemoteState(remote: SyncPayload): Promise<{ newMembe
         // 7. Import Immutable Transactions (Ledger Transfers)
         if (remote.transactions) {
             for (const tx of remote.transactions) {
-                db.prepare(`INSERT OR IGNORE INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp)
+                const res = db.prepare(`INSERT OR IGNORE INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp)
                             VALUES (?, ?, ?, ?, ?, ?)`).run(
                     tx.id,
                     tx.from,
@@ -2589,13 +2605,14 @@ export async function importRemoteState(remote: SyncPayload): Promise<{ newMembe
                     tx.memo,
                     tx.timestamp
                 );
+                if (res.changes > 0) newTransactions++;
             }
         }
 
         // 8. Import/Upsert Marketplace Escrow Transactions
         if (remote.marketplaceTransactions) {
             for (const mt of remote.marketplaceTransactions) {
-                db.prepare(`INSERT INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, completed_at)
+                const res = db.prepare(`INSERT INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, completed_at)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                             ON CONFLICT(id) DO UPDATE SET
                                 status = excluded.status,
@@ -2612,6 +2629,7 @@ export async function importRemoteState(remote: SyncPayload): Promise<{ newMembe
                     mt.createdAt,
                     mt.completedAt ?? null
                 );
+                if (res.changes > 0) marketplaceTxns++;
             }
         }
 
@@ -2664,7 +2682,7 @@ export async function importRemoteState(remote: SyncPayload): Promise<{ newMembe
         // 12. Import Immutable Chat Messages
         if (remote.messages) {
             for (const msg of remote.messages) {
-                db.prepare(`INSERT OR IGNORE INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, system_type, metadata, timestamp)
+                const res = db.prepare(`INSERT OR IGNORE INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, system_type, metadata, timestamp)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
                     msg.id,
                     msg.conversationId,
@@ -2676,6 +2694,7 @@ export async function importRemoteState(remote: SyncPayload): Promise<{ newMembe
                     msg.metadata || null,
                     msg.timestamp
                 );
+                if (res.changes > 0) newMessages++;
             }
         }
 
@@ -2734,7 +2753,16 @@ export async function importRemoteState(remote: SyncPayload): Promise<{ newMembe
     if (newMembers > 0 || newPosts > 0) {
         broadcast({ type: 'state_synced', newMembers, newPosts, from: remote.nodeId });
     }
-    return { newMembers, newPosts };
+    return {
+        newMembers,
+        updatedMembers,
+        newPosts,
+        updatedPosts,
+        newTransactions,
+        accountChanges,
+        marketplaceTxns,
+        newMessages,
+    };
 }
 // ===================== RATINGS =====================
 
