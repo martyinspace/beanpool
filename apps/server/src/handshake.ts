@@ -18,6 +18,7 @@ const decoder = new TextDecoder();
 export interface HandshakeResult {
     mutualTrust: boolean;
     remoteTrustLevel: TrustLevel | null;
+    remoteActive: boolean | null;
     latencyMs: number;
 }
 
@@ -108,13 +109,14 @@ export function registerHandshakeHandler(node: Libp2p): void {
             }
 
             // Check if the remote peer is in OUR connectors list
-            const { trusted, trustLevel } = isPeerTrusted(remotePeerId);
+            const { trusted, trustLevel, enabled: ourEnabled } = isPeerTrusted(remotePeerId);
 
             // Update inbound connection/handshake status on our end if trusted
             if (trusted) {
                 const initiatorTrusted = request.youAreTrusted === true;
                 const initiatorTrustLevel = request.trustLevel || null;
-                updateInboundHandshakeStatus(remotePeerId, initiatorTrusted, initiatorTrustLevel);
+                const initiatorActive = request.active === true;
+                updateInboundHandshakeStatus(remotePeerId, initiatorTrusted, initiatorTrustLevel, initiatorActive);
             }
 
             const response = JSON.stringify({
@@ -122,6 +124,7 @@ export function registerHandshakeHandler(node: Libp2p): void {
                 ts: Date.now(),
                 youAreTrusted: trusted,
                 trustLevel: trustLevel,
+                active: ourEnabled,
             });
 
             await writeToStream(stream, response);
@@ -144,13 +147,14 @@ export async function sendHandshake(node: Libp2p, peerId: any): Promise<Handshak
     try {
         stream = await node.dialProtocol(peerId, PROTOCOL);
 
-        const { trusted, trustLevel } = isPeerTrusted(peerId.toString());
+        const { trusted, trustLevel, enabled: ourEnabled } = isPeerTrusted(peerId.toString());
         const request = JSON.stringify({
             type: 'handshake_req',
             ts: Date.now(),
             peerId: node.peerId.toString(), // Include our peerId so handler can identify us
             youAreTrusted: trusted,
             trustLevel: trustLevel,
+            active: ourEnabled,
         });
 
         // Start reading before writing (duplex stream — concurrent read/write)
@@ -169,14 +173,15 @@ export async function sendHandshake(node: Libp2p, peerId: any): Promise<Handshak
             response = JSON.parse(raw);
         } catch {
             console.error(`[Handshake] Failed to parse response: "${raw.substring(0, 80)}"`);
-            return { mutualTrust: false, remoteTrustLevel: null, latencyMs };
+            return { mutualTrust: false, remoteTrustLevel: null, remoteActive: null, latencyMs };
         }
 
-        console.log(`[Handshake] → ${peerId.toString().slice(-8)}: mutual=${!!response.youAreTrusted} latency=${latencyMs}ms`);
+        console.log(`[Handshake] → ${peerId.toString().slice(-8)}: mutual=${!!response.youAreTrusted} active=${response.active} latency=${latencyMs}ms`);
 
         return {
             mutualTrust: !!response.youAreTrusted,
             remoteTrustLevel: response.trustLevel || null,
+            remoteActive: response.active !== undefined ? !!response.active : null,
             latencyMs,
         };
     } finally {

@@ -49,6 +49,7 @@ export interface ConnectorStatus extends ConnectorConfig {
     connected: boolean;
     mutualTrust: boolean;        // true = both sides trust each other
     remoteTrustLevel: TrustLevel | null;  // what trust level the OTHER node has for us
+    remoteActive: boolean | null;         // true if the remote node's connector is enabled (Active dialer)
     latencyMs: number | null;
     lastVerified: number | null;
     peerId: string | null;
@@ -59,6 +60,7 @@ interface StatusEntry {
     connected: boolean;
     mutualTrust: boolean;
     remoteTrustLevel: TrustLevel | null;
+    remoteActive: boolean | null;
     latencyMs: number | null;
     lastVerified: number | null;
     peerId: string | null;
@@ -156,6 +158,7 @@ function newStatus(): StatusEntry {
         connected: false,
         mutualTrust: false,
         remoteTrustLevel: null,
+        remoteActive: null,
         latencyMs: null,
         lastVerified: null,
         peerId: null,
@@ -214,6 +217,7 @@ export function initConnectorManager(node: Libp2p): void {
             if (status.peerId === peerId) {
                 status.connected = false;
                 status.mutualTrust = false;
+                status.remoteActive = null;
                 status.latencyMs = null;
             }
         }
@@ -278,6 +282,7 @@ async function handshakeConnectedPeers(): Promise<void> {
 
             status.mutualTrust = result.mutualTrust;
             status.remoteTrustLevel = result.remoteTrustLevel;
+            status.remoteActive = result.remoteActive;
             status.latencyMs = result.latencyMs;
             status.lastVerified = Date.now();
             status.error = null;
@@ -451,6 +456,7 @@ export async function connectToAddress(address: string): Promise<boolean> {
             const result = await sendHandshake(p2pNode, conn.remotePeer);
             status.mutualTrust = result.mutualTrust;
             status.remoteTrustLevel = result.remoteTrustLevel;
+            status.remoteActive = result.remoteActive;
             status.latencyMs = result.latencyMs;
             logger.info('P2P', `[Connectors] 🤝 Handshake with ${address}: mutual=${result.mutualTrust} latency=${result.latencyMs}ms`);
         } catch (e: any) {
@@ -485,6 +491,7 @@ export async function disconnectFromAddress(address: string): Promise<void> {
     if (status) {
         status.connected = false;
         status.mutualTrust = false;
+        status.remoteActive = null;
         status.latencyMs = null;
         status.error = null;
     }
@@ -564,7 +571,7 @@ export function getConnectorByAddress(address: string): ConnectorStatus | null {
  * Check if a remote peer (by PeerId string) is trusted by this node.
  * Used by the handshake handler to respond to trust queries.
  */
-export function isPeerTrusted(peerId: string): { trusted: boolean; trustLevel: TrustLevel | null } {
+export function isPeerTrusted(peerId: string): { trusted: boolean; trustLevel: TrustLevel | null; enabled: boolean } {
     const status = getConnectors().find(c => {
         if (c.trustLevel === 'blocked') return false;
         if (c.peerId === peerId) return true;
@@ -577,9 +584,9 @@ export function isPeerTrusted(peerId: string): { trusted: boolean; trustLevel: T
         return false;
     });
     if (status) {
-        return { trusted: true, trustLevel: status.trustLevel };
+        return { trusted: true, trustLevel: status.trustLevel, enabled: status.enabled };
     }
-    return { trusted: false, trustLevel: null };
+    return { trusted: false, trustLevel: null, enabled: false };
 }
 
 /** Get connectors filtered by trust level */
@@ -604,7 +611,12 @@ export function getP2pNode(): Libp2p | null {
 /**
  * Update the handshake status of an inbound trusted peer connection.
  */
-export function updateInboundHandshakeStatus(peerId: string, initiatorTrusted: boolean, initiatorTrustLevel: TrustLevel | null): void {
+export function updateInboundHandshakeStatus(
+    peerId: string,
+    initiatorTrusted: boolean,
+    initiatorTrustLevel: TrustLevel | null,
+    initiatorActive: boolean
+): void {
     for (const connector of connectors) {
         let matches = false;
         if (connector.address) {
@@ -632,6 +644,7 @@ export function updateInboundHandshakeStatus(peerId: string, initiatorTrusted: b
             const ourTrust = isPeerTrusted(peerId);
             status.mutualTrust = ourTrust.trusted && initiatorTrusted;
             status.remoteTrustLevel = initiatorTrustLevel;
+            status.remoteActive = initiatorActive;
             status.lastVerified = Date.now();
             
             // Clear retry state

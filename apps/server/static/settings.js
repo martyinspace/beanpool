@@ -281,6 +281,11 @@
                     ? `<span class="badge" style="background:rgba(148,163,184,0.15);color:#94a3b8;border:1px solid rgba(148,163,184,0.3);"><span style="font-size:0.75rem;line-height:1;margin-right:1px;display:flex;align-items:center;height:12px;">💤</span>Passive</span>`
                     : `<span class="badge" style="background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);"><span style="font-size:0.75rem;line-height:1;margin-right:1px;display:flex;align-items:center;height:12px;">⚡</span>Active</span>`;
 
+                const isCollision = (c.enabled !== false && c.remoteActive === true);
+                const collisionBadge = isCollision
+                    ? `<span class="badge" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);"><span style="font-size:0.75rem;line-height:1;margin-right:1px;display:flex;align-items:center;height:12px;">⚠️</span>Collision</span>`
+                    : '';
+
                 const syncBadge = (c.trustLevel === 'mirror' && c.connected && c.mutualTrust)
                     ? `<span class="badge" style="background:rgba(99,102,241,0.15);color:#818cf8;border:1px solid rgba(99,102,241,0.3);"><svg style="width:10px;height:10px;animation:spin 3s linear infinite;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l.57-.19"/></svg>Syncing</span>`
                     : '';
@@ -294,6 +299,17 @@
                 const lastVerified = c.lastVerified ? `${Math.round((Date.now() - c.lastVerified) / 1000)}s ago` : '—';
                 const remoteTrust = c.remoteTrustLevel ? trustLabels[c.remoteTrustLevel] || c.remoteTrustLevel : '—';
 
+                const collisionAlert = isCollision
+                    ? `
+                    <div style="margin-top:0.5rem;padding:0.5rem 0.6rem;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);border-radius:6px;font-size:0.7rem;color:#f87171;line-height:1.4;display:flex;align-items:flex-start;gap:0.35rem;">
+                        <span style="font-size:0.85rem;line-height:1;margin-top:1px;">⚠️</span>
+                        <div>
+                            <strong>Dual Active Collision!</strong> Both nodes are configured as <strong>Active</strong> dialers. Please click <strong>"💤 Make Passive"</strong> on one of them to prevent connection bouncing.
+                        </div>
+                    </div>
+                    `
+                    : '';
+
                 return `
                     <div class="connector-card">
                         <div class="header">
@@ -303,6 +319,7 @@
                             </div>
                             <div style="display:flex;gap:0.25rem;align-items:center;">
                                 ${modeBadge}
+                                ${collisionBadge}
                                 ${syncBadge}
                                 ${badge}
                             </div>
@@ -312,6 +329,7 @@
                             <span>Them → ${remoteTrust}</span>
                             <span>RTT: ${latency}</span>
                         </div>
+                        ${collisionAlert}
                         <div class="actions">
                             ${c.connected
                         ? `<button class="btn btn-outline btn-sm" onclick="doDisconnect('${esc(c.address)}')">Disconnect</button>`
