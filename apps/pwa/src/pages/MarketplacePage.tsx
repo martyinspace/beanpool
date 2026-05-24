@@ -67,7 +67,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
     const [showFilters, setShowFilters] = useState(false);
     const [showCategoryPicker, setShowCategoryPicker] = useState(false);
     const [showDealsModal, setShowDealsModal] = useState(false);
-    const [dealsInitialTab, setDealsInitialTab] = useState<'active' | 'pending' | 'history'>('active');
+    const [dealsInitialTab, setDealsInitialTab] = useState<'active' | 'pending' | 'history'>('pending');
 
     // Detail view
     const [selectedPost, setSelectedPost] = useState<MarketplacePost | null>(null);
@@ -85,7 +85,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
     useEffect(() => {
         if (openPostId === 'deals_active') {
              setShowDealsModal(true);
-             setDealsInitialTab('active');
+             setDealsInitialTab('pending');
              onPostOpened?.();
         } else if (openPostId && posts.length > 0) {
             const found = posts.find(p => p.id === openPostId);

@@ -103,7 +103,7 @@ export default function MarketScreen() {
     
     // Deals Sheet
     const [showDealsSheet, setShowDealsSheet] = useState(false);
-    const [dealsInitialTab, setDealsInitialTab] = useState<'active' | 'pending' | 'history'>('active');
+    const [dealsInitialTab, setDealsInitialTab] = useState<'active' | 'pending' | 'history'>('pending');
     const [myTransactions, setMyTransactions] = useState<any[]>([]);
 
     const pendingCount = usePendingDealsCount(identity, posts, myTransactions);

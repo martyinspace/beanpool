@@ -15,7 +15,7 @@ interface MyDealsSheetProps {
     initialTab?: 'active' | 'pending' | 'history';
 }
 
-export function MyDealsSheet({ visible, identity, onClose, initialTab = 'active' }: MyDealsSheetProps) {
+export function MyDealsSheet({ visible, identity, onClose, initialTab = 'pending' }: MyDealsSheetProps) {
     const [dealsTab, setDealsTab] = useState<'active' | 'pending' | 'history'>(initialTab);
     const [historyFilter, setHistoryFilter] = useState<'all' | 'buying' | 'selling'>('all');
     const [posts, setPosts] = useState<any[]>([]);
@@ -233,8 +233,8 @@ export function MyDealsSheet({ visible, identity, onClose, initialTab = 'active'
                     {/* Tab bar */}
                     <View style={styles.tabBar}>
                         {[
-                            { id: 'active' as const, label: 'Active' },
                             { id: 'pending' as const, label: 'In Progress', badge: pendingCount },
+                            { id: 'active' as const, label: 'My Posts' },
                             { id: 'history' as const, label: 'History' },
                         ].map(tab => (
                             <Pressable

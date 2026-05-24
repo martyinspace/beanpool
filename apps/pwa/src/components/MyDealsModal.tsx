@@ -40,7 +40,7 @@ interface Props {
     onPromptReview?: (tx: { txId: string; targetPubkey: string; targetCallsign: string; targetRole: 'provider' | 'receiver' }) => void;
 }
 
-export function MyDealsModal({ visible, identity, onClose, posts, transactions, initialTab = 'active', onNavigateToPost, onPromptReview }: Props) {
+export function MyDealsModal({ visible, identity, onClose, posts, transactions, initialTab = 'pending', onNavigateToPost, onPromptReview }: Props) {
     const [dealsTab, setDealsTab] = useState<'active' | 'pending' | 'history'>(initialTab);
     const [historyFilter, setHistoryFilter] = useState<'all' | 'buying' | 'selling'>('all');
 
@@ -110,8 +110,8 @@ export function MyDealsModal({ visible, identity, onClose, posts, transactions, 
                 <div className="px-4 pt-4 pb-3 border-b border-nature-100 dark:border-nature-800 shrink-0 bg-nature-50/50 dark:bg-nature-900/20">
                     <div className="flex bg-nature-100 dark:bg-nature-800 rounded-xl p-1 shadow-inner">
                         {[
-                            { id: 'active' as const, label: 'Active' },
                             { id: 'pending' as const, label: 'In Progress', badge: pendingCount },
+                            { id: 'active' as const, label: 'My Posts' },
                             { id: 'history' as const, label: 'History' },
                         ].map(tab => (
                             <button

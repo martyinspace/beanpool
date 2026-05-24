@@ -1549,6 +1549,11 @@ export async function getConversation(id: string, myPubkey?: string) {
             (SELECT memb.callsign FROM conversation_participants cp 
              LEFT JOIN members memb ON memb.public_key = cp.public_key
              WHERE cp.conversation_id = c.id AND cp.public_key != ? LIMIT 1) as otherCallsign,
+            (SELECT cp.public_key FROM conversation_participants cp 
+             WHERE cp.conversation_id = c.id AND cp.public_key != ? LIMIT 1) as otherPubkey,
+            (SELECT memb.avatar_url FROM conversation_participants cp 
+             LEFT JOIN members memb ON memb.public_key = cp.public_key
+             WHERE cp.conversation_id = c.id AND cp.public_key != ? LIMIT 1) as otherAvatar,
             mt.id as pendingTxId,
             mt.credits as pendingAmount,
             mt.buyer_pubkey as txBuyerPubkey,
@@ -1558,7 +1563,7 @@ export async function getConversation(id: string, myPubkey?: string) {
             LEFT JOIN marketplace_transactions mt ON mt.post_id = c.post_id AND mt.status = 'pending'
                 AND (mt.buyer_pubkey IN (SELECT public_key FROM conversation_participants WHERE conversation_id = c.id)
                      AND mt.seller_pubkey IN (SELECT public_key FROM conversation_participants WHERE conversation_id = c.id))
-            WHERE c.id = ?`, [myPubkey, id]);
+            WHERE c.id = ?`, [myPubkey, myPubkey, myPubkey, id]);
     }
     return await database.getFirstAsync<any>('SELECT name, post_id as postId FROM conversations WHERE id = ?', [id]);
 }

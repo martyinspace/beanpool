@@ -47,8 +47,18 @@ export default function PublicProfileScreen() {
         <SafeAreaView style={styles.container}>
             {/* Header */}
             <View style={styles.header}>
-                <Pressable onPress={() => router.back()} style={styles.backBtn}>
-                    <Text style={styles.backBtnText}>✕ Cancel</Text>
+                <Pressable 
+                    onPress={() => {
+                        if (router.canGoBack()) {
+                            router.back();
+                        } else {
+                            router.replace('/(tabs)/people');
+                        }
+                    }} 
+                    style={styles.backButton}
+                >
+                    <Text style={styles.backText}>←</Text>
+                    <Text style={styles.backTextLabel}>Back</Text>
                 </Pressable>
                 <Text style={styles.headerTitle}>Trust Profile</Text>
                 <View style={{ width: 60 }} />
@@ -211,10 +221,12 @@ const styles = StyleSheet.create({
 
     header: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        padding: 16, backgroundColor: '#ffffff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb',
+        paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#ffffff',
+        borderBottomWidth: 1, borderBottomColor: '#e5e7eb',
     },
-    backBtn: { paddingVertical: 4, paddingRight: 8 },
-    backBtnText: { color: '#6b7280', fontWeight: '600', fontSize: 14 },
+    backButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, paddingRight: 8 },
+    backText: { color: '#1f2937', fontSize: 20, fontWeight: 'bold' },
+    backTextLabel: { color: '#1f2937', fontSize: 16, fontWeight: 'bold', marginLeft: 4 },
     headerTitle: { color: '#111827', fontSize: 17, fontWeight: '800' },
 
     scrollContent: { paddingBottom: 48 },

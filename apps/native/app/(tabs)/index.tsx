@@ -11,7 +11,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MemberAvatar } from '../../components/MemberAvatar';
 import { getPosts, createPost } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
-import { useCurrencyString } from '../../components/CurrencyDisplay';
+import { CurrencyDisplay, useCurrencyString } from '../../components/CurrencyDisplay';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -665,15 +665,17 @@ export default function MapScreen() {
                                 <Text style={styles.previewCategory} numberOfLines={1}>
                                     {CATEGORIES.find(c => c.id === selectedPostPreview.category)?.label || 'General'}
                                 </Text>
-                                <Text style={styles.previewCredits}>
-                                    {selectedPostPreview.credits} {currencyStr}
-                                </Text>
+                                <CurrencyDisplay
+                                    asView={true}
+                                    style={styles.previewCredits}
+                                    amount={selectedPostPreview.credits}
+                                />
                             </View>
                             <Text style={styles.previewTitle} numberOfLines={1}>
                                 {selectedPostPreview.title}
                             </Text>
                             <Pressable 
-                                style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}
                                 onPress={() => router.push({ pathname: '/public-profile', params: { publicKey: selectedPostPreview.author_pubkey, callsign: selectedPostPreview.author_callsign || 'Unknown' } })}
                             >
                                 <MemberAvatar 
@@ -985,15 +987,15 @@ const styles = StyleSheet.create({
     previewCardWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 150, justifyContent: 'flex-end' },
     previewCardOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent' },
     previewCard: { backgroundColor: '#fff', margin: 16, borderRadius: 24, padding: 0, flexDirection: 'row', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 20, overflow: 'hidden' },
-    previewThumb: { width: 110, height: '100%', minHeight: 110, borderTopLeftRadius: 24, borderBottomLeftRadius: 24, borderTopRightRadius: 0, borderBottomRightRadius: 0, backgroundColor: '#f3f4f6' },
-    previewThumbPlaceholder: { width: 110, height: '100%', minHeight: 110, borderTopLeftRadius: 24, borderBottomLeftRadius: 24, borderTopRightRadius: 0, borderBottomRightRadius: 0, justifyContent: 'center', alignItems: 'center' },
+    previewThumb: { width: 125, height: '100%', minHeight: 125, borderTopLeftRadius: 24, borderBottomLeftRadius: 24, borderTopRightRadius: 0, borderBottomRightRadius: 0, backgroundColor: '#f3f4f6' },
+    previewThumbPlaceholder: { width: 125, height: '100%', minHeight: 125, borderTopLeftRadius: 24, borderBottomLeftRadius: 24, borderTopRightRadius: 0, borderBottomRightRadius: 0, justifyContent: 'center', alignItems: 'center' },
     previewInfo: { flex: 1, padding: 14, justifyContent: 'center' },
     previewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, paddingRight: 32 },
     previewCategory: { fontSize: 12, fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 },
     previewCredits: { fontSize: 14, fontWeight: '800', color: '#10b981' },
     previewTitle: { fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 4 },
-    previewAuthor: { fontSize: 14, fontWeight: '500', color: '#6b7280', marginBottom: 12 },
-    previewActionBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center' },
+    previewAuthor: { fontSize: 14, fontWeight: '500', color: '#6b7280' },
+    previewActionBtn: { paddingVertical: 7, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center' },
     previewActionText: { color: '#fff', fontSize: 14, fontWeight: '700' },
     previewClose: { position: 'absolute', top: 12, right: 12, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.05)', justifyContent: 'center', alignItems: 'center' },
     previewCloseText: { fontSize: 12, fontWeight: '800', color: '#6b7280' },

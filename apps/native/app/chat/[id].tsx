@@ -8,6 +8,7 @@ import { useIdentity } from '../IdentityContext';
 import { getMessages, getConversation, insertMessage, syncMessages, syncSingleConversation, markConversationRead, completeMarketplaceTransaction, cancelMarketplaceTransaction, getDb } from '../../utils/db';
 import { hapticSuccess, hapticWarning } from '../../utils/haptics';
 import { ReviewModal } from '../../components/ReviewModal';
+import { MemberAvatar } from '../../components/MemberAvatar';
 
 export default function ChatScreen() {
     const { id, triggerReview } = useLocalSearchParams();
@@ -15,6 +16,8 @@ export default function ChatScreen() {
     const [messages, setMessages] = useState<any[]>([]);
     const [draft, setDraft] = useState('');
     const [peerName, setPeerName] = useState('Loading...');
+    const [peerPubkey, setPeerPubkey] = useState<string | null>(null);
+    const [peerAvatar, setPeerAvatar] = useState<string | null>(null);
     const [postContext, setPostContext] = useState<any>(null);
     const [pendingTx, setPendingTx] = useState<{ id: string; amount: number; isPayer: boolean } | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
@@ -32,6 +35,8 @@ export default function ChatScreen() {
                     const res = await getConversation(id as string, identity.publicKey);
                     if (res) {
                         setPeerName(res.name || res.otherCallsign || String(id).slice(0, 8));
+                        if (res.otherPubkey) setPeerPubkey(res.otherPubkey);
+                        setPeerAvatar(res.otherAvatar || null);
                         if (res.postId) {
                             setPostContext({
                                 id: res.postId,
@@ -300,10 +305,30 @@ export default function ChatScreen() {
                 <Pressable onPress={() => router.back()} style={styles.backButton}>
                     <MaterialCommunityIcons name="arrow-left" size={28} color="#1f2937" />
                 </Pressable>
-                <View style={styles.headerTitleContainer}>
-                    <Text style={styles.headerTitle}>{peerName.toUpperCase()}</Text>
-                    <Text style={styles.headerSubtitle}>Connected via Mullum Node</Text>
-                </View>
+                
+                <Pressable 
+                    onPress={() => {
+                        if (peerPubkey) {
+                            router.push({
+                                pathname: '/public-profile',
+                                params: { publicKey: peerPubkey, callsign: peerName }
+                            });
+                        }
+                    }} 
+                    style={styles.headerProfileContainer}
+                >
+                    <MemberAvatar 
+                        avatarUrl={peerAvatar} 
+                        pubkey={peerPubkey || ''} 
+                        callsign={peerName} 
+                        size={38} 
+                    />
+                    <View style={styles.headerTextContainer}>
+                        <Text style={styles.headerTitle} numberOfLines={1}>{peerName.toUpperCase()}</Text>
+                        <Text style={styles.headerSubtitle} numberOfLines={1}>Connected via Mullum Node</Text>
+                    </View>
+                </Pressable>
+
                 <Pressable style={styles.moreButton}>
                     <MaterialCommunityIcons name="dots-horizontal" size={28} color="#6b7280" />
                 </Pressable>
@@ -437,7 +462,8 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#ffffff' },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
     backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
-    headerTitleContainer: { flex: 1, alignItems: 'center' },
+    headerProfileContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 8, gap: 10 },
+    headerTextContainer: { flex: 1, justifyContent: 'center' },
     headerTitle: { fontSize: 16, fontWeight: '800', color: '#1f2937', letterSpacing: 0.5 },
     headerSubtitle: { fontSize: 11, color: '#10b981', fontWeight: '600', marginTop: 2 },
     moreButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-end' },
