@@ -4,11 +4,14 @@
 > **Read this first** — then see `index.md` for a full documentation map.
 
 ---
-## Current State (2026-05-23)
+## Current State (2026-05-24)
 
-**BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🪶 bean reputation system, abuse reporting, **moderation centre** (batch post management, wash-trading detection, member audit), **update notifications** (Docker Desktop-style header badge with auto-check), community health dashboard, and federation protocol — deployed on **4 independent nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity including a custom Android map marker rendering pipeline. A new automated security journaling process using the `.jules` directory has been established to harden the codebase. The monorepo has successfully decoupled client and server release pipelines (**v1.0.86**, build `103` for Android), with direct Apple/Google store querying checking for client updates, secure P2P WebSocket tunneling through Cloudflare Tunnels, and automated self-healing socket drops.
+**BeanPool is a fully functional PWA + Native App** with invite-only membership, 12-word seed phrase recovery, marketplace (with photos and category filters), E2E messaging, mutual credit ledger, member profiles (editable callsign), friends & guardians, 🪶 bean reputation system, abuse reporting, **moderation centre** (batch post management, wash-trading detection, member audit), **update notifications** (Docker Desktop-style header badge with auto-check), community health dashboard, and federation protocol — deployed on **5 independent nodes** with Let's Encrypt TLS. A **React Native / Expo companion app** (`apps/native/`) is in active development with near-complete PWA parity including a custom Android map marker rendering pipeline. A new automated security journaling process using the `.jules` directory has been established to harden the codebase. The monorepo has successfully decoupled client and server release pipelines (**v1.0.88**, build `103` for Android), with direct Apple/Google store querying checking for client updates, secure P2P WebSocket tunneling through Cloudflare Tunnels, automated self-healing socket drops, and real-time push-on-write replication.
 
 ### What's Working
+- ✅ **Active/Passive Collision & Deadlock HUD (v1.0.87 / v1.0.88)** — Resolves P2P Yamux concurrent dial-racing and silent listener deadlocks. Incorporates dynamic Active Dialer (`enabled: true`) and Passive Listener (`enabled: false`) configuration roles that exchange enabled states over the handshake protocol, automatically rendering red `⚠️ Collision` and yellow `⚠️ Deadlock` warning badges with custom glassmorphic action instructions.
+- ✅ **Push-on-Write Real-Time Replication (v1.0.87 / v1.0.88)** — Real-time event log broadcasts using `/beanpool/sync/delta/2.0.0` secure WebSockets. Instantly signs delta event payloads with the node's libp2p Ed25519 private key upon any SQLite write, verified cryptographically by target mirrors.
+- ✅ **15-Min Reconcile & 24h Tombstone Pruning** — Shipped a robust 15-minute background full Merkle-tree state comparison safety net to repair dropped delta frames, paired with a 24-hour database garbage collector that prunes soft-deleted tombstones older than 30 days once downstream peers' cursors have synced past them.
 - ✅ **P2P WebSocket Tunneling & Self-Healing (v1.0.85 / v1.0.86)** — Establish stable bidirectional P2P mirroring through Cloudflare Tunnels (port `443` secure WebSockets) using orange-clouded DNS subdomains (e.g., `p2p-mullum2.beanpool.org`). Automatic periodic Yamux handshake checks prune stale socket references forcefully using `p2pNode.hangUp` and trigger clean recovery dials within 30 seconds of a node restart.
 - ✅ **Dynamic Map Root** — Leaflet map defaults coordinate center to the node's `serviceRadius` config (e.g. Mullumbimby) instead of hardcoding, and handles location cleanly without async ghost-pin drops.
 - ✅ **Invite-only membership** — single-use invite codes, hierarchical invite tree (node → seed codes → admin → organic invites)
@@ -216,10 +219,11 @@ bash deploy.sh 4         # Review (US) only
 | 2 | Mullum 2 | `192.168.1.219` | `mullum2.beanpool.org` | `marty` | default key | Bare metal, directory `BeanPool-Mullum2`, alternate ports (8447/8448) |
 | 4 | Review | `192.168.1.219` | `review.beanpool.org` | `marty` | default key | Bare metal, directory `BeanPool-Review`, alternate ports (8445/8081) |
 | 5 | Test | `192.168.1.219` | `test.beanpool.org` | `marty` | default key | Bare metal, directory `BeanPool`, default ports, offline SQLite recovery node |
+| 6 | Test Mirror | `192.168.1.219` | `test-mirror.beanpool.org` | `marty` | default key | Bare metal, directory `BeanPool-TestMirror`, alternate ports (8451/8083, 4008/4009), real-time replica of Test (Node 5) |
 
 ```bash
 ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68   # Mullum 1 (Azure)
-ssh marty@192.168.1.219                                  # Mullum 2 + Review + Test (Debian Lighthouse)
+ssh marty@192.168.1.219                                  # Mullum 2 + Review + Test + Test Mirror (Debian Lighthouse)
 ```
 
 ### Useful Debug Commands

@@ -11,7 +11,7 @@
 
 BeanPool is an open protocol for building a **post-extraction economy**. It connects communities through a decentralized mutual credit system where value is created through cooperation, not extraction. Nodes gossip state over a libp2p mesh, automatically applying progressive circulation (value decay) to prevent hoarding and fund a community Commons pool.
 
-**Live network:** [mullum1.beanpool.org](https://mullum1.beanpool.org) · [mullum2.beanpool.org](https://mullum2.beanpool.org:8447) · [review.beanpool.org](https://review.beanpool.org:8445) · [test.beanpool.org](https://test.beanpool.org) — federated via peer connectors with cross-community marketplace browsing and cryptographically secure Libp2p mesh trading.
+**Live network:** [mullum1.beanpool.org](https://mullum1.beanpool.org) · [mullum2.beanpool.org](https://mullum2.beanpool.org:8447) · [review.beanpool.org](https://review.beanpool.org:8445) · [test.beanpool.org](https://test.beanpool.org) · [test-mirror.beanpool.org](https://test-mirror.beanpool.org:8451) — federated via peer connectors with cross-community marketplace browsing and cryptographically secure Libp2p mesh trading.
 
 ---
 
@@ -160,9 +160,11 @@ Nodes connected as **peers** enable:
 
 ### 🔄 Mirror State Sync
 Automatic state synchronisation between `mirror`-trusted nodes:
-- **Merkle hash comparison** — only syncs when state differs
-- **Delta exchange** — new members and posts only
-- **15-minute intervals** with initial sync 30s after boot
+- **Push-on-Write Real-Time Replication** — State updates instantly trigger delta event broadcasts over secure WebSockets `/beanpool/sync/delta/2.0.0`
+- **Cryptographic Signatures** — payloaddeltas are signed using the node's private libp2p Ed25519 key and validated by the receiver before DB writes
+- **Merkle hash comparison** — only syncs full payloads when state differs
+- **15-minute Safety Reconcile** — periodic safety net re-compares the full Merkle tree, catch-up-syncing past dropped delta frames
+- **24-hour Tombstone GC** — automatic garbage collection prunes deletion tombstones older than 30 days relative to downstream peer cursors
 - **Origin tracking** — posts carry their source node ID
 
 ### 🔒 Privacy (4-Tier Location Model)
@@ -395,9 +397,12 @@ All endpoints are served on port 8443 (HTTPS):
 
 ## Status
 
-BeanPool is in active development. The PWA is **fully functional** and a **React Native / Expo companion app** has near-complete parity with 7 tabs (Map, Projects, Market, Chat, People, Ledger, Settings), SQLite persistence, and background Merkle sync. Four nodes (Mullum 1, Mullum 2, Review, Test) are deployed with federation protocol for cross-community trading.
+BeanPool is in active development. The PWA is **fully functional** and a **React Native / Expo companion app** has near-complete parity with 7 tabs (Map, Projects, Market, Chat, People, Ledger, Settings), SQLite persistence, and background Merkle sync. Five nodes (Mullum 1, Mullum 2, Review, Test, Test Mirror) are deployed with federation protocol for cross-community trading.
 
 **What's working:**
+- ✅ **Active/Passive Collision & Deadlock HUD (v1.0.87 / v1.0.88)** — Resolves P2P Yamux concurrent dial-racing and silent listener deadlocks. Configures Active Dialer (`enabled: true`) and Passive Listener (`enabled: false`) roles that exchange enabled states on handshake, automatically rendering red `⚠️ Collision` and yellow `⚠️ Deadlock` warning badges with custom inline warning instructions.
+- ✅ **Push-on-Write Real-Time Replication (v1.0.87 / v1.0.88)** — Real-time event delta broadcasts using `/beanpool/sync/delta/2.0.0` secure WebSockets. Instantly signs delta event payloads with the node's libp2p Ed25519 private key upon any SQLite write, verified cryptographically by target mirrors.
+- ✅ **15-Min Reconcile & 24h Tombstone Pruning** — Shipped a robust 15-minute background full Merkle-tree state comparison safety net to repair dropped delta frames, paired with a 24-hour database garbage collector that prunes soft-deleted tombstones older than 30 days once downstream peers' cursors have synced past them.
 - ✅ **P2P WebSocket Tunneling & Self-Healing (v1.0.85 / v1.0.86)** — Establish stable bidirectional P2P mirroring through Cloudflare Tunnels (port `443` secure WebSockets) using orange-clouded DNS subdomains (e.g. `p2p-mullum2.beanpool.org`). Automatic periodic Yamux handshake checks prune stale socket references forcefully using `p2pNode.hangUp` and trigger clean recovery dials within 30 seconds of a node restart.
 - ✅ **SQLite Diagnostics & Health Gates (v1.0.83 / v1.0.84)** — Active `PRAGMA integrity_check` scans and multi-table counters (Members, Posts, DMs, Txns) displaying database health indicators in Settings. Includes Koa health check `minAppVersion` gates matched dynamically on client boot to overlay updates.
 - ✅ Dynamic Node-Centered Mapping — Leaflet map bounds are dynamically tethered to the node's configured radius, and GPS pin-drop race conditions have been resolved
@@ -423,7 +428,7 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ Mirror state sync (Merkle hash + delta exchange, 15-min intervals)
 - ✅ Handshake protocol (~570ms latency between continents)
 - ✅ Let's Encrypt auto-TLS via DNS-01 challenge (Cloudflare API)
-- ✅ 4 live nodes — Mullum 1 (Azure AU), Mullum 2 (bare metal), Review (bare metal), and Test (bare metal, offline recovery database restoration test server)
+- ✅ 5 live nodes — Mullum 1 (Azure AU), Mullum 2 (bare metal), Review (bare metal), Test (bare metal, offline SQLite recovery node), and Test Mirror (bare metal real-time backup node)
 - ✅ Node admin setup guide with LE and no-domain instructions
 - ✅ Database (SQLite) — `better-sqlite3` with WAL mode, self-healing schema migrations
 - ✅ FTS5 full-text search — marketplace search with synonym mapping

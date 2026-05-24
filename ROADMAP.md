@@ -6,6 +6,11 @@
 
 ## ✅ Recently Completed
 
+- ✅ **Release v1.0.88: Active/Passive Collision & Deadlock Warnings & Test Mirror Deployment** — Introduced high-visibility connection warnings, real-time push-on-write replication, safety reconciles, automatic tombstone pruning, and a 5th live node (Node 6 - Test Mirror) to the BeanPool federated network.
+  - **Active/Passive Role Toggles & HUD Warnings**: Added Dialer (`enabled: true`) and Listener (`enabled: false`) roles that exchange enabled states on handshake. Automatically detects and overlays a red `⚠️ Collision` warning badge for dual active nodes and a yellow `⚠️ Deadlock` warning badge for dual passive nodes with clear inline instructions.
+  - **Push-on-Write Real-Time Replication**: Upgraded state synchronization to perform real-time WebSocket delta event broadcasts (`/beanpool/sync/delta/2.0.0`) on database write, cryptographically signed using the node's Ed25519 private key and validated by the receiver.
+  - **15-Min Reconcile & 24h Tombstone Pruning**: Shipped a robust 15-minute background full Merkle-tree state comparison safety net to repair dropped delta frames, paired with a 24-hour database garbage collector that prunes soft-deleted tombstones older than 30 days once downstream peers' cursors have synced past them.
+  - **Test Mirror Node 6 Deployment**: Added `test-mirror.beanpool.org` (Node 6) as a real-time replica of Test (Node 5) on ports `8451/8083` and `4008/4009`, serving as a live mirror backup node.
 - ✅ **Release v1.0.86: Self-Healing Stale Socket Drops** — Resolved the Yamux socket reference hang-up issue occurring after node restarts, preventing asymmetric handshake failures.
   - **Auto-Pruning & Active Hangup**: Implemented proactive catch-block connection purging in `connector-manager.ts` that detects failed P2P handshakes, clears connection status immediately, and forcefully terminates stale sockets (`p2pNode.hangUp`).
   - **Automated Reconnect Recovery**: Leveraged retry-loop dials on fresh sockets, restoring mutual trust handshake sync states bidirectionally in under 30 seconds of node boot.

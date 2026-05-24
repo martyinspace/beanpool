@@ -396,11 +396,34 @@ To prevent this, the server integrates a self-healing socket pruner:
 - **Auto-Hangup**: If a handshake fails on a node marked as `connected`, the node logs the failure, resets all internal connection flags, and forcefully executes `p2pNode.hangUp(peerId)` to purge the stale socket.
 - **Auto-Recovery**: The connection retry loop automatically dials a clean, fresh Yamux stream, establishing a fully mutual, bidirectional synced state within 30 seconds of a restart.
 
+### 8. Active/Passive Collision & Deadlock HUD Warnings
+
+To coordinate node connections and prevent concurrent dial-racing or silent connection hangs:
+- **Active Dialer (`enabled: true`)**: The connector will actively dial the target node at the specified address and intervals.
+- **Passive Listener (`enabled: false`)**: The connector waits to receive incoming connections and handshakes from the peer without actively dial-out.
+
+During handshake, nodes exchange their connection roles (`c.enabled` and `remoteActive`), which the Admin dashboard (served at `/settings.html` via `static/settings.js`) monitors dynamically:
+- **Dual Active Collision (`⚠️ Collision` - Red)**: Triggered when both sides are configured as Active dialers (`c.enabled !== false && c.remoteActive === true`). Displays a prominent red warning asking to click **"Make Passive"** on one node to prevent connection bouncing.
+- **Dual Passive Deadlock (`⚠️ Deadlock` - Yellow)**: Triggered when both sides are configured as Passive listeners (`c.enabled === false && c.remoteActive === false && c.connected`). Displays a yellow warning badge and instructions to click **"Make Active"** on one node to initiate syncing.
+
+### 9. Push-on-Write Real-Time Replication
+
+To support immediate, low-latency replication of directory listings, posts, and transactions between trusted mirrors:
+- **WebSocket Delta Broadcasts**: Instantly triggers state updates to all active mirror streams over secure WebSockets `/beanpool/sync/delta/2.0.0` upon any database write.
+- **Ed25519 Payload Signatures**: To maintain a zero-trust architecture, the server signs all outgoing delta event payloads using its unique private libp2p Ed25519 identity key.
+- **Cryptographic Verification**: The receiving mirror verifies the signature using the peer's public key before committing the delta transaction to the local SQLite database.
+
+### 10. 15-Minute Safety Reconcile & Tombstone Pruning
+
+A robust background data lifecycle management strategy guarantees ultimate consistency and keeps storage footprints light:
+- **15-Minute Safety Reconcile**: As a fallback for lost delta frames or socket drops, a periodic background routine re-compares the full Merkle tree of the local and remote node states, triggering a catch-up sync.
+- **24-Hour Tombstone GC**: Soft-deleted entries leave database tombstones to track deletions. A daily garbage collector automatically prunes tombstones older than 30 days once downstream mirror peer cursors have caught up and synced past them.
+
 ---
 
 ## 🌐 Live Network Topology
 
-The project maintains 4 live independent nodes spanning bare-metal and Azure VMs. All three bare-metal nodes run on the Debian "Lighthouse" server at `192.168.1.219`, served via Cloudflare Tunnel.
+The project maintains 5 live independent nodes spanning bare-metal and Azure VMs. All four bare-metal nodes run on the Debian "Lighthouse" server at `192.168.1.219`, served via Cloudflare Tunnel.
 
 | # | Flag | Name | IP Address | DNS Name | Type | PWA |
 |---|------|------|-----------|----------|------|-----|
@@ -408,6 +431,7 @@ The project maintains 4 live independent nodes spanning bare-metal and Azure VMs
 | 2 | 🏠 | Mullum 2 | `192.168.1.219` | `mullum2.beanpool.org` | Bare Metal (Cloudflare Tunnel) | [Open](https://mullum2.beanpool.org:8447) |
 | 4 | 🏠 | Review | `192.168.1.219` | `review.beanpool.org` | Bare Metal (Cloudflare Tunnel) | [Open](https://review.beanpool.org:8445) |
 | 5 | 🏠 | Test | `192.168.1.219` | `test.beanpool.org` | Bare Metal (Cloudflare Tunnel) | [Open](https://test.beanpool.org) |
+| 6 | 🏠 | Test Mirror | `192.168.1.219` | `test-mirror.beanpool.org` | Bare Metal (Cloudflare Tunnel) | [Open](https://test-mirror.beanpool.org:8451) |
 
 ### Deployment Commands
 The root `deploy.sh` manages upgrades across the mesh:
@@ -417,12 +441,13 @@ bash deploy.sh 1         # Mullum 1 only
 bash deploy.sh 2         # Mullum 2 only
 bash deploy.sh 4         # Review only
 bash deploy.sh 5         # Test only
+bash deploy.sh 6         # Test Mirror only
 ```
 
 ### SSH Access
 ```bash
 ssh -i ~/.ssh/id_azure_lattice azureuser@20.211.27.68   # Mullum 1 (Azure)
-ssh marty@192.168.1.219                                  # Mullum 2 + Review + Test (Debian Lighthouse)
+ssh marty@192.168.1.219                                  # Mullum 2 + Review + Test + Test Mirror (Debian Lighthouse)
 ```
 
 **Check Container Logs:**
