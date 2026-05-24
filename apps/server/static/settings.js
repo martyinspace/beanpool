@@ -286,7 +286,13 @@
                     ? `<span class="badge" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);"><span style="font-size:0.75rem;line-height:1;margin-right:1px;display:flex;align-items:center;height:12px;">⚠️</span>Collision</span>`
                     : '';
 
-                const syncBadge = (c.trustLevel === 'mirror' && c.connected && c.mutualTrust)
+                const isDeadlock = (c.enabled === false && c.remoteActive === false && c.connected);
+                const deadlockBadge = isDeadlock
+                    ? `<span class="badge" style="background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);"><span style="font-size:0.75rem;line-height:1;margin-right:1px;display:flex;align-items:center;height:12px;">⚠️</span>Deadlock</span>`
+                    : '';
+
+                // Only show Syncing if we are connected, mutualTrust is true, and we are NOT deadlocked!
+                const syncBadge = (c.trustLevel === 'mirror' && c.connected && c.mutualTrust && !isDeadlock)
                     ? `<span class="badge" style="background:rgba(99,102,241,0.15);color:#818cf8;border:1px solid rgba(99,102,241,0.3);"><svg style="width:10px;height:10px;animation:spin 3s linear infinite;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l.57-.19"/></svg>Syncing</span>`
                     : '';
 
@@ -310,6 +316,17 @@
                     `
                     : '';
 
+                const deadlockAlert = isDeadlock
+                    ? `
+                    <div style="margin-top:0.5rem;padding:0.5rem 0.6rem;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);border-radius:6px;font-size:0.7rem;color:#fbbf24;line-height:1.4;display:flex;align-items:flex-start;gap:0.35rem;">
+                        <span style="font-size:0.85rem;line-height:1;margin-top:1px;">⚠️</span>
+                        <div>
+                            <strong>Dual Passive Deadlock!</strong> Both nodes are configured as <strong>Passive</strong> listeners. Neither node will initiate synchronization. Please click <strong>"⚡ Make Active"</strong> on one of them to start syncing.
+                        </div>
+                    </div>
+                    `
+                    : '';
+
                 return `
                     <div class="connector-card">
                         <div class="header">
@@ -320,6 +337,7 @@
                             <div style="display:flex;gap:0.25rem;align-items:center;">
                                 ${modeBadge}
                                 ${collisionBadge}
+                                ${deadlockBadge}
                                 ${syncBadge}
                                 ${badge}
                             </div>
@@ -330,6 +348,7 @@
                             <span>RTT: ${latency}</span>
                         </div>
                         ${collisionAlert}
+                        ${deadlockAlert}
                         <div class="actions">
                             ${c.connected
                         ? `<button class="btn btn-outline btn-sm" onclick="doDisconnect('${esc(c.address)}')">Disconnect</button>`
