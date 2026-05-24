@@ -6,6 +6,7 @@ class WebSocketSyncClient {
     private ws: WebSocket | null = null;
     private currentUrl: string | null = null;
     private reconnectTimeoutId: any = null;
+    private pingIntervalId: any = null;
     private reconnectDelay = 1000;
     private isStarted = false;
     private isConnecting = false; // Fixes the AsyncStorage race condition
@@ -85,6 +86,18 @@ class WebSocketSyncClient {
                 console.log(`[WS Sync] ✅ Connected to WebSocket: ${wsUrl}`);
                 this.reconnectDelay = 1000; 
                 requestSync();
+
+                // Start 30s heartbeat keep-alive to prevent reverse proxy/Cloudflare idle timeout drops
+                if (this.pingIntervalId) clearInterval(this.pingIntervalId);
+                this.pingIntervalId = setInterval(() => {
+                    if (this.ws === socket && socket.readyState === WebSocket.OPEN) {
+                        try {
+                            socket.send(JSON.stringify({ type: 'ping' }));
+                        } catch (err) {
+                            console.warn('[WS Sync] Failed to send heartbeat', err);
+                        }
+                    }
+                }, 30000);
             };
 
             socket.onmessage = (event) => {
@@ -105,6 +118,10 @@ class WebSocketSyncClient {
                 if (this.ws === socket) {
                     console.log(`[WS Sync] WebSocket closed: code=${e.code}, reason=${e.reason}`);
                     this.ws = null;
+                    if (this.pingIntervalId) {
+                        clearInterval(this.pingIntervalId);
+                        this.pingIntervalId = null;
+                    }
                     this.scheduleReconnect();
                 }
             };
@@ -126,6 +143,11 @@ class WebSocketSyncClient {
         if (this.reconnectTimeoutId) {
             clearTimeout(this.reconnectTimeoutId);
             this.reconnectTimeoutId = null;
+        }
+
+        if (this.pingIntervalId) {
+            clearInterval(this.pingIntervalId);
+            this.pingIntervalId = null;
         }
         
         if (this.ws) {
