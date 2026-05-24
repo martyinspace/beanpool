@@ -79,7 +79,7 @@ export function setLocalNodeId(id: string) {
 /**
  * Read data from a stream by polling readBuffer until data arrives.
  */
-function readFromStream(stream: any, timeoutMs = 30000): Promise<string> {
+export function readFromStream(stream: any, timeoutMs = 30000): Promise<string> {
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
             reject(new Error('Sync read timeout'));

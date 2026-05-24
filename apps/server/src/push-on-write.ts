@@ -31,7 +31,7 @@ import {
     signSyncPayload,
     type SyncPayload,
 } from './state-engine.js';
-import { SYNC_EVENT_PROTOCOL } from './sync-protocol.js';
+import { SYNC_EVENT_PROTOCOL, readFromStream } from './sync-protocol.js';
 import { logger } from './logger.js';
 import crypto from 'node:crypto';
 
@@ -153,24 +153,7 @@ async function dialAndPush(peerIdStr: string, label: string, delta: SyncPayload)
         // Read the ACK so we know the remote actually applied the write before
         // we report success. Same async-iterator + JSON-parse pattern as the
         // rest of the sync protocol.
-        const chunks: Uint8Array[] = [];
-        const ackPromise = (async () => {
-            for await (const chunk of stream) {
-                chunks.push(chunk instanceof Uint8Array ? chunk : Uint8Array.from(chunk));
-                try {
-                    const text = decoder.decode(Buffer.concat(chunks));
-                    JSON.parse(text);
-                    return text;
-                } catch {
-                    // incomplete JSON, keep reading
-                }
-            }
-            return decoder.decode(Buffer.concat(chunks));
-        })();
-        const timeoutPromise = new Promise<string>((_, reject) =>
-            setTimeout(() => reject(new Error('ack timeout')), 10_000)
-        );
-        const ackRaw = await Promise.race([ackPromise, timeoutPromise]);
+        const ackRaw = await readFromStream(stream, 10000);
         const ack = JSON.parse(ackRaw);
         if (ack.type !== 'ack') {
             throw new Error(`expected ack, got ${ack.type} (${ack.reason || 'no reason'})`);
