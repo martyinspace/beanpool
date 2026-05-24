@@ -491,7 +491,7 @@ export async function disconnectFromAddress(address: string): Promise<void> {
     logger.info('P2P', `[Connectors] Disconnected from ${address}`);
 }
 
-export function addConnector(address: string, trustLevel: TrustLevel, callsign?: string, publicUrl?: string): ConnectorConfig {
+export function addConnector(address: string, trustLevel: TrustLevel, callsign?: string, publicUrl?: string, enabled?: boolean): ConnectorConfig {
     // Auto-derive publicUrl if not provided
     if (!publicUrl && address) {
         const [host, port] = address.split(':');
@@ -504,8 +504,9 @@ export function addConnector(address: string, trustLevel: TrustLevel, callsign?:
     const existing = connectors.find(c => c.address === address);
     if (existing) {
         existing.trustLevel = trustLevel;
-        if (callsign) existing.callsign = callsign;
-        if (publicUrl) existing.publicUrl = publicUrl;
+        if (callsign !== undefined) existing.callsign = callsign;
+        if (publicUrl !== undefined) existing.publicUrl = publicUrl;
+        if (enabled !== undefined) existing.enabled = enabled;
         saveConnectors();
         return existing;
     }
@@ -513,7 +514,7 @@ export function addConnector(address: string, trustLevel: TrustLevel, callsign?:
     const connector: ConnectorConfig = {
         address,
         trustLevel,
-        enabled: true,
+        enabled: enabled !== undefined ? enabled : true,
         callsign: callsign || undefined,
         publicUrl,
         addedAt: Date.now(),
@@ -521,7 +522,7 @@ export function addConnector(address: string, trustLevel: TrustLevel, callsign?:
 
     connectors.push(connector);
     saveConnectors();
-    logger.info('P2P', `[Connectors] Added connector: ${address} (trust: ${trustLevel})`);
+    logger.info('P2P', `[Connectors] Added connector: ${address} (trust: ${trustLevel}, enabled: ${connector.enabled})`);
     return connector;
 }
 

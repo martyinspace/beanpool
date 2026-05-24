@@ -862,7 +862,7 @@ export async function startHttpsServer(port: number): Promise<void> {
     router.post('/api/local/connectors', async (ctx) => {
         if (!rateLimit(ctx)) return;
         const config = getLocalConfig();
-        const { password, address, trustLevel, callsign } = (ctx as any).requestBody || {};
+        const { password, address, trustLevel, callsign, enabled } = (ctx as any).requestBody || {};
 
         if (!password || !config.adminHash || !config.salt ||
             !verifyPassword(password, config.adminHash, config.salt)) {
@@ -880,7 +880,8 @@ export async function startHttpsServer(port: number): Promise<void> {
         const validTrustLevels: TrustLevel[] = ['mirror', 'peer', 'blocked'];
         const level: TrustLevel = validTrustLevels.includes(trustLevel) ? trustLevel : 'peer';
 
-        const connector = addConnector(address, level, callsign);
+        const isEnabled = enabled !== undefined ? Boolean(enabled) : undefined;
+        const connector = addConnector(address, level, callsign, undefined, isEnabled);
         ctx.body = { success: true, connector };
     });
 

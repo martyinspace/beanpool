@@ -258,6 +258,7 @@
         }
 
         // ======================== CONNECTORS ========================
+        // ======================== CONNECTORS ========================
         function renderConnectors(connectors) {
             const list = document.getElementById('connectors-list');
             if (connectors.length === 0) {
@@ -274,7 +275,18 @@
                 } else {
                     badge = `<span class="badge badge-disconnected">○ Disconnected</span>`;
                 }
-                const latency = c.latencyMs !== null && c.latencyMs > 0 ? `${c.latencyMs}ms` : '—';
+
+                const isPassive = c.enabled === false;
+                const modeBadge = isPassive
+                    ? `<span class="badge" style="background:rgba(148,163,184,0.15);color:#94a3b8;border:1px solid rgba(148,163,184,0.3);margin-left:0.25rem;">💤 Passive</span>`
+                    : `<span class="badge" style="background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3);margin-left:0.25rem;">⚡ Active</span>`;
+
+                let latency = '—';
+                if (c.latencyMs !== null && c.latencyMs > 0) {
+                    latency = `${c.latencyMs}ms`;
+                } else if (c.connected && isPassive) {
+                    latency = '— (Inbound Verified)';
+                }
                 const lastVerified = c.lastVerified ? `${Math.round((Date.now() - c.lastVerified) / 1000)}s ago` : '—';
                 const remoteTrust = c.remoteTrustLevel ? trustLabels[c.remoteTrustLevel] || c.remoteTrustLevel : '—';
 
@@ -285,7 +297,10 @@
                                 <div class="name">${esc(c.callsign || c.address)}</div>
                                 <div class="addr">${esc(c.address)}</div>
                             </div>
-                            ${badge}
+                            <div style="display:flex;gap:0.25rem;align-items:center;">
+                                ${modeBadge}
+                                ${badge}
+                            </div>
                         </div>
                         <div class="meta">
                             <span>You → ${trustLabels[c.trustLevel] || c.trustLevel}</span>
@@ -297,6 +312,9 @@
                         ? `<button class="btn btn-outline btn-sm" onclick="doDisconnect('${esc(c.address)}')">Disconnect</button>`
                         : `<button class="btn btn-outline btn-sm" onclick="doConnect('${esc(c.address)}')">Connect</button>`
                     }
+                            <button class="btn btn-outline btn-sm" onclick="toggleConnectorMode('${esc(c.address)}', ${c.enabled === false}, '${esc(c.trustLevel)}', '${esc(c.callsign || '')}')">
+                                ${isPassive ? '⚡ Make Active' : '💤 Make Passive'}
+                            </button>
                             <button class="btn btn-danger btn-sm" onclick="doRemove('${esc(c.address)}')">Remove</button>
                         </div>
                     </div>
@@ -345,17 +363,41 @@
             } catch (e) { showStatus('connector-status', 'Remove failed', 'error'); }
         };
 
+        window.toggleConnectorMode = async function (address, makeActive, trustLevel, callsign) {
+            try {
+                await fetch(`${API}/connectors`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        password: authToken,
+                        address,
+                        trustLevel,
+                        callsign: callsign || undefined,
+                        enabled: makeActive
+                    })
+                });
+                await refreshConnectors();
+            } catch (e) { showStatus('connector-status', 'Failed to update mode', 'error'); }
+        };
+
         // Add connector
         document.getElementById('add-connector-btn').addEventListener('click', async () => {
             const address = document.getElementById('new-addr').value.trim();
             const trustLevel = document.getElementById('new-trust').value;
+            const mode = document.getElementById('new-mode').value;
             const callsign = document.getElementById('new-callsign').value.trim();
             if (!address) { showStatus('connector-status', 'Address is required', 'error'); return; }
             try {
                 const res = await fetch(`${API}/connectors`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: authToken, address, trustLevel, callsign: callsign || undefined })
+                    body: JSON.stringify({
+                        password: authToken,
+                        address,
+                        trustLevel,
+                        callsign: callsign || undefined,
+                        enabled: mode === 'active'
+                    })
                 });
                 if (res.ok) {
                     document.getElementById('new-addr').value = '';

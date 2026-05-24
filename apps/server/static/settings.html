@@ -851,9 +851,16 @@
                             <div id="mirror-warning" style="display:none;color:#f59e0b;font-size:0.7rem;margin-top:4px">⚠️ Mirror copies all data. Use only for private backups.</div>
                         </div>
                         <div class="field" style="margin-bottom:0">
-                            <label>Callsign (optional)</label>
-                            <input type="text" id="new-callsign" placeholder="e.g. US Node" maxlength="20">
+                            <label>Connection Mode</label>
+                            <select id="new-mode">
+                                <option value="active" selected>⚡ Active (Outbound Dial)</option>
+                                <option value="passive">💤 Passive (Inbound Listen)</option>
+                            </select>
                         </div>
+                    </div>
+                    <div class="field" style="margin-bottom:0">
+                        <label>Callsign (optional)</label>
+                        <input type="text" id="new-callsign" placeholder="e.g. US Node" maxlength="20">
                     </div>
                     <button class="btn btn-primary" id="add-connector-btn">Add Connector</button>
                     <div class="status-msg" id="connector-status"></div>
