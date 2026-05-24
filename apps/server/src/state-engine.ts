@@ -84,6 +84,8 @@ export interface Member {
     contactValue?: string | null;
     contactVisibility?: string | null;
     lastActiveAt?: string | null;
+    /** Source-of-truth mutation watermark used by delta sync for last-writer-wins conflict resolution. */
+    updatedAt?: string | null;
 }
 
 export interface InviteCode {
@@ -508,10 +510,26 @@ export function removeWsClient(ws: any): void {
     wsClients.delete(ws);
 }
 
+/**
+ * Optional sink for broadcast events beyond the WebSocket fanout — wired by
+ * the push-on-write module at init time. Kept as a setter (rather than a direct
+ * import) to avoid a state-engine ↔ push-on-write circular dependency.
+ */
+type BroadcastHook = (event: any) => void;
+let broadcastHook: BroadcastHook | null = null;
+export function setBroadcastHook(hook: BroadcastHook | null): void {
+    broadcastHook = hook;
+}
+
 function broadcast(event: any): void {
     const msg = JSON.stringify(event);
     for (const ws of wsClients) {
         try { ws.send(msg); } catch { wsClients.delete(ws); }
+    }
+    if (broadcastHook) {
+        try { broadcastHook(event); } catch (e: any) {
+            console.error('[Broadcast hook error]', e?.message || e);
+        }
     }
 }
 
@@ -552,6 +570,7 @@ function rowToMember(row: any): Member {
         contactVisibility: row.contact_visibility || null,
         status: row.status || 'active',
         lastActiveAt: row.last_active_at || null,
+        updatedAt: row.updated_at || null,
     };
 }
 
@@ -2069,6 +2088,8 @@ export interface PostPhoto {
     post_id: string;
     photo_data: string;
     order_num: number;
+    /** Source-of-truth mutation watermark used by delta sync for last-writer-wins conflict resolution. */
+    updated_at?: string | null;
 }
 
 export interface Project {
@@ -2082,6 +2103,8 @@ export interface Project {
     deadline_at: string | null;
     status: string;
     created_at: string;
+    /** Source-of-truth mutation watermark used by delta sync for last-writer-wins conflict resolution. */
+    updated_at?: string | null;
 }
 
 export interface SyncAccount {
@@ -2132,6 +2155,8 @@ export interface SyncRecoveryRequest {
     cooldownUntil: string | null;
     executedAt: string | null;
     expiresAt: string | null;
+    /** Source-of-truth mutation watermark used by delta sync for last-writer-wins conflict resolution. */
+    updatedAt?: string | null;
 }
 
 export interface SyncRecoveryApproval {
@@ -2151,12 +2176,26 @@ export interface SyncMarketplaceTransaction {
     status: string;
     createdAt: string;
     completedAt: string | null;
+    /** Source-of-truth mutation watermark used by delta sync for last-writer-wins conflict resolution. */
+    updatedAt?: string | null;
 }
 
+/**
+ * Unified payload envelope used by all sync paths:
+ *  - Full reconcile (every 15 min via /beanpool/sync/payload/2.0.0)     — every array populated
+ *  - Cursor-based delta pull (every 30s via /beanpool/sync/delta/2.0.0) — only changed rows since `cursor`
+ *  - Push-on-write event       (per write via /beanpool/sync/event/2.0.0) — single-row delta envelope
+ *
+ * Every row carries its own `updated_at`/timestamp so the importer can do
+ * last-writer-wins conflict resolution. `tombstones` propagates hard deletes
+ * (see writeTombstone in db.ts). `cursor` is the exporter's wall-clock at the
+ * moment of capture and becomes the recipient's next `since`.
+ */
 export interface SyncPayload {
-    stateHash: string;
-    members: Member[];
-    posts: MarketplacePost[];
+    stateHash?: string;
+    cursor?: string;
+    members?: Member[];
+    posts?: MarketplacePost[];
     photos?: PostPhoto[];
     projects?: Project[];
     ratings?: Rating[];
@@ -2170,6 +2209,7 @@ export interface SyncPayload {
     abuseReports?: SyncAbuseReport[];
     recoveryRequests?: SyncRecoveryRequest[];
     recoveryApprovals?: SyncRecoveryApproval[];
+    tombstones?: { tableName: string; rowKey: string; deletedAt: string }[];
     nodeId: string;
     signature?: string;
     publicKey?: string;
@@ -2180,6 +2220,66 @@ export function getStateHash(): string {
     const pIds = db.prepare("SELECT id FROM posts WHERE active=1 ORDER BY id").all() as any[];
     const data = JSON.stringify({ m: pKeys.map(k => k.public_key), p: pIds.map(i => i.id) });
     return crypto.createHash('sha256').update(data).digest('hex').substring(0, 16);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                       Sync cursors (per-peer watermarks)                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Look up the timestamp of the last successful delta sync with a given peer.
+ * Returns null if we've never synced with this peer (caller falls back to
+ * full payload exchange).
+ */
+export function getSyncCursor(peerId: string): string | null {
+    const row = db.prepare(`SELECT last_synced_at FROM sync_cursors WHERE peer_id=?`).get(peerId) as { last_synced_at: string } | undefined;
+    return row?.last_synced_at ?? null;
+}
+
+/**
+ * Record that a delta exchange with a peer completed successfully. The cursor
+ * value is the exporter's wall-clock at the moment of capture and becomes the
+ * `since` parameter for the next pull.
+ */
+export function setSyncCursor(peerId: string, cursor: string): void {
+    const now = new Date().toISOString();
+    db.prepare(`
+        INSERT INTO sync_cursors (peer_id, last_synced_at, last_sync_attempt_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(peer_id) DO UPDATE SET
+            last_synced_at = excluded.last_synced_at,
+            last_sync_attempt_at = excluded.last_sync_attempt_at
+    `).run(peerId, cursor, now);
+}
+
+/**
+ * Record that we attempted a sync with a peer (whether it succeeded or not).
+ * Used so we don't keep retrying a flapping peer on every tick.
+ */
+export function recordSyncAttempt(peerId: string): void {
+    const now = new Date().toISOString();
+    db.prepare(`
+        INSERT INTO sync_cursors (peer_id, last_synced_at, last_sync_attempt_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(peer_id) DO UPDATE SET
+            last_sync_attempt_at = excluded.last_sync_attempt_at
+    `).run(peerId, now, now);  // last_synced_at only used for INSERT path
+}
+
+/* -------------------------------------------------------------------------- */
+/*                     Import origin tracking (loop prevention)                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Set during an active sync import so the push-on-write hook can avoid echoing
+ * the same delta back to the origin peer. Module-level state is safe here:
+ * Node's single-threaded event loop + better-sqlite3's synchronous transactions
+ * mean no other code interleaves while an import is in flight.
+ */
+let currentImportOrigin: string | null = null;
+
+export function getCurrentImportOrigin(): string | null {
+    return currentImportOrigin;
 }
 
 export async function exportSyncState(nodeId: string): Promise<SyncPayload> {
@@ -2261,6 +2361,7 @@ export async function exportSyncState(nodeId: string): Promise<SyncPayload> {
         status: row.status,
         createdAt: row.created_at,
         completedAt: row.completed_at,
+        updatedAt: row.updated_at || row.completed_at || row.created_at,
     }));
 
     const friendRows = db.prepare("SELECT * FROM friends").all() as any[];
@@ -2322,6 +2423,7 @@ export async function exportSyncState(nodeId: string): Promise<SyncPayload> {
         cooldownUntil: row.cooldown_until,
         executedAt: row.executed_at,
         expiresAt: row.expires_at,
+        updatedAt: row.updated_at || row.executed_at || row.cooldown_until || row.created_at,
     }));
 
     const recoveryAppRows = db.prepare("SELECT * FROM recovery_approvals").all() as any[];
@@ -2367,6 +2469,224 @@ export async function exportSyncState(nodeId: string): Promise<SyncPayload> {
     return payload;
 }
 
+/* -------------------------------------------------------------------------- */
+/*                          Delta export (cursor-based)                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Export only the rows that have mutated since `since`. Used by the
+ * /beanpool/sync/delta/2.0.0 protocol once both sides have established a cursor.
+ *
+ * For mutable tables we filter by `updated_at`/`last_updated_at` (Deploy 1's
+ * column + trigger machinery). For append-only tables (transactions, messages,
+ * ratings, abuse_reports, conversations, recovery_approvals) the row's own
+ * created_at/timestamp is the cursor.
+ *
+ * Tombstones since the cursor are included so hard-deletes propagate.
+ *
+ * The returned `cursor` is captured BEFORE the queries run (inside a single
+ * transaction for snapshot consistency). The recipient stores this as their
+ * next `since` — any write that lands during query execution will be picked
+ * up by the *next* delta, not this one.
+ */
+export async function exportDeltaState(nodeId: string, since: string): Promise<SyncPayload> {
+    const collected = db.transaction(() => {
+        const cursorRow = db.prepare(`SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now') AS ts`).get() as { ts: string };
+        const cursor = cursorRow.ts;
+
+        // Mutable tables — filter by updated_at
+        const memberRows = db.prepare(`SELECT * FROM members WHERE updated_at > ?`).all(since) as any[];
+        const members: Member[] = memberRows.map(rowToMember);
+
+        const postRows = db.prepare(`SELECT * FROM posts WHERE updated_at > ?`).all(since) as any[];
+        const posts: MarketplacePost[] = postRows.map(row => ({
+            id: row.id,
+            type: row.type,
+            category: row.category,
+            title: row.title,
+            description: row.description,
+            credits: row.credits,
+            priceType: row.price_type || 'fixed',
+            authorPublicKey: row.author_pubkey,
+            authorCallsign: '',
+            createdAt: row.created_at,
+            updatedAt: row.updated_at || row.created_at,
+            active: Boolean(row.active),
+            status: row.status,
+            repeatable: Boolean(row.repeatable),
+            acceptedBy: row.accepted_by,
+            acceptedAt: row.accepted_at,
+            pendingTransactionId: row.pending_transaction_id,
+            completedAt: row.completed_at,
+            lat: row.lat,
+            lng: row.lng,
+            originNode: row.origin_node,
+        }));
+
+        const photos = db.prepare(`SELECT * FROM post_photos WHERE updated_at > ?`).all(since) as PostPhoto[];
+        const projects = db.prepare(`SELECT * FROM projects WHERE updated_at > ?`).all(since) as Project[];
+
+        const accountRows = db.prepare(`SELECT * FROM accounts WHERE last_updated_at > ?`).all(since) as any[];
+        const accounts: SyncAccount[] = accountRows.map(row => ({
+            publicKey: row.public_key,
+            balance: row.balance,
+            lastUpdatedAt: row.last_updated_at,
+            lastDemurrageEpoch: row.last_demurrage_epoch,
+        }));
+
+        const marketplaceTxRows = db.prepare(`SELECT * FROM marketplace_transactions WHERE updated_at > ?`).all(since) as any[];
+        const marketplaceTransactions: SyncMarketplaceTransaction[] = marketplaceTxRows.map(row => ({
+            id: row.id,
+            postId: row.post_id,
+            buyerPubkey: row.buyer_pubkey,
+            sellerPubkey: row.seller_pubkey,
+            credits: row.credits,
+            hours: row.hours,
+            status: row.status,
+            createdAt: row.created_at,
+            completedAt: row.completed_at,
+            updatedAt: row.updated_at,
+        }));
+
+        const recoveryReqRows = db.prepare(`SELECT * FROM recovery_requests WHERE updated_at > ?`).all(since) as any[];
+        const recoveryRequests: SyncRecoveryRequest[] = recoveryReqRows.map(row => ({
+            id: row.id,
+            oldPubkey: row.old_pubkey,
+            newPubkey: row.new_pubkey,
+            status: row.status,
+            quorumRequired: row.quorum_required,
+            createdAt: row.created_at,
+            cooldownUntil: row.cooldown_until,
+            executedAt: row.executed_at,
+            expiresAt: row.expires_at,
+            updatedAt: row.updated_at,
+        }));
+
+        // Append-only tables — filter by their natural creation/timestamp cursor
+        const transactionRows = db.prepare(`SELECT * FROM transactions WHERE timestamp > ?`).all(since) as any[];
+        const transactions: Transaction[] = transactionRows.map(row => ({
+            id: row.id,
+            from: row.from_pubkey,
+            to: row.to_pubkey,
+            amount: row.amount,
+            memo: row.memo || '',
+            timestamp: row.timestamp,
+        }));
+
+        const messageRows = db.prepare(`SELECT * FROM messages WHERE timestamp > ?`).all(since) as any[];
+        const messages: Message[] = messageRows.map(row => ({
+            id: row.id,
+            conversationId: row.conversation_id,
+            authorPubkey: row.author_pubkey,
+            ciphertext: row.ciphertext,
+            nonce: row.nonce,
+            type: row.type as 'text' | 'system',
+            systemType: row.system_type as SystemMessageType,
+            metadata: row.metadata || undefined,
+            timestamp: row.timestamp,
+        }));
+
+        const ratingRows = db.prepare(`SELECT * FROM ratings WHERE created_at > ?`).all(since) as any[];
+        const ratings: Rating[] = ratingRows.map(r => ({
+            id: r.id,
+            targetPubkey: r.target_pubkey,
+            raterPubkey: r.rater_pubkey,
+            stars: r.stars,
+            comment: r.comment || '',
+            role: r.role,
+            transactionId: r.transaction_id,
+            createdAt: r.created_at,
+        }));
+
+        const abuseRows = db.prepare(`SELECT * FROM abuse_reports WHERE created_at > ?`).all(since) as any[];
+        const abuseReports: SyncAbuseReport[] = abuseRows.map(row => ({
+            id: row.id,
+            reporterPubkey: row.reporter_pubkey,
+            targetPubkey: row.target_pubkey,
+            targetPostId: row.target_post_id,
+            reason: row.reason,
+            createdAt: row.created_at,
+        }));
+
+        const conversationRows = db.prepare(`SELECT * FROM conversations WHERE created_at > ?`).all(since) as any[];
+        const conversations: SyncConversation[] = conversationRows.map(row => ({
+            id: row.id,
+            type: row.type,
+            postId: row.post_id,
+            name: row.name,
+            createdBy: row.created_by,
+            createdAt: row.created_at,
+        }));
+
+        const participantRows = db.prepare(`SELECT * FROM conversation_participants WHERE last_read_at > ?`).all(since) as any[];
+        const conversationParticipants: SyncConversationParticipant[] = participantRows.map(row => ({
+            conversationId: row.conversation_id,
+            publicKey: row.public_key,
+            lastReadAt: row.last_read_at,
+        }));
+
+        const friendRows = db.prepare(`SELECT * FROM friends WHERE added_at > ?`).all(since) as any[];
+        const friends: SyncFriend[] = friendRows.map(row => ({
+            ownerPubkey: row.owner_pubkey,
+            friendPubkey: row.friend_pubkey,
+            addedAt: row.added_at,
+            isGuardian: Boolean(row.is_guardian),
+        }));
+
+        const recoveryAppRows = db.prepare(`SELECT * FROM recovery_approvals WHERE created_at > ?`).all(since) as any[];
+        const recoveryApprovals: SyncRecoveryApproval[] = recoveryAppRows.map(row => ({
+            requestId: row.request_id,
+            guardianPubkey: row.guardian_pubkey,
+            decision: row.decision,
+            createdAt: row.created_at,
+        }));
+
+        const tombstoneRows = db.prepare(`SELECT * FROM tombstones WHERE deleted_at > ?`).all(since) as any[];
+        const tombstones = tombstoneRows.map(row => ({
+            tableName: row.table_name,
+            rowKey: row.row_key,
+            deletedAt: row.deleted_at,
+        }));
+
+        return {
+            cursor, members, posts, photos, projects, accounts, marketplaceTransactions,
+            recoveryRequests, transactions, messages, ratings, abuseReports,
+            conversations, conversationParticipants, friends, recoveryApprovals, tombstones,
+        };
+    })();
+
+    const payload: SyncPayload = { ...collected, nodeId };
+
+    const privateKey = getPrivateKey();
+    if (privateKey) {
+        try {
+            const rawBody = JSON.stringify(payload);
+            const signatureBytes = await privateKey.sign(new TextEncoder().encode(rawBody));
+            payload.signature = Buffer.from(signatureBytes).toString('hex');
+            payload.publicKey = Buffer.from(publicKeyToProtobuf(privateKey.publicKey)).toString('hex');
+        } catch (e: any) {
+            console.error(`[Sync] Failed to sign delta payload:`, e.message || e);
+        }
+    }
+
+    return payload;
+}
+
+/**
+ * True if any of the row arrays or the tombstones array in the payload contains
+ * at least one row. Used by the delta protocol responder to skip emitting an
+ * empty payload (which would still serialize to ~80 bytes but isn't useful).
+ */
+export function hasDeltaContent(payload: SyncPayload): boolean {
+    const arrayFields: (keyof SyncPayload)[] = [
+        'members', 'posts', 'photos', 'projects', 'ratings', 'accounts',
+        'transactions', 'marketplaceTransactions', 'friends', 'conversations',
+        'conversationParticipants', 'messages', 'abuseReports',
+        'recoveryRequests', 'recoveryApprovals', 'tombstones',
+    ];
+    return arrayFields.some(f => Array.isArray(payload[f]) && (payload[f] as any[]).length > 0);
+}
+
 export interface ImportResult {
     newMembers: number;
     updatedMembers: number;
@@ -2376,6 +2696,76 @@ export interface ImportResult {
     accountChanges: number;
     marketplaceTxns: number;
     newMessages: number;
+    /** Tombstones successfully applied (rows deleted locally). */
+    tombstonesApplied: number;
+    /** Rows skipped because local copy was newer (last-writer-wins). */
+    conflictsSkipped: number;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                  Tombstone application (hard-delete propagation)            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Apply a tombstone locally. Maps `tableName` to the correct DELETE statement
+ * and splits compound `rowKey` on `|`. Returns true if a row was actually
+ * deleted (false = row already gone, e.g. we already applied this tombstone).
+ *
+ * Whenever you add a new table to delta sync that supports hard-deletes,
+ * add a case here AND ensure the corresponding deletion site calls
+ * `writeTombstone(tableName, rowKey)` (see db.ts).
+ */
+function applyTombstoneLocally(tableName: string, rowKey: string): boolean {
+    switch (tableName) {
+        case 'friends': {
+            const [owner, friend] = rowKey.split('|');
+            if (!owner || !friend) return false;
+            const r = db.prepare(`DELETE FROM friends WHERE owner_pubkey=? AND friend_pubkey=?`).run(owner, friend);
+            return r.changes > 0;
+        }
+        case 'projects': {
+            const r = db.prepare(`DELETE FROM projects WHERE id=?`).run(rowKey);
+            return r.changes > 0;
+        }
+        case 'post_photos': {
+            const [postId, orderNum] = rowKey.split('|');
+            if (!postId || orderNum === undefined) return false;
+            const r = db.prepare(`DELETE FROM post_photos WHERE post_id=? AND order_num=?`).run(postId, Number(orderNum));
+            return r.changes > 0;
+        }
+        default:
+            console.warn(`[Sync] Ignoring tombstone for unknown table: ${tableName}`);
+            return false;
+    }
+}
+
+/**
+ * Look up the local mutation watermark for a row that might be tombstoned.
+ * Returns null if the row doesn't exist locally (tombstone applies cleanly).
+ * If the local row is newer than the incoming tombstone, the importer skips
+ * the delete (a re-creation has happened locally since the tombstone).
+ */
+function lookupLocalUpdatedAt(tableName: string, rowKey: string): string | null {
+    switch (tableName) {
+        case 'friends': {
+            const [owner, friend] = rowKey.split('|');
+            if (!owner || !friend) return null;
+            const r = db.prepare(`SELECT added_at AS ts FROM friends WHERE owner_pubkey=? AND friend_pubkey=?`).get(owner, friend) as { ts: string } | undefined;
+            return r?.ts ?? null;
+        }
+        case 'projects': {
+            const r = db.prepare(`SELECT updated_at AS ts FROM projects WHERE id=?`).get(rowKey) as { ts: string } | undefined;
+            return r?.ts ?? null;
+        }
+        case 'post_photos': {
+            const [postId, orderNum] = rowKey.split('|');
+            if (!postId || orderNum === undefined) return null;
+            const r = db.prepare(`SELECT updated_at AS ts FROM post_photos WHERE post_id=? AND order_num=?`).get(postId, Number(orderNum)) as { ts: string } | undefined;
+            return r?.ts ?? null;
+        }
+        default:
+            return null;
+    }
 }
 
 export async function importRemoteState(remote: SyncPayload): Promise<ImportResult> {
@@ -2411,14 +2801,22 @@ export async function importRemoteState(remote: SyncPayload): Promise<ImportResu
     let newMembers = 0, newPosts = 0;
     let updatedMembers = 0, updatedPosts = 0;
     let newTransactions = 0, accountChanges = 0, marketplaceTxns = 0, newMessages = 0;
+    let tombstonesApplied = 0, conflictsSkipped = 0;
 
+    // Set the origin so push-on-write can avoid echoing this delta back. Cleared
+    // in the `finally` after the transaction. Module-level state is safe here
+    // because Node's event loop + better-sqlite3's synchronous transactions
+    // prevent interleaving with concurrent local writes.
+    currentImportOrigin = remote.nodeId;
+
+    try {
     db.transaction(() => {
         // 1. Import/Upsert Members
-        for (const rm of remote.members) {
-            const exists = db.prepare("SELECT 1 FROM members WHERE public_key=?").get(rm.publicKey);
-            if (!exists) {
-                db.prepare(`INSERT INTO members (public_key, callsign, joined_at, invited_by, invite_code, home_node_url, avatar_url, bio, contact_value, contact_visibility, status, last_active_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        for (const rm of remote.members ?? []) {
+            const existing = db.prepare("SELECT updated_at FROM members WHERE public_key=?").get(rm.publicKey) as { updated_at: string | null } | undefined;
+            if (!existing) {
+                db.prepare(`INSERT INTO members (public_key, callsign, joined_at, invited_by, invite_code, home_node_url, avatar_url, bio, contact_value, contact_visibility, status, last_active_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
                     rm.publicKey,
                     rm.callsign,
                     rm.joinedAt,
@@ -2430,11 +2828,21 @@ export async function importRemoteState(remote: SyncPayload): Promise<ImportResu
                     rm.contactValue || null,
                     rm.contactVisibility || null,
                     rm.status || 'active',
-                    rm.lastActiveAt || null
+                    rm.lastActiveAt || null,
+                    rm.updatedAt || rm.joinedAt
                 );
                 db.prepare(`INSERT INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, 0, 0)`).run(rm.publicKey);
                 newMembers++;
             } else {
+                // Last-writer-wins: skip if local copy is newer.
+                if (rm.updatedAt && existing.updated_at && existing.updated_at >= rm.updatedAt) {
+                    conflictsSkipped++;
+                    continue;
+                }
+                // Explicitly write `updated_at` to the source's value so:
+                //  (a) LWW semantics are preserved (cursor reflects source mutation time)
+                //  (b) the members trigger's `WHEN NEW.updated_at IS OLD.updated_at` guard
+                //      evaluates false → no double-bump on top of the source timestamp.
                 const res = db.prepare(`UPDATE members SET
                     callsign = ?,
                     avatar_url = ?,
@@ -2442,7 +2850,8 @@ export async function importRemoteState(remote: SyncPayload): Promise<ImportResu
                     contact_value = ?,
                     contact_visibility = ?,
                     status = ?,
-                    last_active_at = ?
+                    last_active_at = ?,
+                    updated_at = ?
                     WHERE public_key = ?`).run(
                     rm.callsign,
                     rm.avatarUrl || null,
@@ -2451,6 +2860,7 @@ export async function importRemoteState(remote: SyncPayload): Promise<ImportResu
                     rm.contactVisibility || null,
                     rm.status || 'active',
                     rm.lastActiveAt || null,
+                    rm.updatedAt || existing.updated_at || new Date().toISOString(),
                     rm.publicKey
                 );
                 if (res.changes > 0) updatedMembers++;
@@ -2458,11 +2868,11 @@ export async function importRemoteState(remote: SyncPayload): Promise<ImportResu
         }
 
         // 2. Import/Upsert Posts
-        for (const rp of remote.posts) {
-            const exists = db.prepare("SELECT 1 FROM posts WHERE id=?").get(rp.id);
-            if (!exists) {
-                db.prepare(`INSERT INTO posts (id, type, category, title, description, credits, author_pubkey, created_at, active, status, repeatable, lat, lng, origin_node, price_type, accepted_by, accepted_at, pending_transaction_id, completed_at) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        for (const rp of remote.posts ?? []) {
+            const existing = db.prepare("SELECT updated_at FROM posts WHERE id=?").get(rp.id) as { updated_at: string | null } | undefined;
+            if (!existing) {
+                db.prepare(`INSERT INTO posts (id, type, category, title, description, credits, author_pubkey, created_at, active, status, repeatable, lat, lng, origin_node, price_type, accepted_by, accepted_at, pending_transaction_id, completed_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
                     rp.id,
                     rp.type,
                     rp.category,
@@ -2481,10 +2891,15 @@ export async function importRemoteState(remote: SyncPayload): Promise<ImportResu
                     rp.acceptedBy || null,
                     rp.acceptedAt || null,
                     rp.pendingTransactionId || null,
-                    rp.completedAt || null
+                    rp.completedAt || null,
+                    rp.updatedAt || rp.createdAt
                 );
                 newPosts++;
             } else {
+                if (rp.updatedAt && existing.updated_at && existing.updated_at >= rp.updatedAt) {
+                    conflictsSkipped++;
+                    continue;
+                }
                 const res = db.prepare(`UPDATE posts SET
                     title = ?,
                     description = ?,
@@ -2498,7 +2913,8 @@ export async function importRemoteState(remote: SyncPayload): Promise<ImportResu
                     pending_transaction_id = ?,
                     completed_at = ?,
                     lat = ?,
-                    lng = ?
+                    lng = ?,
+                    updated_at = ?
                     WHERE id = ?`).run(
                     rp.title,
                     rp.description,
@@ -2513,6 +2929,7 @@ export async function importRemoteState(remote: SyncPayload): Promise<ImportResu
                     rp.completedAt || null,
                     rp.lat ?? null,
                     rp.lng ?? null,
+                    rp.updatedAt || existing.updated_at || new Date().toISOString(),
                     rp.id
                 );
                 if (res.changes > 0) updatedPosts++;
@@ -2748,7 +3165,32 @@ export async function importRemoteState(remote: SyncPayload): Promise<ImportResu
                 );
             }
         }
+
+        // 16. Apply Tombstones (hard-delete propagation)
+        //
+        // For each tombstone we received, check whether the local row has
+        // been re-created with a newer timestamp than the tombstone — if so,
+        // skip the delete (the row was resurrected after the tombstone was
+        // written elsewhere). Otherwise apply the DELETE locally AND persist
+        // the tombstone in our own tombstones table so we forward it on the
+        // next delta export.
+        if (remote.tombstones) {
+            for (const ts of remote.tombstones) {
+                const localTs = lookupLocalUpdatedAt(ts.tableName, ts.rowKey);
+                if (localTs && localTs > ts.deletedAt) {
+                    conflictsSkipped++;
+                    continue;
+                }
+                const deleted = applyTombstoneLocally(ts.tableName, ts.rowKey);
+                db.prepare(`INSERT OR REPLACE INTO tombstones (table_name, row_key, deleted_at)
+                            VALUES (?, ?, ?)`).run(ts.tableName, ts.rowKey, ts.deletedAt);
+                if (deleted) tombstonesApplied++;
+            }
+        }
     })();
+    } finally {
+        currentImportOrigin = null;
+    }
 
     if (newMembers > 0 || newPosts > 0) {
         broadcast({ type: 'state_synced', newMembers, newPosts, from: remote.nodeId });
@@ -2762,6 +3204,8 @@ export async function importRemoteState(remote: SyncPayload): Promise<ImportResu
         accountChanges,
         marketplaceTxns,
         newMessages,
+        tombstonesApplied,
+        conflictsSkipped,
     };
 }
 // ===================== RATINGS =====================

@@ -26,7 +26,9 @@
 import type { Libp2p } from 'libp2p';
 import {
     getStateHash, exportSyncState, importRemoteState,
-    type ImportResult,
+    exportDeltaState, hasDeltaContent,
+    getSyncCursor, setSyncCursor,
+    type ImportResult, type SyncPayload,
 } from './state-engine.js';
 import { logger } from './logger.js';
 
@@ -45,12 +47,25 @@ function formatImportResult(r: ImportResult): string {
     if (r.accountChanges) parts.push(`accounts~${r.accountChanges}`);
     if (r.marketplaceTxns) parts.push(`escrow~${r.marketplaceTxns}`);
     if (r.newMessages) parts.push(`msgs+${r.newMessages}`);
+    if (r.tombstonesApplied) parts.push(`deletes-${r.tombstonesApplied}`);
+    if (r.conflictsSkipped) parts.push(`skipped:${r.conflictsSkipped}`);
     return parts.length === 0 ? 'no changes' : parts.join(', ');
 }
 
 const PROTOCOL_V1 = '/beanpool/sync/1.0.0';
 const PROTOCOL_V2_HASH = '/beanpool/sync/hash/2.0.0';
 const PROTOCOL_V2_PAYLOAD = '/beanpool/sync/payload/2.0.0';
+const PROTOCOL_V2_DELTA = '/beanpool/sync/delta/2.0.0';
+const PROTOCOL_V2_EVENT = '/beanpool/sync/event/2.0.0';
+
+/** A cursor older than this triggers a fullResyncRequired fallback. */
+const STALE_CURSOR_MS = 7 * 24 * 60 * 60 * 1000;
+
+function isCursorStale(cursor: string): boolean {
+    const t = Date.parse(cursor);
+    if (Number.isNaN(t)) return true;
+    return Date.now() - t > STALE_CURSOR_MS;
+}
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -199,7 +214,6 @@ async function syncWithPeerV2(node: Libp2p, peerId: any): Promise<{
     newPosts: number;
 }> {
     let hashStream: any = null;
-    let payloadStream: any = null;
     try {
         hashStream = await node.dialProtocol(peerId, PROTOCOL_V2_HASH);
 
@@ -220,37 +234,225 @@ async function syncWithPeerV2(node: Libp2p, peerId: any): Promise<{
             return { synced: false, newMembers: 0, newPosts: 0 };
         }
 
-        logger.sync('P2P', `[Sync v2] → ${peerId.toString().slice(-8)}: hash mismatch (peer ${hashResp.stateHash} vs ours ${ourHash}) — exchanging payloads`);
-
         closeStreamSafe(hashStream);
         hashStream = null;
 
-        payloadStream = await node.dialProtocol(peerId, PROTOCOL_V2_PAYLOAD);
+        const peerIdStr = peerId.toString();
+        const peerIdShort = peerIdStr.slice(-8);
+
+        // Delta-first: if we have a non-stale cursor for this peer, attempt a
+        // cursor-based delta exchange. On any failure path (peer doesn't speak
+        // delta, returns fullResyncRequired, or throws), fall through to the
+        // existing v2-full-payload exchange.
+        const cursor = getSyncCursor(peerIdStr);
+        if (cursor && !isCursorStale(cursor)) {
+            try {
+                const deltaResult = await syncWithPeerDelta(node, peerId, peerIdShort, cursor);
+                if (deltaResult.kind === 'success') {
+                    return { synced: deltaResult.synced, newMembers: deltaResult.result.newMembers, newPosts: deltaResult.result.newPosts };
+                }
+                // fullResyncRequired falls through to full-payload exchange
+                logger.info('P2P', `[Sync v2] → ${peerIdShort}: delta declined (${deltaResult.reason}), falling back to full payload`);
+            } catch (e: any) {
+                if (isUnsupportedProtocol(e)) {
+                    logger.info('P2P', `[Sync v2] → ${peerIdShort}: peer doesn't speak delta protocol — falling back to full payload`);
+                } else {
+                    logger.warn('P2P', `[Sync v2] → ${peerIdShort}: delta exchange failed (${e.message || e}), falling back to full payload`);
+                }
+            }
+        } else {
+            logger.sync('P2P', `[Sync v2] → ${peerIdShort}: no cursor (or stale) — using full payload`);
+        }
+
+        return await syncWithPeerFullPayload(node, peerId, peerIdShort);
+    } finally {
+        closeStreamSafe(hashStream);
+    }
+}
+
+/**
+ * Cursor-based delta exchange. Returns either a success (with the new cursor
+ * recorded in sync_cursors) or a fullResyncRequired signal that tells the
+ * caller to fall back to the full-payload protocol.
+ */
+async function syncWithPeerDelta(
+    node: Libp2p,
+    peerId: any,
+    peerIdShort: string,
+    since: string,
+): Promise<
+    | { kind: 'success'; synced: boolean; result: ImportResult }
+    | { kind: 'fullResyncRequired'; reason: string }
+> {
+    let stream: any = null;
+    try {
+        stream = await node.dialProtocol(peerId, PROTOCOL_V2_DELTA);
+
+        // Build our own delta to push alongside the request so the peer can
+        // apply our writes in the same round-trip (mirrors the payload protocol's
+        // bidirectional pattern).
+        const ourDelta = await exportDeltaState(localNodeId, since);
+
+        const readPromise = readFromStream(stream, 30000);
+        readPromise.catch(() => {});
+
+        await writeToStream(stream, JSON.stringify({
+            type: 'delta_req',
+            since,
+            payload: ourDelta,
+        }));
+
+        const raw = await readPromise;
+        const resp = JSON.parse(raw);
+
+        if (resp.type === 'delta_res' && resp.fullResyncRequired) {
+            return { kind: 'fullResyncRequired', reason: resp.reason || 'unspecified' };
+        }
+        if (resp.type !== 'delta_res' || !resp.payload) {
+            logger.warn('P2P', `[Sync v2] → ${peerIdShort}: malformed delta response`);
+            return { kind: 'fullResyncRequired', reason: 'malformed_response' };
+        }
+
+        const result = await importRemoteState(resp.payload);
+        if (resp.payload.cursor) {
+            setSyncCursor(peerId.toString(), resp.payload.cursor);
+        }
+        logger.sync('P2P', `[Sync v2 Δ] → ${peerIdShort}: ${formatImportResult(result)}`);
+        const synced = (result.newMembers + result.updatedMembers + result.newPosts + result.updatedPosts +
+                        result.newTransactions + result.accountChanges + result.marketplaceTxns +
+                        result.newMessages + result.tombstonesApplied) > 0;
+        return { kind: 'success', synced, result };
+    } finally {
+        closeStreamSafe(stream);
+    }
+}
+
+/**
+ * Full-payload exchange — the existing Deploy 1 behavior. Always used for the
+ * first sync with a peer (no cursor recorded yet) and as the safety-net
+ * fallback when delta is unavailable or stale.
+ */
+async function syncWithPeerFullPayload(
+    node: Libp2p,
+    peerId: any,
+    peerIdShort: string,
+): Promise<{ synced: boolean; newMembers: number; newPosts: number }> {
+    let stream: any = null;
+    try {
+        stream = await node.dialProtocol(peerId, PROTOCOL_V2_PAYLOAD);
 
         const ourPayload = await exportSyncState(localNodeId);
-        const readPayloadPromise = readFromStream(payloadStream, 30000);
-        readPayloadPromise.catch(() => {});
+        const readPromise = readFromStream(stream, 30000);
+        readPromise.catch(() => {});
 
-        await writeToStream(payloadStream, JSON.stringify({
+        await writeToStream(stream, JSON.stringify({
             type: 'payload',
             payload: ourPayload,
         }));
 
-        const payloadRaw = await readPayloadPromise;
-        const payloadResp = JSON.parse(payloadRaw);
+        const raw = await readPromise;
+        const resp = JSON.parse(raw);
 
-        if (payloadResp.type !== 'payload' || !payloadResp.payload) {
-            logger.warn('P2P', `[Sync v2] → ${peerId.toString().slice(-8)}: malformed payload response`);
+        if (resp.type !== 'payload' || !resp.payload) {
+            logger.warn('P2P', `[Sync v2] → ${peerIdShort}: malformed payload response`);
             return { synced: false, newMembers: 0, newPosts: 0 };
         }
 
-        const result = await importRemoteState(payloadResp.payload);
-        logger.sync('P2P', `[Sync v2] → ${peerId.toString().slice(-8)}: ${formatImportResult(result)}`);
+        const result = await importRemoteState(resp.payload);
+        // After a successful full reconcile, record the cursor so future ticks
+        // can drop back to delta mode.
+        setSyncCursor(peerId.toString(), new Date().toISOString());
+        logger.sync('P2P', `[Sync v2] → ${peerIdShort}: ${formatImportResult(result)}`);
         return { synced: true, ...result };
     } finally {
-        closeStreamSafe(hashStream);
-        closeStreamSafe(payloadStream);
+        closeStreamSafe(stream);
     }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                  v2 — Delta protocol (cursor-based deltas)                  */
+/* -------------------------------------------------------------------------- */
+
+function registerDeltaHandlerV2(node: Libp2p): void {
+    node.handle(PROTOCOL_V2_DELTA, async (incomingData: any) => {
+        const stream = incomingData.stream || incomingData;
+        try {
+            const raw = await readFromStream(stream, 30000);
+            const request = JSON.parse(raw);
+
+            if (request.type !== 'delta_req' || typeof request.since !== 'string') {
+                logger.warn('P2P', `[Sync v2 Δ] ← Malformed delta_req from peer`);
+                return;
+            }
+
+            if (isCursorStale(request.since)) {
+                await writeToStream(stream, JSON.stringify({
+                    type: 'delta_res',
+                    fullResyncRequired: true,
+                    reason: 'cursor_too_old',
+                }));
+                logger.sync('P2P', `[Sync v2 Δ] ← cursor_too_old (${request.since}), instructed peer to full-resync`);
+                return;
+            }
+
+            // Build our delta from the requester's cursor forward.
+            const ourDelta = await exportDeltaState(localNodeId, request.since);
+            await writeToStream(stream, JSON.stringify({
+                type: 'delta_res',
+                payload: ourDelta,
+            }));
+
+            // Apply the peer's delta (if any) in the same round-trip.
+            if (request.payload) {
+                const result = await importRemoteState(request.payload);
+                if (hasDeltaContent(ourDelta) || result.newMembers + result.updatedMembers + result.newPosts + result.updatedPosts > 0) {
+                    logger.sync('P2P', `[Sync v2 Δ] ← Imported: ${formatImportResult(result)}`);
+                }
+            }
+        } catch (e: any) {
+            logger.error('P2P', `[Sync v2 Δ] Delta handler error: ${e.message || e}`);
+        }
+    });
+}
+
+/* -------------------------------------------------------------------------- */
+/*                  v2 — Event protocol (push-on-write)                        */
+/* -------------------------------------------------------------------------- */
+
+function registerEventHandlerV2(node: Libp2p): void {
+    node.handle(PROTOCOL_V2_EVENT, async (incomingData: any) => {
+        const stream = incomingData.stream || incomingData;
+        try {
+            const raw = await readFromStream(stream, 15000);
+            const request = JSON.parse(raw);
+
+            if (request.type !== 'event' || !request.delta) {
+                logger.warn('P2P', `[Sync v2 ⚡] ← Malformed event message`);
+                await writeToStream(stream, JSON.stringify({ type: 'nack', reason: 'malformed' }));
+                return;
+            }
+
+            // Self-echo guard: a misconfigured peer (or buggy forwarder) might
+            // echo our own event back. The signature on the payload is bound to
+            // the original sender's libp2p key; localNodeId is our PeerId.
+            if (request.delta.nodeId === localNodeId) {
+                await writeToStream(stream, JSON.stringify({ type: 'nack', reason: 'self_echo' }));
+                return;
+            }
+
+            // ACK only after the write transaction has landed. If the import
+            // throws, the sender will see no ACK and the 30s delta-pull catches up.
+            const result = await importRemoteState(request.delta);
+            await writeToStream(stream, JSON.stringify({ type: 'ack' }));
+            logger.sync('P2P', `[Sync v2 ⚡] ← Pushed: ${formatImportResult(result)}`);
+        } catch (e: any) {
+            logger.error('P2P', `[Sync v2 ⚡] Event handler error: ${e.message || e}`);
+            // Best-effort NACK; if the stream is already torn down this throws and we swallow.
+            try {
+                await writeToStream(stream, JSON.stringify({ type: 'nack', reason: 'import_failed' }));
+            } catch {}
+        }
+    });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -341,14 +543,19 @@ async function syncWithPeerV1(node: Libp2p, peerId: any): Promise<{
 /* -------------------------------------------------------------------------- */
 
 /**
- * Register all sync protocol handlers (v1 + v2).
+ * Register all sync protocol handlers (v1 + v2 + v2-delta + v2-event).
  */
 export function registerSyncHandler(node: Libp2p): void {
     registerSyncHandlerV1(node);
     registerHashHandlerV2(node);
     registerPayloadHandlerV2(node);
-    logger.info('P2P', `[Sync] Protocol handlers registered: ${PROTOCOL_V1}, ${PROTOCOL_V2_HASH}, ${PROTOCOL_V2_PAYLOAD}`);
+    registerDeltaHandlerV2(node);
+    registerEventHandlerV2(node);
+    logger.info('P2P', `[Sync] Protocol handlers registered: ${PROTOCOL_V1}, ${PROTOCOL_V2_HASH}, ${PROTOCOL_V2_PAYLOAD}, ${PROTOCOL_V2_DELTA}, ${PROTOCOL_V2_EVENT}`);
 }
+
+/** Exposed so push-on-write can dial the event protocol from outside this module. */
+export const SYNC_EVENT_PROTOCOL = PROTOCOL_V2_EVENT;
 
 /**
  * Initiate a sync with a connected peer.

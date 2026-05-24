@@ -293,8 +293,18 @@ CREATE TABLE IF NOT EXISTS sync_cursors (
 -- and prevents recursion (which is also disabled by the SQLite default
 -- PRAGMA recursive_triggers = OFF).
 
+-- members trigger uses an explicit column whitelist (AFTER UPDATE OF …) instead
+-- of firing on any UPDATE. This intentionally excludes `last_active_at` so user
+-- heartbeats don't flood delta-sync exports with member rows that have no
+-- semantic change. ⚠️ MAINTENANCE: whenever you add a profile-relevant column
+-- to the `members` table above, add it to this whitelist too — otherwise
+-- mutations to that column won't be picked up by cursor-based delta sync.
 CREATE TRIGGER IF NOT EXISTS members_touch_updated_at
-AFTER UPDATE ON members
+AFTER UPDATE OF
+    callsign, invited_by, invite_code, home_node_url, avatar_url, bio,
+    contact_value, contact_visibility, status, earned_credit, profile_updated_at,
+    joined_at, public_key
+ON members
 FOR EACH ROW
 WHEN NEW.updated_at IS OLD.updated_at
 BEGIN

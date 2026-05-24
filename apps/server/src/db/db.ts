@@ -62,6 +62,11 @@ export function initSchema() {
     try { db.prepare(`ALTER TABLE projects ADD COLUMN updated_at DATETIME`).run(); } catch { }
     try { db.prepare(`ALTER TABLE recovery_requests ADD COLUMN updated_at DATETIME`).run(); } catch { }
 
+    // Deploy 2: drop the Deploy 1 members trigger so schema.sql re-creates it with the
+    // column-whitelist form that excludes last_active_at heartbeats from cursor sync.
+    // CREATE TRIGGER IF NOT EXISTS is a no-op against an existing trigger.
+    try { db.prepare(`DROP TRIGGER IF EXISTS members_touch_updated_at`).run(); } catch { }
+
     const schemaSql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
     db.exec(schemaSql);
 

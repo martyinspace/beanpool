@@ -18,6 +18,9 @@ import { multiaddr } from '@multiformats/multiaddr';
 import type { Libp2p } from 'libp2p';
 import { sendHandshake } from './handshake.js';
 import { registerSyncHandler, setLocalNodeId, syncWithPeer } from './sync-protocol.js';
+import { setBroadcastHook } from './state-engine.js';
+import { db } from './db/db.js';
+import { initPushOnWrite, handleBroadcast } from './push-on-write.js';
 import { logger } from './logger.js';
 
 const DATA_DIR = process.env.BEANPOOL_DATA_DIR || path.join(process.cwd(), 'data');
@@ -27,7 +30,9 @@ const CONNECTORS_PATH = path.join(DATA_DIR, 'connectors.json');
 const HANDSHAKE_INTERVAL_MS = 10_000; // 10 seconds
 const RETRY_INTERVAL_MS = 30_000;     // 30 seconds
 const MAX_RETRY_DELAY_MS = 5 * 60_000; // 5 minutes max backoff
-const SYNC_INTERVAL_MS = 30_000;  // 30 seconds
+const SYNC_INTERVAL_MS = 30_000;       // 30 seconds — delta-first sync
+const FULL_RESYNC_INTERVAL_MS = 15 * 60_000;  // 15 min — full-payload safety net
+const TOMBSTONE_RETENTION_DAYS = 30;
 
 export type TrustLevel = 'mirror' | 'peer' | 'blocked';
 
@@ -67,6 +72,7 @@ let p2pNode: Libp2p | null = null;
 let handshakeTimer: ReturnType<typeof setInterval> | null = null;
 let retryTimer: ReturnType<typeof setInterval> | null = null;
 let syncTimer: ReturnType<typeof setInterval> | null = null;
+let fullResyncTimer: ReturnType<typeof setInterval> | null = null;
 
 /**
  * Resolve address to a libp2p multiaddr.
@@ -217,11 +223,28 @@ export function initConnectorManager(node: Libp2p): void {
     handshakeTimer = setInterval(handshakeConnectedPeers, HANDSHAKE_INTERVAL_MS);
 
     // Register sync handler and start periodic sync (mirrors always stay active)
-    setLocalNodeId(node.peerId.toString());
+    const localPeerId = node.peerId.toString();
+    setLocalNodeId(localPeerId);
     registerSyncHandler(node);
+
+    // Push-on-write: wire state-engine broadcasts to dial connected mirrors.
+    initPushOnWrite(node, localPeerId);
+    setBroadcastHook(handleBroadcast);
+
+    // 30s tick: delta-first sync (falls back to full payload on no/stale cursor).
     syncTimer = setInterval(syncConnectedPeers, SYNC_INTERVAL_MS);
-    // Do an initial sync 30s after boot
     setTimeout(syncConnectedPeers, 30_000);
+
+    // 15-min tick: full-payload safety net. Repairs anything the delta/push paths
+    // miss (e.g. an event lost to a network blip + a delta logic bug). Invokes
+    // syncWithPeer which on its own will pick whichever sub-protocol fits — the
+    // safety net here is that we *force* a sync every 15 min regardless of hash.
+    fullResyncTimer = setInterval(fullResyncConnectedPeers, FULL_RESYNC_INTERVAL_MS);
+
+    // Daily-ish tombstone GC: drop tombstones older than retention, but never
+    // delete a tombstone that any peer's cursor hasn't yet advanced past.
+    pruneTombstones();
+    setInterval(pruneTombstones, 24 * 60 * 60 * 1000);
 
     // Auto‑connect enabled connectors on boot
     if (connectors.some(c => c.enabled)) {
@@ -307,6 +330,60 @@ async function syncConnectedPeers(): Promise<void> {
                 } catch {}
             }
         }
+    }
+}
+
+/**
+ * 15-minute full-reconcile safety net. Forces a full-payload exchange regardless
+ * of any cursor or hash optimization, so any drift that escaped delta + push
+ * propagation gets repaired on a bounded interval.
+ *
+ * Implemented by clearing the peer's sync cursor before syncWithPeer runs:
+ * with no cursor, the initiator path drops back to the v2-full-payload protocol
+ * directly. The cursor is re-set by the full-payload path on completion.
+ */
+async function fullResyncConnectedPeers(): Promise<void> {
+    if (!p2pNode) return;
+
+    const { setSyncCursor: _setSyncCursor } = await import('./state-engine.js');
+    void _setSyncCursor;
+    const dbMod = await import('./db/db.js');
+
+    for (const connector of connectors) {
+        if (!connector.enabled || connector.trustLevel !== 'mirror') continue;
+        const status = statuses.get(connector.address);
+        if (!status?.connected || !status.peerId || !status.mutualTrust) continue;
+
+        // Drop the cursor so syncWithPeer falls through to full-payload.
+        dbMod.db.prepare(`DELETE FROM sync_cursors WHERE peer_id=?`).run(status.peerId);
+
+        try {
+            const { peerIdFromString } = await import('@libp2p/peer-id');
+            const peerId = peerIdFromString(status.peerId);
+            logger.sync('P2P', `[Sync] 🔄 Forcing 15-min full reconcile with ${connector.callsign || connector.address}`);
+            await syncWithPeer(p2pNode, peerId);
+        } catch (e: any) {
+            logger.warn('P2P', `[Sync] Full reconcile failed for ${connector.callsign || connector.address}: ${e.message || e}`);
+        }
+    }
+}
+
+/**
+ * Drop tombstones older than the retention window. Conservative: only delete
+ * tombstones whose deletedAt is BEFORE the oldest peer cursor (so we never
+ * lose a tombstone a peer might still need on its next pull).
+ */
+function pruneTombstones(): void {
+    const retentionThreshold = new Date(Date.now() - TOMBSTONE_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const oldestCursor = db.prepare(`SELECT MIN(last_synced_at) AS oldest FROM sync_cursors`).get() as { oldest: string | null } | undefined;
+    // If any peer has a cursor older than the retention threshold, keep the
+    // tombstone alive for that peer; otherwise prune by the retention threshold.
+    const cutoff = oldestCursor?.oldest && oldestCursor.oldest < retentionThreshold
+        ? oldestCursor.oldest
+        : retentionThreshold;
+    const res = db.prepare(`DELETE FROM tombstones WHERE deleted_at < ?`).run(cutoff);
+    if (res.changes > 0) {
+        logger.info('P2P', `[Sync] Pruned ${res.changes} tombstone(s) older than ${cutoff}`);
     }
 }
 
