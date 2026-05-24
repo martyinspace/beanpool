@@ -506,6 +506,14 @@ export function addConnector(address: string, trustLevel: TrustLevel, callsign?:
         existing.trustLevel = trustLevel;
         if (callsign !== undefined) existing.callsign = callsign;
         if (publicUrl !== undefined) existing.publicUrl = publicUrl;
+        
+        // If it was enabled and is now disabled (made passive), automatically disconnect
+        if (enabled === false && existing.enabled !== false) {
+            disconnectFromAddress(address).catch(err => {
+                logger.warn('P2P', `[Connectors] Auto-disconnect failed on disable: ${err.message}`);
+            });
+        }
+        
         if (enabled !== undefined) existing.enabled = enabled;
         saveConnectors();
         return existing;
