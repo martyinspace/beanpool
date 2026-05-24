@@ -213,10 +213,8 @@ export function initConnectorManager(node: Libp2p): void {
         }
     });
 
-    // Start periodic handshake for trust verification — only when peer connectors are enabled
-    if (ENABLE_PEER_CONNECTORS) {
-        handshakeTimer = setInterval(handshakeConnectedPeers, HANDSHAKE_INTERVAL_MS);
-    }
+    // Start periodic handshake for trust verification (always run for mirror sync liveness)
+    handshakeTimer = setInterval(handshakeConnectedPeers, HANDSHAKE_INTERVAL_MS);
 
     // Register sync handler and start periodic sync (mirrors always stay active)
     setLocalNodeId(node.peerId.toString());
@@ -225,8 +223,8 @@ export function initConnectorManager(node: Libp2p): void {
     // Do an initial sync 30s after boot
     setTimeout(syncConnectedPeers, 30_000);
 
-    // Auto‑connect only if peer connectors are enabled
-    if (ENABLE_PEER_CONNECTORS && connectors.some(c => c.enabled)) {
+    // Auto‑connect enabled connectors on boot
+    if (connectors.some(c => c.enabled)) {
         logger.info('P2P', `[Connectors] 🔄 Auto-connecting ${connectors.filter(c => c.enabled).length} enabled connector(s) in 5s...`);
         setTimeout(() => {
             connectAll().catch(e => logger.warn('P2P', '[Connectors] Auto-connect error:', e));
@@ -297,6 +295,17 @@ async function syncConnectedPeers(): Promise<void> {
             await syncWithPeer(p2pNode, peerId);
         } catch (e: any) {
             console.error(`[Sync] Error syncing with ${connector.callsign || connector.address}:`, e.message);
+            // If it's a fatal stream reset, closure, or timeout, force a disconnect to trigger a clean retry
+            const msg = (e.message || '').toLowerCase();
+            if (msg.includes('reset') || msg.includes('closed') || msg.includes('timeout')) {
+                status.connected = false;
+                status.mutualTrust = false;
+                status.latencyMs = null;
+                try {
+                    const { peerIdFromString } = await import('@libp2p/peer-id');
+                    await p2pNode.hangUp(peerIdFromString(status.peerId!));
+                } catch {}
+            }
         }
     }
 }
