@@ -21,6 +21,7 @@ export default function ChatScreen() {
     const [promptReviewForTx, setPromptReviewForTx] = useState<{ txId: string; targetPubkey: string; targetCallsign: string } | null>(null);
     const flatListRef = useRef<FlatList>(null);
     const insets = useSafeAreaInsets();
+    const sendingRef = useRef(false);
 
     useFocusEffect(
         useCallback(() => {
@@ -98,13 +99,18 @@ export default function ChatScreen() {
 
     const handleSend = async () => {
         if (!draft.trim() || !identity?.publicKey) return;
-        
+        if (sendingRef.current) return;
+
+        sendingRef.current = true;
         try {
-            await insertMessage(id as string, identity.publicKey, draft.trim());
+            const currentDraft = draft.trim();
             setDraft('');
+            await insertMessage(id as string, identity.publicKey, currentDraft);
             loadMessages();
         } catch (err: any) {
             Alert.alert("Message Failed", err.message || "Could not execute send.");
+        } finally {
+            sendingRef.current = false;
         }
     };
 
