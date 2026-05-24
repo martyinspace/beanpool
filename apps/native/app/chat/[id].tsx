@@ -369,6 +369,9 @@ export default function ChatScreen() {
                         value={draft}
                         onChangeText={setDraft}
                         multiline
+                        blurOnSubmit={false}
+                        submitBehavior="submit"
+                        onSubmitEditing={handleSend}
                     />
                     <Pressable 
                         style={[styles.sendBtn, draft.trim().length > 0 ? styles.sendBtnActive : styles.sendBtnInactive]} 
