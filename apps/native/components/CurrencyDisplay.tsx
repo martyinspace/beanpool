@@ -70,7 +70,7 @@ export function CurrencyDisplay({ amount, style, hideAmount = false, asView = fa
                     {!!amtStr && <Text style={style} numberOfLines={1} adjustsFontSizeToFit>{amtStr}</Text>}
                     <Image 
                         source={require('../assets/images/bean.png')} 
-                        style={{ width: fontSize, height: fontSize, resizeMode: 'contain', marginLeft: hideAmount ? 0 : 2 }} 
+                        style={{ width: fontSize, height: fontSize, resizeMode: 'contain', marginLeft: hideAmount ? 0 : 2, flexShrink: 0 }} 
                     />
                 </View>
             );
@@ -80,7 +80,7 @@ export function CurrencyDisplay({ amount, style, hideAmount = false, asView = fa
                 {amtStr}
                 <Image 
                     source={require('../assets/images/bean.png')} 
-                    style={{ width: fontSize, height: fontSize, resizeMode: 'contain', transform: [{translateY}] }} 
+                    style={{ width: fontSize, height: fontSize, resizeMode: 'contain', transform: [{translateY}], flexShrink: 0 }} 
                 />
             </Text>
         );

@@ -66,7 +66,13 @@ export default function ChatsScreen() {
     const renderActionCard = ({ item }: { item: any }) => (
         <Pressable 
             style={styles.actionCard}
-            onPress={() => router.push(`/chat/${item.id}`)}
+            onPress={() => {
+                if (item.lastSysType === 'ESCROW_RELEASED' && !item.hasRated) {
+                    router.push({ pathname: `/chat/${item.id}`, params: { triggerReview: 'true' } });
+                } else {
+                    router.push(`/chat/${item.id}`);
+                }
+            }}
         >
             <View style={styles.actionCardHeader}>
                 <View style={styles.actionIconContainer}>
@@ -98,7 +104,13 @@ export default function ChatsScreen() {
         return (
             <Pressable 
                 style={[styles.chatRow, needsAction && styles.chatRowActionNeeded]}
-                onPress={() => router.push(`/chat/${item.id}`)}
+                onPress={() => {
+                    if (item.lastMsgType === 'system' && item.lastSysType === 'ESCROW_RELEASED' && !item.hasRated) {
+                        router.push({ pathname: `/chat/${item.id}`, params: { triggerReview: 'true' } });
+                    } else {
+                        router.push(`/chat/${item.id}`);
+                    }
+                }}
             >
                 {item.postId && item.postPhoto ? (
                     <View style={styles.avatarComposite}>

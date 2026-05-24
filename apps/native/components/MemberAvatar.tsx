@@ -51,7 +51,9 @@ export function MemberAvatar({
     borderRadius,
 }: MemberAvatarProps) {
     const radius = borderRadius ?? size / 2;
-    let uri = avatarUri(avatarUrl, pubkey, updatedAt);
+    // Defensively clean raw string inputs to prevent invalid rendering on iOS
+    const cleanedAvatarUrl = (avatarUrl && avatarUrl !== 'null' && avatarUrl !== 'undefined' && avatarUrl.trim() !== '') ? avatarUrl : null;
+    let uri = avatarUri(cleanedAvatarUrl, pubkey, updatedAt);
     const fontSize = Math.max(Math.round(size * 0.42), 10);
 
     // Resolve bundled:// references to require() image sources
@@ -63,7 +65,7 @@ export function MemberAvatar({
                     source={bundledSource}
                     style={[
                         styles.image,
-                        { width: size, height: size, borderRadius: radius },
+                        { width: size, height: size, borderRadius: radius, overflow: 'hidden', flexShrink: 0 },
                     ]}
                 />
             );
@@ -79,7 +81,7 @@ export function MemberAvatar({
                 source={{ uri }}
                 style={[
                     styles.image,
-                    { width: size, height: size, borderRadius: radius },
+                    { width: size, height: size, borderRadius: radius, overflow: 'hidden', flexShrink: 0 },
                 ]}
             />
         );
@@ -116,6 +118,7 @@ export function MemberAvatar({
 const styles = StyleSheet.create({
     image: {
         backgroundColor: '#f3f4f6',
+        overflow: 'hidden',
     },
     fallback: {
         justifyContent: 'center',

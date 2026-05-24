@@ -10,7 +10,7 @@ import { hapticSuccess, hapticWarning } from '../../utils/haptics';
 import { ReviewModal } from '../../components/ReviewModal';
 
 export default function ChatScreen() {
-    const { id } = useLocalSearchParams();
+    const { id, triggerReview } = useLocalSearchParams();
     const { identity } = useIdentity();
     const [messages, setMessages] = useState<any[]>([]);
     const [draft, setDraft] = useState('');
@@ -40,6 +40,26 @@ export default function ChatScreen() {
                                 priceType: res.price_type,
                                 credits: res.credits
                             });
+
+                            if (triggerReview === 'true') {
+                                try {
+                                    const db = await getDb();
+                                    const txRow = await db.getFirstAsync<any>(
+                                        "SELECT id, buyer_pubkey, seller_pubkey FROM marketplace_transactions WHERE post_id=? AND status='completed' LIMIT 1",
+                                        [res.postId]
+                                    );
+                                    if (txRow) {
+                                        const targetPubkey = txRow.buyer_pubkey === identity.publicKey ? txRow.seller_pubkey : txRow.buyer_pubkey;
+                                        setPromptReviewForTx({
+                                            txId: txRow.id,
+                                            targetPubkey,
+                                            targetCallsign: res.name || res.otherCallsign || String(id).slice(0, 8)
+                                        });
+                                    }
+                                } catch (e) {
+                                    console.error('[Rating] Auto-trigger review load failed:', e);
+                                }
+                            }
                         }
                         // Track pending transaction for inline action bar
                         if (res.pendingTxId && identity.publicKey) {
@@ -394,10 +414,18 @@ export default function ChatScreen() {
                     txId={promptReviewForTx.txId}
                     targetPubkey={promptReviewForTx.targetPubkey}
                     targetCallsign={promptReviewForTx.targetCallsign}
-                    onClose={() => setPromptReviewForTx(null)}
+                    onClose={() => {
+                        setPromptReviewForTx(null);
+                        if (triggerReview === 'true') {
+                            router.navigate('/(tabs)/chats');
+                        }
+                    }}
                     onSuccess={() => {
                         Alert.alert("Success", "Your rating has been submitted!");
                         setPromptReviewForTx(null);
+                        if (triggerReview === 'true') {
+                            router.navigate('/(tabs)/chats');
+                        }
                     }}
                 />
             )}

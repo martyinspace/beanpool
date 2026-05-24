@@ -80,7 +80,8 @@ export default function SettingsScreen() {
         if (identity?.publicKey) {
             getMemberProfile(identity.publicKey).then(profile => {
                 if (profile) {
-                    if (profile.avatar_url) setAvatar(profile.avatar_url);
+                    const cleaned = (profile.avatar_url && profile.avatar_url !== 'null' && profile.avatar_url !== 'undefined' && profile.avatar_url.trim() !== '') ? profile.avatar_url : null;
+                    setAvatar(cleaned);
                     if (profile.bio) setBio(profile.bio);
                     if (profile.contact_value) setContact(profile.contact_value);
                     if (profile.contact_visibility) setContactVisibility(profile.contact_visibility);
@@ -653,7 +654,7 @@ export default function SettingsScreen() {
 
                     {/* Avatar */}
                     <Pressable onPress={() => setMode('profile')} style={styles.avatarWrap}>
-                        {avatar ? (
+                        {avatar && avatar !== 'null' && avatar !== 'undefined' && avatar.trim() !== '' ? (
                             <Image source={avatar.startsWith('bundled://') ? resolveBundledAvatar(avatar)! : { uri: avatar }} style={styles.avatarImg} />
                         ) : (
                             <View style={styles.avatarPlaceholder}>
@@ -896,8 +897,8 @@ export default function SettingsScreen() {
                     <View style={{ alignItems: 'center', marginBottom: 20 }}>
                         <Pressable onPress={handlePickImage} style={{ alignItems: 'center' }}>
                             <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#e5e7eb', overflow: 'hidden' }}>
-                                {avatar ? (
-                                    <Image source={avatar.startsWith('bundled://') ? resolveBundledAvatar(avatar)! : { uri: avatar }} style={{ width: '100%', height: '100%' }} />
+                                {avatar && avatar !== 'null' && avatar !== 'undefined' && avatar.trim() !== '' ? (
+                                    <Image source={avatar.startsWith('bundled://') ? resolveBundledAvatar(avatar)! : { uri: avatar }} style={{ width: 96, height: 96, borderRadius: 48, overflow: 'hidden' }} />
                                 ) : (
                                     <Text style={{ fontSize: 32 }}>📷</Text>
                                 )}
@@ -1440,7 +1441,10 @@ export default function SettingsScreen() {
             <AvatarPickerSheet
                 visible={showAvatarPicker}
                 onClose={() => setShowAvatarPicker(false)}
-                onSelectImage={(uri) => setAvatar(uri)}
+                onSelectImage={(uri) => {
+                    const cleaned = (uri && uri !== 'null' && uri !== 'undefined' && uri.trim() !== '') ? uri : null;
+                    setAvatar(cleaned);
+                }}
             />
         </ScrollView>
     );
@@ -1470,7 +1474,7 @@ const styles = StyleSheet.create({
         width: 96, height: 96, borderRadius: 48,
         marginBottom: 16, position: 'relative',
     },
-    avatarImg: { width: 96, height: 96, borderRadius: 48 },
+    avatarImg: { width: 96, height: 96, borderRadius: 48, overflow: 'hidden' },
     avatarPlaceholder: {
         width: 96, height: 96, borderRadius: 48,
         backgroundColor: '#064e3b', justifyContent: 'center', alignItems: 'center',

@@ -129,8 +129,13 @@ for NODE in "${TARGETS[@]}"; do
     echo \"DNS Record: \$CF_RECORD_NAME\"
     sudo docker image prune -f 2>/dev/null || true
     sudo docker network create beanpool-shared 2>/dev/null || true
-    sudo -E docker compose -p $PROJ_NAME pull
-    sudo -E docker compose -p $PROJ_NAME up -d
+    if [ "$NAME" = "test" ] || [ "$NAME" = "test-mirror" ] || [ "$NAME" = "mullum2" ] || [ "$NAME" = "review" ]; then
+      echo "🔨 Local build enabled for target: $NAME"
+      sudo -E docker compose -p $PROJ_NAME up -d --build
+    else
+      sudo -E docker compose -p $PROJ_NAME pull
+      sudo -E docker compose -p $PROJ_NAME up -d
+    fi
   " 2>&1
 
   echo "✅ $NAME deployed!"

@@ -9,6 +9,7 @@ import { RadiusPickerModal } from '../../components/RadiusPickerModal';
 import { CategoryPickerSheet } from '../../components/CategoryPickerSheet';
 import { MyDealsSheet, usePendingDealsCount } from '../../components/MyDealsSheet';
 import { PostAuthorTrust, isElder } from '../../components/PostAuthorTrust';
+import { CurrencyDisplay } from '../../components/CurrencyDisplay';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import synonymMap from '../../utils/synonyms.json';
 
@@ -422,12 +423,12 @@ export default function MarketScreen() {
                                 </Text>
                             </View>
                         )}
-                        <View style={[styles.gridPriceBadge, { flexDirection: 'row', alignItems: 'center' }]}>
-                            <Text style={styles.gridPriceText} numberOfLines={1}>
-                                {item.credits !== undefined && item.credits !== null ? item.credits : '?'}
-                                {priceLabel || ''}
-                            </Text>
-                            <Image source={require('../../assets/images/bean.png')} style={{ width: 12, height: 12, marginLeft: 2, resizeMode: 'contain' }} />
+                        <View style={styles.gridPriceBadge}>
+                            <CurrencyDisplay
+                                amount={`${item.credits !== undefined && item.credits !== null ? item.credits : '?'}${priceLabel || ''}`}
+                                style={styles.gridPriceText}
+                                asView={true}
+                            />
                         </View>
                         {!!item.repeatable && (
                             <View style={[styles.gridPriceBadge, { left: 8, right: undefined, backgroundColor: 'rgba(249, 115, 22, 0.9)' }]}>
@@ -449,44 +450,40 @@ export default function MarketScreen() {
         // List View
         return (
             <Pressable onPress={() => router.push(`/post/${item.id}`)}>
-                <View style={[styles.card, { padding: 16 }, elderCard && styles.elderCard]}>
-                    <View style={{ flexDirection: 'row', gap: 12 }}>
-                        {coverImage ? (
-                            <Image source={{ uri: coverImage }} style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: '#e5e7eb' }} />
-                        ) : (
-                            <View style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
-                                <Text style={{ fontSize: 24, opacity: 0.5 }}>
-                                    {MARKETPLACE_CATEGORIES.find(c => c.id === item.category)?.emoji || '📦'}
-                                </Text>
-                            </View>
-                        )}
-                        <View style={{ flex: 1, justifyContent: 'center' }}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <View style={[styles.badge, item.type === 'offer' ? styles.badgeOffer : styles.badgeNeed, { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, margin: 0 }]}>
-                                        <Text style={[styles.badgeText, { fontSize: 10 }]}>{item.type.toUpperCase()}</Text>
-                                    </View>
-                                    {!!item.repeatable && (
-                                        <View style={{ backgroundColor: 'rgba(249, 115, 22, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(249, 115, 22, 0.2)' }}>
-                                            <Text style={{ fontSize: 10, fontWeight: '800', color: '#c2410c' }}>↻ RECURRING</Text>
-                                        </View>
-                                    )}
-                                </View>
-                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                    <Text style={[styles.price, { fontSize: 16 }]} numberOfLines={1}>
-                                        {item.credits !== undefined && item.credits !== null ? item.credits : '?'}
-                                        {priceLabel || ''}
-                                    </Text>
-                                    <Image source={require('../../assets/images/bean.png')} style={{ width: 14, height: 14, marginLeft: 2, resizeMode: 'contain' }} />
-                                </View>
-                            </View>
-                            
-                            <Text style={{ fontSize: 16, fontWeight: '900', color: '#1f2937', marginBottom: 4 }} numberOfLines={1}>
-                                {item.title}
+                <View style={[styles.card, { flexDirection: 'row', padding: 0 }, elderCard && styles.elderCard]}>
+                    {coverImage ? (
+                        <Image source={{ uri: coverImage }} style={{ width: 96, height: '100%', minHeight: 96, borderTopLeftRadius: 20, borderBottomLeftRadius: 20 }} resizeMode="cover" />
+                    ) : (
+                        <View style={{ width: 96, height: '100%', minHeight: 96, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 20, borderBottomLeftRadius: 20 }}>
+                            <Text style={{ fontSize: 32, opacity: 0.5 }}>
+                                {MARKETPLACE_CATEGORIES.find(c => c.id === item.category)?.emoji || '📦'}
                             </Text>
-                            
-                            <PostAuthorTrust pubkey={item.author_pubkey} callsign={cardAuthor} energyCycled={item.author_energy_cycled} avatarUrl={item.author_avatar} mode="full" />
                         </View>
+                    )}
+                    <View style={{ flex: 1, padding: 12, justifyContent: 'center' }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={[styles.badge, item.type === 'offer' ? styles.badgeOffer : styles.badgeNeed, { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, margin: 0 }]}>
+                                    <Text style={[styles.badgeText, { fontSize: 10 }]}>{item.type.toUpperCase()}</Text>
+                                </View>
+                                {!!item.repeatable && (
+                                    <View style={{ backgroundColor: 'rgba(249, 115, 22, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(249, 115, 22, 0.2)' }}>
+                                        <Text style={{ fontSize: 10, fontWeight: '800', color: '#c2410c' }}>↻ RECURRING</Text>
+                                    </View>
+                                )}
+                            </View>
+                            <CurrencyDisplay
+                                amount={`${item.credits !== undefined && item.credits !== null ? item.credits : '?'}${priceLabel || ''}`}
+                                style={[styles.price, { fontSize: 16 }]}
+                                asView={true}
+                            />
+                        </View>
+                        
+                        <Text style={{ fontSize: 16, fontWeight: '900', color: '#1f2937', marginBottom: 4 }} numberOfLines={1}>
+                            {item.title}
+                        </Text>
+                        
+                        <PostAuthorTrust pubkey={item.author_pubkey} callsign={cardAuthor} energyCycled={item.author_energy_cycled} avatarUrl={item.author_avatar} mode="full" />
                     </View>
                 </View>
             </Pressable>
@@ -646,7 +643,7 @@ const styles = StyleSheet.create({
     gridImage: { width: '100%', height: '100%' },
     gridFallback: { backgroundColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center' },
     gridFallbackEmoji: { fontSize: 32, opacity: 0.3 },
-    gridPriceBadge: { position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(17,24,39,0.9)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+    gridPriceBadge: { position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(30,41,59,0.85)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
     gridPriceText: { color: '#ffffff', fontSize: 13, fontWeight: 'bold' },
     gridTypeBadge: { position: 'absolute', top: 8, left: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
     gridTextContent: { padding: 12 },

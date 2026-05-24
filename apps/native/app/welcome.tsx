@@ -811,6 +811,7 @@ const profileStyles = StyleSheet.create({
         borderRadius: 48,
         borderWidth: 3,
         borderColor: '#2563eb',
+        overflow: 'hidden',
     },
     previewPlaceholder: {
         width: 96,

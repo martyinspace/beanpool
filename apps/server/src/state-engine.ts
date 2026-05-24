@@ -2171,15 +2171,24 @@ export interface SyncRecoveryApproval {
 export interface SyncMarketplaceTransaction {
     id: string;
     postId: string;
-    buyerPubkey: string;
-    sellerPubkey: string;
+    post_id?: string;
+    buyerPubkey?: string;
+    buyerPublicKey?: string;
+    buyer_pubkey?: string;
+    sellerPubkey?: string;
+    sellerPublicKey?: string;
+    seller_pubkey?: string;
     credits: number;
     hours: number | null;
     status: string;
     createdAt: string;
+    created_at?: string;
     completedAt: string | null;
+    completed_at?: string | null;
     /** Source-of-truth mutation watermark used by delta sync for last-writer-wins conflict resolution. */
     updatedAt?: string | null;
+    ratedByBuyer?: boolean;
+    ratedBySeller?: boolean;
 }
 
 /**
@@ -2352,18 +2361,26 @@ export async function exportSyncState(nodeId: string): Promise<SyncPayload> {
         timestamp: row.timestamp,
     }));
 
+    const ratingTxKeys = new Set(ratingRows.map(r => `${r.transaction_id}|${r.rater_pubkey}`));
+
     const marketplaceTxRows = db.prepare("SELECT * FROM marketplace_transactions").all() as any[];
     const marketplaceTransactions: SyncMarketplaceTransaction[] = marketplaceTxRows.map(row => ({
         id: row.id,
         postId: row.post_id,
         buyerPubkey: row.buyer_pubkey,
+        buyerPublicKey: row.buyer_pubkey,
+        buyer_pubkey: row.buyer_pubkey,
         sellerPubkey: row.seller_pubkey,
+        sellerPublicKey: row.seller_pubkey,
+        seller_pubkey: row.seller_pubkey,
         credits: row.credits,
         hours: row.hours,
         status: row.status,
         createdAt: row.created_at,
         completedAt: row.completed_at,
         updatedAt: row.updated_at || row.completed_at || row.created_at,
+        ratedByBuyer: ratingTxKeys.has(`${row.id}|${row.buyer_pubkey}`),
+        ratedBySeller: ratingTxKeys.has(`${row.id}|${row.seller_pubkey}`),
     }));
 
     const friendRows = db.prepare("SELECT * FROM friends").all() as any[];
@@ -2536,18 +2553,29 @@ export async function exportDeltaState(nodeId: string, since: string): Promise<S
             lastDemurrageEpoch: row.last_demurrage_epoch,
         }));
 
+        const ratingTxKeys = new Set(
+            (db.prepare("SELECT transaction_id, rater_pubkey FROM ratings").all() as any[])
+                .map(r => `${r.transaction_id}|${r.rater_pubkey}`)
+        );
+
         const marketplaceTxRows = db.prepare(`SELECT * FROM marketplace_transactions WHERE updated_at > ?`).all(since) as any[];
         const marketplaceTransactions: SyncMarketplaceTransaction[] = marketplaceTxRows.map(row => ({
             id: row.id,
             postId: row.post_id,
             buyerPubkey: row.buyer_pubkey,
+            buyerPublicKey: row.buyer_pubkey,
+            buyer_pubkey: row.buyer_pubkey,
             sellerPubkey: row.seller_pubkey,
+            sellerPublicKey: row.seller_pubkey,
+            seller_pubkey: row.seller_pubkey,
             credits: row.credits,
             hours: row.hours,
             status: row.status,
             createdAt: row.created_at,
             completedAt: row.completed_at,
             updatedAt: row.updated_at,
+            ratedByBuyer: ratingTxKeys.has(`${row.id}|${row.buyer_pubkey}`),
+            ratedBySeller: ratingTxKeys.has(`${row.id}|${row.seller_pubkey}`),
         }));
 
         const recoveryReqRows = db.prepare(`SELECT * FROM recovery_requests WHERE updated_at > ?`).all(since) as any[];
@@ -3055,14 +3083,14 @@ export async function importRemoteState(remote: SyncPayload): Promise<ImportResu
                                 hours = excluded.hours,
                                 credits = excluded.credits`).run(
                     mt.id,
-                    mt.postId,
-                    mt.buyerPubkey,
-                    mt.sellerPubkey,
-                    mt.credits,
+                    mt.postId ?? mt.post_id ?? null,
+                    mt.buyerPubkey ?? mt.buyerPublicKey ?? mt.buyer_pubkey ?? null,
+                    mt.sellerPubkey ?? mt.sellerPublicKey ?? mt.seller_pubkey ?? null,
+                    mt.credits ?? 0,
                     mt.hours ?? null,
-                    mt.status,
-                    mt.createdAt,
-                    mt.completedAt ?? null
+                    mt.status ?? 'pending',
+                    mt.createdAt ?? mt.created_at ?? new Date().toISOString(),
+                    mt.completedAt ?? mt.completed_at ?? null
                 );
                 if (res.changes > 0) marketplaceTxns++;
             }
@@ -3862,7 +3890,7 @@ export function getCommunityHealth(): CommunityHealth {
     
     return {
         nodeName: getDirectoryInfo()?.name || 'Local Discovery',
-        version: '1.0.88',
+        version: '1.0.89',
         minAppVersion: '1.0.75',
         currency: { type: config.currencyType || 'image', value: config.currencyValue || 'bean' },
         tree: { totalMembers, maxDepth: 0, widestBranch: { callsign: 'db-optimized', children: 0 }, avgBranchSize: 0 },

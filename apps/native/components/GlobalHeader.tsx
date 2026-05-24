@@ -305,10 +305,11 @@ export function GlobalHeader() {
         }
     };
 
+    const headerHeight = Math.max(insets.top + 10, 40) + 56;
     const isMapScreen = pathname === '/';
 
     return (
-        <View style={[styles.headerWrapper, isMapScreen && styles.headerAbsolute]}>
+        <View style={[styles.headerWrapper, isMapScreen && styles.headerAbsolute, { height: headerHeight }]}>
             <View style={StyleSheet.absoluteFillObject}>
                 <Image 
                     source={require('../assets/images/neon-vines-banner.jpg')} 
@@ -318,7 +319,7 @@ export function GlobalHeader() {
                 <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.5)' }]} />
             </View>
 
-            <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top + 10, 40), height: Math.max(insets.top + 10, 40) + 56 }]} pointerEvents="box-none">
+            <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top + 10, 40), height: headerHeight }]} pointerEvents="box-none">
                 {/* LEFT: Invite/Join/Connect Router Pill */}
                 <View style={styles.headerLeft}>
                     <TouchableOpacity 
@@ -357,7 +358,7 @@ export function GlobalHeader() {
                                     resizeMode="contain" 
                                 />
                                 <Text style={{ position: 'absolute', left: 80, bottom: -8, fontSize: 10, fontWeight: '900', color: '#fbbf24', letterSpacing: 1, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
-                                    v{appConfig.expo.version}
+                                    v{appConfig.expo.version} ({Platform.OS === 'ios' ? appConfig.expo.ios.buildNumber : appConfig.expo.android.versionCode})
                                 </Text>
                                 <View style={{ position: 'absolute', bottom: -10, right: 90, flexDirection: 'row', alignItems: 'center', gap: 2 }}>
                                     <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isOffline ? '#ef4444' : isGuestOnActive ? '#d97706' : '#10b981', borderWidth: 1, borderColor: '#fff' }} />

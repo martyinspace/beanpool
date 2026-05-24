@@ -245,11 +245,13 @@ const styles = StyleSheet.create({
         width: 60,
         height: 60,
         borderRadius: 30,
+        overflow: 'hidden',
     },
     avatarImageSelected: {
         width: 70,
         height: 70,
         borderRadius: 35,
+        overflow: 'hidden',
     },
     confirmButton: {
         marginTop: 24,

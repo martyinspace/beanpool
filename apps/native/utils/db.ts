@@ -1213,7 +1213,8 @@ export async function applyDelta(delta: any) {
     await acquireSyncLock();
     try {
         const database = await getDb();
-        await database.withExclusiveTransactionAsync(async (txn) => {
+        await database.withTransactionAsync(async () => {
+            const txn = database;
 // Full-replace sync: server response is the source of truth
     if (delta.accounts) {
         for (const acc of delta.accounts) {
@@ -1326,8 +1327,8 @@ export async function applyDelta(delta: any) {
                     [
                         tx.id ?? null,
                         tx.postId ?? tx.post_id ?? null,
-                        tx.buyerPublicKey ?? tx.buyer_pubkey ?? null,
-                        tx.sellerPublicKey ?? tx.seller_pubkey ?? null,
+                        tx.buyerPublicKey ?? tx.buyerPubkey ?? tx.buyer_pubkey ?? null,
+                        tx.sellerPublicKey ?? tx.sellerPubkey ?? tx.seller_pubkey ?? null,
                         tx.credits ?? 0,
                         tx.hours ?? null,
                         incomingStatus,
@@ -1394,6 +1395,26 @@ export async function applyDelta(delta: any) {
             }
         }
 
+        // Sync ratings (compact diff from server)
+        if (delta.ratings !== undefined && Array.isArray(delta.ratings)) {
+            console.log(`[DB] applyDelta: applying ${delta.ratings.length} ratings...`);
+            for (const r of delta.ratings) {
+                await txn.runAsync(
+                    'INSERT OR REPLACE INTO ratings (id, target_pubkey, rater_pubkey, stars, comment, role, transaction_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    [
+                        r.id ?? null,
+                        r.targetPubkey ?? r.target_pubkey ?? null,
+                        r.raterPubkey ?? r.rater_pubkey ?? null,
+                        r.stars ?? r.rating ?? 0,
+                        r.comment ?? '',
+                        r.role ?? 'provider',
+                        r.transactionId ?? r.transaction_id ?? null,
+                        r.createdAt ?? r.created_at ?? new Date().toISOString()
+                    ]
+                );
+            }
+        }
+
         console.log(`[DB] applyDelta: replaced posts table with ${delta.posts?.length || 0} posts from server`);
         });
     } finally {
@@ -1421,7 +1442,8 @@ export async function syncMessages(publicKey: string) {
             try {
                 const dirData = await dirRes.json();
                 if (Array.isArray(dirData) && dirData.length > 0) {
-                    await database.withExclusiveTransactionAsync(async (txn) => {
+                    await database.withTransactionAsync(async () => {
+                        const txn = database;
                         for (const m of dirData) {
                             const pk = m.publicKey || m.public_key || '';
                             const cs = m.callsign || '';
@@ -1445,7 +1467,8 @@ export async function syncMessages(publicKey: string) {
         if (!convData.conversations) return;
         
         for (const conv of convData.conversations) {
-            await database.withExclusiveTransactionAsync(async (txn) => {
+            await database.withTransactionAsync(async () => {
+                const txn = database;
                 const localConv = await txn.getFirstAsync<any>('SELECT id FROM conversations WHERE id = ?', [conv.id]);
                 if (!localConv) {
                     await txn.runAsync('INSERT INTO conversations (id, type, post_id, name, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -1470,7 +1493,8 @@ export async function syncMessages(publicKey: string) {
             const messages = msgData.messages;
             if (!Array.isArray(messages)) continue;
             
-            await database.withExclusiveTransactionAsync(async (txn) => {
+            await database.withTransactionAsync(async () => {
+                const txn = database;
                 for (const m of messages) {
                     await txn.runAsync(
                         'INSERT OR IGNORE INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, system_type, metadata, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -2065,7 +2089,22 @@ export async function reportAbuse(reporterPublicKey: string, targetPublicKey: st
 
 
 export async function submitRating(raterPublicKey: string, targetPublicKey: string, rating: number, comment: string, transactionId?: string) {
-    return _signedRequest('/api/ratings', { raterPubkey: raterPublicKey, targetPubkey: targetPublicKey, stars: rating, comment, transactionId });
+    const res = await _signedRequest('/api/ratings', { raterPubkey: raterPublicKey, targetPubkey: targetPublicKey, stars: rating, comment, transactionId });
+    if (res?.success && transactionId) {
+        try {
+            const database = await getDb();
+            await database.runAsync(`
+                UPDATE marketplace_transactions 
+                SET rated_by_buyer = CASE WHEN buyer_pubkey = ? THEN 1 ELSE rated_by_buyer END,
+                    rated_by_seller = CASE WHEN seller_pubkey = ? THEN 1 ELSE rated_by_seller END
+                WHERE id = ?
+            `, [raterPublicKey, raterPublicKey, transactionId]);
+            console.log(`[Rating] Optimistically marked tx ${transactionId} as rated in local SQLite`);
+        } catch (e) {
+            console.warn('[Rating] Local DB rating state update failed:', e);
+        }
+    }
+    return res;
 }
 
 export async function getMemberRatings(publicKey: string): Promise<{ ratings: any[]; average: number; count: number; asProvider: { average: number; count: number }; asReceiver: { average: number; count: number } }> {
