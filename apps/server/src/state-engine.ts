@@ -1176,7 +1176,9 @@ export function transfer(from: string, to: string, amount: number, memo: string,
         memo: memo || '',
         timestamp: new Date().toISOString(),
     };
-    db.prepare(`INSERT INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?)`).run(txn.id, txn.from, txn.to, txn.amount, txn.memo, txn.timestamp);
+    if (amount > 0) {
+        db.prepare(`INSERT INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?)`).run(txn.id, txn.from, txn.to, txn.amount, txn.memo, txn.timestamp);
+    }
 
     // Sync ledger account balances to DB
     const fromAcc = ledger.getAccount(from);
