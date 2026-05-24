@@ -2672,6 +2672,22 @@ export async function exportDeltaState(nodeId: string, since: string): Promise<S
     return payload;
 }
 
+export async function signSyncPayload(payload: SyncPayload): Promise<SyncPayload> {
+    const privateKey = getPrivateKey();
+    if (privateKey) {
+        try {
+            const rawBody = JSON.stringify(payload);
+            const signatureBytes = await privateKey.sign(new TextEncoder().encode(rawBody));
+            payload.signature = Buffer.from(signatureBytes).toString('hex');
+            payload.publicKey = Buffer.from(publicKeyToProtobuf(privateKey.publicKey)).toString('hex');
+        } catch (e: any) {
+            console.error(`[Sync] Failed to sign payload:`, e.message || e);
+        }
+    }
+    return payload;
+}
+
+
 /**
  * True if any of the row arrays or the tombstones array in the payload contains
  * at least one row. Used by the delta protocol responder to skip emitting an

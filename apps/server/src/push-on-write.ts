@@ -28,6 +28,7 @@ import { getConnectorsByLevel } from './connector-manager.js';
 import {
     getCurrentImportOrigin,
     exportSyncState,
+    signSyncPayload,
     type SyncPayload,
 } from './state-engine.js';
 import { SYNC_EVENT_PROTOCOL } from './sync-protocol.js';
@@ -205,7 +206,7 @@ export async function mapEventToDelta(event: any): Promise<SyncPayload | null> {
         case 'post_updated': {
             const post = event.post;
             if (!post) return null;
-            return { ...base, posts: [post] } as SyncPayload;
+            return await signSyncPayload({ ...base, posts: [post] } as SyncPayload);
         }
         case 'post_removed': {
             // post_removed only carries the id today; the soft-delete already
@@ -220,7 +221,7 @@ export async function mapEventToDelta(event: any): Promise<SyncPayload | null> {
         case 'new_message': {
             const msg = event.message;
             if (!msg) return null;
-            return { ...base, messages: [msg] } as SyncPayload;
+            return await signSyncPayload({ ...base, messages: [msg] } as SyncPayload);
         }
         case 'member_joined':
         case 'profile_updated': {
@@ -228,7 +229,7 @@ export async function mapEventToDelta(event: any): Promise<SyncPayload | null> {
             if (!member) {
                 return await fullSyncFallback(base);
             }
-            return { ...base, members: [member] } as SyncPayload;
+            return await signSyncPayload({ ...base, members: [member] } as SyncPayload);
         }
         case 'transaction_requested':
         case 'transaction_approved':
@@ -237,25 +238,25 @@ export async function mapEventToDelta(event: any): Promise<SyncPayload | null> {
         case 'transaction_completed': {
             const tx = event.transaction;
             if (!tx) return null;
-            return { ...base, marketplaceTransactions: [tx] } as SyncPayload;
+            return await signSyncPayload({ ...base, marketplaceTransactions: [tx] } as SyncPayload);
         }
         case 'project_created':
         case 'project_updated': {
             const project = event.project;
             if (!project) return null;
-            return { ...base, projects: [project] } as SyncPayload;
+            return await signSyncPayload({ ...base, projects: [project] } as SyncPayload);
         }
         case 'project_deleted': {
             const projectId = event.projectId;
             if (!projectId) return null;
-            return {
+            return await signSyncPayload({
                 ...base,
                 tombstones: [{
                     tableName: 'projects',
                     rowKey: projectId,
                     deletedAt: new Date().toISOString(),
                 }],
-            } as SyncPayload;
+            } as SyncPayload);
         }
         // Pure UI hints — nothing to replicate.
         case 'state_synced':
