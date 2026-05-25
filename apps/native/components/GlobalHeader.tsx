@@ -423,9 +423,15 @@ export function GlobalHeader() {
                             style={styles.softUpdateUpgradeBtn}
                             onPress={() => {
                                 const storeUrl = Platform.OS === 'ios'
-                                    ? 'https://apps.apple.com/us/app/bean-pool/id6761870086'
-                                    : 'https://play.google.com/store/apps/details?id=org.beanpool.pillar';
-                                Linking.openURL(storeUrl);
+                                    ? 'itms-apps://itunes.apple.com/app/id6761870086'
+                                    : 'market://details?id=org.beanpool.pillar';
+                                Linking.openURL(storeUrl).catch(() => {
+                                    // Fallback to web link if store scheme fails
+                                    const webUrl = Platform.OS === 'ios'
+                                        ? 'https://apps.apple.com/us/app/bean-pool/id6761870086'
+                                        : 'https://play.google.com/store/apps/details?id=org.beanpool.pillar';
+                                    Linking.openURL(webUrl);
+                                });
                             }}
                         >
                             <Text style={styles.softUpdateUpgradeText}>Upgrade</Text>
