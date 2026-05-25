@@ -12,6 +12,7 @@ import { initDB, clearDB, closeDB, redeemInvite } from '../utils/db';
 import { normaliseInviteCode, extractInviteToken, extractNodeOrigin } from '../utils/invite-parser';
 import { IdentityProvider, useIdentity } from './IdentityContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Device from 'expo-device';
 import appConfig from '../app.json';
 
 LogBox.ignoreLogs(['ProgressBarAndroid', 'Clipboard', 'PushNotificationIOS', 'has been extracted']);
@@ -36,36 +37,36 @@ function RootLayoutNav() {
         let active = true;
         
         async function checkAppVersion() {
+            if (__DEV__ || !Device.isDevice) return;
             try {
-                const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
-                if (!anchorUrl) return;
-
-                const res = await fetch(`${anchorUrl}/api/community/health?_t=${Date.now()}`);
+                // Fetch from App Store lookup API as the single source of version truth
+                const res = await fetch(`https://itunes.apple.com/lookup?id=6761870086&_t=${Date.now()}`);
                 if (!res.ok) return;
 
                 const data = await res.json();
-                if (data.minAppVersion) {
+                if (data.results && data.results.length > 0) {
+                    const storeVersion = data.results[0].version;
                     const localVersion = appConfig.expo.version;
                     
                     const parseVersion = (v: string) => v.split('.').map(Number);
                     const localParts = parseVersion(localVersion);
-                    const minParts = parseVersion(data.minAppVersion);
+                    const storeParts = parseVersion(storeVersion);
                     
                     let isOutdated = false;
                     for (let i = 0; i < 3; i++) {
                         const localPart = localParts[i] || 0;
-                        const minPart = minParts[i] || 0;
-                        if (localPart < minPart) {
+                        const storePart = storeParts[i] || 0;
+                        if (localPart < storePart) {
                             isOutdated = true;
                             break;
-                        } else if (localPart > minPart) {
+                        } else if (localPart > storePart) {
                             break;
                         }
                     }
 
                     if (isOutdated && active) {
                         setUpdateRequired(true);
-                        setLatestVersion(data.version || data.minAppVersion);
+                        setLatestVersion(storeVersion);
                     }
                 }
             } catch (err) {
@@ -351,9 +352,15 @@ function RootLayoutNav() {
                     ]}
                     onPress={() => {
                         const storeUrl = Platform.OS === 'ios'
-                            ? 'https://apps.apple.com/us/app/bean-pool/id6761870086'
-                            : 'https://play.google.com/store/apps/details?id=org.beanpool.pillar';
-                        Linking.openURL(storeUrl);
+                            ? 'itms-apps://itunes.apple.com/app/id6761870086'
+                            : 'market://details?id=org.beanpool.pillar';
+                        Linking.openURL(storeUrl).catch(() => {
+                            // Fallback to web link if store scheme fails (e.g. on emulator without app store)
+                            const webUrl = Platform.OS === 'ios'
+                                ? 'https://apps.apple.com/us/app/bean-pool/id6761870086'
+                                : 'https://play.google.com/store/apps/details?id=org.beanpool.pillar';
+                            Linking.openURL(webUrl);
+                        });
                     }}
                 >
                     <Text style={{ color: '#022c22', fontSize: 16, fontWeight: '900', letterSpacing: 0.5 }}>Download Update</Text>
