@@ -1323,11 +1323,20 @@ export function getPosts(filter?: { id?: string; type?: string; category?: strin
     
     // Allow syncing photos so the global feed thumbnails can actually render. 
     // We fetch only the first photo (order_num = 0) if it's a global feed to save payload size.
-    const photosQuery = filter?.id 
-        ? `SELECT * FROM post_photos WHERE post_id IN (${postIds.map(() => '?').join(',')})`
-        : `SELECT * FROM post_photos WHERE post_id IN (${postIds.map(() => '?').join(',')}) AND order_num = 0`;
-
-    const photos = (postIds.length > 0) ? db.prepare(photosQuery).all(...postIds) : [];
+    let photos: any[] = [];
+    if (postIds.length > 0) {
+        // Chunk to avoid SQLite max parameter limit (32766)
+        const CHUNK_SIZE = 900;
+        for (let i = 0; i < postIds.length; i += CHUNK_SIZE) {
+            const chunk = postIds.slice(i, i + CHUNK_SIZE);
+            const placeholders = chunk.map(() => '?').join(',');
+            const photosQuery = filter?.id
+                ? `SELECT * FROM post_photos WHERE post_id IN (${placeholders})`
+                : `SELECT * FROM post_photos WHERE post_id IN (${placeholders}) AND order_num = 0`;
+            const chunkPhotos = db.prepare(photosQuery).all(...chunk) as any[];
+            photos = photos.concat(chunkPhotos);
+        }
+    }
 
     // ⚡ Bolt: Group photos by post_id to avoid O(N²) nested filtering, turning it to O(N) lookup.
     const photosByPost = new Map<string, any[]>();
@@ -1748,7 +1757,17 @@ export function getMarketplaceTransactions(publicKey: string, filter?: { status?
 
     const rows = db.prepare(query).all(...params) as any[];
     const postIds = Array.from(new Set(rows.map(r => r.post_id)));
-    const photos = postIds.length > 0 ? db.prepare(`SELECT * FROM post_photos WHERE post_id IN (${postIds.map(() => '?').join(',')})`).all(...postIds) as any[] : [];
+
+    let photos: any[] = [];
+    if (postIds.length > 0) {
+        const CHUNK_SIZE = 900;
+        for (let i = 0; i < postIds.length; i += CHUNK_SIZE) {
+            const chunk = postIds.slice(i, i + CHUNK_SIZE);
+            const placeholders = chunk.map(() => '?').join(',');
+            const chunkPhotos = db.prepare(`SELECT * FROM post_photos WHERE post_id IN (${placeholders})`).all(...chunk) as any[];
+            photos = photos.concat(chunkPhotos);
+        }
+    }
 
     // ⚡ Bolt: Group photos by post_id to avoid O(N²) nested searching
     const photosByPost = new Map<string, any[]>();
@@ -1949,9 +1968,14 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
     const allPeerPubkeys = new Set<string>();
 
     if (conversationIds.length > 0) {
-        const placeholders = conversationIds.map(() => '?').join(',');
-        const partsQuery = `SELECT conversation_id, public_key FROM conversation_participants WHERE conversation_id IN (${placeholders})`;
-        const allParts = db.prepare(partsQuery).all(...conversationIds) as any[];
+        const CHUNK_SIZE = 900;
+        let allParts: any[] = [];
+        for (let i = 0; i < conversationIds.length; i += CHUNK_SIZE) {
+            const chunk = conversationIds.slice(i, i + CHUNK_SIZE);
+            const placeholders = chunk.map(() => '?').join(',');
+            const partsQuery = `SELECT conversation_id, public_key FROM conversation_participants WHERE conversation_id IN (${placeholders})`;
+            allParts = allParts.concat(db.prepare(partsQuery).all(...chunk) as any[]);
+        }
 
         for (const part of allParts) {
             if (!participantsByConv.has(part.conversation_id)) {
@@ -1968,9 +1992,14 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
     const membersByPubkey = new Map<string, any>();
     if (allPeerPubkeys.size > 0) {
         const pubkeysArray = Array.from(allPeerPubkeys);
-        const placeholders = pubkeysArray.map(() => '?').join(',');
-        const membersQuery = `SELECT public_key, callsign, avatar_url FROM members WHERE public_key IN (${placeholders})`;
-        const allMembers = db.prepare(membersQuery).all(...pubkeysArray) as any[];
+        const CHUNK_SIZE = 900;
+        let allMembers: any[] = [];
+        for (let i = 0; i < pubkeysArray.length; i += CHUNK_SIZE) {
+            const chunk = pubkeysArray.slice(i, i + CHUNK_SIZE);
+            const placeholders = chunk.map(() => '?').join(',');
+            const membersQuery = `SELECT public_key, callsign, avatar_url FROM members WHERE public_key IN (${placeholders})`;
+            allMembers = allMembers.concat(db.prepare(membersQuery).all(...chunk) as any[]);
+        }
 
         for (const member of allMembers) {
             membersByPubkey.set(member.public_key, member);
@@ -1981,9 +2010,14 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
     const postIds = Array.from(new Set(rows.map(r => r.post_id).filter(id => id != null)));
     const postPhotosById = new Map<string, string | null>();
     if (postIds.length > 0) {
-        const placeholders = postIds.map(() => '?').join(',');
-        const postsQuery = `SELECT id, photos FROM posts WHERE id IN (${placeholders})`;
-        const allPosts = db.prepare(postsQuery).all(...postIds) as any[];
+        const CHUNK_SIZE = 900;
+        let allPosts: any[] = [];
+        for (let i = 0; i < postIds.length; i += CHUNK_SIZE) {
+            const chunk = postIds.slice(i, i + CHUNK_SIZE);
+            const placeholders = chunk.map(() => '?').join(',');
+            const postsQuery = `SELECT id, photos FROM posts WHERE id IN (${placeholders})`;
+            allPosts = allPosts.concat(db.prepare(postsQuery).all(...chunk) as any[]);
+        }
 
         for (const post of allPosts) {
             let postPhoto: string | null = null;
@@ -3517,15 +3551,21 @@ export function getPendingRecoveryRequests(guardianPubkey: string): any[] {
     const wards = getMyWards(guardianPubkey).map(w => w.publicKey);
     if (wards.length === 0) return [];
     
-    const placeholders = wards.map(() => '?').join(',');
-    const rows = db.prepare(`
-        SELECT r.*, m.callsign as old_callsign, m.avatar_url,
-               (SELECT COUNT(*) FROM recovery_approvals WHERE request_id=r.id AND decision='approve') as approvals,
-               (SELECT decision FROM recovery_approvals WHERE request_id=r.id AND guardian_pubkey=?) as my_decision
-        FROM recovery_requests r
-        JOIN members m ON r.old_pubkey = m.public_key
-        WHERE r.old_pubkey IN (${placeholders}) AND r.status IN ('pending', 'approved')
-    `).all(guardianPubkey, ...wards) as any[];
+    let rows: any[] = [];
+    const CHUNK_SIZE = 900;
+    for (let i = 0; i < wards.length; i += CHUNK_SIZE) {
+        const chunk = wards.slice(i, i + CHUNK_SIZE);
+        const placeholders = chunk.map(() => '?').join(',');
+        const chunkRows = db.prepare(`
+            SELECT r.*, m.callsign as old_callsign, m.avatar_url,
+                   (SELECT COUNT(*) FROM recovery_approvals WHERE request_id=r.id AND decision='approve') as approvals,
+                   (SELECT decision FROM recovery_approvals WHERE request_id=r.id AND guardian_pubkey=?) as my_decision
+            FROM recovery_requests r
+            JOIN members m ON r.old_pubkey = m.public_key
+            WHERE r.old_pubkey IN (${placeholders}) AND r.status IN ('pending', 'approved')
+        `).all(guardianPubkey, ...chunk) as any[];
+        rows = rows.concat(chunkRows);
+    }
 
     return rows.map(r => ({
         id: r.id,
