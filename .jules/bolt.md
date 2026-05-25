@@ -13,3 +13,6 @@
 **Learning:** In `createRecoveryRequest()`, validating guardian guess callsigns was previously done by mapping the guardian public keys to member profiles, filtering out empty profiles, and then executing `.some()` against the resulting array. This led to unnecessary allocations (`.map()` and `.filter()`) and executed database lookups for all guardians even if a match was found in the first element.
 **Action:** Refactored the lookups using `guardians.some(...)` with hoisted, pre-normalized callsign comparison. This enables short-circuiting database reads and completely avoids intermediate array allocations.
 
+## 2026-05-21 - [N+1 Query in Filtering Logic]
+**Learning:** In the Social Recovery lookup endpoint, the API fetched all matching members and used an inline `.filter()` to execute `getGuardiansOf()` in a loop to check if the member had at least 3 guardians. This created an N+1 query vulnerability that scaled with the number of member records fetched.
+**Action:** Replaced the JavaScript array filter with an inline SQL subquery: `AND (SELECT COUNT(*) FROM friends WHERE owner_pubkey = members.public_key AND is_guardian = 1) >= 3`. This pushes the logic down to SQLite, eliminating intermediate memory allocations and N+1 roundtrips.
