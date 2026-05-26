@@ -5,7 +5,7 @@ import { getDb, getFriendsLocal, addFriendLocal, removeFriendLocal, createConver
 import { useIdentity } from '../IdentityContext';
 import { hexToBytes, encodeUtf8, encodeBase64, signData } from '../../utils/crypto';
 import QRCode from 'react-native-qrcode-svg';
-import { TextInput, Alert, ScrollView, Share } from 'react-native';
+import { TextInput, Alert, ScrollView, Share, KeyboardAvoidingView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 
@@ -445,6 +445,11 @@ export default function PeopleScreen() {
             </View>
 
             {/* Views */}
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+                style={{ flex: 1 }}
+            >
             {view === 'friends' && (
                 friendsLoading ? (
                     <View style={styles.emptyContainer}>
@@ -849,6 +854,7 @@ export default function PeopleScreen() {
                     )}
                 </ScrollView>
             )}
+            </KeyboardAvoidingView>
 
         </SafeAreaView>
     );

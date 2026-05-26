@@ -122,7 +122,11 @@ export default function EditProjectModal() {
                 <View style={{ width: 40 }} />
             </View>
 
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+            <KeyboardAvoidingView 
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+                style={{ flex: 1 }}
+            >
                 <ScrollView contentContainerStyle={styles.scroll}>
                     {isLocked ? (
                         <View style={[styles.infoBox, { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }]}>

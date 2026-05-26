@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, TextInput, Image,
-    DeviceEventEmitter, Alert, ScrollView } from 'react-native';
+    DeviceEventEmitter, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -655,6 +655,11 @@ export default function LedgerScreen() {
 
     return (
         <SafeAreaView style={styles.root}>
+            <KeyboardAvoidingView 
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+                style={{ flex: 1 }}
+            >
 
             {/* ── Compact profile + balance bar ── */}
             <View style={styles.topBar}>
@@ -713,6 +718,7 @@ export default function LedgerScreen() {
                 />
             )}
 
+            </KeyboardAvoidingView>
             <BalanceInfoModal isOpen={showBalanceInfo} onClose={() => setShowBalanceInfo(false)} />
             <CommonsInfoModal isOpen={showCommonsInfo} onClose={() => setShowCommonsInfo(false)} commonsBalance={balanceState.commons} />
             <CirculationInfoModal isOpen={showCirculationInfo} onClose={() => setShowCirculationInfo(false)} />

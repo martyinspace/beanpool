@@ -416,7 +416,7 @@ export default function PostDetailModal() {
                 <View style={{ width: 68 }} />
             </View>
 
-            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
             <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                 {/* Type + Category Badge */}
                 <View style={styles.typeBadgeRow}>
@@ -1009,7 +1009,7 @@ export default function PostDetailModal() {
             {rejectModalTxId && (
                 <View style={StyleSheet.absoluteFill}>
                     <Pressable style={styles.modalOverlay} onPress={() => setRejectModalTxId(null)}>
-                        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%' }}>
+                        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0} style={{ width: '100%' }}>
                             <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()}>
                                 <Text style={styles.modalTitle}>Decline Offer</Text>
                                 <Text style={styles.modalSubtext}>Are you sure you want to decline this offer?</Text>

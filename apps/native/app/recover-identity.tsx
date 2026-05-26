@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, SafeAreaView, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, SafeAreaView, ScrollView, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { MemberAvatar } from '../components/MemberAvatar';
@@ -87,8 +87,12 @@ export default function RecoverIdentityScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar style="light" />
-            <ScrollView contentContainerStyle={styles.scroll}>
-                <View style={styles.card}>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                style={{ flex: 1 }}
+            >
+                <ScrollView contentContainerStyle={styles.scroll}>
+                    <View style={styles.card}>
                     {step === 'lookup' && (
                         <>
                             <Text style={styles.title}>🛡️ Social Recovery</Text>
@@ -182,6 +186,7 @@ export default function RecoverIdentityScreen() {
                     )}
                 </View>
             </ScrollView>
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 }

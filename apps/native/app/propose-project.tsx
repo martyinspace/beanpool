@@ -89,7 +89,11 @@ export default function ProposeProjectModal() {
                 <View style={{ width: 40 }} />
             </View>
 
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+            <KeyboardAvoidingView 
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+                style={{ flex: 1 }}
+            >
                 <ScrollView contentContainerStyle={styles.scroll}>
                     <View style={styles.infoBox}>
                         <MaterialCommunityIcons name="information" size={20} color="#10b981" style={{ marginRight: 8 }} />

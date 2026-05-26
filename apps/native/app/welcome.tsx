@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, Alert, Image, FlatList, BackHandler } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, Alert, Image, FlatList, BackHandler, KeyboardAvoidingView, Platform } from 'react-native';
 import { hapticTick } from '../utils/haptics';
 import { createIdentity, createIdentityFromMnemonic, BeanPoolIdentity } from '../utils/identity';
 import { nativeDecryptIdentity } from '../utils/native-crypto';
@@ -523,7 +523,11 @@ export default function WelcomeScreen() {
         return (
             <SafeAreaView style={styles.container}>
                 <StatusBar style="dark" />
-                <ScrollView contentContainerStyle={styles.scroll}>
+                <KeyboardAvoidingView 
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    style={{ flex: 1 }}
+                >
+                    <ScrollView contentContainerStyle={styles.scroll}>
                     <OnboardingStepper step={1} />
                     <View style={styles.card}>
                         <Text style={styles.title}>🎟️ Join BeanPool</Text>
@@ -585,6 +589,7 @@ export default function WelcomeScreen() {
                         </Pressable>
                     </View>
                 </ScrollView>
+                </KeyboardAvoidingView>
             </SafeAreaView>
         );
     }
@@ -625,7 +630,11 @@ export default function WelcomeScreen() {
         return (
             <SafeAreaView style={styles.container}>
                 <StatusBar style="dark" />
-                <ScrollView contentContainerStyle={styles.scroll}>
+                <KeyboardAvoidingView 
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    style={{ flex: 1 }}
+                >
+                    <ScrollView contentContainerStyle={styles.scroll}>
                     <View style={styles.card}>
                         <Text style={styles.title}>📥 Import Identity</Text>
                         <Text style={styles.subtitle}>Paste the transfer code from your other device and enter the PIN.</Text>
@@ -661,6 +670,7 @@ export default function WelcomeScreen() {
                         </Pressable>
                     </View>
                 </ScrollView>
+                </KeyboardAvoidingView>
             </SafeAreaView>
         );
     }
@@ -670,7 +680,11 @@ export default function WelcomeScreen() {
         return (
             <SafeAreaView style={styles.container}>
                 <StatusBar style="dark" />
-                <ScrollView contentContainerStyle={styles.scroll}>
+                <KeyboardAvoidingView 
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    style={{ flex: 1 }}
+                >
+                    <ScrollView contentContainerStyle={styles.scroll}>
                     <View style={styles.card}>
                         <Text style={styles.title}>🔑 Recover Identity</Text>
                         <Text style={styles.subtitle}>Enter the 12 recovery words you wrote down.</Text>
@@ -722,6 +736,7 @@ export default function WelcomeScreen() {
                         </Pressable>
                     </View>
                 </ScrollView>
+                </KeyboardAvoidingView>
             </SafeAreaView>
         );
     }
