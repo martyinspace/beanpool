@@ -111,7 +111,16 @@ export function readFromStream(stream: any, timeoutMs = 30000): Promise<string> 
 
                 clearTimeout(timer);
                 const finalRaw = decoder.decode(Buffer.concat(chunks));
-                resolve(finalRaw);
+                if (!finalRaw || !finalRaw.trim()) {
+                    reject(new Error('Empty response from peer'));
+                } else {
+                    try {
+                        JSON.parse(finalRaw);
+                        resolve(finalRaw);
+                    } catch (e: any) {
+                        reject(new Error(`Invalid JSON payload: ${e.message}`));
+                    }
+                }
             } catch (err) {
                 clearTimeout(timer);
                 reject(err);
