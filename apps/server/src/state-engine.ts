@@ -1436,7 +1436,7 @@ export function requestPost(postId: string, requesterPublicKey: string, hours?: 
     })();
 
     // Note: getMarketplaceTransactions fetches by user; we'll fetch for the requester
-    const tx = getMarketplaceTransactions(requesterPublicKey).find(t => t.id === transactionId)!;
+    const tx = getMarketplaceTransaction(transactionId)!;
     broadcast({ type: 'transaction_requested', transaction: tx });
 
     // Push notification: notify the post author that someone wants their item
@@ -1492,7 +1492,7 @@ export function approvePostRequest(transactionId: string, authorPublicKey: strin
         }
     })();
 
-    const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
+    const tx = getMarketplaceTransaction(transactionId)!;
     broadcast({ type: 'transaction_approved', transaction: tx });
     broadcast({ type: 'post_updated', post: getPosts({ id: row.post_id })[0] });
 
@@ -1533,7 +1533,7 @@ export function rejectPostRequest(transactionId: string, authorPublicKey: string
 
     db.prepare(`UPDATE marketplace_transactions SET status='rejected', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`).run(transactionId);
     
-    const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
+    const tx = getMarketplaceTransaction(transactionId)!;
     broadcast({ type: 'transaction_rejected', transaction: tx });
 
     // Push notification: notify the requester that their request was declined
@@ -1563,7 +1563,7 @@ export function cancelPostRequest(transactionId: string, requesterPublicKey: str
 
     db.prepare(`UPDATE marketplace_transactions SET status='cancelled', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`).run(transactionId);
     
-    const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
+    const tx = getMarketplaceTransaction(transactionId)!;
     broadcast({ type: 'transaction_cancelled', transaction: tx });
     return tx;
 }
@@ -1634,7 +1634,7 @@ export function completePostTransaction(transactionId: string, confirmerPublicKe
     if (!row) {
         const completedRow = db.prepare("SELECT * FROM marketplace_transactions WHERE id=? AND status='completed'").get(transactionId) as any;
         if (completedRow && completedRow.buyer_pubkey === confirmerPublicKey) {
-            const existing = getMarketplaceTransactions(confirmerPublicKey).find(t => t.id === transactionId);
+            const existing = getMarketplaceTransaction(transactionId);
             if (existing) return { ...existing, alreadyCompleted: true };
         }
         return null;
@@ -1676,7 +1676,7 @@ export function completePostTransaction(transactionId: string, confirmerPublicKe
         }
     })();
 
-    const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
+    const tx = getMarketplaceTransaction(transactionId)!;
     broadcast({ type: 'transaction_completed', transaction: tx });
     
     injectSystemMessage(row.post_id, SystemMessageType.ESCROW_RELEASED, {
@@ -1705,7 +1705,7 @@ export function cancelPostTransaction(transactionId: string, cancellerPublicKey:
             db.prepare(`UPDATE posts SET status='active', accepted_by=NULL, accepted_at=NULL, pending_transaction_id=NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`).run(post.id);
         }
     })();
-    const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
+    const tx = getMarketplaceTransaction(transactionId)!;
     broadcast({ type: 'transaction_cancelled', transaction: tx });
     
     injectSystemMessage(row.post_id, SystemMessageType.ESCROW_CANCELLED, {
@@ -1728,6 +1728,29 @@ export function resumePost(postId: string, authorPublicKey: string): boolean {
     if (result.changes === 0) return false;
     broadcast({ type: 'post_updated', post: getPosts({ id: postId })[0] });
     return true;
+}
+
+export function getMarketplaceTransaction(transactionId: string): MarketplaceTransaction | null {
+    let query = `
+        SELECT mt.*, p.title as postTitle, m1.callsign as buyerCallsign, m2.callsign as sellerCallsign,
+               EXISTS(SELECT 1 FROM ratings r WHERE r.transaction_id = mt.id AND r.rater_pubkey = mt.buyer_pubkey) as ratedByBuyer,
+               EXISTS(SELECT 1 FROM ratings r WHERE r.transaction_id = mt.id AND r.rater_pubkey = mt.seller_pubkey) as ratedBySeller
+        FROM marketplace_transactions mt
+        LEFT JOIN posts p ON mt.post_id = p.id
+        LEFT JOIN members m1 ON mt.buyer_pubkey = m1.public_key
+        LEFT JOIN members m2 ON mt.seller_pubkey = m2.public_key
+        WHERE mt.id = ?
+    `;
+    const r = db.prepare(query).get(transactionId) as any;
+    if (!r) return null;
+
+    const photos = db.prepare(`SELECT * FROM post_photos WHERE post_id = ? ORDER BY order_num ASC LIMIT 1`).all(r.post_id) as any[];
+    const coverImageRow = photos[0];
+    const coverImage = coverImageRow ? coverImageRow.photo_data : null;
+
+    return {
+            id: r.id, postId: r.post_id, postTitle: r.postTitle, buyerPublicKey: r.buyer_pubkey, buyerCallsign: r.buyerCallsign, sellerPublicKey: r.seller_pubkey, sellerCallsign: r.sellerCallsign, credits: r.credits, status: r.status, createdAt: r.created_at, completedAt: r.completed_at, ratedByBuyer: !!r.ratedByBuyer, ratedBySeller: !!r.ratedBySeller, coverImage
+        } as MarketplaceTransaction & { ratedByBuyer?: boolean, ratedBySeller?: boolean, coverImage?: string | null };
 }
 
 export function getMarketplaceTransactions(publicKey: string, filter?: { status?: string }, limit = 50, offset = 0): MarketplaceTransaction[] {
@@ -1765,7 +1788,7 @@ export function getMarketplaceTransactions(publicKey: string, filter?: { status?
         const coverImage = coverImageRow ? coverImageRow.photo_data : null;
         return {
             id: r.id, postId: r.post_id, postTitle: r.postTitle, buyerPublicKey: r.buyer_pubkey, buyerCallsign: r.buyerCallsign, sellerPublicKey: r.seller_pubkey, sellerCallsign: r.sellerCallsign, credits: r.credits, status: r.status, createdAt: r.created_at, completedAt: r.completed_at, ratedByBuyer: !!r.ratedByBuyer, ratedBySeller: !!r.ratedBySeller, coverImage
-        };
+        } as MarketplaceTransaction & { ratedByBuyer?: boolean, ratedBySeller?: boolean, coverImage?: string | null };
     });
 }
 // ===================== COMMUNITY INFO =====================

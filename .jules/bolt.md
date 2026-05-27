@@ -13,3 +13,7 @@
 **Learning:** In `createRecoveryRequest()`, validating guardian guess callsigns was previously done by mapping the guardian public keys to member profiles, filtering out empty profiles, and then executing `.some()` against the resulting array. This led to unnecessary allocations (`.map()` and `.filter()`) and executed database lookups for all guardians even if a match was found in the first element.
 **Action:** Refactored the lookups using `guardians.some(...)` with hoisted, pre-normalized callsign comparison. This enables short-circuiting database reads and completely avoids intermediate array allocations.
 
+
+## 2024-05-18 - [Pagination Find Anti-Pattern]
+**Learning:** Found instances where \`getMarketplaceTransactions(pubkey).find(t => t.id === id)\` was used to retrieve a specific transaction by ID. This is a severe anti-pattern because the \`getMarketplaceTransactions\` query inherently has a \`LIMIT 50\` applied. If the desired transaction has fallen out of the top 50, it silently fails and returns undefined causing bugs and crashing. Additionally, fetching and constructing 50 models only to pick 1 is massively inefficient (O(N) data load for an O(1) target).
+**Action:** Always fetch the target by its specific primary key directly from the database instead of applying \`.find()\` over a collection getter that could be paginated.
