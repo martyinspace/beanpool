@@ -1484,7 +1484,20 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                 ) : (
                     <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 pb-32' : 'flex flex-col gap-5 pb-32'}>
                         {filtered.map((post) => (
-                            <div key={post.id} onClick={() => setSelectedPost(post)} className="h-full cursor-pointer">
+                            <div
+                                key={post.id}
+                                onClick={() => setSelectedPost(post)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        setSelectedPost(post);
+                                    }
+                                }}
+                                role="button"
+                                tabIndex={0}
+                                aria-label={`View ${post.type === 'offer' ? 'offer' : 'need'}: ${post.title}`}
+                                className="h-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terra-400 rounded-[20px]"
+                            >
                                 <MarketplaceCard
                                     post={post as any}
                                     authorRating={authorRatingsCache[post.authorPublicKey]}
