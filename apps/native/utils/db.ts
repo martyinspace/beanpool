@@ -1339,6 +1339,21 @@ export async function applyDelta(delta: any) {
                         tx.ratedBySeller ? 1 : 0
                     ]
                 );
+
+                // Heal corresponding post status to match terminal transaction status
+                const associatedPostId = tx.postId ?? tx.post_id;
+                if (associatedPostId) {
+                    if (incomingStatus === 'completed') {
+                        const postRow = await txn.getFirstAsync<{ repeatable: number }>('SELECT repeatable FROM posts WHERE id = ?', [associatedPostId]);
+                        if (postRow && postRow.repeatable !== 1) {
+                            await txn.runAsync("UPDATE posts SET status = 'completed', active = 0 WHERE id = ?", [associatedPostId]);
+                        } else if (postRow && postRow.repeatable === 1) {
+                            await txn.runAsync("UPDATE posts SET status = 'active', accepted_by = NULL, pending_transaction_id = NULL WHERE id = ?", [associatedPostId]);
+                        }
+                    } else if (incomingStatus === 'cancelled') {
+                        await txn.runAsync("UPDATE posts SET status = 'active', accepted_by = NULL, pending_transaction_id = NULL WHERE id = ?", [associatedPostId]);
+                    }
+                }
             }
         }
 
