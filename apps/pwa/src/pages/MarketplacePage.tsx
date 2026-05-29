@@ -63,7 +63,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
     }, []);
 
     // Layout configuration
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
     const [showFilters, setShowFilters] = useState(false);
     const [showCategoryPicker, setShowCategoryPicker] = useState(false);
     const [showDealsModal, setShowDealsModal] = useState(false);

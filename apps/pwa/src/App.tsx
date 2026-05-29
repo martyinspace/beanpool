@@ -105,7 +105,7 @@ type Tab = 'map' | 'marketplace' | 'messages' | 'people' | 'ledger' | 'projects'
 export function App() {
     const [identity, setIdentity] = useState<BeanPoolIdentity | null>(null);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<Tab>('map');
+    const [activeTab, setActiveTab] = useState<Tab>('marketplace');
     const [peopleSubView, setPeopleSubView] = useState<'friends' | 'community' | 'invites' | 'guardians'>('friends');
     const [showSettings, setShowSettings] = useState(false);
     const [openConversationId, setOpenConversationId] = useState<string | null>(null);
@@ -211,8 +211,8 @@ export function App() {
     }
 
     const TABS: { id: Tab; label: string; emoji: string }[] = [
-        { id: 'map', label: 'Map', emoji: '🗺️' },
         { id: 'marketplace', label: 'Market', emoji: '🤝' },
+        { id: 'map', label: 'Map', emoji: '🗺️' },
         { id: 'projects', label: 'Projects', emoji: '🌱' },
         { id: 'messages', label: 'Chat', emoji: '💬' },
         { id: 'people', label: 'People', emoji: '👥' },
