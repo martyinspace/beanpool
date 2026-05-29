@@ -13,6 +13,7 @@ import {
     submitRating, reportAbuse, getDb, getMemberRatings, createConversationApi, getUnreadCountForPost
 } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
+import { loadIdentity } from '../../utils/identity';
 import { ReviewModal } from '../../components/ReviewModal';
 import { CurrencyDisplay } from '../../components/CurrencyDisplay';
 import { MemberAvatar } from '../../components/MemberAvatar';
@@ -97,70 +98,83 @@ export default function PostDetailModal() {
             if (id) { 
                 const singleId = Array.isArray(id) ? id[0] : id;
                 const singleTxId = Array.isArray(txId) ? txId[0] : txId;
-                const reload = () => {
+                const reload = async () => {
                     getPost(singleId).then(setPost);
-                    getDb().then(database => {
-                        const updateActiveTx = async (tx: any) => {
-                            setActiveTx(tx);
-                            // Ensure unread badge instantly updates when sync_data_updated triggers reload
-                            if (tx && identity?.publicKey) {
-                                const postRow = await getPost(singleId);
-                                const isPayerLocal = tx.buyer_pubkey === identity.publicKey;
-                                const isOwn = identity.publicKey === postRow?.author_pubkey;
-                                const tPubkey = isPayerLocal ? tx.seller_pubkey : tx.buyer_pubkey;
-                                
-                                getUnreadCountForPost(singleId, identity.publicKey, tPubkey)
-                                    .then(setUnreadCount)
-                                    .catch(console.error);
-                            }
-                        };
-
-                        if (singleTxId) {
-                            database.getFirstAsync(`
-                                SELECT t.*, m.callsign as buyer_callsign, s.callsign as seller_callsign 
-                                FROM marketplace_transactions t 
-                                LEFT JOIN members m ON t.buyer_pubkey = m.public_key 
-                                LEFT JOIN members s ON t.seller_pubkey = s.public_key 
-                                WHERE t.id = ?
-                            `, [singleTxId]).then(updateActiveTx);
-                        } else if (identity) {
-                            database.getFirstAsync(`
-                                SELECT t.*, m.callsign as buyer_callsign, s.callsign as seller_callsign 
-                                FROM marketplace_transactions t 
-                                LEFT JOIN members m ON t.buyer_pubkey = m.public_key 
-                                LEFT JOIN members s ON t.seller_pubkey = s.public_key 
-                                WHERE t.post_id=? AND t.status='pending' AND (t.buyer_pubkey=? OR t.seller_pubkey=?) ORDER BY t.created_at DESC LIMIT 1
-                            `, [singleId, identity.publicKey, identity.publicKey]).then(updateActiveTx);
+                    
+                    let activeIdentity = identity;
+                    if (!activeIdentity) {
+                        try {
+                            const idData = await loadIdentity();
+                            if (idData) activeIdentity = idData;
+                        } catch (e) {
+                            console.warn('[Post Detail] Failed to preload identity from Secure Store:', e);
                         }
-                        database.getAllAsync(`
+                    }
+
+                    const database = await getDb();
+                    const updateActiveTx = async (tx: any) => {
+                        setActiveTx(tx);
+                        // Ensure unread badge instantly updates when sync_data_updated triggers reload
+                        if (tx && activeIdentity?.publicKey) {
+                            const postRow = await getPost(singleId);
+                            const isPayerLocal = tx.buyer_pubkey === activeIdentity.publicKey;
+                            const isOwn = activeIdentity.publicKey === postRow?.author_pubkey;
+                            const tPubkey = isPayerLocal ? tx.seller_pubkey : tx.buyer_pubkey;
+                            
+                            getUnreadCountForPost(singleId, activeIdentity.publicKey, tPubkey)
+                                .then(setUnreadCount)
+                                .catch(console.error);
+                        }
+                    };
+
+                    if (singleTxId) {
+                        database.getFirstAsync(`
                             SELECT t.*, m.callsign as buyer_callsign, s.callsign as seller_callsign 
                             FROM marketplace_transactions t 
-                            LEFT JOIN members m ON t.buyer_pubkey = m.public_key LEFT JOIN members s ON t.seller_pubkey = s.public_key 
-                            WHERE t.post_id=? AND t.status='requested'
-                        `, [singleId])
-                            .then(async (res: any[]) => {
-                                const enriched = await Promise.all(res.map(async req => {
-                                    try {
-                                        // Some older local rows might have null seller_pubkey even for needs. Fallback to buyer_pubkey.
-                                        const reqPubkey = (post.type === 'need' && req.seller_pubkey) ? req.seller_pubkey : req.buyer_pubkey;
-                                        const r = await getMemberRatings(reqPubkey);
-                                        return { ...req, avgRating: r.average, count: r.count, resolvedReqPubkey: reqPubkey };
-                                    } catch(e) { return { ...req, avgRating: 0, count: 0, resolvedReqPubkey: req.buyer_pubkey }; }
-                                }));
-                                setRequests(enriched);
-                                
-                                // Fetch unread counts for requests
-                                if (identity) {
-                                    const counts: Record<string, number> = {};
-                                    for (const req of enriched) {
-                                        if (req.resolvedReqPubkey) {
-                                            counts[req.id] = await getUnreadCountForPost(singleId, identity.publicKey, req.resolvedReqPubkey);
-                                        }
+                            LEFT JOIN members m ON t.buyer_pubkey = m.public_key 
+                            LEFT JOIN members s ON t.seller_pubkey = s.public_key 
+                            WHERE t.id = ?
+                        `, [singleTxId]).then(updateActiveTx);
+                    } else if (activeIdentity) {
+                        database.getFirstAsync(`
+                            SELECT t.*, m.callsign as buyer_callsign, s.callsign as seller_callsign 
+                            FROM marketplace_transactions t 
+                            LEFT JOIN members m ON t.buyer_pubkey = m.public_key 
+                            LEFT JOIN members s ON t.seller_pubkey = s.public_key 
+                            WHERE t.post_id=? AND t.status='pending' AND (t.buyer_pubkey=? OR t.seller_pubkey=?) ORDER BY t.created_at DESC LIMIT 1
+                        `, [singleId, activeIdentity.publicKey, activeIdentity.publicKey]).then(updateActiveTx);
+                    }
+
+                    database.getAllAsync(`
+                        SELECT t.*, m.callsign as buyer_callsign, s.callsign as seller_callsign 
+                        FROM marketplace_transactions t 
+                        LEFT JOIN members m ON t.buyer_pubkey = m.public_key LEFT JOIN members s ON t.seller_pubkey = s.public_key 
+                        WHERE t.post_id=? AND t.status='requested'
+                    `, [singleId])
+                        .then(async (res: any[]) => {
+                            const currentPost = await getPost(singleId);
+                            const enriched = await Promise.all(res.map(async req => {
+                                try {
+                                    // Some older local rows might have null seller_pubkey even for needs. Fallback to buyer_pubkey.
+                                    const postType = currentPost?.type || 'offer';
+                                    const reqPubkey = (postType === 'need' && req.seller_pubkey) ? req.seller_pubkey : req.buyer_pubkey;
+                                    const r = await getMemberRatings(reqPubkey);
+                                    return { ...req, avgRating: r.average, count: r.count, resolvedReqPubkey: reqPubkey };
+                                } catch(e) { return { ...req, avgRating: 0, count: 0, resolvedReqPubkey: req.buyer_pubkey }; }
+                            }));
+                            setRequests(enriched);
+                            
+                            // Fetch unread counts for requests
+                            if (activeIdentity) {
+                                const counts: Record<string, number> = {};
+                                for (const req of enriched) {
+                                    if (req.resolvedReqPubkey) {
+                                        counts[req.id] = await getUnreadCountForPost(singleId, activeIdentity.publicKey, req.resolvedReqPubkey);
                                     }
-                                    setReqUnreadCounts(counts);
                                 }
-                            });
-                    });
+                                setReqUnreadCounts(counts);
+                            }
+                        });
                 };
                 reload();
                 
@@ -546,7 +560,11 @@ export default function PostDetailModal() {
                                             </Pressable>
                                             <Pressable style={[styles.confirmActionBtn, styles.confirmActionBtnGreen]} disabled={accepting || (post.price_type !== 'fixed' && !completeHours)} onPress={async () => {
                                                 const txToComplete = activeTx?.id || post.pending_transaction_id;
-                                                if (!identity || !txToComplete) return;
+                                                if (!txToComplete) {
+                                                    Alert.alert("Loading", "Escrow transaction details are still loading. Please wait a moment and try again.");
+                                                    return;
+                                                }
+                                                if (!identity) return;
                                                 setAccepting(true);
                                                 try {
                                                     await completeMarketplaceTransaction(txToComplete, identity.publicKey, post.price_type !== 'fixed' ? Number(completeHours) : undefined);
@@ -613,11 +631,15 @@ export default function PostDetailModal() {
                             )}
 
                             <Pressable style={styles.cancelTxBtn} disabled={accepting} onPress={() => {
+                                const txToCancel = activeTx?.id || post.pending_transaction_id;
+                                if (!txToCancel) {
+                                    Alert.alert("Loading", "Escrow transaction details are still loading. Please wait a moment and try again.");
+                                    return;
+                                }
                                 Alert.alert('Cancel Transaction', 'Return post to the market?', [
                                     { text: 'No', style: 'cancel' },
                                     { text: 'Yes, Cancel', style: 'destructive', onPress: async () => {
-                                        const txToCancel = activeTx?.id || post.pending_transaction_id;
-                                        if(!identity || !txToCancel) return;
+                                        if(!identity) return;
                                         setAccepting(true);
                                         try {
                                             await cancelMarketplaceTransaction(txToCancel, identity.publicKey);

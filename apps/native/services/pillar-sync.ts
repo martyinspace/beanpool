@@ -213,6 +213,10 @@ export async function performSync(): Promise<SyncResult> {
             }
         } catch (e) {}
 
+        const kLastMembersSync = 'pillar_sync_members_last_sync';
+        const lastMembersSync = await AsyncStorage.getItem(kLastMembersSync);
+        const shouldFetchMembers = !lastMembersSync || (Date.now() - parseInt(lastMembersSync, 10)) > 3600_000;
+
         const postsController = new AbortController();
         const balanceController = new AbortController();
         const postsTimeout = setTimeout(() => postsController.abort(), 30000); // Extended for heavy initial payloads
@@ -229,11 +233,11 @@ export async function performSync(): Promise<SyncResult> {
                 headers: { 'Accept': 'application/json' },
                 signal: balanceController.signal
             }) : Promise.resolve(null),
-            fetch(`${anchorUrl}/api/members?_t=${Date.now()}`, {
+            shouldFetchMembers ? fetch(`${anchorUrl}/api/members?_t=${Date.now()}`, {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' },
                 signal: postsController.signal
-            }),
+            }) : Promise.resolve(null),
             fetch(`${anchorUrl}/api/crowdfund/projects?limit=1000${lastSyncParam}&_t=${Date.now()}`, {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' },
@@ -282,6 +286,7 @@ export async function performSync(): Promise<SyncResult> {
                 const dirData = await directoryRes.json();
                 if (Array.isArray(dirData)) {
                     delta.members = dirData;
+                    await AsyncStorage.setItem(kLastMembersSync, String(Date.now()));
                 }
             } catch (e) {}
         }
@@ -390,11 +395,13 @@ export async function getCachedTransactions(): Promise<any[]> {
 
 let syncPromise: Promise<SyncResult> | null = null;
 let needsAnotherSync = false;
+let debounceTimeoutId: NodeJS.Timeout | null = null;
 
 /**
- * Coordinated request wrapper. Ensures that only one performSync executes at a time.
+ * Coordinated request wrapper. Ensures that only one performSync executes at a time,
+ * and debounces rapid consecutive calls (e.g. WebSocket updates) with a 500ms window.
  * If another sync is requested while one is already running, it queues a single trailing
- * sync to execute immediately after the current sync finishes, ensuring no events are missed.
+ * sync to execute after the current sync finishes, ensuring no events are missed.
  */
 export async function requestSync(): Promise<void> {
     if (syncPromise) {
@@ -402,17 +409,38 @@ export async function requestSync(): Promise<void> {
         return;
     }
 
-    syncPromise = performSync().catch(err => {
-        console.error('[Sync Queue] Sync failed:', err);
-        return { success: false, merkleRoot: null, deltaCount: 0, durationMs: 0, aborted: false, errorMessage: String(err) };
-    }).finally(() => {
-        syncPromise = null;
-        if (needsAnotherSync) {
-            needsAnotherSync = false;
-            requestSync();
-        }
-    });
+    if (debounceTimeoutId) {
+        clearTimeout(debounceTimeoutId);
+        debounceTimeoutId = null;
+    }
 
-    await syncPromise;
+    return new Promise<void>((resolve) => {
+        debounceTimeoutId = setTimeout(() => {
+            debounceTimeoutId = null;
+
+            if (syncPromise) {
+                needsAnotherSync = true;
+                resolve();
+                return;
+            }
+
+            console.log('[Sync Queue] Starting debounced sync...');
+            syncPromise = performSync().catch(err => {
+                console.error('[Sync Queue] Sync failed:', err);
+                return { success: false, merkleRoot: null, deltaCount: 0, durationMs: 0, aborted: false, errorMessage: String(err) };
+            }).finally(() => {
+                syncPromise = null;
+                if (needsAnotherSync) {
+                    needsAnotherSync = false;
+                    // Protective 2000ms cooldown delay to prevent infinite consecutive trailing sync loops
+                    setTimeout(() => {
+                        requestSync();
+                    }, 2000);
+                }
+            });
+
+            syncPromise.then(() => resolve());
+        }, 500);
+    });
 }
 

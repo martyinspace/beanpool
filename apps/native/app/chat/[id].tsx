@@ -30,64 +30,65 @@ export default function ChatScreen() {
     const sendingRef = useRef(false);
     const promptedRef = useRef(false);
 
+    const loadConversationData = useCallback(async () => {
+        if (id && identity?.publicKey) {
+            const res = await getConversation(id as string, identity.publicKey);
+            if (res) {
+                setPeerName(res.name || res.otherCallsign || String(id).slice(0, 8));
+                if (res.otherPubkey) setPeerPubkey(res.otherPubkey);
+                setPeerAvatar(res.otherAvatar || null);
+                if (res.postId) {
+                    setPostContext({
+                        id: res.postId,
+                        title: res.postTitle,
+                        status: res.postStatus,
+                        priceType: res.price_type,
+                        credits: res.credits
+                    });
+
+                    if (triggerReview === 'true' && !promptedRef.current) {
+                        promptedRef.current = true;
+                        try {
+                            const db = await getDb();
+                            const txRow = await db.getFirstAsync<any>(
+                                "SELECT id, buyer_pubkey, seller_pubkey FROM marketplace_transactions WHERE post_id=? AND status='completed' LIMIT 1",
+                                [res.postId]
+                            );
+                            if (txRow) {
+                                const targetPubkey = txRow.buyer_pubkey === identity.publicKey ? txRow.seller_pubkey : txRow.buyer_pubkey;
+                                setPromptReviewForTx({
+                                    txId: txRow.id,
+                                    targetPubkey,
+                                    targetCallsign: res.name || res.otherCallsign || String(id).slice(0, 8)
+                                });
+                            }
+                        } catch (e) {
+                            console.error('[Rating] Auto-trigger review load failed:', e);
+                        }
+                    }
+                }
+                // Track pending transaction for inline action bar
+                if (res.pendingTxId && identity.publicKey) {
+                    setPendingTx({
+                        id: res.pendingTxId,
+                        amount: res.pendingAmount,
+                        isPayer: res.txBuyerPubkey === identity.publicKey
+                    });
+                } else {
+                    setPendingTx(null);
+                }
+            } else {
+                setPeerName(String(id).slice(0, 8));
+            }
+        }
+    }, [id, identity, triggerReview]);
+
     useFocusEffect(
         useCallback(() => {
             let interval: ReturnType<typeof setInterval>;
             promptedRef.current = false;
             
-            const loadConversationData = async () => {
-                if (id && identity?.publicKey) {
-                    const res = await getConversation(id as string, identity.publicKey);
-                    if (res) {
-                        setPeerName(res.name || res.otherCallsign || String(id).slice(0, 8));
-                        if (res.otherPubkey) setPeerPubkey(res.otherPubkey);
-                        setPeerAvatar(res.otherAvatar || null);
-                        if (res.postId) {
-                            setPostContext({
-                                id: res.postId,
-                                title: res.postTitle,
-                                status: res.postStatus,
-                                priceType: res.price_type,
-                                credits: res.credits
-                            });
-
-                            if (triggerReview === 'true' && !promptedRef.current) {
-                                promptedRef.current = true;
-                                try {
-                                    const db = await getDb();
-                                    const txRow = await db.getFirstAsync<any>(
-                                        "SELECT id, buyer_pubkey, seller_pubkey FROM marketplace_transactions WHERE post_id=? AND status='completed' LIMIT 1",
-                                        [res.postId]
-                                    );
-                                    if (txRow) {
-                                        const targetPubkey = txRow.buyer_pubkey === identity.publicKey ? txRow.seller_pubkey : txRow.buyer_pubkey;
-                                        setPromptReviewForTx({
-                                            txId: txRow.id,
-                                            targetPubkey,
-                                            targetCallsign: res.name || res.otherCallsign || String(id).slice(0, 8)
-                                        });
-                                    }
-                                } catch (e) {
-                                    console.error('[Rating] Auto-trigger review load failed:', e);
-                                }
-                            }
-                        }
-                        // Track pending transaction for inline action bar
-                        if (res.pendingTxId && identity.publicKey) {
-                            setPendingTx({
-                                id: res.pendingTxId,
-                                amount: res.pendingAmount,
-                                isPayer: res.txBuyerPubkey === identity.publicKey
-                            });
-                        } else {
-                            setPendingTx(null);
-                        }
-                    } else {
-                        setPeerName(String(id).slice(0, 8));
-                    }
-                }
-            };
-
+            let sub: any = null;
             if (id && identity?.publicKey) {
                 // Initial Load
                 loadConversationData();
@@ -105,11 +106,18 @@ export default function ChatScreen() {
                         loadMessages(true);
                     });
                 }, 3000);
+
+                const { DeviceEventEmitter } = require('react-native');
+                sub = DeviceEventEmitter.addListener('sync_data_updated', () => {
+                    loadConversationData();
+                    loadMessages(true);
+                });
             }
             return () => {
                 if (interval) clearInterval(interval);
+                if (sub) sub.remove();
             };
-        }, [id, identity])
+        }, [id, identity, loadConversationData])
     );
 
     const loadMessages = async (isBackgroundPoll = false) => {
@@ -163,6 +171,7 @@ export default function ChatScreen() {
                             Alert.alert('Success', 'Credits have been released!');
                             // Refresh conversation state
                             syncSingleConversation(id as string).then(() => {
+                                loadConversationData();
                                 loadMessages(true);
                             });
                         } catch (e: any) {
@@ -194,6 +203,7 @@ export default function ChatScreen() {
                             hapticWarning();
                             Alert.alert('Cancelled', 'Escrow has been cancelled and credits refunded.');
                             syncSingleConversation(id as string).then(() => {
+                                loadConversationData();
                                 loadMessages(true);
                             });
                         } catch (e: any) {

@@ -1,11 +1,18 @@
 # 🗺️ BeanPool Roadmap
 
-> Planned features and future work. Updated: 2026-05-22
+> Planned features and future work. Updated: 2026-05-30
 
 ---
 
 ## ✅ Recently Completed
 
+- ✅ **Release v1.1.3: Low-Latency Escrow Settlements & Coalesced Trailing Syncs** — Shipped a massive client-side and background synchronization engine optimization, shrinking escrow settlement times to <1s, eliminating SQLite "database is locked" errors, and introducing real-time chat reactive updates.
+  - **Zero-Lock Database Network fetches**: Moved all HTTP fetches completely out of critical database `acquireSyncLock()` mutex blocks in `syncMessages`, `syncSingleConversation`, and `createProject` in `utils/db.ts`. Sync locks are now held strictly during microsecond SQLite write transactions, preventing lock-blocking during network I/O.
+  - **Coalesced Trailing Sync Cooldown**: Introduced a protective `2000ms` trailing sync cooldown throttle inside `requestSync()` in `pillar-sync.ts`. Successive rapid WebSocket event broadcasts (e.g., transaction updates, messages) are combined and executed in a single sync run, preventing infinite background sync storms.
+  - **Hourly Directory Caching**: Optimized background synchronization payload volume by caching `/api/members` directory requests to 1-hour intervals, saving mobile CPU processing and network bandwidth during high-frequency sync cycles.
+  - **Dynamic Chat State Reloading**: Integrated a `sync_data_updated` DeviceEventEmitter listener inside `chat/[id].tsx` to refresh conversation details and message logs in real-time, coupled with immediate `loadConversationData()` reloads on local Accept and Cancel escrow actions to completely eliminate frozen visual action cards.
+  - **Fresh Listings Hiding & Dismissal**: Added scroll-aware auto-hiding and dynamic manual dismissal (tap-to-dismiss) to the Marketplace "Fresh Listings" social proof banner on the main Feed page in `index.tsx`.
+  - **Native Version Release v1.1.3 (Build 112)**: Bushed native client release build v1.1.3 with incremental updates.
 - ✅ **Release v1.0.88: Active/Passive Collision & Deadlock Warnings & Test Mirror Deployment** — Introduced high-visibility connection warnings, real-time push-on-write replication, safety reconciles, automatic tombstone pruning, and a 5th live node (Node 6 - Test Mirror) to the BeanPool federated network.
   - **Active/Passive Role Toggles & HUD Warnings**: Added Dialer (`enabled: true`) and Listener (`enabled: false`) roles that exchange enabled states on handshake. Automatically detects and overlays a red `⚠️ Collision` warning badge for dual active nodes and a yellow `⚠️ Deadlock` warning badge for dual passive nodes with clear inline instructions.
   - **Push-on-Write Real-Time Replication**: Upgraded state synchronization to perform real-time WebSocket delta event broadcasts (`/beanpool/sync/delta/2.0.0`) on database write, cryptographically signed using the node's Ed25519 private key and validated by the receiver.

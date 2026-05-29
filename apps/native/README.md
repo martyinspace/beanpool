@@ -98,13 +98,13 @@ apps/native/
 - **Push Notifications** — DM and marketplace deal alerts via Expo Push, per-member notification preferences, token registration
 - **Guest Mode** — multi-node onboarding flow with membership probe; guest indicators in header and sync status when visiting a node you're not a member of
 - **Community Search** — search and infinite scroll on the Community member list
-- **App Store & Play Store Submission** — Published/built for both stores (v1.0.86, build 103).
+- **App Store & Play Store Submission** — Published/built for both stores (v1.1.3, build 112).
 - **Community Projects** — crowdfund tab with progress bars, funding badges, and proposal creation
 - **Branded Tab Bar** — neon-vine artwork background with semi-transparent overlay
 - **Post Detail View** — full-screen view with photos, credits, author info
 - **Global Notifications** — red tab bar badges dynamically map to internal SQLite `last_read_at` unread calculations across inactive threads
-- **Live Thread Syncing** — optimized 3-second polling hooks inside Active Chat fragments safely establish WebSocket-like responsiveness without hammering the background Node
-- **SQLite Concurrency Mutex** — robust `dbSyncLock` javascript queue guarantees zero memory locks when background `applyDelta` daemons inherently overlap with foreground UX reads
+- **Live Thread Syncing** — optimized 3-second polling hooks inside Active Chat fragments safely establish WebSocket-like responsiveness without hammering the background Node, paired with a `sync_data_updated` DeviceEventEmitter listener to reload chat details and message logs in real-time.
+- **SQLite Concurrency Mutex** — robust `dbSyncLock` javascript queue and zero-lock network fetches guarantee zero memory locks and prevent "database is locked" crashes when background `applyDelta` daemons inherently overlap with foreground UX reads
 - **Local User Blocking** — client-side block list stored in SecureStore securely hides target callsigns and listings
 - **Settings Visual Overhaul** — identity card with bio, contact details, and contrast improvements
 - **iOS Crypto Polyfill** — SHA-512 and Ed25519 signing polyfilled for iOS via `expo-crypto`
@@ -194,4 +194,4 @@ npx expo start                      # Native dev client
 
 ---
 
-_Last updated: 2026-05-22_
+_Last updated: 2026-05-30_

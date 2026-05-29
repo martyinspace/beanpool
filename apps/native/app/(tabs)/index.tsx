@@ -92,6 +92,10 @@ export default function MarketScreen() {
     const [favCategories, setFavCategories] = useState<string[]>([]);
     const [isCustomizerExpanded, setIsCustomizerExpanded] = useState(true);
 
+    // Fresh listings banner dismissal and scroll tracking states
+    const [dismissedFreshCount, setDismissedFreshCount] = useState<number>(0);
+    const [showFreshBannerOnScroll, setShowFreshBannerOnScroll] = useState(true);
+
     useEffect(() => {
         AsyncStorage.getItem('bp_fav_categories').then(val => {
             if (val) {
@@ -100,6 +104,13 @@ export default function MarketScreen() {
                 if (parsed && parsed.length > 0) {
                     setIsCustomizerExpanded(false);
                 }
+            }
+        }).catch(() => {});
+
+        // Load dismissed fresh postings count
+        AsyncStorage.getItem('bp_dismissed_fresh_count').then(val => {
+            if (val) {
+                setDismissedFreshCount(parseInt(val, 10));
             }
         }).catch(() => {});
     }, []);
@@ -321,6 +332,35 @@ export default function MarketScreen() {
         return diffDays === 0;
     }).length;
 
+    // Display banner only if fresh postings count is greater than the dismissed count and scroll visibility is active
+    const shouldShowFreshBanner = freshTodayCount > 0 && freshTodayCount > dismissedFreshCount && showFreshBannerOnScroll;
+
+    const dismissFreshBanner = async () => {
+        const { LayoutAnimation } = require('react-native');
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setDismissedFreshCount(freshTodayCount);
+        try {
+            await AsyncStorage.setItem('bp_dismissed_fresh_count', String(freshTodayCount));
+        } catch (e) {}
+    };
+
+    const onScrollHandler = (event: any) => {
+        const offsetY = event.nativeEvent.contentOffset.y;
+        if (offsetY > 15) {
+            if (showFreshBannerOnScroll) {
+                const { LayoutAnimation } = require('react-native');
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setShowFreshBannerOnScroll(false);
+            }
+        } else if (offsetY <= 5) {
+            if (!showFreshBannerOnScroll) {
+                const { LayoutAnimation } = require('react-native');
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setShowFreshBannerOnScroll(true);
+            }
+        }
+    };
+
     const HeaderComponent = (
         <View>
             {/* Top row: Search + My Deals + View Toggle */}
@@ -497,8 +537,14 @@ export default function MarketScreen() {
             )}
 
             {/* Freshness Social Proof Banner */}
-            {freshTodayCount > 0 && (
-                <View style={styles.freshBanner}>
+            {shouldShowFreshBanner && (
+                <Pressable 
+                    onPress={dismissFreshBanner}
+                    style={({ pressed }) => [
+                        styles.freshBanner,
+                        pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] }
+                    ]}
+                >
                     <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}>
                         <Text style={{ fontSize: 20 }}>🔥</Text>
                         <View style={{ flex: 1 }}>
@@ -506,14 +552,14 @@ export default function MarketScreen() {
                                 {freshTodayCount} fresh listing{freshTodayCount > 1 ? 's' : ''} posted today!
                             </Text>
                             <Text style={styles.freshBannerSub}>
-                                Scroll down to explore what is new in the community.
+                                Tap to dismiss • Scroll down to explore
                             </Text>
                         </View>
                     </View>
                     <View style={styles.liveBadge}>
                         <Text style={styles.liveBadgeText}>LIVE</Text>
                     </View>
-                </View>
+                </Pressable>
             )}
         </View>
     );
@@ -740,6 +786,8 @@ export default function MarketScreen() {
                 contentContainerStyle={styles.listContent}
                 columnWrapperStyle={viewMode === 'grid' ? styles.gridRow : undefined}
                 showsVerticalScrollIndicator={false}
+                onScroll={onScrollHandler}
+                scrollEventThrottle={16}
                 ListEmptyComponent={
                     <View style={{ padding: 32, alignItems: 'center' }}>
                         <Text style={{ fontSize: 40, opacity: 0.3, marginBottom: 16 }}>🛒</Text>

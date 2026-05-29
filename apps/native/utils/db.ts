@@ -924,69 +924,69 @@ export async function createProject(project: {
     deadline_at?: string | null;
 }) {
     await waitForInit();
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) {
+        throw new Error('You are currently offline. Please connect to a BeanPool Node to propose your project.');
+    }
+
+    const identity = await loadIdentity();
+    if (!identity) {
+        throw new Error('No identity found.');
+    }
+
+    const projectId = Crypto.randomUUID();
+
+    const body = {
+        id: projectId,
+        creatorPubkey: identity.publicKey,
+        title: project.title,
+        description: project.description,
+        photos: project.photos || [],
+        goalAmount: project.goal_amount,
+        deadlineAt: project.deadline_at || null,
+    };
+    const bodyString = JSON.stringify(body);
+
+    const privateKeyBytes = hexToBytes(identity.privateKey);
+    const messageBytes = encodeUtf8(bodyString);
+    const signatureBytes = await signData(messageBytes, privateKeyBytes);
+    const signatureBase64 = encodeBase64(signatureBytes);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    let res;
+    try {
+        res = await fetch(`${anchorUrl}/api/crowdfund/projects`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Public-Key': identity.publicKey,
+                'X-Signature': signatureBase64,
+            },
+            body: bodyString,
+            signal: controller.signal,
+        });
+    } catch (e: any) {
+        throw new Error(e.message || 'Network request failed. You must be connected to a node to propose projects.');
+    } finally {
+        clearTimeout(timeoutId);
+    }
+
+    if (!res.ok) {
+        const txt = await res.text();
+        let errMsg = 'Network request failed or server rejected the project.';
+        try {
+            const json = JSON.parse(txt);
+            if (json.error) errMsg = json.error;
+        } catch (e) {
+            if (txt) errMsg = txt;
+        }
+        throw new Error(errMsg);
+    }
+
+    // Save to SQLite
     await acquireSyncLock();
     try {
-        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
-        if (!anchorUrl) {
-            throw new Error('You are currently offline. Please connect to a BeanPool Node to propose your project.');
-        }
-
-        const identity = await loadIdentity();
-        if (!identity) {
-            throw new Error('No identity found.');
-        }
-
-        const projectId = Crypto.randomUUID();
-
-        const body = {
-            id: projectId,
-            creatorPubkey: identity.publicKey,
-            title: project.title,
-            description: project.description,
-            photos: project.photos || [],
-            goalAmount: project.goal_amount,
-            deadlineAt: project.deadline_at || null,
-        };
-        const bodyString = JSON.stringify(body);
-
-        const privateKeyBytes = hexToBytes(identity.privateKey);
-        const messageBytes = encodeUtf8(bodyString);
-        const signatureBytes = await signData(messageBytes, privateKeyBytes);
-        const signatureBase64 = encodeBase64(signatureBytes);
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-        let res;
-        try {
-            res = await fetch(`${anchorUrl}/api/crowdfund/projects`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Public-Key': identity.publicKey,
-                    'X-Signature': signatureBase64,
-                },
-                body: bodyString,
-                signal: controller.signal,
-            });
-        } catch (e: any) {
-            throw new Error(e.message || 'Network request failed. You must be connected to a node to propose projects.');
-        } finally {
-            clearTimeout(timeoutId);
-        }
-
-        if (!res.ok) {
-            const txt = await res.text();
-            let errMsg = 'Network request failed or server rejected the project.';
-            try {
-                const json = JSON.parse(txt);
-                if (json.error) errMsg = json.error;
-            } catch (e) {
-                if (txt) errMsg = txt;
-            }
-            throw new Error(errMsg);
-        }
-
-        // Save to SQLite
         const database = await getDb();
         await database.runAsync(
              `INSERT INTO projects (id, creator_pubkey, title, description, photos, goal_amount, current_amount, status, created_at, deadline_at)
@@ -1469,40 +1469,49 @@ export async function applyDelta(delta: any) {
 }
 
 export async function syncMessages(publicKey: string) {
-    await acquireSyncLock();
     try {
         const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
         if (!anchorUrl) return;
-        const database = await getDb();
         
+        const kLastMembersSync = 'pillar_sync_members_last_sync';
+        const lastMembersSync = await AsyncStorage.getItem(kLastMembersSync);
+        const shouldFetchMembers = !lastMembersSync || (Date.now() - parseInt(lastMembersSync, 10)) > 3600_000;
+
         const controller1 = new AbortController();
         const timeout1 = setTimeout(() => controller1.abort(), 10000);
         
         const [convRes, dirRes] = await Promise.all([
             fetch(`${anchorUrl}/api/messages/conversations/${publicKey}`, { headers: { 'Accept': 'application/json' }, signal: controller1.signal }),
-            fetch(`${anchorUrl}/api/members`, { headers: { 'Accept': 'application/json' }, signal: controller1.signal }).catch(() => null)
+            shouldFetchMembers ? fetch(`${anchorUrl}/api/members`, { headers: { 'Accept': 'application/json' }, signal: controller1.signal }).catch(() => null) : Promise.resolve(null)
         ]);
         clearTimeout(timeout1);
         
         if (dirRes && dirRes.ok) {
             try {
-                const dirData = await dirRes.json();
+                const dirData = await dirRes.ok ? await dirRes.json() : null;
                 if (Array.isArray(dirData) && dirData.length > 0) {
-                    await database.withTransactionAsync(async () => {
-                        const txn = database;
-                        for (const m of dirData) {
-                            const pk = m.publicKey || m.public_key || '';
-                            const cs = m.callsign || '';
-                            const av = m.avatarUrl || m.avatar_url || null;
-                            await txn.runAsync(
-                                `INSERT INTO members (public_key, callsign, avatar_url) VALUES (?, ?, ?)
-                                 ON CONFLICT(public_key) DO UPDATE SET
-                                   callsign = excluded.callsign,
-                                   avatar_url = COALESCE(excluded.avatar_url, members.avatar_url)`,
-                                [pk, cs, av]
-                            );
-                        }
-                    });
+                    await acquireSyncLock();
+                    try {
+                        const database = await getDb();
+                        await database.withTransactionAsync(async () => {
+                            const txn = database;
+                            for (const m of dirData) {
+                                const pk = m.publicKey || m.public_key || '';
+                                const cs = m.callsign || '';
+                                const av = m.avatarUrl || m.avatar_url || null;
+                                await txn.runAsync(
+                                    `INSERT INTO members (public_key, callsign, avatar_url) VALUES (?, ?, ?)
+                                     ON CONFLICT(public_key) DO UPDATE SET
+                                       callsign = excluded.callsign,
+                                       avatar_url = COALESCE(excluded.avatar_url, members.avatar_url)`,
+                                    [pk, cs, av]
+                                );
+                            }
+                        });
+                        await AsyncStorage.setItem(kLastMembersSync, String(Date.now()));
+                    } finally {
+                        releaseSyncLock();
+                    }
                 }
             } catch (e) {}
         }
@@ -1513,25 +1522,35 @@ export async function syncMessages(publicKey: string) {
         if (!convData.conversations) return;
         
         for (const conv of convData.conversations) {
-            await database.withTransactionAsync(async () => {
-                const txn = database;
-                const localConv = await txn.getFirstAsync<any>('SELECT id FROM conversations WHERE id = ?', [conv.id]);
-                if (!localConv) {
-                    await txn.runAsync('INSERT INTO conversations (id, type, post_id, name, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-                        [conv.id, conv.type || 'dm', conv.postId || conv.post_id || null, conv.name || null, conv.createdBy || '', conv.createdAt || new Date().toISOString()]);
-                }
-                // Always upsert participants — they may have been missed if the conv
-                // row was inserted by another sync path that didn't include them.
-                if (Array.isArray(conv.participants)) {
-                    for (const pub of conv.participants) {
-                        await txn.runAsync('INSERT OR IGNORE INTO conversation_participants (conversation_id, public_key) VALUES (?, ?)', [conv.id, pub]);
+            await acquireSyncLock();
+            try {
+                const database = await getDb();
+                await database.withTransactionAsync(async () => {
+                    const txn = database;
+                    const localConv = await txn.getFirstAsync<any>('SELECT id FROM conversations WHERE id = ?', [conv.id]);
+                    if (!localConv) {
+                        await txn.runAsync('INSERT INTO conversations (id, type, post_id, name, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+                            [conv.id, conv.type || 'dm', conv.postId || conv.post_id || null, conv.name || null, conv.createdBy || '', conv.createdAt || new Date().toISOString()]);
                     }
-                }
-            });
+                    if (Array.isArray(conv.participants)) {
+                        for (const pub of conv.participants) {
+                            await txn.runAsync('INSERT OR IGNORE INTO conversation_participants (conversation_id, public_key) VALUES (?, ?)', [conv.id, pub]);
+                        }
+                    }
+                });
+            } finally {
+                releaseSyncLock();
+            }
             
             const controller2 = new AbortController();
             const timeout2 = setTimeout(() => controller2.abort(), 5000);
-            const msgRes = await fetch(`${anchorUrl}/api/messages/${conv.id}`, { headers: { 'Accept': 'application/json' }, signal: controller2.signal });
+            let msgRes;
+            try {
+                msgRes = await fetch(`${anchorUrl}/api/messages/${conv.id}`, { headers: { 'Accept': 'application/json' }, signal: controller2.signal });
+            } catch (err) {
+                clearTimeout(timeout2);
+                continue;
+            }
             clearTimeout(timeout2);
             if (!msgRes.ok) continue;
             
@@ -1539,32 +1558,34 @@ export async function syncMessages(publicKey: string) {
             const messages = msgData.messages;
             if (!Array.isArray(messages)) continue;
             
-            await database.withTransactionAsync(async () => {
-                const txn = database;
-                for (const m of messages) {
-                    await txn.runAsync(
-                        `INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, system_type, metadata, timestamp)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                         ON CONFLICT(id) DO UPDATE SET metadata = excluded.metadata`,
-                        [m.id, conv.id, m.author_pubkey || m.authorPubkey || '', m.ciphertext || '', m.nonce || '', m.type || 'text', m.systemType || m.system_type || null, m.metadata || null, m.timestamp || m.created_at || new Date().toISOString()]
-                    );
-                }
-            });
+            await acquireSyncLock();
+            try {
+                const database = await getDb();
+                await database.withTransactionAsync(async () => {
+                    const txn = database;
+                    for (const m of messages) {
+                        await txn.runAsync(
+                            `INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, system_type, metadata, timestamp)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             ON CONFLICT(id) DO UPDATE SET metadata = excluded.metadata`,
+                            [m.id, conv.id, m.author_pubkey || m.authorPubkey || '', m.ciphertext || '', m.nonce || '', m.type || 'text', m.systemType || m.system_type || null, m.metadata || null, m.timestamp || m.created_at || new Date().toISOString()]
+                        );
+                    }
+                });
+            } finally {
+                releaseSyncLock();
+            }
         }
     } catch (err) {
         console.log('[Sync] Failed to pull messages natively', err);
-    } finally {
-        releaseSyncLock();
     }
 }
 
 export async function syncSingleConversation(conversationId: string) {
-    await acquireSyncLock();
     try {
         const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
         if (!anchorUrl) return;
         
-        const database = await getDb();
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 5000);
         const msgRes = await fetch(`${anchorUrl}/api/messages/${conversationId}`, { headers: { 'Accept': 'application/json' }, signal: controller.signal });
@@ -1576,18 +1597,22 @@ export async function syncSingleConversation(conversationId: string) {
         const messages = msgData.messages;
         if (!Array.isArray(messages)) return;
         
-        for (const m of messages) {
-            await database.runAsync(
-                `INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, system_type, metadata, timestamp)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                 ON CONFLICT(id) DO UPDATE SET metadata = excluded.metadata`,
-                [m.id, conversationId, m.author_pubkey || m.authorPubkey || '', m.ciphertext || '', m.nonce || '', m.type || 'text', m.systemType || m.system_type || null, m.metadata || null, m.timestamp || m.created_at || new Date().toISOString()]
-            );
+        await acquireSyncLock();
+        try {
+            const database = await getDb();
+            for (const m of messages) {
+                await database.runAsync(
+                    `INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, system_type, metadata, timestamp)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     ON CONFLICT(id) DO UPDATE SET metadata = excluded.metadata`,
+                    [m.id, conversationId, m.author_pubkey || m.authorPubkey || '', m.ciphertext || '', m.nonce || '', m.type || 'text', m.systemType || m.system_type || null, m.metadata || null, m.timestamp || m.created_at || new Date().toISOString()]
+                );
+            }
+        } finally {
+            releaseSyncLock();
         }
     } catch (err) {
         // Silent catch for background polling
-    } finally {
-        releaseSyncLock();
     }
 }
 
@@ -2025,24 +2050,6 @@ export async function acceptMarketplacePost(postId: string, buyerPublicKey: stri
                 [tx.id, tx.postId || postId, tx.buyerPublicKey || buyerPublicKey, tx.sellerPublicKey || null, tx.credits || 0, tx.hours || null, tx.status || 'pending', tx.createdAt || new Date().toISOString(), tx.coverImage || null]
             );
         }
-
-        // Refresh buyer balance immediately (escrow just deducted from them)
-        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
-        if (anchorUrl) {
-            try {
-                const balRes = await fetch(`${anchorUrl}/api/ledger/balance/${buyerPublicKey}?_t=${Date.now()}`);
-                if (balRes.ok) {
-                    const balData = await balRes.json();
-                    await database.runAsync(
-                        'INSERT OR REPLACE INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, ?, ?)',
-                        [buyerPublicKey, balData.balance || 0, balData.last_demurrage_epoch || 0]
-                    );
-                    console.log(`[Escrow] Buyer balance after escrow lock: ${balData.balance}B`);
-                }
-            } catch (e) {
-                console.warn('[Escrow] Balance refresh failed:', e);
-            }
-        }
         
         const { DeviceEventEmitter } = require('react-native');
         DeviceEventEmitter.emit('sync_data_updated');
@@ -2051,6 +2058,33 @@ export async function acceptMarketplacePost(postId: string, buyerPublicKey: stri
     } finally {
         releaseSyncLock();
     }
+
+    // Refresh buyer balance immediately (escrow just deducted from them) - OUTSIDE critical lock section
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (anchorUrl) {
+        try {
+            const balRes = await fetch(`${anchorUrl}/api/ledger/balance/${buyerPublicKey}?_t=${Date.now()}`);
+            if (balRes.ok) {
+                const balData = await balRes.json();
+                await acquireSyncLock();
+                try {
+                    const database = await getDb();
+                    await database.runAsync(
+                        'INSERT OR REPLACE INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, ?, ?)',
+                        [buyerPublicKey, balData.balance || 0, balData.last_demurrage_epoch || 0]
+                    );
+                    console.log(`[Escrow] Buyer balance after escrow lock: ${balData.balance}B`);
+                } finally {
+                    releaseSyncLock();
+                }
+                const { DeviceEventEmitter } = require('react-native');
+                DeviceEventEmitter.emit('sync_data_updated');
+            }
+        } catch (e) {
+            console.warn('[Escrow] Balance refresh failed:', e);
+        }
+    }
+    
     return res;
 }
 
@@ -2071,31 +2105,6 @@ export async function completeMarketplaceTransaction(transactionId: string, conf
         const sellerPubkey = res?.transaction?.sellerPublicKey || null;
         console.log(`[Escrow] Completing: buyer=${buyerPubkey?.slice(0,8)}, seller=${sellerPubkey?.slice(0,8)}, credits=${res?.transaction?.credits}`);
         
-        // Immediately refresh BOTH parties' balances from server
-        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
-        if (anchorUrl) {
-            const pubkeysToRefresh = [buyerPubkey, sellerPubkey].filter(Boolean) as string[];
-            for (const pk of pubkeysToRefresh) {
-                try {
-                    const balRes = await fetch(`${anchorUrl}/api/ledger/balance/${pk}?_t=${Date.now()}`);
-                    if (balRes.ok) {
-                        const balData = await balRes.json();
-                        await database.runAsync(
-                            'INSERT OR REPLACE INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, ?, ?)',
-                            [pk, balData.balance || 0, balData.last_demurrage_epoch || 0]
-                        );
-                        console.log(`[Escrow] Balance refreshed for ${pk.slice(0,8)}: ${balData.balance}B`);
-                    } else {
-                        console.warn(`[Escrow] Balance fetch failed for ${pk.slice(0,8)}: HTTP ${balRes.status}`);
-                    }
-                } catch (e) {
-                    console.warn(`[Escrow] Balance refresh error for ${pk.slice(0,8)}:`, e);
-                }
-            }
-        } else {
-            console.warn('[Escrow] No anchor URL — cannot refresh balances');
-        }
-        
         // Emit events so Ledger screen refreshes immediately
         const { DeviceEventEmitter } = require('react-native');
         DeviceEventEmitter.emit('transaction_completed');
@@ -2106,11 +2115,48 @@ export async function completeMarketplaceTransaction(transactionId: string, conf
     } finally {
         releaseSyncLock();
     }
+
+    // Immediately refresh BOTH parties' balances from server *outside critical lock section*
+    const buyerPubkey = res?.transaction?.buyerPublicKey || confirmerPublicKey;
+    const sellerPubkey = res?.transaction?.sellerPublicKey || null;
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (anchorUrl) {
+        const pubkeysToRefresh = [buyerPubkey, sellerPubkey].filter(Boolean) as string[];
+        for (const pk of pubkeysToRefresh) {
+            try {
+                const balRes = await fetch(`${anchorUrl}/api/ledger/balance/${pk}?_t=${Date.now()}`);
+                if (balRes.ok) {
+                    const balData = await balRes.json();
+                    await acquireSyncLock();
+                    try {
+                        const database = await getDb();
+                        await database.runAsync(
+                            'INSERT OR REPLACE INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, ?, ?)',
+                            [pk, balData.balance || 0, balData.last_demurrage_epoch || 0]
+                        );
+                        console.log(`[Escrow] Balance refreshed for ${pk.slice(0,8)}: ${balData.balance}B`);
+                    } finally {
+                        releaseSyncLock();
+                    }
+                    const { DeviceEventEmitter } = require('react-native');
+                    DeviceEventEmitter.emit('sync_data_updated');
+                } else {
+                    console.warn(`[Escrow] Balance fetch failed for ${pk.slice(0,8)}: HTTP ${balRes.status}`);
+                }
+            } catch (e) {
+                console.warn(`[Escrow] Balance refresh error for ${pk.slice(0,8)}:`, e);
+            }
+        }
+    } else {
+        console.warn('[Escrow] No anchor URL — cannot refresh balances');
+    }
+
     return res;
 }
 
 export async function cancelMarketplaceTransaction(transactionId: string, cancellerPublicKey: string) {
     const res = await _signedRequest('/api/marketplace/transactions/cancel', { transactionId, cancellerPublicKey });
+    await acquireSyncLock();
     try {
         const database = await getDb();
         const postParam = await database.getFirstAsync<{ repeatable: number }>('SELECT repeatable FROM posts WHERE pending_transaction_id = ?', [transactionId]);
@@ -2118,7 +2164,14 @@ export async function cancelMarketplaceTransaction(transactionId: string, cancel
             await database.runAsync("UPDATE posts SET status = 'active', accepted_by = NULL, pending_transaction_id = NULL WHERE pending_transaction_id = ?", [transactionId]);
         }
         await database.runAsync("UPDATE marketplace_transactions SET status = 'cancelled' WHERE id = ?", [transactionId]);
-    } catch(e) {}
+        
+        const { DeviceEventEmitter } = require('react-native');
+        DeviceEventEmitter.emit('sync_data_updated');
+    } catch(e) {
+        console.error('[Escrow] cancelMarketplaceTransaction local update failed:', e);
+    } finally {
+        releaseSyncLock();
+    }
     return res;
 }
 
