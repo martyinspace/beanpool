@@ -1096,14 +1096,15 @@ export function getVelocityGateStatus(publicKey: string): { active: boolean; dai
     };
 }
 
-export function getBalance(publicKey: string): { balance: number; floor: number; tier: TierInfo; commonsBalance: number; velocityGate?: { active: boolean; dailyLimit?: number; dailyUsed?: number; unlockHours?: number } } {
+export function getBalance(publicKey: string): { balance: number; floor: number; tier: TierInfo; earnedCredit: number; commonsBalance: number; velocityGate?: { active: boolean; dailyLimit?: number; dailyUsed?: number; unlockHours?: number } } {
     const account = ledger.getAccount(publicKey);
-    const { floor, tier } = getMemberTrustProfile(publicKey);
+    const { floor, tier, earnedCredit } = getMemberTrustProfile(publicKey);
     const velocityGate = getVelocityGateStatus(publicKey);
     return {
         balance: Math.round(account.balance * 100) / 100,
         floor,
         tier,
+        earnedCredit,
         commonsBalance: Math.round(COMMONS_BALANCE * 100) / 100,
         ...(velocityGate.active ? { velocityGate } : {}),
     };
