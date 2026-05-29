@@ -440,7 +440,9 @@ export default function PostDetailModal() {
                 {photos.length > 0 && (
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosScroll}>
                         {photos.map((uri, i) => (
-                            <Image key={i} source={{ uri }} style={styles.photoImage} />
+                            uri && typeof uri === 'string' && uri.trim() !== '' && uri !== 'null' && uri !== 'undefined' ? (
+                                <Image key={i} source={{ uri }} style={styles.photoImage} />
+                            ) : null
                         ))}
                     </ScrollView>
                 )}
@@ -702,12 +704,14 @@ export default function PostDetailModal() {
                             <Text style={styles.editPhotoLabel}>PHOTOS ({editPhotos.length}/3)</Text>
                             <View style={styles.editPhotosRow}>
                                 {editPhotos.map((uri, i) => (
-                                    <View key={i} style={styles.editPhotoThumb}>
-                                        <Image source={{ uri }} style={styles.editPhotoImg} />
-                                        <Pressable style={styles.editPhotoRemove} onPress={() => setEditPhotos(prev => prev.filter((_, j) => j !== i))}>
-                                            <Text style={styles.editPhotoRemoveText}>✕</Text>
-                                        </Pressable>
-                                    </View>
+                                    uri && typeof uri === 'string' && uri.trim() !== '' && uri !== 'null' && uri !== 'undefined' ? (
+                                        <View key={i} style={styles.editPhotoThumb}>
+                                            <Image source={{ uri }} style={styles.editPhotoImg} />
+                                            <Pressable style={styles.editPhotoRemove} onPress={() => setEditPhotos(prev => prev.filter((_, j) => j !== i))}>
+                                                <Text style={styles.editPhotoRemoveText}>✕</Text>
+                                            </Pressable>
+                                        </View>
+                                    ) : null
                                 ))}
                                 {editPhotos.length < 3 && (
                                     <Pressable style={styles.editPhotoAdd} onPress={pickEditPhoto}>

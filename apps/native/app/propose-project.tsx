@@ -162,15 +162,17 @@ export default function ProposeProjectModal() {
                         <Text style={styles.label}>PROJECT PHOTOS * (MIN 1, MAX 3)</Text>
                         <View style={[{ flexDirection: 'row', gap: 10, marginTop: 4, padding: 4, borderRadius: 12 }, fieldBorder('photos')]}>
                             {photos.map((uri, idx) => (
-                                <View key={idx} style={{ position: 'relative' }}>
-                                    <Image source={{ uri }} style={{ width: 80, height: 80, borderRadius: 12, backgroundColor: '#f3f4f6' }} />
-                                    <Pressable 
-                                        onPress={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
-                                        style={{ position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3 }}
-                                    >
-                                        <MaterialCommunityIcons name="close" size={16} color="#ffffff" />
-                                    </Pressable>
-                                </View>
+                                uri && typeof uri === 'string' && uri.trim() !== '' && uri !== 'null' && uri !== 'undefined' ? (
+                                    <View key={idx} style={{ position: 'relative' }}>
+                                        <Image source={{ uri }} style={{ width: 80, height: 80, borderRadius: 12, backgroundColor: '#f3f4f6' }} />
+                                        <Pressable 
+                                            onPress={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
+                                            style={{ position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3 }}
+                                        >
+                                            <MaterialCommunityIcons name="close" size={16} color="#ffffff" />
+                                        </Pressable>
+                                    </View>
+                                ) : null
                             ))}
                             {photos.length < 3 && (
                                 <Pressable 

@@ -97,7 +97,7 @@ export function MyDealsSheet({ visible, identity, onClose, initialTab = 'pending
                     isPending && { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' },
                 ]}>
                     <View style={{ flexDirection: 'row', gap: 12 }}>
-                        {item.coverImage ? (
+                        {item.coverImage && typeof item.coverImage === 'string' && item.coverImage.trim() !== '' && item.coverImage !== 'null' && item.coverImage !== 'undefined' ? (
                             <Image source={{ uri: item.coverImage }} style={styles.dealThumb} />
                         ) : (
                             <View style={[styles.dealThumb, styles.dealThumbFallback]}>
@@ -187,7 +187,7 @@ export function MyDealsSheet({ visible, identity, onClose, initialTab = 'pending
             <Pressable onPress={() => { onClose(); router.push(`/post/${item.id}`); }}>
                 <View style={[styles.dealCard, highlightStyle]}>
                     <View style={{ flexDirection: 'row', gap: 12 }}>
-                        {coverImage ? (
+                        {coverImage && typeof coverImage === 'string' && coverImage.trim() !== '' && coverImage !== 'null' && coverImage !== 'undefined' ? (
                             <Image source={{ uri: coverImage }} style={styles.dealThumb} />
                         ) : (
                             <View style={[styles.dealThumb, styles.dealThumbFallback]}>

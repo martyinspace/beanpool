@@ -653,7 +653,11 @@ export default function MapScreen() {
                 <SafeAreaView style={styles.previewCardWrapper} pointerEvents="box-none">
                     <Pressable style={styles.previewCardOverlay} onPress={() => setSelectedPostPreview(null)} />
                     <Animated.View style={styles.previewCard}>
-                        {selectedPostPreview.photos && selectedPostPreview.photos.length > 0 && selectedPostPreview.photos[0] !== "" ? (
+                        {selectedPostPreview.photos && selectedPostPreview.photos.length > 0 && 
+                         typeof selectedPostPreview.photos[0] === 'string' &&
+                         selectedPostPreview.photos[0].trim() !== '' &&
+                         selectedPostPreview.photos[0] !== 'null' &&
+                         selectedPostPreview.photos[0] !== 'undefined' ? (
                             <RNImage source={{ uri: selectedPostPreview.photos[0] }} style={styles.previewThumb} />
                         ) : (
                             <View style={[styles.previewThumbPlaceholder, { backgroundColor: selectedPostPreview.type === 'offer' ? '#10b98120' : '#ea580c20' }]}>
@@ -858,12 +862,14 @@ export default function MapScreen() {
                             <Text style={styles.sectionLabel}>Photos <Text style={styles.requiredStar}>*</Text> <Text style={styles.sectionLabelHint}>(min 1)</Text></Text>
                             <View style={[styles.photosRow, fieldBorder('photos')]}>
                                 {postPhotos.map((uri, i) => (
-                                    <View key={i} style={styles.photoThumb}>
-                                        <RNImage source={{ uri }} style={styles.photoImg} />
-                                        <Pressable style={styles.photoRemove} onPress={() => setPostPhotos(prev => prev.filter((_, j) => j !== i))}>
-                                            <Text style={styles.photoRemoveText}>✕</Text>
-                                        </Pressable>
-                                    </View>
+                                    uri && typeof uri === 'string' && uri.trim() !== '' && uri !== 'null' && uri !== 'undefined' ? (
+                                        <View key={i} style={styles.photoThumb}>
+                                            <RNImage source={{ uri }} style={styles.photoImg} />
+                                            <Pressable style={styles.photoRemove} onPress={() => setPostPhotos(prev => prev.filter((_, j) => j !== i))}>
+                                                <Text style={styles.photoRemoveText}>✕</Text>
+                                            </Pressable>
+                                        </View>
+                                    ) : null
                                 ))}
                                 {postPhotos.length < 3 && (
                                     <Pressable style={styles.photoAdd} onPress={() => { pickPhoto(); setValidationErrors(prev => { const n = new Set(prev); n.delete('photos'); return n; }); }}>

@@ -414,7 +414,7 @@ export default function MarketScreen() {
                     onPress={() => router.push(`/post/${item.id}`)}
                 >
                     <View style={styles.gridImageWrapper}>
-                        {coverImage ? (
+                        {coverImage && typeof coverImage === 'string' && coverImage.trim() !== '' && coverImage !== 'null' && coverImage !== 'undefined' ? (
                             <Image source={{ uri: coverImage }} style={styles.gridImage} />
                         ) : (
                             <View style={[styles.gridImage, styles.gridFallback]}>
@@ -451,7 +451,7 @@ export default function MarketScreen() {
         return (
             <Pressable onPress={() => router.push(`/post/${item.id}`)}>
                 <View style={[styles.card, { flexDirection: 'row', padding: 0 }, elderCard && styles.elderCard]}>
-                    {coverImage ? (
+                    {coverImage && typeof coverImage === 'string' && coverImage.trim() !== '' && coverImage !== 'null' && coverImage !== 'undefined' ? (
                         <Image source={{ uri: coverImage }} style={{ width: 96, height: '100%', minHeight: 96, borderTopLeftRadius: 20, borderBottomLeftRadius: 20 }} resizeMode="cover" />
                     ) : (
                         <View style={{ width: 96, height: '100%', minHeight: 96, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 20, borderBottomLeftRadius: 20 }}>

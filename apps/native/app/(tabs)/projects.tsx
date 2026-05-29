@@ -147,7 +147,7 @@ export default function ProjectsScreen() {
                 }}
             >
                 <View style={[styles.heroImage, { backgroundColor: '#1f2937' }]}>
-                    {heroUri && (
+                    {heroUri && typeof heroUri === 'string' && heroUri.trim() !== '' && heroUri !== 'null' && heroUri !== 'undefined' && (
                         <Image source={{ uri: heroUri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
                     )}
                     {isFunded && (

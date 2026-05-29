@@ -146,7 +146,7 @@ export default function PublicProfileScreen() {
                                             <Pressable key={p.id || i} onPress={() => router.push(`/post/${p.id}`)}>
                                                 <View style={styles.dealCard}>
                                                     <View style={{ flexDirection: 'row', gap: 12 }}>
-                                                        {coverImage ? (
+                                                        {coverImage && typeof coverImage === 'string' && coverImage.trim() !== '' && coverImage !== 'null' && coverImage !== 'undefined' ? (
                                                             <Image source={{ uri: coverImage }} style={styles.dealThumb} />
                                                         ) : (
                                                             <View style={[styles.dealThumb, styles.dealThumbFallback]}>

@@ -902,8 +902,8 @@ export function updateProfile(publicKey: string, update: {
     
     const existing = db.prepare("SELECT * FROM members WHERE public_key = ?").get(publicKey) as any;
     const avatar = update.avatar !== undefined ? update.avatar : existing.avatar_url;
-    const bio = update.bio !== undefined ? update.bio.slice(0, 200) : existing.bio;
-    const callsign = update.callsign !== undefined ? update.callsign.slice(0, 32) : existing.callsign;
+    const bio = typeof update.bio === 'string' ? update.bio.slice(0, 200) : (update.bio === null ? null : existing.bio);
+    const callsign = typeof update.callsign === 'string' ? update.callsign.slice(0, 32) : existing.callsign;
     let contact_value = existing.contact_value;
     let contact_visibility = existing.contact_visibility;
     if (update.contact !== undefined) {

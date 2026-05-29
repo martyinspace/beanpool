@@ -179,7 +179,7 @@ export default function NewMessageScreen() {
                 disabled={!!creating}
             >
                 <View style={styles.memberAvatarWrap}>
-                    {uri ? (
+                    {uri && typeof uri === 'string' && uri.trim() !== '' && uri !== 'null' && uri !== 'undefined' ? (
                         <Image source={{ uri }} style={styles.avatarImage} />
                     ) : (
                         <View style={styles.avatarFallback}>
@@ -239,7 +239,7 @@ export default function NewMessageScreen() {
                 disabled={!!creating}
             >
                 <View style={styles.recentAvatar}>
-                    {uri ? (
+                    {uri && typeof uri === 'string' && uri.trim() !== '' && uri !== 'null' && uri !== 'undefined' ? (
                         <Image source={{ uri }} style={styles.recentAvatarImage} />
                     ) : (
                         <Text style={styles.recentAvatarText}>

@@ -98,7 +98,7 @@ export default function ProjectDetailScreen() {
                 <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 100 }} bounces={false}>
                     {/* Hero Header */}
                     <View style={styles.heroContainer}>
-                        {heroUri ? (
+                        {heroUri && typeof heroUri === 'string' && heroUri.trim() !== '' && heroUri !== 'null' && heroUri !== 'undefined' ? (
                             <Image source={{ uri: heroUri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
                         ) : (
                             <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' }]}>

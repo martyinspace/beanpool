@@ -112,7 +112,7 @@ export default function ChatsScreen() {
                     }
                 }}
             >
-                {item.postId && item.postPhoto ? (
+                {item.postId && item.postPhoto && typeof item.postPhoto === 'string' && item.postPhoto.trim() !== '' && item.postPhoto !== 'null' && item.postPhoto !== 'undefined' ? (
                     <View style={styles.avatarComposite}>
                         {/* Post photo as primary (rounded square) */}
                         <Image source={{ uri: item.postPhoto }} style={styles.postPhotoAvatar} />
