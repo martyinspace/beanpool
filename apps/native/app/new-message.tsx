@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
-    View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, TextInput,
+    View, Text, StyleSheet, FlatList, Pressable, TextInput,
     KeyboardAvoidingView, Platform, Image, ActivityIndicator, Animated
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIdentity } from './IdentityContext';
