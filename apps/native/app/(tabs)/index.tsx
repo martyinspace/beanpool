@@ -88,7 +88,7 @@ function getDistanceInKm(lat1: number, lon1: number, lat2: number, lon2: number)
 export default function MarketScreen() {
     const { identity } = useIdentity();
     const [filter, setFilter] = useState<'all' | 'needs' | 'offers'>('all');
-    const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+    const [viewMode, setViewMode] = useState<'list' | 'grid' | 'compact'>('list');
     const [searchQuery, setSearchQuery] = useState('');
     const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
     const [posts, setPosts] = useState<any[]>([]);
@@ -316,10 +316,14 @@ export default function MarketScreen() {
                     )}
                 </Pressable>
                 <Pressable 
-                    onPress={() => setViewMode(v => v === 'list' ? 'grid' : 'list')} 
+                    onPress={() => setViewMode(v => v === 'list' ? 'grid' : (v === 'grid' ? 'compact' : 'list'))} 
                     style={styles.iconBtn}
                 >
-                    <MaterialCommunityIcons name={viewMode === 'list' ? 'view-grid-outline' : 'view-list-outline'} size={20} color="#6b7280" />
+                    <MaterialCommunityIcons 
+                        name={viewMode === 'list' ? 'view-grid-outline' : (viewMode === 'grid' ? 'view-headline' : 'view-list-outline')} 
+                        size={20} 
+                        color="#6b7280" 
+                    />
                 </Pressable>
             </View>
 
@@ -447,6 +451,47 @@ export default function MarketScreen() {
             );
         }
 
+        const categoryConfig = MARKETPLACE_CATEGORIES.find(c => c.id === item.category);
+
+        // Compact View
+        if (viewMode === 'compact') {
+            return (
+                <Pressable onPress={() => router.push(`/post/${item.id}`)}>
+                    <View style={[styles.compactRow, elderCard && styles.elderCompactRow]}>
+                        <Text style={styles.compactEmoji}>
+                            {categoryConfig?.emoji || '📦'}
+                        </Text>
+                        <View style={{ flex: 1, marginLeft: 10, marginRight: 8, justifyContent: 'center' }}>
+                            <Text style={styles.compactTitle} numberOfLines={1}>
+                                {item.title}
+                            </Text>
+                            <Text style={styles.compactAuthor} numberOfLines={1}>
+                                by {cardAuthor} {elderCard ? '👑' : ''}
+                            </Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end', justifyContent: 'center', gap: 4 }}>
+                            <CurrencyDisplay
+                                amount={`${item.credits !== undefined && item.credits !== null ? item.credits : '?'}${priceLabel || ''}`}
+                                style={styles.compactPrice}
+                                asView={true}
+                            />
+                            <View style={[
+                                styles.compactBadge, 
+                                item.type === 'offer' ? styles.compactBadgeOffer : styles.compactBadgeNeed
+                            ]}>
+                                <Text style={[
+                                    styles.compactBadgeText, 
+                                    { color: item.type === 'offer' ? '#065f46' : '#991b1b' }
+                                ]}>
+                                    {item.type.toUpperCase()}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                </Pressable>
+            );
+        }
+
         // List View
         return (
             <Pressable onPress={() => router.push(`/post/${item.id}`)}>
@@ -456,16 +501,21 @@ export default function MarketScreen() {
                     ) : (
                         <View style={{ width: 96, height: '100%', minHeight: 96, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 12, borderBottomLeftRadius: 12 }}>
                             <Text style={{ fontSize: 32, opacity: 0.5 }}>
-                                {MARKETPLACE_CATEGORIES.find(c => c.id === item.category)?.emoji || '📦'}
+                                {categoryConfig?.emoji || '📦'}
                             </Text>
                         </View>
                     )}
                     <View style={{ flex: 1, padding: 12, justifyContent: 'center' }}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', flex: 1 }}>
                                 <View style={[styles.badge, item.type === 'offer' ? styles.badgeOffer : styles.badgeNeed, { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, margin: 0 }]}>
                                     <Text style={[styles.badgeText, { fontSize: 10 }]}>{item.type.toUpperCase()}</Text>
                                 </View>
+                                {categoryConfig && (
+                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#6b7280' }}>
+                                        {categoryConfig.emoji} {categoryConfig.label}
+                                    </Text>
+                                )}
                                 {!!item.repeatable && (
                                     <View style={{ backgroundColor: 'rgba(249, 115, 22, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(249, 115, 22, 0.2)' }}>
                                         <Text style={{ fontSize: 10, fontWeight: '800', color: '#c2410c' }}>↻ RECURRING</Text>
@@ -653,5 +703,59 @@ const styles = StyleSheet.create({
     badgeNeed: { backgroundColor: '#ea580c', borderWidth: 0 },
     badgeText: { fontSize: 11, fontWeight: '800', color: '#000000', letterSpacing: 0.5 },
     price: { fontSize: 16, fontWeight: '800', color: '#8b5cf6' },
-    fab: { position: 'absolute', bottom: 32, right: 24, backgroundColor: '#ea580c', paddingVertical: 14, paddingHorizontal: 20, borderRadius: 28, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 8, zIndex: 100 }
+    fab: { position: 'absolute', bottom: 32, right: 24, backgroundColor: '#ea580c', paddingVertical: 14, paddingHorizontal: 20, borderRadius: 28, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 8, zIndex: 100 },
+    compactRow: {
+        flexDirection: 'row',
+        backgroundColor: '#ffffff',
+        borderRadius: 8,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: '#e5e7eb',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.02,
+        shadowRadius: 1,
+        elevation: 1,
+    },
+    elderCompactRow: {
+        borderLeftWidth: 3,
+        borderLeftColor: '#fbbf24',
+    },
+    compactEmoji: {
+        fontSize: 20,
+    },
+    compactTitle: {
+        fontSize: 14,
+        fontWeight: '800',
+        color: '#1f2937',
+    },
+    compactAuthor: {
+        fontSize: 11,
+        color: '#6b7280',
+        marginTop: 1,
+    },
+    compactPrice: {
+        fontSize: 14,
+        fontWeight: '900',
+        color: '#8b5cf6',
+    },
+    compactBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    compactBadgeOffer: {
+        backgroundColor: '#d1fae5',
+    },
+    compactBadgeNeed: {
+        backgroundColor: '#ffedd5',
+    },
+    compactBadgeText: {
+        fontSize: 8,
+        fontWeight: '900',
+        letterSpacing: 0.5,
+    }
 });
