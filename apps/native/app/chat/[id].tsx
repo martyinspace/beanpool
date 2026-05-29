@@ -5,7 +5,7 @@ import { useLocalSearchParams, router, useFocusEffect, Stack } from 'expo-router
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useIdentity } from '../IdentityContext';
-import { getMessages, getConversation, insertMessage, syncMessages, syncSingleConversation, markConversationRead, completeMarketplaceTransaction, cancelMarketplaceTransaction, getDb } from '../../utils/db';
+import { getMessages, getConversation, insertMessage, syncMessages, syncSingleConversation, markConversationRead, completeMarketplaceTransaction, cancelMarketplaceTransaction, getDb, toggleMessageReactionApi } from '../../utils/db';
 import { hapticSuccess, hapticWarning } from '../../utils/haptics';
 import { ReviewModal } from '../../components/ReviewModal';
 import { MemberAvatar } from '../../components/MemberAvatar';
@@ -14,6 +14,8 @@ export default function ChatScreen() {
     const { id, triggerReview } = useLocalSearchParams();
     const { identity } = useIdentity();
     const [messages, setMessages] = useState<any[]>([]);
+    const [activeMessageActionsId, setActiveMessageActionsId] = useState<string | null>(null);
+    const [activeEmojiPickerId, setActiveEmojiPickerId] = useState<string | null>(null);
     const [draft, setDraft] = useState('');
     const [peerName, setPeerName] = useState('Loading...');
     const [peerPubkey, setPeerPubkey] = useState<string | null>(null);
@@ -287,14 +289,122 @@ export default function ChatScreen() {
         }
 
         const isMe = identity?.publicKey ? item.senderId === identity.publicKey : false;
+        const showActions = activeMessageActionsId === item.id;
+        const showEmojiPicker = activeEmojiPickerId === item.id;
+
+        // Parse reactions
+        const reactions: { emoji: string; author: string }[] = item.metadata?.reactions || [];
+        const reactionCounts = reactions.reduce((acc: { [key: string]: number }, r: any) => {
+            acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+            return acc;
+        }, {});
+        const uniqueEmojis = Object.keys(reactionCounts);
+        const totalReactionsCount = reactions.length;
+
+        const handleEmojiSelect = async (emoji: string) => {
+            if (!identity?.publicKey) return;
+            try {
+                await toggleMessageReactionApi(item.id, identity.publicKey, emoji);
+                hapticSuccess();
+                setActiveEmojiPickerId(null);
+                setActiveMessageActionsId(null);
+                loadMessages(true);
+            } catch (e) {
+                console.error('Failed to react to message:', e);
+                Alert.alert('Error', 'Could not react to message');
+            }
+        };
+
+        const toggleActions = () => {
+            if (activeMessageActionsId === item.id) {
+                setActiveMessageActionsId(null);
+                setActiveEmojiPickerId(null);
+            } else {
+                setActiveMessageActionsId(item.id);
+                setActiveEmojiPickerId(null);
+            }
+        };
+
+        const handleSmileyPress = () => {
+            if (activeEmojiPickerId === item.id) {
+                setActiveEmojiPickerId(null);
+            } else {
+                setActiveEmojiPickerId(item.id);
+            }
+        };
+
+        const handleReplyPress = () => {
+            Alert.alert("Reply", "Reply feature is under development.");
+            setActiveMessageActionsId(null);
+        };
+
+        const renderActionButtons = () => {
+            return (
+                <View style={[styles.actionButtonsContainer, isMe ? styles.actionButtonsMe : styles.actionButtonsOther]}>
+                    <Pressable 
+                        style={styles.circleActionButton}
+                        onPress={handleReplyPress}
+                    >
+                        <MaterialCommunityIcons name="reply" size={16} color="#ffffff" />
+                    </Pressable>
+                    <Pressable 
+                        style={[styles.circleActionButton, showEmojiPicker ? styles.circleActionButtonActive : {}]}
+                        onPress={handleSmileyPress}
+                    >
+                        <MaterialCommunityIcons name="emoticon-happy-outline" size={16} color="#ffffff" />
+                    </Pressable>
+                </View>
+            );
+        };
+
         return (
-            <View style={[styles.messageBubble, isMe ? styles.messageMe : styles.messageOther]}>
-                <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther]}>
-                    {item.text}
-                </Text>
-                <Text style={[styles.messageTime, isMe ? styles.messageTimeMe : styles.messageTimeOther]}>
-                    {item.timestamp}
-                </Text>
+            <View style={[
+                styles.messageRowContainer,
+                isMe ? styles.messageRowMe : styles.messageRowOther
+            ]}>
+                {showEmojiPicker && (
+                    <View style={[styles.reactionPickerContainer, isMe ? styles.reactionPickerMe : styles.reactionPickerOther]}>
+                        {['👍', '❤️', '😂', '😮', '😢', '🙏', '😁'].map((emoji) => (
+                            <Pressable 
+                                key={emoji} 
+                                style={styles.reactionEmojiButton}
+                                onPress={() => handleEmojiSelect(emoji)}
+                            >
+                                <Text style={styles.reactionEmojiText}>{emoji}</Text>
+                            </Pressable>
+                        ))}
+                    </View>
+                )}
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', maxWidth: '85%' }}>
+                    {isMe && showActions && renderActionButtons()}
+                    
+                    <Pressable 
+                        onPress={toggleActions}
+                        style={[
+                            styles.messageBubble, 
+                            isMe ? styles.messageMe : styles.messageOther,
+                            { position: 'relative', zIndex: 1 }
+                        ]}
+                    >
+                        <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther]}>
+                            {item.text}
+                        </Text>
+                        <Text style={[styles.messageTime, isMe ? styles.messageTimeMe : styles.messageTimeOther]}>
+                            {item.timestamp}
+                        </Text>
+
+                        {totalReactionsCount > 0 && (
+                            <View style={[styles.reactionBadgeContainer, isMe ? styles.reactionBadgeMe : styles.reactionBadgeOther]}>
+                                <Text style={styles.reactionBadgeText}>
+                                    {uniqueEmojis.join(' ')} {totalReactionsCount > 1 ? totalReactionsCount : ''}
+                                </Text>
+                            </View>
+                        )}
+                    </Pressable>
+
+                    {!isMe && showActions && renderActionButtons()}
+                </View>
             </View>
         );
     };
@@ -409,6 +519,10 @@ export default function ChatScreen() {
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
                     onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+                    onScrollBeginDrag={() => {
+                        setActiveMessageActionsId(null);
+                        setActiveEmojiPickerId(null);
+                    }}
                 />
 
                 {/* Input Area */}
@@ -506,4 +620,99 @@ const styles = StyleSheet.create({
     inlineActionReleaseText: { color: '#fff', fontWeight: '800', fontSize: 14 },
     inlineActionCancel: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#fca5a5' },
     inlineActionCancelText: { color: '#ef4444', fontWeight: '700', fontSize: 14 },
+    // Reactions and Custom Message Rows
+    messageRowContainer: {
+        width: '100%',
+        marginVertical: 4,
+        position: 'relative',
+    },
+    messageRowMe: {
+        alignItems: 'flex-end',
+    },
+    messageRowOther: {
+        alignItems: 'flex-start',
+    },
+    actionButtonsContainer: {
+        flexDirection: 'row',
+        gap: 6,
+        alignItems: 'center',
+    },
+    actionButtonsMe: {
+        marginRight: 8,
+    },
+    actionButtonsOther: {
+        marginLeft: 8,
+    },
+    circleActionButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#4b5563',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 1,
+        elevation: 2,
+    },
+    circleActionButtonActive: {
+        backgroundColor: '#8b5cf6',
+    },
+    reactionPickerContainer: {
+        position: 'absolute',
+        top: -45,
+        backgroundColor: '#1f2937',
+        borderRadius: 24,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        flexDirection: 'row',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 8,
+        zIndex: 100,
+        gap: 10,
+    },
+    reactionPickerMe: {
+        right: 10,
+    },
+    reactionPickerOther: {
+        left: 10,
+    },
+    reactionEmojiButton: {
+        padding: 2,
+    },
+    reactionEmojiText: {
+        fontSize: 20,
+    },
+    reactionBadgeContainer: {
+        position: 'absolute',
+        bottom: -10,
+        backgroundColor: '#f3f4f6',
+        borderWidth: 1.5,
+        borderColor: '#ffffff',
+        borderRadius: 12,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.15,
+        shadowRadius: 1.5,
+        elevation: 3,
+        zIndex: 10,
+    },
+    reactionBadgeMe: {
+        right: 12,
+    },
+    reactionBadgeOther: {
+        left: 12,
+    },
+    reactionBadgeText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#374151',
+    },
 });

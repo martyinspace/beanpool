@@ -1543,7 +1543,9 @@ export async function syncMessages(publicKey: string) {
                 const txn = database;
                 for (const m of messages) {
                     await txn.runAsync(
-                        'INSERT OR IGNORE INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, system_type, metadata, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        `INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, system_type, metadata, timestamp)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         ON CONFLICT(id) DO UPDATE SET metadata = excluded.metadata`,
                         [m.id, conv.id, m.author_pubkey || m.authorPubkey || '', m.ciphertext || '', m.nonce || '', m.type || 'text', m.systemType || m.system_type || null, m.metadata || null, m.timestamp || m.created_at || new Date().toISOString()]
                     );
                 }
@@ -1576,7 +1578,9 @@ export async function syncSingleConversation(conversationId: string) {
         
         for (const m of messages) {
             await database.runAsync(
-                'INSERT OR IGNORE INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, system_type, metadata, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                `INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, system_type, metadata, timestamp)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(id) DO UPDATE SET metadata = excluded.metadata`,
                 [m.id, conversationId, m.author_pubkey || m.authorPubkey || '', m.ciphertext || '', m.nonce || '', m.type || 'text', m.systemType || m.system_type || null, m.metadata || null, m.timestamp || m.created_at || new Date().toISOString()]
             );
         }
@@ -1964,6 +1968,37 @@ async function _signedRequest(endpoint: string, payload: any) {
 // through here.
 export async function signedRequest(endpoint: string, payload: any) {
     return _signedRequest(endpoint, payload);
+}
+
+export async function toggleMessageReactionApi(messageId: string, authorPubkey: string, emoji: string) {
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) throw new Error('Offline');
+
+    // 1. Optimistic local update
+    const database = await getDb();
+    const row = await database.getFirstAsync<any>('SELECT * FROM messages WHERE id=?', [messageId]);
+    if (row) {
+        let metadata: any = {};
+        if (row.metadata) {
+            try { metadata = JSON.parse(row.metadata); } catch { metadata = {}; }
+        }
+        if (!metadata.reactions) metadata.reactions = [];
+
+        const idx = metadata.reactions.findIndex((r: any) => r.author === authorPubkey);
+        if (idx > -1) {
+            if (metadata.reactions[idx].emoji === emoji) {
+                metadata.reactions.splice(idx, 1);
+            } else {
+                metadata.reactions[idx].emoji = emoji;
+            }
+        } else {
+            metadata.reactions.push({ emoji, author: authorPubkey });
+        }
+        await database.runAsync('UPDATE messages SET metadata=? WHERE id=?', [JSON.stringify(metadata), messageId]);
+    }
+
+    // 2. Transmit to server via secure signed request
+    return _signedRequest('/api/messages/react', { messageId, authorPubkey, emoji });
 }
 
 export async function acceptMarketplacePost(postId: string, buyerPublicKey: string, hours?: number) {

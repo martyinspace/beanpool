@@ -1851,6 +1851,54 @@ export function sendMessage(conversationId: string, authorPubkey: string, cipher
     return msg;
 }
 
+export function toggleMessageReaction(messageId: string, authorPubkey: string, emoji: string): any {
+    const row = db.prepare("SELECT * FROM messages WHERE id=?").get(messageId) as any;
+    if (!row) return null;
+
+    let metadata: any = {};
+    if (row.metadata) {
+        try {
+            metadata = JSON.parse(row.metadata);
+        } catch {
+            metadata = {};
+        }
+    }
+
+    if (!metadata.reactions) {
+        metadata.reactions = [];
+    }
+
+    const existingIndex = metadata.reactions.findIndex((r: any) => r.author === authorPubkey);
+    if (existingIndex > -1) {
+        const existingReaction = metadata.reactions[existingIndex];
+        if (existingReaction.emoji === emoji) {
+            // Remove the reaction if same emoji
+            metadata.reactions.splice(existingIndex, 1);
+        } else {
+            // Update the reaction to new emoji
+            metadata.reactions[existingIndex].emoji = emoji;
+        }
+    } else {
+        // Add new reaction
+        metadata.reactions.push({ emoji, author: authorPubkey });
+    }
+
+    const metadataStr = JSON.stringify(metadata);
+    db.prepare("UPDATE messages SET metadata=? WHERE id=?").run(metadataStr, messageId);
+
+    // Broadcast the update to all active WS clients
+    const participants = db.prepare("SELECT public_key FROM conversation_participants WHERE conversation_id=?").all(row.conversation_id) as any[];
+    broadcast({
+        type: 'message_reaction',
+        conversationId: row.conversation_id,
+        messageId,
+        metadata: metadataStr,
+        participants: participants.map(p => p.public_key)
+    });
+
+    return { success: true, metadata: metadataStr };
+}
+
 /**
  * Ensures a conversation thread exists between buyer and seller for a given post.
  * Called atomically with escrow creation so injectSystemMessage() always has a target.

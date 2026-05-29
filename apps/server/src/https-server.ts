@@ -50,7 +50,7 @@ import {
     generateInvite, redeemInvite, redeemOfflineTicket, getInviteTree, getInvitesByMember,
     adminGenerateInvite, getMemberTrustProfile,
     updateProfile, getProfile, getAllProfiles,
-    createConversation, sendMessage, getConversationsByMember,
+    createConversation, sendMessage, getConversationsByMember, toggleMessageReaction,
     getConversationMessages, getConversation,
     getCommunityHealth,
     seedGenesisMember,
@@ -1297,6 +1297,27 @@ export async function startHttpsServer(port: number): Promise<void> {
             conversation: conv,
             messages: getConversationMessages(conversationId, limit, offset),
         };
+    });
+
+    router.post('/api/messages/react', async (ctx) => {
+        const { messageId, authorPubkey, emoji } = (ctx as any).requestBody || {};
+        if (!messageId || !authorPubkey || !emoji) {
+            ctx.status = 400;
+            ctx.body = { error: 'messageId, authorPubkey, and emoji are required' };
+            return;
+        }
+        try {
+            const result = toggleMessageReaction(messageId, authorPubkey, emoji);
+            if (!result) {
+                ctx.status = 404;
+                ctx.body = { error: 'Message not found' };
+                return;
+            }
+            ctx.body = { success: true, metadata: result.metadata };
+        } catch (e: any) {
+            ctx.status = 400;
+            ctx.body = { error: e.message || 'Failed to toggle reaction' };
+        }
     });
 
     // ===================== PUSH NOTIFICATION TOKENS =====================
