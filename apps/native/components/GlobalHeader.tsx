@@ -306,7 +306,7 @@ export function GlobalHeader() {
     };
 
     const headerHeight = Math.max(insets.top + 10, 40) + 56;
-    const isMapScreen = pathname === '/';
+    const isMapScreen = pathname === '/map';
 
     return (
         <View style={[styles.headerWrapper, isMapScreen && styles.headerAbsolute, { height: headerHeight }]}>
@@ -377,7 +377,7 @@ export function GlobalHeader() {
                                     numberOfLines={1}
                                     ellipsizeMode="tail"
                                 >
-                                    {pathname === '/market' ? 'Marketplace' :
+                                    {pathname === '/' || pathname === '/market' ? 'Marketplace' :
                                      pathname === '/projects' ? 'Projects' :
                                      pathname === '/chats' ? 'Messages' :
                                      pathname === '/people' ? 'People' :

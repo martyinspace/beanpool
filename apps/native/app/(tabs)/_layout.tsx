@@ -90,17 +90,17 @@ export default function TabLayout() {
             <Tabs.Screen 
                 name="index" 
                 options={{ 
-                    title: 'Map',
-                    headerTransparent: true,
-                    tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>🗺️</Text> 
-                }} 
-            />
-            <Tabs.Screen 
-                name="market" 
-                options={{ 
                     title: 'Market',
                     tabBarBadge: dealsCount > 0 ? dealsCount : undefined,
                     tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>🤝</Text> 
+                }} 
+            />
+            <Tabs.Screen 
+                name="map" 
+                options={{ 
+                    title: 'Map',
+                    headerTransparent: true,
+                    tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>🗺️</Text> 
                 }} 
             />
 
