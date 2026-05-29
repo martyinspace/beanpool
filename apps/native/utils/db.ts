@@ -525,6 +525,7 @@ export async function getConversations(myPubkey: string) {
             lastMsgType: row.lastMsgType,
             lastSysType: row.lastSysType,
             timestamp: row.timestamp ? new Date(row.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'New',
+            rawTimestamp: row.timestamp || null,
             unread: row.unreadCount || 0,
             // Escrow role metadata for "Action Required" section
             isPayer,

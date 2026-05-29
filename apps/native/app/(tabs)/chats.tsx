@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Platform, Image, TextInput } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIdentity } from '../IdentityContext';
@@ -10,13 +10,42 @@ export default function ChatsScreen() {
     const { identity } = useIdentity();
     const [conversations, setConversations] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<'all' | 'transactions' | 'direct'>('all');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [sortBy, setSortBy] = useState<'recent' | 'unread' | 'credits_desc' | 'credits_asc'>('recent');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pending' | 'completed'>('all');
+    const [readFilter, setReadFilter] = useState<'all' | 'unread'>('all');
+    const [showOptions, setShowOptions] = useState(false);
 
     // Partition conversations into "Action Required" and regular
     const { actionRequired, regularConversations } = React.useMemo(() => {
         let list = conversations;
-        if (activeTab === 'transactions') list = conversations.filter(c => !!c.postId);
-        if (activeTab === 'direct') list = conversations.filter(c => !c.postId);
         
+        // Tab filter (Transactions / Direct / All)
+        if (activeTab === 'transactions') list = list.filter(c => !!c.postId);
+        if (activeTab === 'direct') list = list.filter(c => !c.postId);
+        
+        // 1. Text Search Filter
+        if (searchQuery.trim() !== '') {
+            const q = searchQuery.toLowerCase().trim();
+            list = list.filter(c => {
+                const matchPeer = (c.peer || '').toLowerCase().includes(q);
+                const matchTitle = (c.postTitle || '').toLowerCase().includes(q);
+                const matchMsg = (c.lastMessage || '').toLowerCase().includes(q);
+                return matchPeer || matchTitle || matchMsg;
+            });
+        }
+
+        // 2. Read State Filter
+        if (readFilter === 'unread') {
+            list = list.filter(c => c.unread > 0);
+        }
+
+        // 3. Post Status Filter (only relevant for posts / transactions)
+        if (statusFilter !== 'all') {
+            list = list.filter(c => c.postStatus === statusFilter);
+        }
+
+        // Partition Action Required
         const actionRequired = list.filter(item => {
             // User is the payer and the post is pending (they need to release credits)
             if (item.postStatus === 'pending' && item.isPayer) return true;
@@ -29,17 +58,47 @@ export default function ChatsScreen() {
 
         let regular = list.filter(item => !actionRequired.includes(item));
         
-        if (activeTab === 'transactions') {
-            regular = regular.sort((a, b) => {
+        // 4. Advanced Sorting
+        regular = [...regular].sort((a, b) => {
+            // Standard tab transactions sorting (active posts first)
+            if (activeTab === 'transactions' && sortBy === 'recent') {
                 const isAActive = ['active', 'pending'].includes(a.postStatus || '');
                 const isBActive = ['active', 'pending'].includes(b.postStatus || '');
                 if (isAActive && !isBActive) return -1;
                 if (!isAActive && isBActive) return 1;
-                return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-            });
-        }
+            }
+
+            if (sortBy === 'unread') {
+                // Prioritize unread messages
+                if (a.unread > 0 && b.unread === 0) return -1;
+                if (a.unread === 0 && b.unread > 0) return 1;
+            } else if (sortBy === 'credits_desc') {
+                const credA = a.postCredits || a.pendingAmount || 0;
+                const credB = b.postCredits || b.pendingAmount || 0;
+                if (credA !== credB) return credB - credA;
+            } else if (sortBy === 'credits_asc') {
+                const credA = a.postCredits || a.pendingAmount || 0;
+                const credB = b.postCredits || b.pendingAmount || 0;
+                if (credA !== credB) return credA - credB;
+            }
+
+            // Fallback: raw timestamp
+            const timeA = a.rawTimestamp ? new Date(a.rawTimestamp).getTime() : 0;
+            const timeB = b.rawTimestamp ? new Date(b.rawTimestamp).getTime() : 0;
+            return timeB - timeA;
+        });
+
         return { actionRequired, regularConversations: regular };
-    }, [conversations, activeTab]);
+    }, [conversations, activeTab, searchQuery, sortBy, statusFilter, readFilter]);
+
+    const resetFilters = () => {
+        setSearchQuery('');
+        setSortBy('recent');
+        setStatusFilter('all');
+        setReadFilter('all');
+    };
+
+    const activeFiltersCount = (sortBy !== 'recent' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0) + (readFilter !== 'all' ? 1 : 0);
 
     useFocusEffect(
         React.useCallback(() => {
@@ -219,6 +278,130 @@ export default function ChatsScreen() {
                 </Pressable>
             </View>
 
+            {/* Search, Sort, and Filter row */}
+            <View style={styles.searchBarRow}>
+                <View style={styles.searchContainer}>
+                    <MaterialCommunityIcons name="magnify" size={20} color="#9ca3af" style={styles.searchIcon} />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search chats, posts, partners..."
+                        placeholderTextColor="#9ca3af"
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                    />
+                    {searchQuery.trim() !== '' && (
+                        <Pressable onPress={() => setSearchQuery('')} style={styles.clearBtn}>
+                            <MaterialCommunityIcons name="close-circle" size={18} color="#9ca3af" />
+                        </Pressable>
+                    )}
+                </View>
+                <Pressable 
+                    style={[styles.optionsToggleBtn, (showOptions || activeFiltersCount > 0) && styles.optionsToggleBtnActive]}
+                    onPress={() => setShowOptions(!showOptions)}
+                >
+                    <MaterialCommunityIcons name="tune-variant" size={20} color={showOptions || activeFiltersCount > 0 ? '#ffffff' : '#4b5563'} />
+                    {activeFiltersCount > 0 && (
+                        <View style={styles.filterBadge}>
+                            <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+                        </View>
+                    )}
+                </Pressable>
+            </View>
+
+            {/* Collapsible sort and filter options drawer */}
+            {showOptions && (
+                <View style={styles.optionsDrawer}>
+                    {/* Sort Section */}
+                    <Text style={styles.optionsLabel}>Sort by</Text>
+                    <View style={styles.chipsRow}>
+                        <Pressable 
+                            style={[styles.chip, sortBy === 'recent' && styles.chipActive]} 
+                            onPress={() => setSortBy('recent')}
+                        >
+                            <Text style={[styles.chipText, sortBy === 'recent' && styles.chipTextActive]}>⇅ Recent</Text>
+                        </Pressable>
+                        <Pressable 
+                            style={[styles.chip, sortBy === 'unread' && styles.chipActive]} 
+                            onPress={() => setSortBy('unread')}
+                        >
+                            <Text style={[styles.chipText, sortBy === 'unread' && styles.chipTextActive]}>✉ Unread</Text>
+                        </Pressable>
+                        <Pressable 
+                            style={[styles.chip, sortBy === 'credits_desc' && styles.chipActive]} 
+                            onPress={() => setSortBy('credits_desc')}
+                        >
+                            <Text style={[styles.chipText, sortBy === 'credits_desc' && styles.chipTextActive]}>Ʀ Credits: High</Text>
+                        </Pressable>
+                        <Pressable 
+                            style={[styles.chip, sortBy === 'credits_asc' && styles.chipActive]} 
+                            onPress={() => setSortBy('credits_asc')}
+                        >
+                            <Text style={[styles.chipText, sortBy === 'credits_asc' && styles.chipTextActive]}>Ʀ Credits: Low</Text>
+                        </Pressable>
+                    </View>
+
+                    {/* Status Filter Section */}
+                    {activeTab !== 'direct' && (
+                        <>
+                            <Text style={styles.optionsLabel}>Post Status</Text>
+                            <View style={styles.chipsRow}>
+                                <Pressable 
+                                    style={[styles.chip, statusFilter === 'all' && styles.chipActive]} 
+                                    onPress={() => setStatusFilter('all')}
+                                >
+                                    <Text style={[styles.chipText, statusFilter === 'all' && styles.chipTextActive]}>● All</Text>
+                                </Pressable>
+                                <Pressable 
+                                    style={[styles.chip, statusFilter === 'active' && styles.chipActive]} 
+                                    onPress={() => setStatusFilter('active')}
+                                >
+                                    <Text style={[styles.chipText, statusFilter === 'active' && styles.chipTextActive]}>● Active</Text>
+                                </Pressable>
+                                <Pressable 
+                                    style={[styles.chip, statusFilter === 'pending' && styles.chipActive]} 
+                                    onPress={() => setStatusFilter('pending')}
+                                >
+                                    <Text style={[styles.chipText, statusFilter === 'pending' && styles.chipTextActive]}>● Escrow</Text>
+                                </Pressable>
+                                <Pressable 
+                                    style={[styles.chip, statusFilter === 'completed' && styles.chipActive]} 
+                                    onPress={() => setStatusFilter('completed')}
+                                >
+                                    <Text style={[styles.chipText, statusFilter === 'completed' && styles.chipTextActive]}>● Completed</Text>
+                                </Pressable>
+                            </View>
+                        </>
+                    )}
+
+                    {/* Read State Filter Section */}
+                    <Text style={styles.optionsLabel}>Read Status</Text>
+                    <View style={styles.chipsRow}>
+                        <Pressable 
+                            style={[styles.chip, readFilter === 'all' && styles.chipActive]} 
+                            onPress={() => setReadFilter('all')}
+                        >
+                            <Text style={[styles.chipText, readFilter === 'all' && styles.chipTextActive]}>✓ All</Text>
+                        </Pressable>
+                        <Pressable 
+                            style={[styles.chip, readFilter === 'unread' && styles.chipActive]} 
+                            onPress={() => setReadFilter('unread')}
+                        >
+                            <Text style={[styles.chipText, readFilter === 'unread' && styles.chipTextActive]}>✉ Unread Only</Text>
+                        </Pressable>
+                    </View>
+
+                    {/* Reset Footer */}
+                    <View style={styles.optionsFooter}>
+                        <Pressable style={styles.resetBtn} onPress={resetFilters}>
+                            <Text style={styles.resetBtnText}>Reset Defaults</Text>
+                        </Pressable>
+                        <Pressable style={styles.closeBtn} onPress={() => setShowOptions(false)}>
+                            <Text style={styles.closeBtnText}>✕ Close</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            )}
+
             <View style={styles.tabContainer}>
                 <Pressable style={[styles.tabBtn, activeTab === 'all' && styles.tabBtnActive]} onPress={() => setActiveTab('all')}>
                     <Text style={[styles.tabBtnText, activeTab === 'all' && styles.tabBtnTextActive]}>All</Text>
@@ -324,5 +507,28 @@ const styles = StyleSheet.create({
     actionAmountText: { fontSize: 14, fontWeight: '800', color: '#059669' },
     actionCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTopWidth: 1, borderTopColor: '#f3f4f6' },
     actionLabel: { fontSize: 14, fontWeight: '700', color: '#059669' },
+
+    searchBarRow: { flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 10, gap: 10, alignItems: 'center' },
+    searchContainer: { flex: 1, flexDirection: 'row', backgroundColor: '#f3f4f6', borderRadius: 12, alignItems: 'center', paddingHorizontal: 10, height: 42 },
+    searchIcon: { marginRight: 6 },
+    searchInput: { flex: 1, fontSize: 15, color: '#1f2937', height: '100%', paddingVertical: 0 },
+    clearBtn: { padding: 4 },
+    optionsToggleBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center' },
+    optionsToggleBtnActive: { backgroundColor: '#8b5cf6' },
+    filterBadge: { position: 'absolute', top: -3, right: -3, backgroundColor: '#ea580c', width: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: '#ffffff' },
+    filterBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '800' },
+
+    optionsDrawer: { backgroundColor: '#f9fafb', borderBottomWidth: 1, borderBottomColor: '#e5e7eb', padding: 16 },
+    optionsLabel: { fontSize: 12, fontWeight: '700', color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 12 },
+    chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+    chip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 16, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb' },
+    chipActive: { backgroundColor: '#1f2937', borderColor: '#1f2937' },
+    chipText: { color: '#4b5563', fontSize: 13, fontWeight: '600' },
+    chipTextActive: { color: '#ffffff' },
+    optionsFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 12 },
+    resetBtn: { paddingVertical: 4 },
+    resetBtnText: { color: '#ef4444', fontSize: 14, fontWeight: '700' },
+    closeBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#e5e7eb' },
+    closeBtnText: { color: '#4b5563', fontSize: 13, fontWeight: '700' },
 
 });
