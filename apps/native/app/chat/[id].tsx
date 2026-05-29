@@ -372,7 +372,7 @@ export default function ChatScreen() {
                     <View style={[
                         styles.reactionPickerContainer, 
                         isMe ? styles.reactionPickerMe : styles.reactionPickerOther,
-                        pickerPosition === 'bottom' ? { top: undefined, bottom: -70 } : { bottom: undefined, top: -70 }
+                        pickerPosition === 'bottom' ? { top: undefined, bottom: -45 } : { bottom: undefined, top: -45 }
                     ]}>
                         {['👍', '❤️', '😂', '😮', '😢', '🙏', '😁'].map((emoji) => (
                             <Pressable 
@@ -671,10 +671,11 @@ const styles = StyleSheet.create({
     },
     reactionPickerContainer: {
         position: 'absolute',
+        top: -45,
         backgroundColor: '#1f2937',
-        borderRadius: 36,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
+        borderRadius: 24,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
         flexDirection: 'row',
         alignItems: 'center',
         shadowColor: '#000',
@@ -683,7 +684,7 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 8,
         zIndex: 100,
-        gap: 14,
+        gap: 10,
     },
     reactionPickerMe: {
         right: 10,
@@ -695,17 +696,17 @@ const styles = StyleSheet.create({
         padding: 2,
     },
     reactionEmojiText: {
-        fontSize: 38,
+        fontSize: 22,
     },
     reactionBadgeContainer: {
         position: 'absolute',
-        bottom: -10,
+        bottom: -12,
         backgroundColor: '#f3f4f6',
         borderWidth: 1.5,
         borderColor: '#ffffff',
-        borderRadius: 12,
-        paddingHorizontal: 6,
-        paddingVertical: 2,
+        borderRadius: 16,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.15,
@@ -720,7 +721,7 @@ const styles = StyleSheet.create({
         left: 12,
     },
     reactionBadgeText: {
-        fontSize: 11,
+        fontSize: 18,
         fontWeight: '600',
         color: '#374151',
     },
