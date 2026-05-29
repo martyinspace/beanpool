@@ -1482,7 +1482,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                         </p>
                     </div>
                 ) : (
-                    <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 pb-32' : 'flex flex-col gap-5 pb-32'}>
+                    <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 pb-32' : 'flex flex-col gap-3 pb-32'}>
                         {filtered.map((post) => (
                             <div key={post.id} onClick={() => setSelectedPost(post)} className="h-full cursor-pointer">
                                 <MarketplaceCard

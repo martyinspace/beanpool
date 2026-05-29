@@ -452,9 +452,9 @@ export default function MarketScreen() {
             <Pressable onPress={() => router.push(`/post/${item.id}`)}>
                 <View style={[styles.card, { flexDirection: 'row', padding: 0 }, elderCard && styles.elderCard]}>
                     {coverImage && typeof coverImage === 'string' && coverImage.trim() !== '' && coverImage !== 'null' && coverImage !== 'undefined' ? (
-                        <Image source={{ uri: coverImage }} style={{ width: 96, height: '100%', minHeight: 96, borderTopLeftRadius: 20, borderBottomLeftRadius: 20 }} resizeMode="cover" />
+                        <Image source={{ uri: coverImage }} style={{ width: 96, height: '100%', minHeight: 96, borderTopLeftRadius: 12, borderBottomLeftRadius: 12 }} resizeMode="cover" />
                     ) : (
-                        <View style={{ width: 96, height: '100%', minHeight: 96, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 20, borderBottomLeftRadius: 20 }}>
+                        <View style={{ width: 96, height: '100%', minHeight: 96, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 12, borderBottomLeftRadius: 12 }}>
                             <Text style={{ fontSize: 32, opacity: 0.5 }}>
                                 {MARKETPLACE_CATEGORIES.find(c => c.id === item.category)?.emoji || '📦'}
                             </Text>
@@ -620,8 +620,8 @@ const styles = StyleSheet.create({
     // Cards
     card: { 
         backgroundColor: '#ffffff', 
-        borderRadius: 20, 
-        marginBottom: 20, 
+        borderRadius: 12, 
+        marginBottom: 12, 
         borderWidth: 1, 
         borderColor: '#e5e7eb',
         shadowColor: '#000',

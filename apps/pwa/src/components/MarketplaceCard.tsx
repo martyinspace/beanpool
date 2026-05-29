@@ -44,7 +44,7 @@ export function MarketplaceCard({ post, authorRating, authorEnergy = 0, authorAv
         // Horizontal List View
         return (
             <div 
-                className={`bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-[20px] p-4 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md flex flex-row gap-4 h-full w-full relative overflow-hidden ${elderStyleList}`}
+                className={`bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-xl p-4 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md flex flex-row gap-4 h-full w-full relative overflow-hidden ${elderStyleList}`}
             >
                 {/* Left Thumbnail */}
                 <div className="w-16 h-16 rounded-xl overflow-hidden shadow-inner flex-shrink-0 relative">
@@ -114,7 +114,7 @@ export function MarketplaceCard({ post, authorRating, authorEnergy = 0, authorAv
     // Grid View Return (Condensed tiles)
     return (
         <div
-            className={`bg-white dark:bg-nature-950 overflow-hidden cursor-pointer transition-all duration-300 shadow-md hover:shadow-xl dark:shadow-2xl dark:shadow-black/40 border border-nature-100/50 dark:border-nature-800 flex flex-col h-full rounded-[20px] p-3 ${elderStyleGrid}`}
+            className={`bg-white dark:bg-nature-950 overflow-hidden cursor-pointer transition-all duration-300 shadow-md hover:shadow-xl dark:shadow-2xl dark:shadow-black/40 border border-nature-100/50 dark:border-nature-800 flex flex-col h-full rounded-xl p-3 ${elderStyleGrid}`}
         >
             {/* Top Handle: Author + Title + Rating */}
             <div className={`flex justify-between items-start mb-2`}>
@@ -141,7 +141,7 @@ export function MarketplaceCard({ post, authorRating, authorEnergy = 0, authorAv
 
             {/* Image Area */}
             {hasPhoto ? (
-                <div className={`relative w-full rounded-[20px] overflow-hidden shadow-sm h-[110px] mb-3`}>
+                <div className={`relative w-full rounded-xl overflow-hidden shadow-sm h-[110px] mb-3`}>
                     <img src={post.photos![0]} alt={post.title} className="w-full h-full object-cover" />
 
                     {/* Status Overlays */}
@@ -177,7 +177,7 @@ export function MarketplaceCard({ post, authorRating, authorEnergy = 0, authorAv
                     )}
                 </div>
             ) : (
-                <div className={`relative w-full rounded-[20px] bg-oat-50 dark:bg-nature-900 flex items-center justify-center shadow-inner h-[80px] mb-3`}>
+                <div className={`relative w-full rounded-xl bg-oat-50 dark:bg-nature-900 flex items-center justify-center shadow-inner h-[80px] mb-3`}>
                     <span className={`text-3xl opacity-20`}>{emoji}</span>
                     <div className={`absolute right-2 bg-nature-900/90 backdrop-blur-md text-white font-bold tracking-tight shadow-md bottom-2 px-2.5 py-1 rounded-lg text-sm`}>
                         <span style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap' }}>
