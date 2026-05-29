@@ -47,22 +47,28 @@ export function InfoModal({ isOpen, onClose, title, icon, tabs }: InfoModalProps
 
                         {/* Tabs */}
                         {tabs.length > 1 && (
-                            <View style={styles.tabContainer}>
-                                {tabs.map(tab => (
-                                    <TouchableOpacity
-                                        key={tab.id}
-                                        style={[
-                                            styles.tabButton,
-                                            activeTab === tab.id && styles.tabButtonActive
-                                        ]}
-                                        onPress={() => setActiveTab(tab.id)}
-                                    >
-                                        <Text style={[
-                                            styles.tabText,
-                                            activeTab === tab.id && styles.tabTextActive
-                                        ]}>{tab.label}</Text>
-                                    </TouchableOpacity>
-                                ))}
+                            <View style={styles.tabWrapper}>
+                                <ScrollView
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    contentContainerStyle={styles.tabContainer}
+                                >
+                                    {tabs.map(tab => (
+                                        <TouchableOpacity
+                                            key={tab.id}
+                                            style={[
+                                                styles.tabButton,
+                                                activeTab === tab.id && styles.tabButtonActive
+                                            ]}
+                                            onPress={() => setActiveTab(tab.id)}
+                                        >
+                                            <Text style={[
+                                                styles.tabText,
+                                                activeTab === tab.id && styles.tabTextActive
+                                            ]}>{tab.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
                             </View>
                         )}
 
@@ -121,12 +127,15 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: 'bold',
     },
+    tabWrapper: {
+        borderBottomWidth: 1,
+        borderBottomColor: '#1f2937',
+    },
     tabContainer: {
         flexDirection: 'row',
         paddingHorizontal: 16,
         paddingTop: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#1f2937',
+        paddingBottom: 12,
     },
     tabButton: {
         paddingVertical: 12,

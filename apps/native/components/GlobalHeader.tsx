@@ -372,9 +372,13 @@ export function GlobalHeader() {
                             </View>
                         ) : (
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                <Text style={[styles.headerTitle, { fontSize: 20, marginBottom: 0 }]}>
+                                <Text 
+                                    style={[styles.headerTitle, { fontSize: 20, marginBottom: 0 }]}
+                                    numberOfLines={1}
+                                    ellipsizeMode="tail"
+                                >
                                     {pathname === '/market' ? 'Marketplace' :
-                                     pathname === '/projects' ? 'Community Projects' :
+                                     pathname === '/projects' ? 'Projects' :
                                      pathname === '/chats' ? 'Messages' :
                                      pathname === '/people' ? 'People' :
                                      pathname === '/ledger' ? 'Ledger' :
@@ -386,27 +390,29 @@ export function GlobalHeader() {
                         )}
                     </View>
                 </TouchableOpacity>
-
+ 
                 {/* RIGHT: Controls */}
-                <View style={styles.headerRightControls}>
-                    <TouchableOpacity 
-                        style={[styles.controlPillBtn, { borderRightWidth: 1, borderColor: '#e5e7eb' }]} 
-                        onPress={handleLocationToggle} 
-                    >
-                        <MaterialCommunityIcons name={locationEnabled ? "map-marker-outline" : "map-marker-off-outline"} size={17} color="#4b5563" />
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                        style={styles.controlPillBtn} 
-                        onPress={() => {
-                            if (pathname === '/settings') {
-                                router.back();
-                            } else {
-                                router.push('/(tabs)/settings');
-                            }
-                        }}
-                    >
-                        <MaterialCommunityIcons name="tune" size={17} color={pathname === '/settings' ? "#8b5cf6" : "#4b5563"} />
-                    </TouchableOpacity>
+                <View style={styles.headerRight}>
+                    <View style={styles.headerRightControls}>
+                        <TouchableOpacity 
+                            style={[styles.controlPillBtn, { borderRightWidth: 1, borderColor: '#e5e7eb' }]} 
+                            onPress={handleLocationToggle} 
+                        >
+                            <MaterialCommunityIcons name={locationEnabled ? "map-marker-outline" : "map-marker-off-outline"} size={17} color="#4b5563" />
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                            style={styles.controlPillBtn} 
+                            onPress={() => {
+                                if (pathname === '/settings') {
+                                    router.back();
+                                } else {
+                                    router.push('/(tabs)/settings');
+                                }
+                            }}
+                        >
+                            <MaterialCommunityIcons name="tune" size={17} color={pathname === '/settings' ? "#8b5cf6" : "#4b5563"} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </View>
 
