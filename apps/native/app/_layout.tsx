@@ -314,11 +314,13 @@ export default function RootLayout() {
         const subscription = AppState.addEventListener('change', nextAppState => {
             if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
                 requestSync();
-                // Clear app icon badge when user opens the app
-                try {
-                    const Notif = require('expo-notifications');
-                    Notif.setBadgeCountAsync(0).catch(() => {});
-                } catch {}
+                // Clear app icon badge when user opens the app (only in custom client / standalone builds)
+                if (Constants.appOwnership !== 'expo') {
+                    try {
+                        const Notif = require('expo-notifications');
+                        Notif.setBadgeCountAsync(0).catch(() => {});
+                    } catch {}
+                }
             }
             appState.current = nextAppState;
         });

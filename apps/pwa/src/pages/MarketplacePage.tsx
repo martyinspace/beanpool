@@ -41,9 +41,40 @@ interface Props {
 
 export function MarketplacePage({ identity, marketClickCount = 0, openPostId, onPostOpened, onNavigate, onOpenProfile }: Props) {
     const [posts, setPosts] = useState<MarketplacePost[]>([]);
-    const [typeFilter, setTypeFilter] = useState<PostType | 'all'>('all');
+    const [typeFilter, setTypeFilter] = useState<PostType | 'all' | 'for-you'>('all');
     const [categoryFilter, setCategoryFilter] = useState<string | 'all'>('all');
     const [loading, setLoading] = useState(true);
+
+    const [favCategories, setFavCategories] = useState<string[]>(() => {
+        try {
+            const val = localStorage.getItem('bp_fav_categories');
+            return val ? JSON.parse(val) : [];
+        } catch {
+            return [];
+        }
+    });
+
+    const [isCustomizerExpanded, setIsCustomizerExpanded] = useState<boolean>(() => {
+        try {
+            const val = localStorage.getItem('bp_fav_categories');
+            const parsed = val ? JSON.parse(val) : [];
+            return parsed.length === 0;
+        } catch {
+            return true;
+        }
+    });
+
+    const toggleFavCategory = (catId: string) => {
+        const updated = favCategories.includes(catId)
+            ? favCategories.filter(c => c !== catId)
+            : [...favCategories, catId];
+        setFavCategories(updated);
+        try {
+            localStorage.setItem('bp_fav_categories', JSON.stringify(updated));
+        } catch (e) {
+            console.error(e);
+        }
+    };
     const [deleting, setDeleting] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -63,7 +94,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
     }, []);
 
     // Layout configuration
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+    const [viewMode, setViewMode] = useState<'grid' | 'list' | 'compact'>('list');
     const [showFilters, setShowFilters] = useState(false);
     const [showCategoryPicker, setShowCategoryPicker] = useState(false);
     const [showDealsModal, setShowDealsModal] = useState(false);
@@ -178,7 +209,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
     const refresh = useCallback(async () => {
         try {
             const filter: any = {};
-            if (typeFilter !== 'all') filter.type = typeFilter;
+            if (typeFilter !== 'all' && typeFilter !== 'for-you') filter.type = typeFilter;
             if (categoryFilter !== 'all') filter.category = categoryFilter;
 
             // Always fetch home node + global requests
@@ -1299,36 +1330,23 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                     />
                 </Suspense>
             )}
-
-
-            {/* ── Search Row ── */}
-            <div className="mb-2">
+            <div className="mb-0.5">
                 <div className="flex gap-2 items-center">
+                    {/* Search bar */}
                     <div className="flex-1 relative">
                         <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm opacity-40 pointer-events-none text-nature-500 dark:text-nature-400">🔍</span>
                         <input
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search marketplace..."
-                            className="w-full py-2.5 pl-10 pr-4 rounded-full border border-nature-200 dark:border-nature-800 bg-white dark:bg-nature-900 text-nature-900 dark:text-white text-[14px] font-medium focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm transition-all hover:shadow-md"
+                            className="w-full py-2 pl-10 pr-4 rounded-full border border-nature-200 dark:border-nature-800 bg-white dark:bg-nature-900 text-nature-900 dark:text-white text-[14px] font-medium focus:outline-none focus:ring-2 focus:ring-terra-300 shadow-sm transition-all hover:shadow-md"
                         />
                     </div>
 
-                    <button
-                        onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-                        className="w-10 h-10 rounded-full flex-shrink-0 border bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 hover:bg-oat-50 dark:hover:bg-nature-800 transition-colors shadow-sm flex items-center justify-center text-md hover:shadow-md"
-                        title={viewMode === 'grid' ? "Switch to List View" : "Switch to Grid View"}
-                    >
-                        {viewMode === 'grid' ? '☰' : '⊞'}
-                    </button>
-                </div>
-
-                {/* Horizontal Filter Chips */}
-                <div className="flex flex-wrap gap-1.5 mt-2.5">
-                    {/* My Deals Chip */}
+                    {/* Highly Important My Deals Button */}
                     <button
                         onClick={() => setShowDealsModal(true)}
-                        className="px-3 py-1.5 rounded-full border border-amber-300 dark:border-amber-700 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-400 text-xs font-bold whitespace-nowrap shadow-sm transition-colors flex items-center gap-1.5 hover:bg-amber-200 dark:hover:bg-amber-900/60"
+                        className="h-9 px-3 rounded-full border border-amber-300 dark:border-amber-700 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-400 text-xs font-black whitespace-nowrap shadow-sm transition-all flex items-center gap-1.5 hover:bg-amber-200 dark:hover:bg-amber-900/60 hover:shadow-md cursor-pointer"
                     >
                         🤝 My Deals
                         {pendingDealsCount > 0 && (
@@ -1338,70 +1356,94 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                         )}
                     </button>
 
-                    {/* Type chips */}
-                    {(['all', 'offer', 'need'] as const).map((t) => {
+                    {/* View Mode Toggle */}
+                    <button
+                        onClick={() => setViewMode(v => v === 'list' ? 'grid' : (v === 'grid' ? 'compact' : 'list'))}
+                        className="w-9 h-9 rounded-full flex-shrink-0 border bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400 hover:bg-oat-50 dark:hover:bg-nature-800 transition-colors shadow-sm flex items-center justify-center text-md hover:shadow-md cursor-pointer"
+                        title={viewMode === 'list' ? "Switch to Grid View" : (viewMode === 'grid' ? "Switch to Compact View" : "Switch to List View")}
+                    >
+                        {viewMode === 'list' ? '☰' : (viewMode === 'grid' ? '⊞' : '▤')}
+                    </button>
+                </div>
+
+                {/* Row 2: Full-Width Type Segmented Control */}
+                <div className="w-full bg-nature-100 dark:bg-nature-900/60 rounded-2xl p-0.5 flex gap-0.5 mt-0.5 mb-1 shadow-inner border border-nature-200/50 dark:border-nature-800/40">
+                    {(['all', 'for-you', 'offer', 'need'] as const).map((t) => {
                         const isSelected = typeFilter === t;
-                        let activeStyles = 'bg-nature-800 dark:bg-white border-nature-900 dark:border-white text-white dark:text-nature-900';
-                        if (t === 'offer') activeStyles = 'bg-emerald-600 border-emerald-700 text-white';
-                        if (t === 'need') activeStyles = 'bg-terra-600 border-terra-700 text-white';
+                        let activeStyles = 'bg-nature-800 dark:bg-white text-white dark:text-nature-900 border border-nature-900/10 shadow-sm scale-[1.01]';
+                        if (t === 'offer') activeStyles = 'bg-emerald-600 dark:bg-emerald-500 text-white border border-emerald-700/25 shadow-sm scale-[1.01]';
+                        if (t === 'need') activeStyles = 'bg-terra-600 dark:bg-terra-500 text-white border border-terra-700/25 shadow-sm scale-[1.01]';
+                        if (t === 'for-you') activeStyles = 'bg-violet-600 dark:bg-violet-500 text-white border border-violet-700/25 shadow-sm scale-[1.01]';
 
                         return (
                             <button
                                 key={t}
-                                onClick={() => setTypeFilter(t)}
-                                className={`px-3 py-1.5 rounded-full border text-xs font-bold whitespace-nowrap shadow-sm transition-colors ${
-                                    isSelected ? activeStyles : 'bg-white dark:bg-nature-950 border-nature-200 dark:border-nature-800 text-nature-500 dark:text-nature-400'
+                                onClick={() => setTypeFilter(typeFilter === t ? 'all' : t)}
+                                className={`flex-1 py-1.5 text-center rounded-xl text-xs font-black transition-all duration-305 flex items-center justify-center gap-1 border-0 cursor-pointer ${
+                                    isSelected 
+                                        ? activeStyles 
+                                        : 'bg-transparent text-nature-500 dark:text-nature-400 hover:text-nature-800 dark:hover:text-nature-200 hover:bg-white/40 dark:hover:bg-nature-800/30'
                                 }`}
                             >
-                                {t === 'all' ? 'All' : t === 'offer' ? '🟢 Offers' : '🟠 Needs'}
+                                {t === 'all' ? 'All' : t === 'for-you' ? '★ For You' : t === 'offer' ? '🟢 Offers' : '🟠 Needs'}
                             </button>
                         );
                     })}
+                </div>
 
-                    {/* Category chip */}
+                {/* Row 3: Symmetrical Filter Dropdowns (50% / 50% split) */}
+                <div className="grid grid-cols-2 gap-2 mt-0.5 mb-2.5">
+                    {/* Category Dropdown Button */}
                     <button
                         onClick={() => setShowCategoryPicker(true)}
-                        className={`px-3 py-1.5 rounded-full border text-xs font-bold whitespace-nowrap shadow-sm transition-colors flex items-center gap-1 ${
+                        className={`w-full py-2 rounded-2xl border text-xs font-black transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer hover:shadow-sm ${
                             categoryFilter !== 'all'
-                                ? 'bg-indigo-100 dark:bg-indigo-900/40 border-indigo-300 dark:border-indigo-600 text-indigo-800 dark:text-indigo-300'
-                                : 'bg-white dark:bg-nature-950 border-nature-200 dark:border-nature-800 text-nature-500 dark:text-nature-400'
+                                ? 'bg-indigo-600 border-indigo-700 text-white shadow-soft dark:bg-indigo-500 dark:border-indigo-500'
+                                : 'bg-white dark:bg-nature-950 border-nature-200 dark:border-nature-850 text-nature-600 dark:text-nature-350 hover:bg-oat-50 dark:hover:bg-nature-900/60'
                         }`}
                     >
-                        {(MARKETPLACE_CATEGORIES.find(c => c.id === categoryFilter)?.emoji) || '🏷️'} {categoryFilter !== 'all' ? MARKETPLACE_CATEGORIES.find(c => c.id === categoryFilter)?.label : 'Category'}
-                        <span className="text-[8px] text-nature-400 ml-0.5">▼</span>
-                    </button>
-
-                    {/* Distance chip */}
-                    <button
-                        onClick={() => setShowRadiusPicker(true)}
-                        className={`px-3 py-1.5 rounded-full border text-xs font-bold whitespace-nowrap shadow-sm transition-colors flex items-center gap-1 ${
-                            radiusSettings
-                                ? 'bg-amber-100 dark:bg-amber-900/40 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400'
-                                : 'bg-white dark:bg-nature-950 border-nature-200 dark:border-nature-800 text-nature-500 dark:text-nature-400'
-                        }`}
-                    >
-                        📍 {radiusSettings ? `${radiusSettings.radiusKm}km` : 'Distance'}
-                        {radiusSettings && (
+                        {(MARKETPLACE_CATEGORIES.find(c => c.id === categoryFilter)?.emoji) || '🏷️'}
+                        <span className="truncate">
+                            {categoryFilter !== 'all' ? MARKETPLACE_CATEGORIES.find(c => c.id === categoryFilter)?.label : 'Category'}
+                        </span>
+                        {categoryFilter !== 'all' ? (
                             <span
-                                onClick={(e) => { e.stopPropagation(); setRadiusSettings(null); clearRadiusSettings(); }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setRadiusSettings(null);
-                                        clearRadiusSettings();
-                                    }
-                                }}
-                                role="button"
-                                tabIndex={0}
-                                aria-label="Clear radius"
-                                className="ml-1 text-[10px] font-black cursor-pointer hover:text-amber-900"
+                                onClick={(e) => { e.stopPropagation(); setCategoryFilter('all'); }}
+                                className="ml-1 bg-white/20 hover:bg-white/30 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center justify-center cursor-pointer transition-colors"
                             >
                                 ✕
                             </span>
+                        ) : (
+                            <span className="text-[8px] text-nature-450 ml-0.5">▼</span>
+                        )}
+                    </button>
+
+                    {/* Distance Dropdown Button */}
+                    <button
+                        onClick={() => setShowRadiusPicker(true)}
+                        className={`w-full py-2 rounded-2xl border text-xs font-black transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer hover:shadow-sm ${
+                            radiusSettings
+                                ? 'bg-amber-600 border-amber-700 text-white shadow-soft dark:bg-amber-500 dark:border-amber-500'
+                                : 'bg-white dark:bg-nature-950 border-nature-200 dark:border-nature-850 text-nature-600 dark:text-nature-350 hover:bg-oat-50 dark:hover:bg-nature-900/60'
+                        }`}
+                    >
+                        <span>📍</span>
+                        <span className="truncate">
+                            {radiusSettings ? (radiusSettings.radiusKm < 1 ? `${Math.round(radiusSettings.radiusKm * 1000)}m` : `${radiusSettings.radiusKm}km`) : 'Distance'}
+                        </span>
+                        {radiusSettings ? (
+                            <span
+                                onClick={(e) => { e.stopPropagation(); setRadiusSettings(null); clearRadiusSettings(); }}
+                                className="ml-1 bg-white/20 hover:bg-white/30 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center justify-center cursor-pointer transition-colors"
+                            >
+                                ✕
+                            </span>
+                        ) : (
+                            <span className="text-[8px] text-nature-450 ml-0.5">▼</span>
                         )}
                     </button>
                 </div>
+            </div>
 
                 {/* Connected Communities — multi-toggle (only if peer nodes exist) */}
                 {peerNodes.length > 0 && (
@@ -1425,7 +1467,6 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                         })}
                     </div>
                 )}
-            </div>
 
             {/* Error */}
             {error && (
@@ -1469,32 +1510,193 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                     });
                 }
 
-                return filtered.length === 0 ? (
-                    <div className="bg-white dark:bg-nature-950 border border-nature-200 dark:border-nature-800 rounded-3xl p-10 mt-6 text-center shadow-soft">
-                        <div className="text-5xl opacity-30 mb-4">
-                            {searchQuery.trim() ? '🔍' : radiusSettings ? '📍' : '🛒'}
-                        </div>
-                        <h4 className="font-bold text-lg text-nature-900 dark:text-white mb-2">No items found</h4>
-                        <p className="text-nature-500 dark:text-nature-400 text-sm">
-                            {searchQuery.trim() ? `No matches for "${searchQuery}".`
-                                : radiusSettings ? 'Expand your radius to see more posts.'
-                                : 'The market is quiet right now. Post an offer!'}
-                        </p>
-                    </div>
-                ) : (
-                    <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3 pb-32' : 'flex flex-col gap-3 pb-32'}>
-                        {filtered.map((post) => (
-                            <div key={post.id} onClick={() => setSelectedPost(post)} className="h-full cursor-pointer">
-                                <MarketplaceCard
-                                    post={post as any}
-                                    authorRating={authorRatingsCache[post.authorPublicKey]}
-                                    authorEnergy={(post as any).authorEnergyCycled || 0}
-                                    authorAvatarUrl={authorAvatarCache[post.authorPublicKey] || null}
-                                    remoteNode={(post as any)._remoteNode}
-                                    viewMode={viewMode}
-                                />
+                // Local "★ For You" category filter
+                if (typeFilter === 'for-you') {
+                    filtered = filtered.filter(p => favCategories.includes(p.category));
+                }
+
+                // Compute fresh today count
+                const freshTodayCount = posts.filter(post => {
+                    if (post.status !== 'active') return false;
+                    if (identity && post.authorPublicKey === identity.publicKey) return false;
+                    const postTime = new Date(post.createdAt).getTime();
+                    const diffDays = Math.floor((Date.now() - postTime) / (24 * 60 * 60 * 1000));
+                    return diffDays === 0;
+                }).length;
+
+                return (
+                    <div className="pb-32">
+                        {/* Interests Tag Cloud when in For You mode */}
+                        {typeFilter === 'for-you' && (
+                            isCustomizerExpanded ? (
+                                <div className="mb-4 p-4 rounded-2xl border border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-950/20 backdrop-blur-sm animate-in fade-in duration-300 relative">
+                                    <button 
+                                        onClick={() => setIsCustomizerExpanded(false)}
+                                        className="absolute top-3 right-3 text-[10px] font-black text-violet-700 hover:text-violet-900 dark:text-violet-400 dark:hover:text-violet-300 bg-violet-100 dark:bg-violet-900/60 px-2 py-1 rounded-lg transition-colors cursor-pointer border-0"
+                                    >
+                                        ✕ HIDE
+                                    </button>
+                                    <h4 className="text-xs font-black text-violet-800 dark:text-violet-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                                        <span>★</span> Customize Interests
+                                    </h4>
+                                    <p className="text-nature-500 dark:text-nature-450 text-xs mb-3">
+                                        Select categories to prioritize in your personalized "★ For You" feed.
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {MARKETPLACE_CATEGORIES.map(cat => {
+                                            const isFav = favCategories.includes(cat.id);
+                                            return (
+                                                <button
+                                                    key={cat.id}
+                                                    onClick={() => toggleFavCategory(cat.id)}
+                                                    className={`px-3 py-1.5 rounded-full border text-xs font-bold transition-all duration-200 flex items-center gap-1 cursor-pointer hover:scale-105 active:scale-95 shadow-sm ${
+                                                        isFav
+                                                            ? 'bg-violet-600 border-violet-700 text-white dark:bg-violet-500 dark:border-violet-500'
+                                                            : 'bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-nature-600 dark:text-nature-400'
+                                                    }`}
+                                                >
+                                                    <span>{cat.emoji}</span>
+                                                    <span>{cat.label}</span>
+                                                    {isFav && <span className="text-[9px]">★</span>}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div 
+                                    onClick={() => setIsCustomizerExpanded(true)}
+                                    className="mb-4 p-3 rounded-2xl border border-violet-200/60 dark:border-violet-850 bg-violet-50/20 dark:bg-violet-950/10 backdrop-blur-sm flex items-center justify-between text-xs font-medium text-violet-850 dark:text-violet-300 hover:bg-violet-50/50 dark:hover:bg-violet-950/25 transition-all cursor-pointer shadow-sm"
+                                >
+                                    <div className="flex items-center gap-2 overflow-hidden">
+                                        <span className="text-violet-600 dark:text-violet-400 font-bold">★</span>
+                                        <span className="truncate">
+                                            Prioritizing: {favCategories.length > 0 
+                                                ? favCategories.map(id => MARKETPLACE_CATEGORIES.find(c => c.id === id)?.emoji || '').join(' ')
+                                                : 'None selected yet'}
+                                        </span>
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-violet-700 dark:text-violet-400 bg-violet-100/85 dark:bg-violet-900/40 px-2 py-0.5 rounded-lg flex-shrink-0">
+                                        ⚙️ Customize
+                                    </span>
+                                </div>
+                            )
+                        )}
+
+                        {/* Freshness Social Proof Banner */}
+                        {freshTodayCount > 0 && (
+                            <div className="mb-4 px-4 py-3 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 border border-orange-200/50 dark:border-orange-900/30 flex items-center justify-between shadow-sm animate-pulse-slow">
+                                <div className="flex items-center gap-2.5">
+                                    <span className="text-lg">🔥</span>
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-bold text-orange-950 dark:text-orange-400">
+                                            {freshTodayCount} fresh listing{freshTodayCount > 1 ? 's' : ''} posted today!
+                                        </span>
+                                        <span className="text-[10px] text-orange-600/80 dark:text-orange-450/60 font-medium">
+                                            Scroll down to explore what is new in the community.
+                                        </span>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-bold text-orange-700 bg-orange-100 dark:bg-orange-900/40 dark:text-orange-300 px-2 py-0.5 rounded-full">
+                                    LIVE
+                                </span>
                             </div>
-                        ))}
+                        )}
+
+                        {filtered.length === 0 ? (
+                            <div className="bg-white dark:bg-nature-950 border border-nature-200 dark:border-nature-800 rounded-3xl p-10 mt-2 text-center shadow-soft">
+                                <div className="text-5xl opacity-30 mb-4">
+                                    {searchQuery.trim() ? '🔍' : radiusSettings ? '📍' : '🛒'}
+                                </div>
+                                <h4 className="font-bold text-lg text-nature-900 dark:text-white mb-2">No items found</h4>
+                                <p className="text-nature-500 dark:text-nature-400 text-sm">
+                                    {searchQuery.trim() ? `No matches for "${searchQuery}".`
+                                        : radiusSettings ? 'Expand your radius to see more posts.'
+                                        : 'The market is quiet right now. Post an offer!'}
+                                </p>
+                            </div>
+                        ) : (() => {
+                            if (viewMode === 'grid') {
+                                return (
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {filtered.map((post) => (
+                                            <div key={post.id} onClick={() => setSelectedPost(post)} className="h-full cursor-pointer">
+                                                <MarketplaceCard
+                                                    post={post as any}
+                                                    authorRating={authorRatingsCache[post.authorPublicKey]}
+                                                    authorEnergy={(post as any).authorEnergyCycled || 0}
+                                                    authorAvatarUrl={authorAvatarCache[post.authorPublicKey] || null}
+                                                    remoteNode={(post as any)._remoteNode}
+                                                    viewMode={viewMode}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            }
+
+                            // Group chronologically for List & Compact modes
+                            const today: MarketplacePost[] = [];
+                            const yesterday: MarketplacePost[] = [];
+                            const thisWeek: MarketplacePost[] = [];
+                            const older: MarketplacePost[] = [];
+
+                            const now = Date.now();
+                            filtered.forEach(p => {
+                                const postTime = new Date(p.createdAt).getTime();
+                                const diffDays = Math.floor((now - postTime) / (24 * 60 * 60 * 1000));
+                                if (diffDays === 0) {
+                                    today.push(p);
+                                } else if (diffDays === 1) {
+                                    yesterday.push(p);
+                                } else if (diffDays < 7) {
+                                    thisWeek.push(p);
+                                } else {
+                                    older.push(p);
+                                }
+                            });
+
+                            const renderSection = (title: string, items: MarketplacePost[]) => {
+                                if (items.length === 0) return null;
+                                return (
+                                    <div key={title} className="flex flex-col gap-1.5 mb-2">
+                                        <div className="flex items-center gap-3 mt-2 mb-1">
+                                            <span className="text-xs font-black uppercase tracking-widest text-nature-450 dark:text-nature-500 whitespace-nowrap">
+                                                {title}
+                                            </span>
+                                            <div className="h-[1px] w-full bg-nature-200 dark:bg-nature-800" />
+                                        </div>
+                                        <div className="flex flex-col gap-1.5">
+                                            {items.map(post => (
+                                                <div key={post.id} onClick={() => setSelectedPost(post)} className="cursor-pointer">
+                                                    <MarketplaceCard
+                                                        post={post as any}
+                                                        authorRating={authorRatingsCache[post.authorPublicKey]}
+                                                        authorEnergy={(post as any).authorEnergyCycled || 0}
+                                                        authorAvatarUrl={authorAvatarCache[post.authorPublicKey] || null}
+                                                        remoteNode={(post as any)._remoteNode}
+                                                        viewMode={viewMode}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            };
+
+                            if (typeFilter === 'for-you') {
+                                return renderSection('★ Starred For You', filtered);
+                            }
+
+                            return (
+                                <>
+                                    {renderSection('Today', today)}
+                                    {renderSection('Yesterday', yesterday)}
+                                    {renderSection('This Week', thisWeek)}
+                                    {renderSection('Older Listings', older)}
+                                </>
+                            );
+                        })()}
                     </div>
                 );
             })()}

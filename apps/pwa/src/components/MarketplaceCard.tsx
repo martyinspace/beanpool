@@ -19,7 +19,7 @@ interface Props {
     authorAvatarUrl?: string | null;
     remoteNode?: string;
     onTrade?: (post: MarketplacePost) => void;
-    viewMode?: 'grid' | 'list';
+    viewMode?: 'grid' | 'list' | 'compact';
     onOpenProfile?: (pubkey: string) => void;
 }
 
@@ -39,6 +39,49 @@ export function MarketplaceCard({ post, authorRating, authorEnergy = 0, authorAv
     const elderCard = isElder(authorEnergy);
     const elderStyleGrid = elderCard ? 'border-l-4 border-l-amber-400 shadow-[0_4px_15px_rgba(251,191,36,0.15)]' : '';
     const elderStyleList = elderCard ? 'border-l-4 border-l-amber-400 shadow-[0_4px_15px_rgba(251,191,36,0.1)]' : '';
+
+    if (viewMode === 'compact') {
+        // Super Condensed row layout (doubles listings shown)
+        return (
+            <div
+                className={`bg-white dark:bg-nature-950 border border-nature-200 dark:border-nature-800 rounded-xl px-4 py-2.5 shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md flex flex-row items-center justify-between w-full relative overflow-hidden ${elderStyleList}`}
+            >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                    {/* Compact Category Emoji */}
+                    <span className="text-xl flex-shrink-0">{emoji}</span>
+                    
+                    {/* Title and Author */}
+                    <div className="flex-1 min-w-0">
+                        <h3 className="font-extrabold text-sm text-nature-950 dark:text-white truncate">
+                            {post.title}
+                        </h3>
+                        <span className="text-[10px] text-nature-500 truncate flex items-center gap-1">
+                            by {post.authorCallsign || 'Anonymous'} {elderCard && '👑'}
+                        </span>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-4 ml-3 flex-shrink-0">
+                    {/* Compact Price */}
+                    <span className="font-black text-sm text-nature-950 dark:text-white flex items-center">
+                        {post.credits !== undefined ? post.credits : '?'}
+                        <img src="/assets/bean.png" className="mx-0.5" style={{ width: '12px', height: '12px', flexShrink: 0 }} alt="B" />
+                        <span className="text-[9px] text-nature-500 font-normal">
+                            {{ fixed: '', hourly: '/hr', daily: '/day', weekly: '/wk', monthly: '/mo' }[post.priceType] || ''}
+                        </span>
+                    </span>
+
+                    {/* Needs / Offers pill */}
+                    <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
+                        post.type === 'offer' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400'
+                        : 'bg-orange-100 text-orange-850 dark:bg-orange-900/40 dark:text-orange-400'
+                    }`}>
+                        {post.type}
+                    </span>
+                </div>
+            </div>
+        );
+    }
 
     if (!isGrid) {
         // Horizontal List View
@@ -62,11 +105,17 @@ export function MarketplaceCard({ post, authorRating, authorEnergy = 0, authorAv
                     <div className="flex justify-between items-center mb-1">
                         <div className="flex gap-2 items-center">
                             <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                                post.type === 'offer' ? 'bg-terra-100 text-terra-800 dark:bg-terra-900/40 dark:text-terra-400'
-                                : 'bg-nature-200 text-nature-700 dark:bg-nature-800 dark:text-nature-400'
+                                post.type === 'offer' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400'
+                                : 'bg-orange-105 text-orange-800 dark:bg-orange-900/40 dark:text-orange-400'
                             }`}>
                                 {post.type}
                             </span>
+                            {categoryConfig && (
+                                <span className="text-[10px] font-black text-nature-500 dark:text-nature-450 flex items-center gap-1">
+                                    <span>{categoryConfig.emoji}</span>
+                                    <span>{categoryConfig.label}</span>
+                                </span>
+                            )}
                             {post.repeatable && (
                                 <span className={`text-[9px] font-black tracking-wider px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400`}>
                                     ↻ RECURRING

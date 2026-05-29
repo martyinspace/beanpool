@@ -18,7 +18,7 @@ interface Props {
     onReset: () => void;
 }
 
-const RADIUS_STEPS = [1, 2, 5, 10, 15, 20, 30, 50, 75, 100];
+const RADIUS_STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 25, 50];
 
 export function RadiusPickerPage({ initial, defaultRadius = 20, onApply, onCancel, onReset }: Props) {
     const mapContainer = useRef<HTMLDivElement>(null);
@@ -117,6 +117,25 @@ export function RadiusPickerPage({ initial, defaultRadius = 20, onApply, onCance
         }
     }, [radiusIdx]);
 
+    const handleGpsLocate = () => {
+        navigator.geolocation?.getCurrentPosition(
+            (pos) => {
+                const userLat = pos.coords.latitude;
+                const userLng = pos.coords.longitude;
+                setCenter([userLat, userLng]);
+                if (mapRef.current && circleRef.current && markerRef.current) {
+                    mapRef.current.setView([userLat, userLng], mapRef.current.getZoom());
+                    circleRef.current.setLatLng([userLat, userLng]);
+                    markerRef.current.setLatLng([userLat, userLng]);
+                }
+            },
+            (err) => {
+                alert("Could not access location services: " + err.message);
+            },
+            { timeout: 5000, enableHighAccuracy: true }
+        );
+    };
+
     return (
         <div style={{
             position: 'fixed', inset: 0, zIndex: 9999,
@@ -154,8 +173,51 @@ export function RadiusPickerPage({ initial, defaultRadius = 20, onApply, onCance
                 </button>
             </div>
 
-            {/* Map */}
-            <div ref={mapContainer} style={{ flex: 1 }} />
+            {/* Map Container */}
+            <div style={{ flex: 1, position: 'relative' }}>
+                <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
+                
+                {/* Floating GPS Button */}
+                <button
+                    onClick={handleGpsLocate}
+                    style={{
+                        position: 'absolute',
+                        right: '1rem',
+                        bottom: '1rem',
+                        width: '2.75rem',
+                        height: '2.75rem',
+                        borderRadius: '50%',
+                        background: '#ffffff',
+                        border: '1px solid var(--border-secondary)',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        zIndex: 1000,
+                        color: '#4b5563',
+                        transition: 'transform 0.15s ease, background-color 0.15s ease, color 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.08)';
+                        e.currentTarget.style.color = '#111827';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.color = '#4b5563';
+                    }}
+                    title="Center on my location"
+                >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <circle cx="12" cy="12" r="3" />
+                        <line x1="12" y1="1" x2="12" y2="4" />
+                        <line x1="12" y1="20" x2="12" y2="23" />
+                        <line x1="1" y1="12" x2="4" y2="12" />
+                        <line x1="20" y1="12" x2="23" y2="12" />
+                    </svg>
+                </button>
+            </div>
 
             {/* Bottom controls */}
             <div style={{
@@ -171,7 +233,7 @@ export function RadiusPickerPage({ initial, defaultRadius = 20, onApply, onCance
                 }}>
                     <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Search radius</span>
                     <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f59e0b' }}>
-                        {radiusKm} km
+                        {radiusKm < 1 ? `${Math.round(radiusKm * 1000)}m` : `${radiusKm} km`}
                     </span>
                 </div>
 
@@ -196,10 +258,10 @@ export function RadiusPickerPage({ initial, defaultRadius = 20, onApply, onCance
                     marginBottom: '1rem',
                     paddingLeft: '0.2rem', paddingRight: '0.2rem',
                 }}>
+                    <span>100m</span>
                     <span>1km</span>
                     <span>10km</span>
                     <span>50km</span>
-                    <span>100km</span>
                 </div>
 
                 {/* Tap hint */}
@@ -216,7 +278,7 @@ export function RadiusPickerPage({ initial, defaultRadius = 20, onApply, onCance
                         lat: center[0],
                         lng: center[1],
                         radiusKm,
-                        label: `${radiusKm}km radius`,
+                        label: radiusKm < 1 ? `${Math.round(radiusKm * 1000)}m radius` : `${radiusKm}km radius`,
                     })}
                     style={{
                         width: '100%', padding: '0.85rem', borderRadius: '12px',
@@ -226,7 +288,7 @@ export function RadiusPickerPage({ initial, defaultRadius = 20, onApply, onCance
                         boxShadow: '0 4px 16px rgba(245, 158, 11, 0.3)',
                     }}
                 >
-                    Apply — {radiusKm}km radius
+                    Apply — {radiusKm < 1 ? `${Math.round(radiusKm * 1000)}m` : `${radiusKm}km`} radius
                 </button>
                 {initial && (
                     <button

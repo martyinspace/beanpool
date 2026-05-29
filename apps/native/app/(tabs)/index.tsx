@@ -87,8 +87,22 @@ function getDistanceInKm(lat1: number, lon1: number, lat2: number, lon2: number)
 
 export default function MarketScreen() {
     const { identity } = useIdentity();
-    const [filter, setFilter] = useState<'all' | 'needs' | 'offers'>('all');
+    const [filter, setFilter] = useState<'all' | 'needs' | 'offers' | 'for-you'>('all');
     const [viewMode, setViewMode] = useState<'list' | 'grid' | 'compact'>('list');
+    const [favCategories, setFavCategories] = useState<string[]>([]);
+    const [isCustomizerExpanded, setIsCustomizerExpanded] = useState(true);
+
+    useEffect(() => {
+        AsyncStorage.getItem('bp_fav_categories').then(val => {
+            if (val) {
+                const parsed = JSON.parse(val);
+                setFavCategories(parsed);
+                if (parsed && parsed.length > 0) {
+                    setIsCustomizerExpanded(false);
+                }
+            }
+        }).catch(() => {});
+    }, []);
     const [searchQuery, setSearchQuery] = useState('');
     const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
     const [posts, setPosts] = useState<any[]>([]);
@@ -263,6 +277,11 @@ export default function MarketScreen() {
         if (categoryFilter !== 'all' && p.category !== categoryFilter) return false;
         if (identity && p.author_pubkey === identity.publicKey) return false;
         
+        // Type / For You filters
+        if (filter === 'offers' && p.type !== 'offer') return false;
+        if (filter === 'needs' && p.type !== 'need') return false;
+        if (filter === 'for-you' && !favCategories.includes(p.category)) return false;
+        
         if (radiusKm && p.lat && p.lng) {
             const centerLat = locationCenter ? locationCenter.lat : -28.5523;
             const centerLng = locationCenter ? locationCenter.lng : 153.4991;
@@ -288,6 +307,14 @@ export default function MarketScreen() {
 
     const selectedCategory = MARKETPLACE_CATEGORIES.find(c => c.id === categoryFilter);
     const hasActiveFilters = categoryFilter !== 'all' || radiusKm !== null || filter !== 'all';
+
+    const freshTodayCount = posts.filter(post => {
+        if (post.status !== 'active') return false;
+        if (identity && post.author_pubkey === identity.publicKey) return false;
+        const postTime = new Date(post.created_at || post.createdAt).getTime();
+        const diffDays = Math.floor((Date.now() - postTime) / (24 * 60 * 60 * 1000));
+        return diffDays === 0;
+    }).length;
 
     const HeaderComponent = (
         <View>
@@ -327,70 +354,224 @@ export default function MarketScreen() {
                 </Pressable>
             </View>
 
-            {/* Horizontal Filter Chips */}
-            <View style={{ marginTop: 10, marginBottom: 4 }}>
-                <ScrollView 
-                    horizontal 
-                    showsHorizontalScrollIndicator={false} 
-                    contentContainerStyle={styles.chipScrollContainer}
-                >
-                    {/* Type chips */}
+            {/* Elegant 3-Row Layout: Row 2 (Type Segmented Control) + Row 3 (Symmetrical Filter Dropdowns) */}
+            <View style={{ paddingHorizontal: 16, marginTop: 0 }}>
+                {/* Row 2: Full-Width Type Segmented Control */}
+                <View style={styles.typeSegmentContainer}>
                     <Pressable 
                         onPress={() => setFilter('all')} 
-                        style={[styles.chip, filter === 'all' && styles.chipAllActive]}
+                        style={[styles.segmentBtn, filter === 'all' && styles.segmentBtnAllActive]}
                     >
-                        <Text style={[styles.chipText, filter === 'all' && styles.chipTextActive]}>All</Text>
+                        <Text style={[styles.segmentText, filter === 'all' && styles.segmentTextActive]}>All</Text>
                     </Pressable>
                     <Pressable 
-                        onPress={() => setFilter('offers')} 
-                        style={[styles.chip, filter === 'offers' && styles.chipOfferActive]}
+                        onPress={() => setFilter(filter === 'for-you' ? 'all' : 'for-you')} 
+                        style={[styles.segmentBtn, filter === 'for-you' && styles.segmentBtnFavActive]}
                     >
-                        <Text style={[styles.chipText, filter === 'offers' && styles.chipTextActive]}>🟢 Offers</Text>
+                        <Text style={[styles.segmentText, filter === 'for-you' && styles.segmentTextActive]}>★ For You</Text>
                     </Pressable>
                     <Pressable 
-                        onPress={() => setFilter('needs')} 
-                        style={[styles.chip, filter === 'needs' && styles.chipNeedActive]}
+                        onPress={() => setFilter(filter === 'offers' ? 'all' : 'offers')} 
+                        style={[styles.segmentBtn, filter === 'offers' && styles.segmentBtnOfferActive]}
                     >
-                        <Text style={[styles.chipText, filter === 'needs' && styles.chipTextActive]}>🟠 Needs</Text>
+                        <Text style={[styles.segmentText, filter === 'offers' && styles.segmentTextActive]}>🟢 Offers</Text>
                     </Pressable>
+                    <Pressable 
+                        onPress={() => setFilter(filter === 'needs' ? 'all' : 'needs')} 
+                        style={[styles.segmentBtn, filter === 'needs' && styles.segmentBtnNeedActive]}
+                    >
+                        <Text style={[styles.segmentText, filter === 'needs' && styles.segmentTextActive]}>🟠 Needs</Text>
+                    </Pressable>
+                </View>
 
-                    {/* Category chip */}
+                {/* Row 3: Symmetrical Filter Dropdowns (50% / 50% split) */}
+                <View style={styles.dropdownsRow}>
+                    {/* Category Dropdown */}
                     <Pressable 
                         onPress={() => setShowCategoryPicker(true)} 
-                        style={[styles.chip, categoryFilter !== 'all' && styles.chipActive]}
+                        style={[styles.dropdownBtn, categoryFilter !== 'all' && styles.dropdownBtnCategoryActive]}
                     >
-                        <Text style={[styles.chipText, categoryFilter !== 'all' && styles.chipTextActive]}>
+                        <Text style={[styles.dropdownText, categoryFilter !== 'all' && styles.dropdownTextActive]} numberOfLines={1}>
                             {selectedCategory?.emoji || '🏷️'} {categoryFilter !== 'all' ? selectedCategory?.label : 'Category'}
                         </Text>
-                        <Text style={{ fontSize: 8, color: '#9ca3af', marginLeft: 2 }}>▼</Text>
+                        {categoryFilter !== 'all' ? (
+                            <Pressable 
+                                onPress={(e) => { e.stopPropagation(); setCategoryFilter('all'); }}
+                                hitSlop={8}
+                                style={{ marginLeft: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1 }}
+                            >
+                                <Text style={{ fontSize: 9, color: '#fff', fontWeight: 'bold' }}>✕</Text>
+                            </Pressable>
+                        ) : (
+                            <Text style={{ fontSize: 8, color: '#9ca3af', marginLeft: 4 }}>▼</Text>
+                        )}
                     </Pressable>
 
-                    {/* Distance chip */}
+                    {/* Distance Dropdown */}
                     <Pressable 
                         onPress={() => setShowRadiusPicker(true)} 
-                        style={[styles.chip, radiusKm !== null && styles.chipDistanceActive, radiusKm === null && { paddingHorizontal: 10 }]}
+                        style={[styles.dropdownBtn, radiusKm !== null && styles.dropdownBtnDistanceActive]}
                     >
-                        <Text style={[styles.chipText, radiusKm !== null && styles.chipTextActive]}>
-                            📍{radiusKm ? ` ${radiusKm}km` : ''}
+                        <Text style={[styles.dropdownText, radiusKm !== null && styles.dropdownTextActive]} numberOfLines={1}>
+                            📍 {radiusKm ? (radiusKm < 1 ? `${Math.round(radiusKm * 1000)}m` : `${radiusKm}km`) : 'Distance'}
                         </Text>
-                        {radiusKm !== null && (
+                        {radiusKm !== null ? (
                             <Pressable 
                                 onPress={(e) => { e.stopPropagation(); setRadiusKm(null); setLocationCenter(null); }}
                                 hitSlop={8}
-                                style={{ marginLeft: 4 }}
+                                style={{ marginLeft: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1 }}
                             >
-                                <Text style={{ fontSize: 10, fontWeight: '800', color: '#fff' }}>✕</Text>
+                                <Text style={{ fontSize: 9, color: '#fff', fontWeight: 'bold' }}>✕</Text>
                             </Pressable>
+                        ) : (
+                            <Text style={{ fontSize: 8, color: '#9ca3af', marginLeft: 4 }}>▼</Text>
                         )}
                     </Pressable>
-                </ScrollView>
+                </View>
             </View>
+
+            {/* Interests Tag Cloud when in For You mode */}
+            {filter === 'for-you' && (
+                isCustomizerExpanded ? (
+                    <View style={styles.favPanel}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                            <Text style={styles.favPanelTitle}>★ CUSTOMIZE INTERESTS</Text>
+                            <Pressable 
+                                onPress={() => setIsCustomizerExpanded(false)}
+                                style={{ backgroundColor: '#f3e8ff', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}
+                            >
+                                <Text style={{ fontSize: 10, fontWeight: '800', color: '#7e22ce' }}>✕ HIDE</Text>
+                            </Pressable>
+                        </View>
+                        <Text style={styles.favPanelSub}>Select categories to prioritize in your feed:</Text>
+                        <View style={styles.favTagsContainer}>
+                            {MARKETPLACE_CATEGORIES.filter(c => c.id !== 'all').map(cat => {
+                                const isFav = favCategories.includes(cat.id);
+                                return (
+                                    <Pressable
+                                        key={cat.id}
+                                        onPress={async () => {
+                                            const updated = isFav
+                                                ? favCategories.filter(c => c !== cat.id)
+                                                : [...favCategories, cat.id];
+                                            setFavCategories(updated);
+                                            try {
+                                                await AsyncStorage.setItem('bp_fav_categories', JSON.stringify(updated));
+                                            } catch {}
+                                        }}
+                                        style={[styles.favTag, isFav && styles.favTagActive]}
+                                    >
+                                        <Text style={[styles.favTagText, isFav && styles.favTagTextActive]}>
+                                            {cat.emoji} {cat.label} {isFav ? '★' : ''}
+                                        </Text>
+                                    </Pressable>
+                                );
+                            })}
+                        </View>
+                    </View>
+                ) : (
+                    <Pressable 
+                        onPress={() => setIsCustomizerExpanded(true)}
+                        style={styles.favSummaryBanner}
+                    >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                                <Text style={{ fontSize: 13, color: '#7e22ce', fontWeight: 'bold' }}>★</Text>
+                                <Text style={styles.favSummaryText} numberOfLines={1}>
+                                    Prioritizing: {favCategories.length > 0 
+                                        ? favCategories.map(id => MARKETPLACE_CATEGORIES.find(c => c.id === id)?.emoji || '').join(' ')
+                                        : 'None selected yet'}
+                                </Text>
+                            </View>
+                            <View style={styles.favSummaryEditBadge}>
+                                <Text style={styles.favSummaryEditBtn}>⚙️ CUSTOMIZE</Text>
+                            </View>
+                        </View>
+                    </Pressable>
+                )
+            )}
+
+            {/* Freshness Social Proof Banner */}
+            {freshTodayCount > 0 && (
+                <View style={styles.freshBanner}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}>
+                        <Text style={{ fontSize: 20 }}>🔥</Text>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.freshBannerTitle}>
+                                {freshTodayCount} fresh listing{freshTodayCount > 1 ? 's' : ''} posted today!
+                            </Text>
+                            <Text style={styles.freshBannerSub}>
+                                Scroll down to explore what is new in the community.
+                            </Text>
+                        </View>
+                    </View>
+                    <View style={styles.liveBadge}>
+                        <Text style={styles.liveBadgeText}>LIVE</Text>
+                    </View>
+                </View>
+            )}
         </View>
     );
 
-    const listData = filteredPosts;
+    let listData: any[] = [];
+    if (viewMode === 'grid') {
+        listData = filteredPosts;
+    } else {
+        const today: any[] = [];
+        const yesterday: any[] = [];
+        const thisWeek: any[] = [];
+        const older: any[] = [];
+
+        const now = Date.now();
+        filteredPosts.forEach(post => {
+            const postTime = new Date(post.created_at || post.createdAt).getTime();
+            const diffDays = Math.floor((now - postTime) / (24 * 60 * 60 * 1000));
+            if (diffDays === 0) {
+                today.push(post);
+            } else if (diffDays === 1) {
+                yesterday.push(post);
+            } else if (diffDays < 7) {
+                thisWeek.push(post);
+            } else {
+                older.push(post);
+            }
+        });
+
+        if (filter === 'for-you') {
+            if (filteredPosts.length > 0) {
+                listData.push({ isHeader: true, title: '★ For You Feed', id: 'header-for-you' });
+                listData.push(...filteredPosts);
+            }
+        } else {
+            if (today.length > 0) {
+                listData.push({ isHeader: true, title: 'Today', id: 'header-today' });
+                listData.push(...today);
+            }
+            if (yesterday.length > 0) {
+                listData.push({ isHeader: true, title: 'Yesterday', id: 'header-yesterday' });
+                listData.push(...yesterday);
+            }
+            if (thisWeek.length > 0) {
+                listData.push({ isHeader: true, title: 'This Week', id: 'header-thisweek' });
+                listData.push(...thisWeek);
+            }
+            if (older.length > 0) {
+                listData.push({ isHeader: true, title: 'Older Listings', id: 'header-older' });
+                listData.push(...older);
+            }
+        }
+    }
 
     const renderItem = ({ item }: { item: any }) => {
+        if (item.isHeader) {
+            return (
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionHeaderText}>{item.title.toUpperCase()}</Text>
+                    <View style={styles.sectionHeaderLine} />
+                </View>
+            );
+        }
+
         let coverImage: string | null = null;
         if (item.photos) {
             try {
@@ -497,9 +678,9 @@ export default function MarketScreen() {
             <Pressable onPress={() => router.push(`/post/${item.id}`)}>
                 <View style={[styles.card, { flexDirection: 'row', padding: 0 }, elderCard && styles.elderCard]}>
                     {coverImage && typeof coverImage === 'string' && coverImage.trim() !== '' && coverImage !== 'null' && coverImage !== 'undefined' ? (
-                        <Image source={{ uri: coverImage }} style={{ width: 96, height: '100%', minHeight: 96, borderTopLeftRadius: 12, borderBottomLeftRadius: 12 }} resizeMode="cover" />
+                        <Image source={{ uri: coverImage }} style={{ width: 96, height: '100%', minHeight: 96, borderTopLeftRadius: 8, borderBottomLeftRadius: 8 }} resizeMode="cover" />
                     ) : (
-                        <View style={{ width: 96, height: '100%', minHeight: 96, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 12, borderBottomLeftRadius: 12 }}>
+                        <View style={{ width: 96, height: '100%', minHeight: 96, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 8, borderBottomLeftRadius: 8 }}>
                             <Text style={{ fontSize: 32, opacity: 0.5 }}>
                                 {categoryConfig?.emoji || '📦'}
                             </Text>
@@ -542,7 +723,7 @@ export default function MarketScreen() {
 
     return (
         <SafeAreaView style={styles.safeArea}>
-            <View style={{ paddingTop: 16, paddingBottom: 0 }}>
+            <View style={{ paddingTop: 8, paddingBottom: 0 }}>
                 {HeaderComponent}
             </View>
             <FlatList
@@ -627,14 +808,14 @@ export default function MarketScreen() {
 
 const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: '#f9fafb' },
-    listContent: { padding: 16, paddingBottom: 100 },
+    listContent: { paddingHorizontal: 16, paddingTop: 0, paddingBottom: 100 },
 
     // Search row
-    searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-    searchWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 23, paddingHorizontal: 14, height: 46, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
+    searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+    searchWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 19, paddingHorizontal: 14, height: 38, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
     searchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: '#1f2937', fontWeight: '500' },
-    iconBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
-    dealsIconBtn: { paddingHorizontal: 14, height: 46, borderRadius: 23, backgroundColor: '#fffbeb', borderWidth: 1.5, borderColor: '#fcd34d', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
+    iconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
+    dealsIconBtn: { paddingHorizontal: 14, height: 38, borderRadius: 19, backgroundColor: '#fffbeb', borderWidth: 1.5, borderColor: '#fcd34d', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1 },
     dealsIconBadge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#ef4444', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 8, minWidth: 14, alignItems: 'center' },
 
     // Deal badge (positioned on icon button)
@@ -670,8 +851,8 @@ const styles = StyleSheet.create({
     // Cards
     card: { 
         backgroundColor: '#ffffff', 
-        borderRadius: 12, 
-        marginBottom: 12, 
+        borderRadius: 8, 
+        marginBottom: 8, 
         borderWidth: 1, 
         borderColor: '#e5e7eb',
         shadowColor: '#000',
@@ -757,5 +938,223 @@ const styles = StyleSheet.create({
         fontSize: 8,
         fontWeight: '900',
         letterSpacing: 0.5,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 4,
+        marginBottom: 2,
+        paddingHorizontal: 4,
+    },
+    sectionHeaderText: {
+        fontSize: 12,
+        fontWeight: '900',
+        color: '#9ca3af',
+        letterSpacing: 1.5,
+    },
+    sectionHeaderLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: '#e5e7eb',
+        marginLeft: 12,
+    },
+    freshBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#fff7ed',
+        borderRadius: 16,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderWidth: 1.5,
+        borderColor: '#ffedd5',
+        marginHorizontal: 16,
+        marginTop: 8,
+        marginBottom: 8,
+        shadowColor: '#f97316',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 1,
+    },
+    freshBannerTitle: {
+        fontSize: 13,
+        fontWeight: '900',
+        color: '#c2410c',
+    },
+    freshBannerSub: {
+        fontSize: 10,
+        fontWeight: '500',
+        color: '#9a3412',
+        opacity: 0.8,
+        marginTop: 1,
+    },
+    liveBadge: {
+        backgroundColor: '#ffedd5',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#fed7aa',
+    },
+    liveBadgeText: {
+        fontSize: 9,
+        fontWeight: '900',
+        color: '#ea580c',
+    },
+    favPanel: {
+        backgroundColor: '#faf5ff',
+        borderRadius: 16,
+        padding: 16,
+        borderWidth: 1.5,
+        borderColor: '#f3e8ff',
+        marginHorizontal: 16,
+        marginTop: 8,
+        marginBottom: 8,
+    },
+    favPanelTitle: {
+        fontSize: 11,
+        fontWeight: '900',
+        color: '#7e22ce',
+        letterSpacing: 1,
+        marginBottom: 4,
+    },
+    favPanelSub: {
+        fontSize: 11,
+        color: '#6b7280',
+        marginBottom: 10,
+    },
+    favTagsContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+    },
+    favTag: {
+        backgroundColor: '#ffffff',
+        borderWidth: 1,
+        borderColor: '#e5e7eb',
+        borderRadius: 16,
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.02,
+        shadowRadius: 1,
+        elevation: 1,
+    },
+    favTagActive: {
+        backgroundColor: '#8b5cf6',
+        borderColor: '#7c3aed',
+    },
+    favTagText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#4b5563',
+    },
+    favTagTextActive: {
+        color: '#ffffff',
+    },
+    favSummaryBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#faf5ff',
+        borderRadius: 16,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderWidth: 1.5,
+        borderColor: '#f3e8ff',
+        marginHorizontal: 16,
+        marginTop: 4,
+        marginBottom: 4,
+    },
+    favSummaryText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#6b21a8',
+        flex: 1,
+    },
+    favSummaryEditBadge: {
+        backgroundColor: '#f3e8ff',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 8,
+    },
+    favSummaryEditBtn: {
+        fontSize: 9,
+        fontWeight: '900',
+        color: '#7e22ce',
+    },
+    typeSegmentContainer: {
+        flexDirection: 'row',
+        width: '100%',
+        backgroundColor: '#f3f4f6',
+        borderRadius: 12,
+        padding: 3,
+        marginTop: 0,
+        marginBottom: 3,
+    },
+    segmentBtn: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 5,
+        borderRadius: 10,
+        backgroundColor: 'transparent',
+    },
+    segmentText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#4b5563',
+    },
+    segmentTextActive: {
+        color: '#ffffff',
+        fontWeight: '800',
+    },
+    segmentBtnAllActive: { backgroundColor: '#1f2937' },
+    segmentBtnFavActive: { backgroundColor: '#6d28d9' },
+    segmentBtnOfferActive: { backgroundColor: '#059669' },
+    segmentBtnNeedActive: { backgroundColor: '#ea580c' },
+
+    dropdownsRow: {
+        flexDirection: 'row',
+        width: '100%',
+        justifyContent: 'space-between',
+        gap: 8,
+        marginTop: 2,
+        marginBottom: 2,
+    },
+    dropdownBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#ffffff',
+        borderWidth: 1,
+        borderColor: '#e5e7eb',
+        borderRadius: 12,
+        paddingVertical: 5,
+        paddingHorizontal: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    dropdownBtnCategoryActive: {
+        backgroundColor: '#4f46e5',
+        borderColor: '#4338ca',
+    },
+    dropdownBtnDistanceActive: {
+        backgroundColor: '#b45309',
+        borderColor: '#92400e',
+    },
+    dropdownText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#4b5563',
+    },
+    dropdownTextActive: {
+        color: '#ffffff',
+        fontWeight: '800',
     }
 });
