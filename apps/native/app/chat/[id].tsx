@@ -372,7 +372,7 @@ export default function ChatScreen() {
                     <View style={[
                         styles.reactionPickerContainer, 
                         isMe ? styles.reactionPickerMe : styles.reactionPickerOther,
-                        pickerPosition === 'bottom' ? { top: undefined, bottom: -45 } : { bottom: undefined, top: -45 }
+                        pickerPosition === 'bottom' ? { top: undefined, bottom: -70 } : { bottom: undefined, top: -70 }
                     ]}>
                         {['👍', '❤️', '😂', '😮', '😢', '🙏', '😁'].map((emoji) => (
                             <Pressable 
@@ -671,11 +671,10 @@ const styles = StyleSheet.create({
     },
     reactionPickerContainer: {
         position: 'absolute',
-        top: -45,
         backgroundColor: '#1f2937',
-        borderRadius: 24,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
+        borderRadius: 36,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
         flexDirection: 'row',
         alignItems: 'center',
         shadowColor: '#000',
@@ -684,7 +683,7 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 8,
         zIndex: 100,
-        gap: 10,
+        gap: 14,
     },
     reactionPickerMe: {
         right: 10,
@@ -696,7 +695,7 @@ const styles = StyleSheet.create({
         padding: 2,
     },
     reactionEmojiText: {
-        fontSize: 20,
+        fontSize: 38,
     },
     reactionBadgeContainer: {
         position: 'absolute',
