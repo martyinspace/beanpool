@@ -25,10 +25,12 @@ export default function ChatScreen() {
     const flatListRef = useRef<FlatList>(null);
     const insets = useSafeAreaInsets();
     const sendingRef = useRef(false);
+    const promptedRef = useRef(false);
 
     useFocusEffect(
         useCallback(() => {
             let interval: ReturnType<typeof setInterval>;
+            promptedRef.current = false;
             
             const loadConversationData = async () => {
                 if (id && identity?.publicKey) {
@@ -46,7 +48,8 @@ export default function ChatScreen() {
                                 credits: res.credits
                             });
 
-                            if (triggerReview === 'true') {
+                            if (triggerReview === 'true' && !promptedRef.current) {
+                                promptedRef.current = true;
                                 try {
                                     const db = await getDb();
                                     const txRow = await db.getFirstAsync<any>(

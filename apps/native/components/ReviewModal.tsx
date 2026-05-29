@@ -35,7 +35,7 @@ export function ReviewModal({ visible, txId, targetPubkey, targetCallsign, onClo
         <Modal visible={visible} transparent animationType="slide">
             <KeyboardAvoidingView
                 style={styles.overlay}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
                 <ScrollView
                     contentContainerStyle={styles.scrollContent}

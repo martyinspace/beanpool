@@ -1681,6 +1681,9 @@ export async function createConversationApi(type: 'dm' | 'group', participants: 
     const signatureBytes = await signData(messageBytes, privateKeyBytes);
     const signatureBase64 = encodeBase64(signatureBytes);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
     try {
         const res = await fetch(`${anchorUrl}/api/messages/conversation`, {
             method: 'POST',
@@ -1690,7 +1693,9 @@ export async function createConversationApi(type: 'dm' | 'group', participants: 
                 'X-Signature': signatureBase64,
             },
             body: bodyString,
+            signal: controller.signal,
         });
+        clearTimeout(timeoutId);
 
         if (!res.ok) {
             const txt = await res.text();
@@ -1720,6 +1725,7 @@ export async function createConversationApi(type: 'dm' | 'group', participants: 
 
         return conv;
     } catch (e: any) {
+        clearTimeout(timeoutId);
         throw new Error(e.message || 'Network request failed when creating thread.');
     }
 }
