@@ -601,7 +601,7 @@ const styles = StyleSheet.create({
     statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
     statusBadgeText: { fontSize: 11, fontWeight: '800' },
     keyboardView: { flex: 1 },
-    listContent: { padding: 16, gap: 12 },
+    listContent: { padding: 16, paddingBottom: 32, gap: 12 },
     systemMessageContainer: { width: '100%', alignItems: 'center', marginVertical: 8 },
     systemMessageBubble: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16 },
     systemMessageText: { fontSize: 13, color: '#4b5563', fontWeight: '600' },
