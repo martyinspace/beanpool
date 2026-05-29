@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Image, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert, ActivityIndicator, Image, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,6 +10,14 @@ import { CurrencyDisplay } from '../components/CurrencyDisplay';
 
 export default function ProjectDetailScreen() {
     const params = useLocalSearchParams<{ id: string, title?: string, description?: string, goal?: string, current?: string, creator_pubkey?: string, creator_callsign?: string, photos?: string }>();
+    
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+    useEffect(() => {
+        const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
+        const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
+        return () => { showSub.remove(); hideSub.remove(); };
+    }, []);
     
     const [pledgeAmount, setPledgeAmount] = useState('');
     const [pledgeMemo, setPledgeMemo] = useState('');
@@ -95,7 +103,7 @@ export default function ProjectDetailScreen() {
                     </Pressable>
                 </View>
 
-                <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 100 }} bounces={false}>
+                <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: keyboardHeight > 0 ? keyboardHeight + 100 : 100 }} bounces={false}>
                     {/* Hero Header */}
                     <View style={styles.heroContainer}>
                         {heroUri && typeof heroUri === 'string' && heroUri.trim() !== '' && heroUri !== 'null' && heroUri !== 'undefined' ? (

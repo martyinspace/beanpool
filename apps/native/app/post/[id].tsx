@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Image, Pressable, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Image, Pressable, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -38,6 +38,13 @@ const CATEGORIES = [
 export default function PostDetailModal() {
     const insets = useSafeAreaInsets();
     const { id, txId } = useLocalSearchParams();
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+    useEffect(() => {
+        const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
+        const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
+        return () => { showSub.remove(); hideSub.remove(); };
+    }, []);
     const { identity } = useIdentity();
     const [activeTx, setActiveTx] = useState<any>(null);
     const [post, setPost] = useState<any>(null);
@@ -417,7 +424,7 @@ export default function PostDetailModal() {
             </View>
 
             <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
-            <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+            <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 60 : 60 }]} keyboardShouldPersistTaps="handled">
                 {/* Type + Category Badge */}
                 <View style={styles.typeBadgeRow}>
                     <View style={styles.catBadge}>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, TextInput, Image,
-    DeviceEventEmitter, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+    DeviceEventEmitter, Alert, ScrollView, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -38,6 +38,13 @@ function getTierIndex(ec: number) {
 
 export default function LedgerScreen() {
     const { identity } = useIdentity();
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+    React.useEffect(() => {
+        const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
+        const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
+        return () => { showSub.remove(); hideSub.remove(); };
+    }, []);
     const [txns, setTxns] = useState<any[]>([]);
     const [balanceState, setBalanceState] = useState<any>({
         balance: 0, floor: -100,
@@ -712,7 +719,7 @@ export default function LedgerScreen() {
                     keyExtractor={item => item.id}
                     renderItem={renderTxn}
                     ListHeaderComponent={renderActivityHeader}
-                    contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
+                    contentContainerStyle={{ padding: 16, paddingBottom: keyboardHeight > 0 ? keyboardHeight + 48 : 48 }}
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#9ca3af', paddingTop: 32, fontSize: 14 }}>No transactions yet.</Text>}
                 />

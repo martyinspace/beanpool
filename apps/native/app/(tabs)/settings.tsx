@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Alert, Image, Share, Linking, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Alert, Image, Share, Linking, Platform, KeyboardAvoidingView, Keyboard } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useIdentity } from '../IdentityContext';
 import * as SecureStore from 'expo-secure-store';
@@ -41,6 +41,13 @@ function getDatabaseFilePath(dbFilename: string): string {
 
 export default function SettingsScreen() {
     const { identity, setIdentity } = useIdentity();
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+    useEffect(() => {
+        const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
+        const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
+        return () => { showSub.remove(); hideSub.remove(); };
+    }, []);
     const [mode, setMode] = useState<'menu' | 'profile' | 'export' | 'import' | 'seed' | 'advanced' | 'wipe' | 'notifications' | 'recovery-requests' | 'diagnostics'>('menu');
     const [dbStats, setDbStats] = useState<{ members: number, posts: number, transactions: number, messages: number, integrity: string } | null>(null);
     const [diagLoading, setDiagLoading] = useState(false);
@@ -648,7 +655,7 @@ export default function SettingsScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
         >
-            <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+            <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 48 : 48 }]}>
             {/* ─── Identity Dashboard Card ─── */}
             <View style={styles.identityCard}>
                 <View style={styles.identityInner}>

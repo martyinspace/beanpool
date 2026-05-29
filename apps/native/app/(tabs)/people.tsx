@@ -5,7 +5,7 @@ import { getDb, getFriendsLocal, addFriendLocal, removeFriendLocal, createConver
 import { useIdentity } from '../IdentityContext';
 import { hexToBytes, encodeUtf8, encodeBase64, signData } from '../../utils/crypto';
 import QRCode from 'react-native-qrcode-svg';
-import { TextInput, Alert, ScrollView, Share, KeyboardAvoidingView } from 'react-native';
+import { TextInput, Alert, ScrollView, Share, KeyboardAvoidingView, Keyboard } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 
@@ -43,6 +43,13 @@ function formatJoinDate(dateStr: string | null) {
 export default function PeopleScreen() {
     const params = useLocalSearchParams<{ view: string }>();
     const [view, setView] = useState<SubView>((params.view as SubView) || 'community');
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+    useEffect(() => {
+        const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
+        const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
+        return () => { showSub.remove(); hideSub.remove(); };
+    }, []);
     const [invites, setInvites] = useState<any[]>([]);
     const [generating, setGenerating] = useState(false);
     const [intendedFor, setIntendedFor] = useState('');
@@ -465,7 +472,7 @@ export default function PeopleScreen() {
                     <FlatList
                         data={friends}
                         keyExtractor={(item, index) => `${item.publicKey}_${index}`}
-                        contentContainerStyle={styles.list}
+                        contentContainerStyle={[styles.list, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 16 }]}
                         renderItem={({ item }) => {
                             const uri = avatarUri(item.avatar_url, item.publicKey);
                             return (
@@ -537,7 +544,7 @@ export default function PeopleScreen() {
                     <FlatList
                         data={members}
                         keyExtractor={item => item.public_key}
-                        contentContainerStyle={styles.list}
+                        contentContainerStyle={[styles.list, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 16 }]}
                         onEndReached={handleLoadMore}
                         onEndReachedThreshold={0.5}
                         getItemLayout={(_data, index) => ({
@@ -627,7 +634,7 @@ export default function PeopleScreen() {
             )}
 
             {view === 'invites' && (
-                <ScrollView contentContainerStyle={styles.list}>
+                <ScrollView contentContainerStyle={[styles.list, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 16 }]}>
                     {isGuest ? (
                         <View style={{ backgroundColor: '#fffbeb', borderRadius: 12, padding: 16, marginBottom: 24, borderWidth: 1, borderColor: '#fde68a' }}>
                             <Text style={{ color: '#d97706', fontSize: 15, fontWeight: '700', marginBottom: 4 }}>
@@ -782,7 +789,7 @@ export default function PeopleScreen() {
             )}
 
             {view === 'guardians' && (
-                <ScrollView contentContainerStyle={styles.list}>
+                <ScrollView contentContainerStyle={[styles.list, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 16 }]}>
                     {friends.length === 0 ? (
                         <View style={styles.emptyContainer}>
                             <Text style={styles.emptyEmoji}>🛡️</Text>

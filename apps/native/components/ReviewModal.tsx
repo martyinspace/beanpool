@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, Modal, ActivityIndicator, Alert, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, Modal, ActivityIndicator, Alert, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Keyboard } from 'react-native';
 import { submitRating } from '../utils/db';
 import { useIdentity } from '../app/IdentityContext';
 
@@ -17,6 +17,13 @@ export function ReviewModal({ visible, txId, targetPubkey, targetCallsign, onClo
     const [stars, setStars] = useState(5);
     const [comment, setComment] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+    React.useEffect(() => {
+        const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
+        const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
+        return () => { showSub.remove(); hideSub.remove(); };
+    }, []);
 
     const handleSubmit = async () => {
         if (!identity) return;
@@ -38,7 +45,7 @@ export function ReviewModal({ visible, txId, targetPubkey, targetCallsign, onClo
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
                 <ScrollView
-                    contentContainerStyle={styles.scrollContent}
+                    contentContainerStyle={[styles.scrollContent, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 20 }]}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
                 >
