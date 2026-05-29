@@ -13,6 +13,7 @@ import { normaliseInviteCode, extractInviteToken, extractNodeOrigin } from '../u
 import { IdentityProvider, useIdentity } from './IdentityContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import appConfig from '../app.json';
 
 LogBox.ignoreLogs(['ProgressBarAndroid', 'Clipboard', 'PushNotificationIOS', 'has been extracted']);
