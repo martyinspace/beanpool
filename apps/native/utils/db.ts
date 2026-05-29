@@ -404,9 +404,16 @@ export async function getPosts(filter?: { type?: string; category?: string }) {
         rows = await database.getAllAsync(query);
     }
 
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || '';
+
     return rows.map(r => {
         if (typeof r.photos === 'string') {
-            try { r.photos = JSON.parse(r.photos); } catch (e) { r.photos = []; }
+            try { 
+                r.photos = JSON.parse(r.photos); 
+                if (Array.isArray(r.photos)) {
+                    r.photos = r.photos.map((p: string) => p && p.startsWith('/') ? `${anchorUrl}${p}` : p);
+                }
+            } catch (e) { r.photos = []; }
         }
         return r;
     });
@@ -414,6 +421,7 @@ export async function getPosts(filter?: { type?: string; category?: string }) {
 
 export async function getPost(id: string) {
     const database = await waitForInit();
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || '';
     const row = await database.getFirstAsync<any>(`
         SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar, a.callsign as accepted_by_callsign, a.avatar_url as accepted_by_avatar
         FROM posts p
@@ -422,7 +430,12 @@ export async function getPost(id: string) {
         WHERE p.id = ?
     `, [id]);
     if (row && typeof row.photos === 'string') {
-        try { row.photos = JSON.parse(row.photos); } catch (e) { row.photos = []; }
+        try { 
+            row.photos = JSON.parse(row.photos); 
+            if (Array.isArray(row.photos)) {
+                row.photos = row.photos.map((p: string) => p && p.startsWith('/') ? `${anchorUrl}${p}` : p);
+            }
+        } catch (e) { row.photos = []; }
     }
     return row;
 }
@@ -468,6 +481,8 @@ export async function getConversations(myPubkey: string) {
         ORDER BY timestamp DESC
     `, [myPubkey, myPubkey, myPubkey, myPubkey, myPubkey, myPubkey, myPubkey, myPubkey, myPubkey]);
     
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || '';
+    
     return rows.map(row => {
         let displayMsg = row.lastMessage ? '[Encrypted Message]' : 'Started conversation';
         if (row.lastNonce && row.lastNonce.startsWith('plaintext')) {
@@ -488,7 +503,10 @@ export async function getConversations(myPubkey: string) {
         if (row.postPhotos) {
             try {
                 const arr = Array.isArray(row.postPhotos) ? row.postPhotos : JSON.parse(row.postPhotos);
-                if (arr.length > 0) postPhoto = arr[0];
+                if (arr.length > 0) {
+                    const firstPhoto = arr[0];
+                    postPhoto = firstPhoto && firstPhoto.startsWith('/') ? `${anchorUrl}${firstPhoto}` : firstPhoto;
+                }
             } catch {}
         }
 
@@ -740,6 +758,7 @@ export async function updateMemberProfile(pubkey: string, data: { callsign: stri
 
 export async function getProjects() {
     const database = await getDb();
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || '';
     const rows = await database.getAllAsync<any>(`
         SELECT p.*, m.callsign as creator_callsign, m.avatar_url as creator_avatar
         FROM projects p
@@ -749,7 +768,12 @@ export async function getProjects() {
     return rows.map(row => {
         let parsedPhotos = row.photos;
         if (typeof row.photos === 'string') {
-            try { parsedPhotos = JSON.parse(row.photos); } catch (e) { parsedPhotos = []; }
+            try { 
+                parsedPhotos = JSON.parse(row.photos); 
+                if (Array.isArray(parsedPhotos)) {
+                    parsedPhotos = parsedPhotos.map((p: string) => p && p.startsWith('/') ? `${anchorUrl}${p}` : p);
+                }
+            } catch (e) { parsedPhotos = []; }
         }
         return {
             ...row,
@@ -763,6 +787,7 @@ export async function getProjects() {
 
 export async function getProjectById(id: string) {
     const database = await getDb();
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || '';
     const row = await database.getFirstAsync<any>(`
         SELECT p.*, m.callsign as creator_callsign, m.avatar_url as creator_avatar
         FROM projects p
@@ -772,7 +797,12 @@ export async function getProjectById(id: string) {
     if (!row) return null;
     let parsedPhotos = row.photos;
     if (typeof row.photos === 'string') {
-        try { parsedPhotos = JSON.parse(row.photos); } catch (e) { parsedPhotos = []; }
+        try { 
+            parsedPhotos = JSON.parse(row.photos); 
+            if (Array.isArray(parsedPhotos)) {
+                parsedPhotos = parsedPhotos.map((p: string) => p && p.startsWith('/') ? `${anchorUrl}${p}` : p);
+            }
+        } catch (e) { parsedPhotos = []; }
     }
     return {
         ...row,
@@ -2159,6 +2189,7 @@ export async function getMemberRatings(publicKey: string): Promise<{ ratings: an
 
 export async function getMarketplaceTransactions(publicKey: string, filter?: { status?: string }, limit = 50, offset = 0) {
     const database = await getDb();
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || '';
     let query = `
         SELECT mt.*, p.title as postTitle, p.photos as postPhotos, m1.callsign as buyerCallsign, m1.avatar_url as buyerAvatar, m2.callsign as sellerCallsign, m2.avatar_url as sellerAvatar,
                EXISTS(SELECT 1 FROM ratings r WHERE r.transaction_id = mt.id AND r.rater_pubkey = mt.buyer_pubkey) as ratedByBuyer,
@@ -2185,6 +2216,9 @@ export async function getMarketplaceTransactions(publicKey: string, filter?: { s
                 const arr = Array.isArray(r.postPhotos) ? r.postPhotos : JSON.parse(r.postPhotos); 
                 if (arr.length > 0) coverImg = arr[0]; 
             } catch {}
+        }
+        if (coverImg && coverImg.startsWith('/')) {
+            coverImg = `${anchorUrl}${coverImg}`;
         }
         return {
             id: r.id, 

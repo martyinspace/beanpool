@@ -183,11 +183,16 @@ export default function MarketScreen() {
                     // Server returns camelCase MarketplacePost; the UI reads snake_case
                     // (matching local SQLite shape). Normalize and parse photos.
                     const parsed = (Array.isArray(data) ? data : []).map((p: any) => {
+                        let photosArr = p.photos;
                         if (typeof p.photos === 'string') {
-                            try { p.photos = JSON.parse(p.photos); } catch { p.photos = []; }
+                            try { photosArr = JSON.parse(p.photos); } catch { photosArr = []; }
+                        }
+                        if (Array.isArray(photosArr)) {
+                            photosArr = photosArr.map((url: string) => url && url.startsWith('/') ? `${anchorUrl}${url}` : url);
                         }
                         return {
                             ...p,
+                            photos: photosArr,
                             author_pubkey: p.author_pubkey ?? p.authorPublicKey,
                             author_callsign: p.author_callsign ?? p.authorCallsign,
                             author_avatar: p.author_avatar ?? p.authorAvatarUrl ?? null,

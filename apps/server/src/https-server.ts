@@ -1348,6 +1348,27 @@ export async function startHttpsServer(port: number): Promise<void> {
 
     // ===================== MARKETPLACE API (PUBLIC) =====================
 
+    router.get('/api/marketplace/posts/:id/photos/:orderNum', async (ctx) => {
+        const { id, orderNum } = ctx.params;
+        const photo = db.prepare(`SELECT photo_data FROM post_photos WHERE post_id = ? AND order_num = ?`).get(id, Number(orderNum)) as { photo_data: string } | undefined;
+        
+        if (!photo) {
+            ctx.status = 404;
+            ctx.body = { error: 'Photo not found' };
+            return;
+        }
+
+        // Parse out data URL if present
+        const match = photo.photo_data.match(/^data:([^;]+);base64,(.*)$/);
+        if (match) {
+            ctx.type = match[1];
+            ctx.body = Buffer.from(match[2], 'base64');
+        } else {
+            ctx.type = 'image/jpeg';
+            ctx.body = Buffer.from(photo.photo_data, 'base64');
+        }
+    });
+
     router.get('/api/marketplace/posts', async (ctx) => {
         const type = ctx.query.type as string | undefined;
         const category = ctx.query.category as string | undefined;

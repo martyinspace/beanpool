@@ -1234,7 +1234,7 @@ function rowToPost(row: any, photosByPost: Map<string, any[]>): MarketplacePost 
         completedAt: row.completed_at,
         lat: row.lat,
         lng: row.lng,
-        photos: postPhotos.sort((a: any, b: any) => a.order_num - b.order_num).map((p: any) => p.photo_data),
+        photos: postPhotos.sort((a: any, b: any) => a.order_num - b.order_num).map((p: any) => `/api/marketplace/posts/${row.id}/photos/${p.order_num}`),
         originNode: row.origin_node,
         authorEnergyCycled: row.author_energy_cycled ?? 0,
         authorAvatarUrl: row.author_avatar ?? null
