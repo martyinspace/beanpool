@@ -16,6 +16,7 @@ export default function ChatScreen() {
     const [messages, setMessages] = useState<any[]>([]);
     const [activeMessageActionsId, setActiveMessageActionsId] = useState<string | null>(null);
     const [activeEmojiPickerId, setActiveEmojiPickerId] = useState<string | null>(null);
+    const [pickerPosition, setPickerPosition] = useState<'top' | 'bottom'>('top');
     const [draft, setDraft] = useState('');
     const [peerName, setPeerName] = useState('Loading...');
     const [peerPubkey, setPeerPubkey] = useState<string | null>(null);
@@ -315,7 +316,12 @@ export default function ChatScreen() {
             }
         };
 
-        const toggleActions = () => {
+        const toggleActions = (event: any) => {
+            const pageY = event?.nativeEvent?.pageY;
+            // If the touch is within the top 230px of the viewport, position the picker below the bubble
+            const isNearTop = pageY && pageY < 230;
+            setPickerPosition(isNearTop ? 'bottom' : 'top');
+
             if (activeMessageActionsId === item.id) {
                 setActiveMessageActionsId(null);
                 setActiveEmojiPickerId(null);
@@ -363,7 +369,11 @@ export default function ChatScreen() {
                 isMe ? styles.messageRowMe : styles.messageRowOther
             ]}>
                 {showEmojiPicker && (
-                    <View style={[styles.reactionPickerContainer, isMe ? styles.reactionPickerMe : styles.reactionPickerOther]}>
+                    <View style={[
+                        styles.reactionPickerContainer, 
+                        isMe ? styles.reactionPickerMe : styles.reactionPickerOther,
+                        pickerPosition === 'bottom' ? { top: undefined, bottom: -45 } : { bottom: undefined, top: -45 }
+                    ]}>
                         {['👍', '❤️', '😂', '😮', '😢', '🙏', '😁'].map((emoji) => (
                             <Pressable 
                                 key={emoji} 
