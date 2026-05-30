@@ -1620,7 +1620,19 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                 return (
                                     <div className="grid grid-cols-2 gap-2">
                                         {filtered.map((post) => (
-                                            <div key={post.id} onClick={() => setSelectedPost(post)} className="h-full cursor-pointer">
+                                            <div
+                                                key={post.id}
+                                                onClick={() => setSelectedPost(post)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                        e.preventDefault();
+                                                        setSelectedPost(post);
+                                                    }
+                                                }}
+                                                role="button"
+                                                tabIndex={0}
+                                                className="h-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nature-500 rounded-xl"
+                                            >
                                                 <MarketplaceCard
                                                     post={post as any}
                                                     authorRating={authorRatingsCache[post.authorPublicKey]}
@@ -1668,7 +1680,19 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                         </div>
                                         <div className="flex flex-col gap-1.5">
                                             {items.map(post => (
-                                                <div key={post.id} onClick={() => setSelectedPost(post)} className="cursor-pointer">
+                                                <div
+                                                    key={post.id}
+                                                    onClick={() => setSelectedPost(post)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            e.preventDefault();
+                                                            setSelectedPost(post);
+                                                        }
+                                                    }}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nature-500 rounded-xl"
+                                                >
                                                     <MarketplaceCard
                                                         post={post as any}
                                                         authorRating={authorRatingsCache[post.authorPublicKey]}
