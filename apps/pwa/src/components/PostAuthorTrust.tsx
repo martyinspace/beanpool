@@ -80,19 +80,36 @@ function MiniAvatar({ callsign, avatarUrl, size }: { callsign: string; avatarUrl
 export function PostAuthorTrust({ callsign, energyCycled = 0, rating, mode = 'full', className = '', avatarUrl, publicKey, onOpenProfile }: PostAuthorTrustProps) {
     const tier = getTrustTier(energyCycled);
 
-    const handleClick = (e: React.MouseEvent) => {
+    const handleClick = (e: React.MouseEvent | React.KeyboardEvent) => {
         if (publicKey && onOpenProfile) {
             e.stopPropagation();
+            if ('preventDefault' in e && e.type === 'keydown') {
+                e.preventDefault(); // Prevent page scroll on Space
+            }
             onOpenProfile(publicKey);
         }
     };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            handleClick(e);
+        }
+    };
+
+    const interactiveProps = publicKey && onOpenProfile ? {
+        role: "button",
+        tabIndex: 0,
+        onClick: handleClick,
+        onKeyDown: handleKeyDown,
+        "aria-label": `View profile for ${callsign}`,
+    } : {};
 
     if (mode === 'compact') {
         return (
             <>
                 <div 
-                    className={`flex items-center gap-1 ${publicKey ? 'cursor-pointer hover:opacity-80' : ''} ${className}`}
-                    onClick={handleClick}
+                    className={`flex items-center gap-1 ${publicKey ? 'cursor-pointer hover:opacity-80 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none rounded-sm' : ''} ${className}`}
+                    {...interactiveProps}
                 >
                     {/* Avatar */}
                     <MiniAvatar callsign={callsign} avatarUrl={avatarUrl} size={18} />
@@ -119,8 +136,8 @@ export function PostAuthorTrust({ callsign, energyCycled = 0, rating, mode = 'fu
     return (
         <>
             <div 
-                className={`flex items-center gap-1.5 ${publicKey ? 'cursor-pointer hover:opacity-80' : ''} ${className}`}
-                onClick={handleClick}
+                className={`flex items-center gap-1.5 ${publicKey ? 'cursor-pointer hover:opacity-80 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none rounded-sm' : ''} ${className}`}
+                {...interactiveProps}
             >
                 {/* Avatar */}
                 <MiniAvatar callsign={callsign} avatarUrl={avatarUrl} size={24} />

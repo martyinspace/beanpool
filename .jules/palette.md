@@ -16,3 +16,6 @@
   * Apply `tabIndex={0}` to place the element in the document's sequential keyboard focus tab order.
   * Handle the `onKeyDown` event to capture key events, and fire the action when `Enter` or Space (` `) are pressed (with `e.preventDefault()` to prevent scrolling/page actions).
 
+## 2024-06-02 - Interactive Non-Semantic Elements
+**Learning:** When using non-semantic tags like `div` or `span` for interactive components (like clicking a profile picture and name to view the profile), they completely fail for keyboard and screen reader users unless manually wired.
+**Action:** Always add `role="button"`, `tabIndex={0}`, an `onKeyDown` handler (catching 'Enter' and 'Space'), an `aria-label`, and `focus-visible` styles when an element has an `onClick` handler.
