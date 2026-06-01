@@ -443,11 +443,8 @@ export function WelcomePage({ onComplete }: Props) {
 
                             <button
                                 onClick={() => { setShowRecovery(false); setError(null); }}
-                                style={{
-                                    background: 'none', border: 'none',
-                                    color: 'var(--text-muted)', fontSize: '0.85rem',
-                                    cursor: 'pointer', marginTop: '1rem', fontFamily: 'inherit',
-                                }}
+                                aria-label="Cancel identity recovery and go back"
+                                className="mt-4 text-[0.85rem] text-nature-500 dark:text-nature-400 hover:text-nature-700 dark:hover:text-nature-200 bg-transparent border-none cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-nature-500 rounded-md px-2 py-1 font-[inherit]"
                             >
                                 ← Back
                             </button>
@@ -655,11 +652,8 @@ export function WelcomePage({ onComplete }: Props) {
 
                             <button
                                 onClick={() => { setShowNewUser(false); setError(null); }}
-                                style={{
-                                    background: 'none', border: 'none',
-                                    color: 'var(--text-muted)', fontSize: '0.8rem',
-                                    cursor: 'pointer', marginTop: '1rem', fontFamily: 'inherit',
-                                }}
+                                aria-label="Cancel new identity creation and go back"
+                                className="mt-4 text-[0.8rem] text-nature-500 dark:text-nature-400 hover:text-nature-700 dark:hover:text-nature-200 bg-transparent border-none cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-nature-500 rounded-md px-2 py-1 font-[inherit]"
                             >
                                 ← Back
                             </button>
@@ -756,11 +750,8 @@ export function WelcomePage({ onComplete }: Props) {
 
                                     <button
                                         onClick={() => setShowMemberOptions(false)}
-                                        style={{
-                                            background: 'none', border: 'none',
-                                            color: 'var(--text-muted)', fontSize: '0.8rem',
-                                            cursor: 'pointer', marginTop: '1rem', fontFamily: 'inherit',
-                                        }}
+                                        aria-label="Back to main welcome options"
+                                        className="mt-4 text-[0.8rem] text-nature-500 dark:text-nature-400 hover:text-nature-700 dark:hover:text-nature-200 bg-transparent border-none cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-nature-500 rounded-md px-2 py-1 font-[inherit]"
                                     >
                                         ← Back
                                     </button>
@@ -843,15 +834,8 @@ export function WelcomePage({ onComplete }: Props) {
 
                             <button
                                 onClick={() => { setShowImport(false); setError(null); }}
-                                style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    color: 'var(--text-muted)',
-                                    fontSize: '0.85rem',
-                                    cursor: 'pointer',
-                                    marginTop: '1rem',
-                                    fontFamily: 'inherit',
-                                }}
+                                aria-label="Cancel identity import and go back"
+                                className="mt-4 text-[0.85rem] text-nature-500 dark:text-nature-400 hover:text-nature-700 dark:hover:text-nature-200 bg-transparent border-none cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-nature-500 rounded-md px-2 py-1 font-[inherit]"
                             >
                                 ← Back to Join
                             </button>
