@@ -3779,7 +3779,8 @@ export function getCommunityHealth(): CommunityHealth {
         `).get() as any).c;
     } catch (e) { console.error('Failed to calculate member activity stats:', e); }
 
-    const totalMembers = getMembers().length;
+    // ⚡ Bolt: Use O(1) count query instead of fetching all members into memory
+    const totalMembers = getCommunityInfo().memberCount;
     
     // ========== HEALTH FLAG DETECTION ==========
     const flags: HealthFlag[] = [];
