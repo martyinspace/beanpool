@@ -2074,10 +2074,14 @@ export async function startHttpsServer(port: number): Promise<void> {
         const callsign = ctx.params.callsign.trim().toLowerCase();
         if (!callsign) { ctx.status = 400; ctx.body = { error: 'Missing callsign' }; return; }
 
-        const rows = db.prepare(`SELECT public_key, callsign, joined_at, avatar_url FROM members WHERE LOWER(callsign) = ? AND status != 'migrated'`).all(callsign) as any[];
-        
-        // Filter out those with < 3 guardians
-        const eligible = rows.filter(r => getGuardiansOf(r.public_key).length >= 3);
+        // ⚡ Bolt: Push filtering down to SQLite to avoid N+1 querying of guardians in memory
+        const eligible = db.prepare(`
+            SELECT public_key, callsign, joined_at, avatar_url
+            FROM members
+            WHERE LOWER(callsign) = ?
+              AND status != 'migrated'
+              AND (SELECT COUNT(*) FROM friends WHERE owner_pubkey = members.public_key AND is_guardian = 1) >= 3
+        `).all(callsign) as any[];
         
         ctx.status = 200;
         ctx.body = eligible.map(r => ({
