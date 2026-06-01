@@ -44,3 +44,7 @@
 4. Cryptographically secured P2P sync using Ed25519 payload signing (`exportSyncState`) and public key protobuf verification (`importRemoteState`).
 5. Added administrative sliding-window rate limiting (60 req/min per IP) and standard global modern security headers.
 
+## 2026-05-24 - [CRITICAL] Fix DoS via SQLite Parameter Limit in Dynamic Queries
+**Vulnerability:** In `apps/server/src/state-engine.ts`, several queries mapped arrays of varying lengths directly into dynamic `IN (?, ...)` clauses (e.g. `IN (${postIds.map(() => '?').join(',')})`). If an array size exceeded SQLite's maximum host parameter limit (often 32,766 or 999 depending on SQLite build configuration), the database library would throw an exception, crashing the server and leading to a Denial of Service (DoS).
+**Learning:** Any array input that scales with user behavior (number of posts, number of conversations, etc.) must not be blindly mapped to SQL parameters without limits.
+**Prevention:** To prevent this class of vulnerabilities, chunk dynamically generated parameter arrays (e.g., using batches of 900) before querying, and then combine the results in JavaScript, or push the entire query logic down to a safe SQL subquery.
