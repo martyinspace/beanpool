@@ -675,6 +675,14 @@ export function getMembers(): Member[] {
     return rows.map(rowToMember);
 }
 
+/**
+ * Bolt Performance Optimization:
+ * O(1) direct count query to avoid fetching all members into memory when only the length is needed.
+ */
+export function getMemberCount(): number {
+    return (db.prepare("SELECT COUNT(*) as c FROM members WHERE status != 'pruned'").get() as any).c;
+}
+
 export function getAllMembers(): Member[] {
     const rows = db.prepare("SELECT * FROM members").all() as any[];
     return rows.map(rowToMember);
@@ -3779,7 +3787,9 @@ export function getCommunityHealth(): CommunityHealth {
         `).get() as any).c;
     } catch (e) { console.error('Failed to calculate member activity stats:', e); }
 
-    const totalMembers = getMembers().length;
+    // Bolt Performance Optimization: Replace getMembers().length with O(1) SQL count query
+    // Expected Impact: Prevents O(N) memory allocation during daily health job
+    const totalMembers = getMemberCount();
     
     // ========== HEALTH FLAG DETECTION ==========
     const flags: HealthFlag[] = [];
