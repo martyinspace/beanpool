@@ -26,7 +26,7 @@ export const PROTOCOL_CONSTANTS = {
 
 
     // === Community Circulation (formerly Demurrage) ===
-    CIRCULATION_RATE: 0.005,           // 0.5% per month (base rate)
+    CIRCULATION_RATE: 0.000,           // 0.0% per month (base rate - Green Zone)
     CIRCULATION_EPOCH_DAYS: 30,
 
     // === Tier Thresholds ===

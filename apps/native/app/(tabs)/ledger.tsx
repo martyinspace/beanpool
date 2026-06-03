@@ -161,7 +161,7 @@ export default function LedgerScreen() {
             [-200,  0.27],  // Resident floor     🏠
             [-80,   0.38],  // Newcomer floor     🌱
             [0,     0.46],  // Zero line
-            [200,   0.57],  // 0–200: 0.5% → rate changes to 1% above here
+            [200,   0.57],  // 0–200: 0% (Tax-Free Green Zone) → rate changes to 1% above 200
             [500,   0.68],  // 200–500: 1% → rate changes to 1.5% above here
             [1000,  0.79],  // 500–1000: 1.5% → rate changes to 2% above here
             [2000,  0.91],  // 1000–2000: 2% → rate changes to 2.5% above here
@@ -215,7 +215,7 @@ export default function LedgerScreen() {
                     {/* ── Continuous bar: 5 colour-coded brackets matching CommonsInfoModal ── */}
                     {/* Grey credit zone — rounded left cap starts slightly before -1400 tick */}
                     <View style={[styles.rulerSeg, { left: '2%', width: `${ZERO_P * 100 - 2}%`, backgroundColor: '#d1d5db', borderTopLeftRadius: 6, borderBottomLeftRadius: 6, borderTopRightRadius: 0, borderBottomRightRadius: 0 }]} />
-                    {/* Green: 0–200 (0.5%) */}
+                    {/* Green: 0–200 (Tax-Free Zone) */}
                     <View style={[styles.rulerSeg, { left: `${ZERO_P * 100}%`, width: `${(P_200 - ZERO_P) * 100}%`, backgroundColor: '#22c55e', borderRadius: 0 }]} />
                     {/* Lime: 200–500 (1%) */}
                     <View style={[styles.rulerSeg, { left: `${P_200 * 100}%`, width: `${(P_500 - P_200) * 100}%`, backgroundColor: '#84cc16', borderRadius: 0 }]} />
@@ -444,7 +444,7 @@ export default function LedgerScreen() {
 
     // ─── Financials Tab ───────────────────────────────────────────────────────
     const renderActivityHeader = () => {
-        const brackets = [{ m: 200, r: 0.005 }, { m: 300, r: 0.010 }, { m: 500, r: 0.015 }, { m: 1000, r: 0.020 }, { m: Infinity, r: 0.025 }];
+        const brackets = [{ m: 200, r: 0.0 }, { m: 300, r: 0.010 }, { m: 500, r: 0.015 }, { m: 1000, r: 0.020 }, { m: Infinity, r: 0.025 }];
         let rem = balanceState.balance, monthly = 0;
         for (const b of brackets) { if (rem <= 0) break; monthly += Math.min(rem, b.m) * b.r; rem -= b.m; }
         const amber = balanceState.balance > 1000;

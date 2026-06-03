@@ -5,7 +5,7 @@ import { InfoModal, InfoModalTab } from './InfoModal';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const BRACKETS = [
-    { min: 0, max: 200, rate: 0.5, color: '#22c55e' },
+    { min: 0, max: 200, rate: 0.0, color: '#22c55e' },
     { min: 200, max: 500, rate: 1.0, color: '#84cc16' },
     { min: 500, max: 1000, rate: 1.5, color: '#eab308' },
     { min: 1000, max: 2000, rate: 2.0, color: '#f97316' },
@@ -101,7 +101,7 @@ export function CommonsInfoModal({ isOpen, onClose, commonsBalance }: Props) {
                         <Text style={styles.exampleLabel}>EXAMPLE</Text>
                         <Text style={styles.exampleText}>
                             A balance of <Text style={styles.boldWhiteText}>600 </Text><CurrencyDisplay hideAmount={true} style={{ fontSize: 14, marginLeft: 2 }} /> pays:{'\n'}
-                            200 × 0.5% = 1.0 + 300 × 1.0% = 3.0 + 100 × 1.5% = 1.5 = <Text style={styles.exampleResult}>5.5 </Text><CurrencyDisplay hideAmount={true} style={{ fontSize: 14, marginLeft: 2 }} />/month
+                            200 × 0% = 0.0 + 300 × 1.0% = 3.0 + 100 × 1.5% = 1.5 = <Text style={styles.exampleResult}>4.5 </Text><CurrencyDisplay hideAmount={true} style={{ fontSize: 14, marginLeft: 2 }} />/month
                         </Text>
                     </View>
                 </View>

@@ -175,7 +175,7 @@ Circulation works like progressive tax brackets. The rate is determined by the s
 
 | Bracket | Balance Range | Rate | Hours Equivalent |
 |---|---|---|---|
-| 1st | 0 – 200 Ʀ | **0.5%**/mo | 0–5 hrs |
+| 1st | 0 – 200 Ʀ | **0.0%**/mo (Tax-Free) | 0 hrs |
 | 2nd | 200 – 500 Ʀ | **1.0%**/mo | 5–12.5 hrs |
 | 3rd | 500 – 1000 Ʀ | **1.5%**/mo | 12.5–25 hrs |
 | 4th | 1000 – 2000 Ʀ | **2.0%**/mo | 25–50 hrs |
@@ -190,16 +190,15 @@ Circulation works like progressive tax brackets. The rate is determined by the s
 This structure replaces the previous "accelerated ceiling" model with a more equitable system:
 - **Fair:** A Ghost holding 100 Ʀ and an Ambassador holding 100 Ʀ pay exactly the same circulation rate.
 - **Anti-hoarding:** The more you stockpile, the steeper the marginal rate. It gently forces high-accumulation accounts to spend or donate.
-- **Gentle at the bottom:** Most active members sitting in the 50–200 Ʀ range barely notice the circulation (0.5%).
+- **Gentle at the bottom:** Active members sitting in the 0–200 Ʀ Green Zone pay **0% circulation tax** (completely tax-free to encourage everyday trades).
 
 ### Example
 
 A member holds a balance of +800 Ʀ:
-- First 200 at 0.5% → −1.00 Ʀ
-- Next 200 at 1.0% → −2.00 Ʀ
-- Next 200 at 1.5% → −3.00 Ʀ
-- Final 200 at 2.0% → −4.00 Ʀ
-- **Total monthly circulation:** −10.00 Ʀ → Commons Pool
+- First 200 at 0.0% → −0.00 Ʀ (Green Zone)
+- Next 300 (from 200 to 500) at 1.0% → −3.00 Ʀ
+- Next 300 (from 500 to 800) at 1.5% → −4.50 Ʀ
+- **Total monthly circulation:** −7.50 Ʀ → Commons Pool
 
 ---
 

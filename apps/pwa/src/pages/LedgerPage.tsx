@@ -257,7 +257,7 @@ export function LedgerPage({ identity }: Props) {
             {/* Community Circulation info */}
             {balance > 0 && (() => {
                 const brackets = [
-                    { maxInBracket: 200, rate: 0.005 },
+                    { maxInBracket: 200, rate: 0.000 },
                     { maxInBracket: 300, rate: 0.010 },
                     { maxInBracket: 500, rate: 0.015 },
                     { maxInBracket: 1000, rate: 0.020 },

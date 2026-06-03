@@ -6,7 +6,7 @@ import { useState } from 'react';
  */
 
 const BRACKETS = [
-    { min: 0, max: 200, rate: 0.5, color: '#22c55e' },
+    { min: 0, max: 200, rate: 0.0, color: '#22c55e' },
     { min: 200, max: 500, rate: 1.0, color: '#84cc16' },
     { min: 500, max: 1000, rate: 1.5, color: '#eab308' },
     { min: 1000, max: 2000, rate: 2.0, color: '#f97316' },
@@ -171,7 +171,7 @@ export function CommonsInfoModal({ isOpen, onClose, commonsBalance }: Props) {
                                 <div style={{ fontSize: 11, fontWeight: 800, color: '#60a5fa', textTransform: 'uppercase', marginBottom: 4 }}>Example</div>
                                 <div style={{ fontSize: 13, color: '#d1d5db', lineHeight: 1.5 }}>
                                     A balance of <strong style={{ color: '#fff' }}>600 🫘</strong> pays:<br />
-                                    200 × 0.5% = 1.0 + 300 × 1.0% = 3.0 + 100 × 1.5% = 1.5 = <strong style={{ color: '#10b981' }}>5.5 🫘/month</strong>
+                                    200 × 0% = 0.0 + 300 × 1.0% = 3.0 + 100 × 1.5% = 1.5 = <strong style={{ color: '#10b981' }}>4.5 🫘/month</strong>
                                 </div>
                             </div>
                         </div>

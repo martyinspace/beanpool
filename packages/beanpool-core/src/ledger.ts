@@ -71,7 +71,7 @@ export class LedgerManager {
 
     /**
      * Applies demurrage using progressive brackets:
-     * 1st Bracket (0–200 Ʀ): 0.5%/mo
+     * 1st Bracket (0–200 Ʀ): 0.0%/mo (Tax-Free Green Zone)
      * 2nd Bracket (200–500 Ʀ): 1.0%/mo
      * 3rd Bracket (500–1000 Ʀ): 1.5%/mo
      * 4th Bracket (1000–2000 Ʀ): 2.0%/mo
@@ -121,7 +121,7 @@ export class LedgerManager {
         if (balance <= 0) return balance;
 
         const brackets = [
-            { maxInBracket: 200, rate: 0.005 }, // 0 - 200
+            { maxInBracket: 200, rate: 0.000 }, // 0 - 200 (Tax-free Green Zone)
             { maxInBracket: 300, rate: 0.010 }, // 200 - 500
             { maxInBracket: 500, rate: 0.015 }, // 500 - 1000
             { maxInBracket: 1000, rate: 0.020 }, // 1000 - 2000
