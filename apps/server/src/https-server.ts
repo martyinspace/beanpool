@@ -1127,9 +1127,11 @@ export async function startHttpsServer(port: number): Promise<void> {
         const { to, amount, memo } = (ctx as any).requestBody || {};
         const from = ctx.state.actor || (ctx as any).requestBody?.from;
         const parsedAmount = Number(amount);
-        if (!from || !to || !amount) {
+        // SECURITY (SRV-8): require a positive, finite amount at the route. Don't
+        // rely solely on transfer()'s internal guard / the transactions CHECK.
+        if (!from || !to || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
             ctx.status = 400;
-            ctx.body = { error: 'from, to, and amount are required' };
+            ctx.body = { error: 'from, to, and a positive amount are required' };
             return;
         }
 
@@ -1839,9 +1841,12 @@ export async function startHttpsServer(port: number): Promise<void> {
         const { fromPubkey, amount, memo } = (ctx as any).requestBody || {};
         const parsedAmount = Number(amount);
         
-        if (!fromPubkey || !parsedAmount) {
+        // SECURITY (SRV-8): require a positive, finite amount. A negative parsedAmount
+        // is truthy and previously slipped past `!parsedAmount`, relying on the
+        // transactions CHECK(amount > 0) to abort mid-transaction.
+        if (!fromPubkey || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
             ctx.status = 400;
-            ctx.body = { error: 'fromPubkey and amount are required' };
+            ctx.body = { error: 'fromPubkey and a positive amount are required' };
             return;
         }
 

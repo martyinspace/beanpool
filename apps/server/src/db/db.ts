@@ -453,6 +453,11 @@ export function updateCrowdfundProject(
 }
 
 export function pledgeToProject(txId: string, projectId: string, fromPubkey: string, amount: number, memo: string) {
+    // SECURITY (SRV-8): defense-in-depth — reject non-positive amounts at the data
+    // layer. A negative amount would otherwise debit-as-credit the backer before the
+    // transactions CHECK(amount > 0) aborts the surrounding transaction.
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error("Pledge amount must be positive");
+
     const project = db.prepare(`SELECT * FROM projects WHERE id = ?`).get(projectId) as ProjectRow | undefined;
     if (!project) throw new Error("Project not found");
     if (project.status === 'COMPLETED' || project.status === 'FAILED') throw new Error("Project is not accepting pledges");
