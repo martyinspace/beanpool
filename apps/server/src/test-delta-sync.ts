@@ -19,6 +19,7 @@ import {
     type SyncPayload,
 } from './state-engine.js';
 import { startP2P } from './p2p.js';
+import { addConnector } from './connector-manager.js';
 import { db } from './db/db.js';
 
 /** Bypass invite-gated registration — tests need direct DB setup. */
@@ -53,6 +54,11 @@ async function run() {
     // P2P start is needed only for the signing keypair; the test never dials.
     const node = await startP2P(4014, 4015);
     const localNodeId = node.peerId.toString();
+
+    // SRV-1: importRemoteState now requires the payload's signer to be a trusted
+    // connector. This test round-trips a delta the local node signed, so register
+    // the local node's PeerID as a trusted connector for the import to be accepted.
+    addConnector(`/ip4/127.0.0.1/tcp/4015/p2p/${localNodeId}`, 'mirror', 'self-test-peer');
 
     try {
         // Set up a couple of test members. We bypass the invite-gated public
@@ -182,7 +188,7 @@ async function run() {
     }
 }
 
-run().catch(e => {
+run().then(() => process.exit(0)).catch(e => {
     console.error('❌ Test suite crashed:', e);
     process.exit(1);
 });
