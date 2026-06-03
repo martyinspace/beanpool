@@ -238,7 +238,7 @@ _(update as we go)_
 | NAT-1 | 🔴 | Partial — honesty labels fixed (Phase 0); real E2E pending (Phase 3) |
 | NAT-2 | 🔴 | Code fixed (untracked from git) — ⚠️ **manual: rotate the Firebase/FCM key** |
 | PWA-4 | 🔴 (unverified) | Open |
-| X-1 | 🟠 | **Replay-proofing done** across server (dual-accept), PWA, native — sign METHOD+PATH+TIMESTAMP+NONCE+BODY; server enforces 5-min freshness + single-use nonce. Tested server-side 7/7 (replay, path-binding, legacy). Legacy body-only path kept until app rollout drains, then remove. **Remaining:** signed *reads* (SRV-2/SRV-3) not yet implemented; native runtime test pending |
+| X-1 | 🟠 | **Replay-proofing done** across server (dual-accept), PWA, native — sign METHOD+PATH+TIMESTAMP+NONCE+BODY; server enforces 5-min freshness + single-use nonce. Tested server-side 7/7 (replay, path-binding, legacy). **Runtime-validated:** PWA POST confirmed sending X-Nonce/X-Timestamp → server 200 (HAR capture); native writes (offers) succeed + sync. Legacy body-only path kept until app rollout drains, then remove. **Remaining:** signed *reads* (SRV-2/SRV-3) not yet implemented |
 | SRV-2 | 🟠 | Re-bucketed into X-1 — export is a member transparency feature (GET); proper fix = signed member auth on reads, not admin-only |
 | NAT-3 | 🟠 | ⚠️ **manual: rotate keystore password + migrate to EAS remote credentials** |
 | NAT-4 | 🟠 | Open |
