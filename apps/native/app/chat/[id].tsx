@@ -552,7 +552,7 @@ export default function ChatScreen() {
                     </Pressable>
                     <TextInput
                         style={styles.input}
-                        placeholder="Secure message..."
+                        placeholder="Message..."
                         placeholderTextColor="#9ca3af"
                         value={draft}
                         onChangeText={setDraft}

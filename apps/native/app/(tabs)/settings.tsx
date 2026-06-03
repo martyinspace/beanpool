@@ -1320,7 +1320,7 @@ export default function SettingsScreen() {
                                 <View style={{ width: '48%', backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 14, marginBottom: 12 }}>
                                     <Text style={{ fontSize: 24, marginBottom: 2 }}>💬</Text>
                                     <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }}>{dbStats?.messages ?? 0}</Text>
-                                    <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }}>Encrypted Messages</Text>
+                                    <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }}>Messages</Text>
                                     {remoteStats && (
                                         <Text style={{ fontSize: 10, color: '#10b981', fontWeight: 'bold', marginTop: 4 }}>
                                             🟢 Local First Offline

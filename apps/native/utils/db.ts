@@ -484,12 +484,12 @@ export async function getConversations(myPubkey: string) {
     const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || '';
     
     return rows.map(row => {
-        let displayMsg = row.lastMessage ? '[Encrypted Message]' : 'Started conversation';
+        let displayMsg = row.lastMessage ? '[Message]' : 'Started conversation';
         if (row.lastNonce && row.lastNonce.startsWith('plaintext')) {
             try {
                 displayMsg = decodeUtf8(decodeBase64(row.lastMessage));
             } catch {
-                displayMsg = '[Encrypted]';
+                displayMsg = '[Unreadable message]';
             }
         } else if (row.lastNonce === '00000') {
             displayMsg = row.lastMessage;
@@ -1655,7 +1655,7 @@ export async function getMessages(conversationId: string) {
             try {
                 displayTxt = decodeUtf8(decodeBase64(row.ciphertext));
             } catch {
-                displayTxt = '[Encrypted]';
+                displayTxt = '[Unreadable message]';
             }
         }
         return {
@@ -1679,7 +1679,7 @@ export async function insertMessage(conversationId: string, authorPubkey: string
 
     const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
     if (!anchorUrl) {
-        throw new Error('You are off-grid. Please connect to a BeanPool Node to send secure messages.');
+        throw new Error('You are off-grid. Please connect to a BeanPool Node to send messages.');
     }
 
     const identity = await loadIdentity();

@@ -151,7 +151,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
             if (msg.nonce === '00000') return msg.ciphertext;
             return decodePlaintext(msg.ciphertext, msg.nonce);
         } catch {
-            return '[Encrypted]';
+            return '[Unreadable message]';
         }
     }
 
