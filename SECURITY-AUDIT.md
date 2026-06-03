@@ -238,8 +238,8 @@ _(update as we go)_
 | NAT-1 | 🔴 | Partial — honesty labels fixed (Phase 0); real E2E pending (Phase 3) |
 | NAT-2 | 🔴 | Code fixed (untracked from git) — ⚠️ **manual: rotate the Firebase/FCM key** |
 | PWA-4 | 🔴 (unverified) | Open |
-| X-1 | 🟠 | Open |
-| SRV-2 | 🟠 | Open |
+| X-1 | 🟠 | Open — now also covers SRV-2/SRV-3 (authenticated reads need the signed-request scheme + client changes) |
+| SRV-2 | 🟠 | Re-bucketed into X-1 — export is a member transparency feature (GET); proper fix = signed member auth on reads, not admin-only |
 | NAT-3 | 🟠 | ⚠️ **manual: rotate keystore password + migrate to EAS remote credentials** |
 | NAT-4 | 🟠 | Open |
 | PWA-1 | 🟠 | Open |
@@ -247,12 +247,12 @@ _(update as we go)_
 | PWA-3 | 🟠 | Open |
 | X-2 | 🟡 | Open |
 | X-3 | 🟢 | Open |
-| SRV-3 | 🟡 | Open |
+| SRV-3 | 🟡 | Re-bucketed into X-1 — same GET-auth dependency (requester must be verified, not a query param) |
 | SRV-4 | 🟡 | Open |
-| SRV-5 | 🟡 | Open |
+| SRV-5 | 🟡 | **Fixed** (4d9a2de) — CORS exact-origin match |
 | SRV-6 | 🟢 | Open |
 | SRV-7 | 🟢 | Open |
-| SRV-8 | 🟢 | Open |
+| SRV-8 | 🟢 | **Fixed** (e67e78b) — positive-amount guards at transfer + pledge routes and pledgeToProject |
 | SRV-9 | 🟢 | Open |
 | NAT-5 | 🟡 | Open |
 | NAT-6 | 🟡 | Open |
