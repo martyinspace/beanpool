@@ -176,6 +176,34 @@ export async function signData(message: Uint8Array, privateKey: Uint8Array): Pro
     return sign(message, privateKey);
 }
 
+/**
+ * X-1: build replay-proof signed-request headers (single source of truth for
+ * HTTP request signing — X-2). Signs `METHOD\nPATH\nTIMESTAMP\nNONCE\nBODY` so a
+ * captured signature can't be replayed or reused against a different endpoint.
+ *
+ * `path` MUST be the request pathname (no origin, no query string) and identical
+ * to what the fetch URL uses, so it matches the server's `ctx.path`.
+ */
+export async function buildSignedHeaders(
+    method: string,
+    path: string,
+    bodyString: string,
+    privateKeyHex: string,
+    publicKeyHex: string,
+): Promise<Record<string, string>> {
+    const timestamp = String(Date.now());
+    const nonce = bytesToHex(Crypto.getRandomBytes(16));
+    const canonical = `${method}\n${path}\n${timestamp}\n${nonce}\n${bodyString}`;
+    const signatureBytes = await signData(encodeUtf8(canonical), hexToBytes(privateKeyHex));
+    return {
+        'Content-Type': 'application/json',
+        'X-Public-Key': publicKeyHex,
+        'X-Signature': encodeBase64(signatureBytes),
+        'X-Timestamp': timestamp,
+        'X-Nonce': nonce,
+    };
+}
+
 export async function verifyData(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): Promise<boolean> {
     return verify(signature, message, publicKey);
 }

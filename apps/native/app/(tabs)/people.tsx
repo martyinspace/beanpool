@@ -3,7 +3,7 @@ import { MemberAvatar } from '../../components/MemberAvatar';
 import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image, ActivityIndicator, Platform } from 'react-native';
 import { getDb, getFriendsLocal, addFriendLocal, removeFriendLocal, createConversationApi, setGuardianApi } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
-import { hexToBytes, encodeUtf8, encodeBase64, signData } from '../../utils/crypto';
+import { hexToBytes, encodeUtf8, encodeBase64, signData, buildSignedHeaders } from '../../utils/crypto';
 import QRCode from 'react-native-qrcode-svg';
 import { TextInput, Alert, ScrollView, Share, KeyboardAvoidingView, Keyboard } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -150,17 +150,11 @@ export default function PeopleScreen() {
                     intendedFor: intendedFor || undefined
                 };
                 const apiPayloadStr = JSON.stringify(apiPayload);
-                const apiMsgBytes = encodeUtf8(apiPayloadStr);
-                const apiSigBytes = await signData(apiMsgBytes, hexToBytes(identity.privateKey));
-                const apiSigB64 = encodeBase64(apiSigBytes);
+                const headers = await buildSignedHeaders('POST', '/api/invite/generate', apiPayloadStr, identity.privateKey, identity.publicKey);
 
                 const res = await fetch(`${anchorUrl}/api/invite/generate`, {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'X-Public-Key': identity.publicKey,
-                        'X-Signature': apiSigB64
-                    },
+                    headers,
                     body: apiPayloadStr
                 });
                 

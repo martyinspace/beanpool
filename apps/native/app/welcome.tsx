@@ -14,7 +14,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { BUNDLED_AVATARS, BundledAvatar, resolveBundledAvatar } from '../utils/bundled-avatars';
 import { AvatarPickerSheet } from '../components/AvatarPickerSheet';
 import { updateMemberProfile } from '../utils/db';
-import { hexToBytes, encodeBase64, encodeUtf8, signData } from '../utils/crypto';
+import { buildSignedHeaders } from '../utils/crypto';
 
 import { extractNodeOrigin, normaliseInviteCode } from '../utils/invite-parser';
 
@@ -335,18 +335,11 @@ export default function WelcomeScreen() {
                         callsign: pendingIdentity.callsign,
                     };
                     const bodyString = JSON.stringify(payloadObj);
-                    const privateKeyBytes = hexToBytes(pendingIdentity.privateKey);
-                    const messageBytes = encodeUtf8(bodyString);
-                    const signatureBytes = await signData(messageBytes, privateKeyBytes);
-                    const signatureBase64 = encodeBase64(signatureBytes);
+                    const headers = await buildSignedHeaders('POST', '/api/profile/update', bodyString, pendingIdentity.privateKey, pendingIdentity.publicKey);
 
                     const res = await fetch(`${url}/api/profile/update`, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Public-Key': pendingIdentity.publicKey,
-                            'X-Signature': signatureBase64,
-                        },
+                        headers,
                         body: bodyString,
                     });
                     if (!res.ok) {

@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadIdentity } from './identity';
 import * as Crypto from 'expo-crypto';
-import { hexToBytes, encodeBase64, encodeUtf8, decodeBase64, decodeUtf8, signData } from './crypto';
+import { encodeBase64, encodeUtf8, decodeBase64, decodeUtf8, buildSignedHeaders } from './crypto';
 import { getDatabaseFilenameForNode, addSavedNode } from './nodes';
 
 /**
@@ -843,22 +843,14 @@ export async function createPost(post: any) {
         repeatable: post.repeatable === 1,
     };
     const bodyString = JSON.stringify(body);
-
-    const privateKeyBytes = hexToBytes(identity.privateKey);
-    const messageBytes = encodeUtf8(bodyString);
-    const signatureBytes = await signData(messageBytes, privateKeyBytes);
-    const signatureBase64 = encodeBase64(signatureBytes);
+    const headers = await buildSignedHeaders('POST', '/api/marketplace/posts', bodyString, identity.privateKey, identity.publicKey);
 
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
         const res = await fetch(`${anchorUrl}/api/marketplace/posts`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Public-Key': identity.publicKey,
-                'X-Signature': signatureBase64,
-            },
+            headers,
             body: bodyString,
             signal: controller.signal,
         });
@@ -878,14 +870,10 @@ export async function createPost(post: any) {
             if (_isProfilePhotoError(errMsg)) {
                 const healed = await _pushProfileToServer();
                 if (healed) {
-                    const retrySig = await signData(messageBytes, privateKeyBytes);
+                    const retryHeaders = await buildSignedHeaders('POST', '/api/marketplace/posts', bodyString, identity.privateKey, identity.publicKey);
                     const retryRes = await fetch(`${anchorUrl}/api/marketplace/posts`, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Public-Key': identity.publicKey,
-                            'X-Signature': encodeBase64(retrySig),
-                        },
+                        headers: retryHeaders,
                         body: bodyString,
                     });
                     if (retryRes.ok) {
@@ -946,11 +934,7 @@ export async function createProject(project: {
         deadlineAt: project.deadline_at || null,
     };
     const bodyString = JSON.stringify(body);
-
-    const privateKeyBytes = hexToBytes(identity.privateKey);
-    const messageBytes = encodeUtf8(bodyString);
-    const signatureBytes = await signData(messageBytes, privateKeyBytes);
-    const signatureBase64 = encodeBase64(signatureBytes);
+    const headers = await buildSignedHeaders('POST', '/api/crowdfund/projects', bodyString, identity.privateKey, identity.publicKey);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -958,11 +942,7 @@ export async function createProject(project: {
     try {
         res = await fetch(`${anchorUrl}/api/crowdfund/projects`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Public-Key': identity.publicKey,
-                'X-Signature': signatureBase64,
-            },
+            headers,
             body: bodyString,
             signal: controller.signal,
         });
@@ -1027,11 +1007,7 @@ export async function updateCrowdfundProjectApi(
         deadlineAt: deadlineAt || null,
     };
     const bodyString = JSON.stringify(body);
-
-    const privateKeyBytes = hexToBytes(identity.privateKey);
-    const messageBytes = encodeUtf8(bodyString);
-    const signatureBytes = await signData(messageBytes, privateKeyBytes);
-    const signatureBase64 = encodeBase64(signatureBytes);
+    const headers = await buildSignedHeaders('POST', '/api/crowdfund/projects/update', bodyString, identity.privateKey, identity.publicKey);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -1039,11 +1015,7 @@ export async function updateCrowdfundProjectApi(
     try {
         res = await fetch(`${anchorUrl}/api/crowdfund/projects/update`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Public-Key': identity.publicKey,
-                'X-Signature': signatureBase64,
-            },
+            headers,
             body: bodyString,
             signal: controller.signal,
         });
@@ -1091,11 +1063,7 @@ export async function deleteCrowdfundProjectApi(projectId: string) {
         creatorPubkey: identity.publicKey
     };
     const bodyString = JSON.stringify(body);
-
-    const privateKeyBytes = hexToBytes(identity.privateKey);
-    const messageBytes = encodeUtf8(bodyString);
-    const signatureBytes = await signData(messageBytes, privateKeyBytes);
-    const signatureBase64 = encodeBase64(signatureBytes);
+    const headers = await buildSignedHeaders('POST', '/api/crowdfund/projects/delete', bodyString, identity.privateKey, identity.publicKey);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -1103,11 +1071,7 @@ export async function deleteCrowdfundProjectApi(projectId: string) {
     try {
         res = await fetch(`${anchorUrl}/api/crowdfund/projects/delete`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Public-Key': identity.publicKey,
-                'X-Signature': signatureBase64,
-            },
+            headers,
             body: bodyString,
             signal: controller.signal,
         });
@@ -1215,16 +1179,12 @@ export async function deletePost(id: string) {
     if (!identity) throw new Error('Not logged in. Identity required.');
 
     const payload = JSON.stringify({ id, authorPublicKey: identity.publicKey });
-    
-    const privateKeyBytes = hexToBytes(identity.privateKey);
-    const messageBytes = encodeUtf8(payload);
-    const signatureBytes = await signData(messageBytes, privateKeyBytes);
-    const signature = encodeBase64(signatureBytes);
-    
+    const headers = await buildSignedHeaders('POST', '/api/marketplace/posts/remove', payload, identity.privateKey, identity.publicKey);
+
     try {
         const res = await fetch(`${anchorUrl}/api/marketplace/posts/remove`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Public-Key': identity.publicKey, 'X-Signature': signature },
+            headers,
             body: payload
         });
         if (!res.ok) {
@@ -1692,22 +1652,14 @@ export async function insertMessage(conversationId: string, authorPubkey: string
         nonce
     };
     const bodyString = JSON.stringify(body);
-
-    const privateKeyBytes = hexToBytes(identity.privateKey);
-    const messageBytes = encodeUtf8(bodyString);
-    const signatureBytes = await signData(messageBytes, privateKeyBytes);
-    const signatureBase64 = encodeBase64(signatureBytes);
+    const headers = await buildSignedHeaders('POST', '/api/messages/send', bodyString, identity.privateKey, identity.publicKey);
 
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
         const res = await fetch(`${anchorUrl}/api/messages/send`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Public-Key': identity.publicKey,
-                'X-Signature': signatureBase64,
-            },
+            headers,
             body: bodyString,
             signal: controller.signal,
         });
@@ -1751,10 +1703,7 @@ export async function createConversationApi(type: 'dm' | 'group', participants: 
     if (postId) body.postId = postId;
 
     const bodyString = JSON.stringify(body);
-    const privateKeyBytes = hexToBytes(identity.privateKey);
-    const messageBytes = encodeUtf8(bodyString);
-    const signatureBytes = await signData(messageBytes, privateKeyBytes);
-    const signatureBase64 = encodeBase64(signatureBytes);
+    const headers = await buildSignedHeaders('POST', '/api/messages/conversation', bodyString, identity.privateKey, identity.publicKey);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12000);
@@ -1762,11 +1711,7 @@ export async function createConversationApi(type: 'dm' | 'group', participants: 
     try {
         const res = await fetch(`${anchorUrl}/api/messages/conversation`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Public-Key': identity.publicKey,
-                'X-Signature': signatureBase64,
-            },
+            headers,
             body: bodyString,
             signal: controller.signal,
         });
@@ -1818,22 +1763,12 @@ export async function redeemInvite(code: string, callsign: string, identityToReg
             ? { ticketB64: codePayload, publicKey: identity.publicKey, callsign }
             : { code: codePayload, publicKey: identity.publicKey, callsign };
         const bodyString = JSON.stringify(body);
-
-        const privateKeyBytes = hexToBytes(identity.privateKey);
-        const messageBytes = encodeUtf8(bodyString);
-        const signatureBytes = await signData(messageBytes, privateKeyBytes);
-        
-        const signatureBase64 = encodeBase64(signatureBytes);
-
         const endpoint = isOfflineTicket ? '/api/invite/redeem-offline' : '/api/invite/redeem';
+        const headers = await buildSignedHeaders('POST', endpoint, bodyString, identity.privateKey, identity.publicKey);
 
         const res = await fetch(`${anchorUrl}${endpoint}`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Public-Key': identity.publicKey,
-                'X-Signature': signatureBase64,
-            },
+            headers,
             body: bodyString,
         });
 
@@ -1894,15 +1829,11 @@ async function _pushProfileToServer(): Promise<boolean> {
         callsign: profile.callsign,
     };
     const bodyString = JSON.stringify(payloadObj);
-    const signatureBytes = await signData(encodeUtf8(bodyString), hexToBytes(identity.privateKey));
+    const headers = await buildSignedHeaders('POST', '/api/profile/update', bodyString, identity.privateKey, identity.publicKey);
     try {
         const res = await fetch(`${anchorUrl}/api/profile/update`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Public-Key': identity.publicKey,
-                'X-Signature': encodeBase64(signatureBytes),
-            },
+            headers,
             body: bodyString,
         });
         if (res.ok) {
@@ -1925,10 +1856,7 @@ async function _signedRequest(endpoint: string, payload: any) {
     if (!identity) throw new Error('No identity found. You must be logged in.');
 
     const bodyString = JSON.stringify(payload);
-    const privateKeyBytes = hexToBytes(identity.privateKey);
-    const messageBytes = encodeUtf8(bodyString);
-    const signatureBytes = await signData(messageBytes, privateKeyBytes);
-    const signatureBase64 = encodeBase64(signatureBytes);
+    const headers = await buildSignedHeaders('POST', endpoint, bodyString, identity.privateKey, identity.publicKey);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12000);
@@ -1937,11 +1865,7 @@ async function _signedRequest(endpoint: string, payload: any) {
     try {
         res = await fetch(`${anchorUrl}${endpoint}`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Public-Key': identity.publicKey,
-                'X-Signature': signatureBase64,
-            },
+            headers,
             body: bodyString,
             signal: controller.signal
         });
@@ -1968,14 +1892,10 @@ async function _signedRequest(endpoint: string, payload: any) {
         if (_isProfilePhotoError(errorMsg)) {
             const healed = await _pushProfileToServer();
             if (healed) {
-                const retrySig = await signData(encodeUtf8(bodyString), hexToBytes(identity.privateKey));
+                const retryHeaders = await buildSignedHeaders('POST', endpoint, bodyString, identity.privateKey, identity.publicKey);
                 const retryRes = await fetch(`${anchorUrl}${endpoint}`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Public-Key': identity.publicKey,
-                        'X-Signature': encodeBase64(retrySig),
-                    },
+                    headers: retryHeaders,
                     body: bodyString,
                 });
                 if (retryRes.ok) return await retryRes.json();
@@ -2496,18 +2416,11 @@ export async function createRecoveryRequest(oldPubkey: string, guardianGuess: st
 
     const bodyObj = { oldPubkey, guardianGuess, newPubkey: newIdentity.publicKey };
     const bodyStr = JSON.stringify(bodyObj);
-    const privateKeyBytes = hexToBytes(newIdentity.privateKey);
-    const messageBytes = encodeUtf8(bodyStr);
-    const signatureBytes = await signData(messageBytes, privateKeyBytes);
-    const signatureBase64 = encodeBase64(signatureBytes);
+    const headers = await buildSignedHeaders('POST', '/api/recovery/request', bodyStr, newIdentity.privateKey, newIdentity.publicKey);
 
     const res = await fetch(`${anchorUrl}/api/recovery/request`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Public-Key': newIdentity.publicKey,
-            'X-Signature': signatureBase64,
-        },
+        headers,
         body: bodyStr,
     });
     const data = await res.json();
@@ -2543,18 +2456,11 @@ async function sendRecoveryDecision(requestId: string, decision: 'approve' | 're
     if (!identity) throw new Error('No identity');
 
     const bodyStr = JSON.stringify({ requestId });
-    const privateKeyBytes = hexToBytes(identity.privateKey);
-    const messageBytes = encodeUtf8(bodyStr);
-    const signatureBytes = await signData(messageBytes, privateKeyBytes);
-    const signatureBase64 = encodeBase64(signatureBytes);
+    const headers = await buildSignedHeaders('POST', `/api/recovery/${decision}`, bodyStr, identity.privateKey, identity.publicKey);
 
     const res = await fetch(`${anchorUrl}/api/recovery/${decision}`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Public-Key': identity.publicKey,
-            'X-Signature': signatureBase64,
-        },
+        headers,
         body: bodyStr,
     });
     if (!res.ok) {
@@ -2570,18 +2476,11 @@ export async function cancelRecoveryRequest(requestId: string, identityToUse?: a
     if (!identity) throw new Error('No identity');
 
     const bodyStr = JSON.stringify({ requestId });
-    const privateKeyBytes = hexToBytes(identity.privateKey);
-    const messageBytes = encodeUtf8(bodyStr);
-    const signatureBytes = await signData(messageBytes, privateKeyBytes);
-    const signatureBase64 = encodeBase64(signatureBytes);
+    const headers = await buildSignedHeaders('POST', '/api/recovery/cancel', bodyStr, identity.privateKey, identity.publicKey);
 
     const res = await fetch(`${anchorUrl}/api/recovery/cancel`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Public-Key': identity.publicKey,
-            'X-Signature': signatureBase64,
-        },
+        headers,
         body: bodyStr,
     });
     if (!res.ok) {

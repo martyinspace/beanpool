@@ -9,7 +9,7 @@ import { AvatarPickerSheet } from '../../components/AvatarPickerSheet';
 import { resolveBundledAvatar } from '../../utils/bundled-avatars';
 import { updateCallsign, wipeIdentity } from '../../utils/identity';
 import { nativeExportIdentity } from '../../utils/native-crypto';
-import { encodeBase64, encodeUtf8, hexToBytes, signData } from '../../utils/crypto';
+import { buildSignedHeaders } from '../../utils/crypto';
 import { updateMemberProfile, getMemberProfile, getPendingRecoveryRequests, approveRecoveryRequest, rejectRecoveryRequest, signedRequest } from '../../utils/db';
 import { getSavedNodes, SavedNode, removeSavedNode, getDatabaseFilenameForNode } from '../../utils/nodes';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -323,18 +323,11 @@ export default function SettingsScreen() {
                     };
                     if (avatar) payloadObj.avatar = avatar;
                     const bodyString = JSON.stringify(payloadObj);
-                    const privateKeyBytes = hexToBytes(identity.privateKey);
-                    const messageBytes = encodeUtf8(bodyString);
-                    const signatureBytes = await signData(messageBytes, privateKeyBytes);
-                    const signatureBase64 = encodeBase64(signatureBytes);
+                    const headers = await buildSignedHeaders('POST', '/api/profile/update', bodyString, identity.privateKey, identity.publicKey);
 
                     const res = await fetch(`${url}/api/profile/update`, {
                         method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'X-Public-Key': identity.publicKey,
-                            'X-Signature': signatureBase64,
-                        },
+                        headers,
                         body: bodyString,
                     });
                     

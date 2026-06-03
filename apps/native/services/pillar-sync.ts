@@ -169,8 +169,7 @@ export async function performSync(): Promise<SyncResult> {
                     const { getMemberProfile } = await import('../utils/db');
                     const profile = await getMemberProfile(pubKey);
                     if (profile) {
-                        const { encodeUtf8, encodeBase64 } = require('../utils/crypto');
-                        const { signData, hexToBytes } = require('../utils/crypto');
+                        const { buildSignedHeaders } = require('../utils/crypto');
                         const payloadObj = {
                             publicKey: pubKey,
                             avatar: profile.avatar_url,
@@ -179,14 +178,10 @@ export async function performSync(): Promise<SyncResult> {
                             callsign: profile.callsign,
                         };
                         const bodyString = JSON.stringify(payloadObj);
-                        const signatureBytes = await signData(encodeUtf8(bodyString), hexToBytes(id.privateKey));
+                        const headers = await buildSignedHeaders('POST', '/api/profile/update', bodyString, id.privateKey, pubKey);
                         const res = await fetch(`${anchorUrl}/api/profile/update`, {
                             method: 'POST',
-                            headers: { 
-                                'Content-Type': 'application/json',
-                                'X-Public-Key': pubKey,
-                                'X-Signature': encodeBase64(signatureBytes)
-                            },
+                            headers,
                             body: bodyString
                         });
                         if (res.ok) {
