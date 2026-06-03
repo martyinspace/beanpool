@@ -20,7 +20,7 @@ function bytesToBase64(bytes: Uint8Array): string {
     return btoa(String.fromCharCode(...bytes));
 }
 
-async function signWithWebCrypto(privateKeyHex: string, payload: any): Promise<string> {
+async function signEd25519(privateKeyHex: string, message: string): Promise<string> {
     const pkcs8 = hexToBytes(privateKeyHex);
     const privateKey = await crypto.subtle.importKey(
         'pkcs8',
@@ -29,8 +29,7 @@ async function signWithWebCrypto(privateKeyHex: string, payload: any): Promise<s
         false,
         ['sign']
     );
-    const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
-    const signatureBytes = await crypto.subtle.sign('Ed25519', privateKey, payloadBytes);
+    const signatureBytes = await crypto.subtle.sign('Ed25519', privateKey, new TextEncoder().encode(message));
     return bytesToBase64(new Uint8Array(signatureBytes));
 }
 
@@ -45,19 +44,30 @@ export async function request<T>(method: string, path: string, body?: any): Prom
     };
 
     if (body) {
+        const bodyString = JSON.stringify(body);
+        opts.body = bodyString;
+
         if (method === 'POST') {
             const identity = await loadIdentity();
             if (identity && identity.privateKey) {
                 try {
-                    const signature = await signWithWebCrypto(identity.privateKey, body);
-                    (opts.headers as Record<string, string>)['X-Public-Key'] = identity.publicKey;
-                    (opts.headers as Record<string, string>)['X-Signature'] = signature;
+                    // X-1: replay-proof signature over method+path+timestamp+nonce+body.
+                    // Path is signed without the query string to match the server's ctx.path.
+                    const timestamp = String(Date.now());
+                    const nonce = crypto.randomUUID();
+                    const signPath = path.split('?')[0];
+                    const canonical = `${method}\n${signPath}\n${timestamp}\n${nonce}\n${bodyString}`;
+                    const signature = await signEd25519(identity.privateKey, canonical);
+                    const h = opts.headers as Record<string, string>;
+                    h['X-Public-Key'] = identity.publicKey;
+                    h['X-Signature'] = signature;
+                    h['X-Timestamp'] = timestamp;
+                    h['X-Nonce'] = nonce;
                 } catch (e) {
                     console.warn('[API] Could not sign request:', e);
                 }
             }
         }
-        opts.body = JSON.stringify(body);
     }
 
     const res = await fetch(`${BASE}${path}`, opts);
