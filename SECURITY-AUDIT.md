@@ -238,14 +238,14 @@ _(update as we go)_
 | NAT-1 | 🔴 | Partial — honesty labels fixed (Phase 0); real E2E pending (Phase 3) |
 | NAT-2 | 🔴 | Code fixed (untracked from git) — ⚠️ **manual: rotate the Firebase/FCM key** |
 | PWA-4 | 🔴 (unverified) | Open |
-| X-1 | 🟠 | Open — now also covers SRV-2/SRV-3 (authenticated reads need the signed-request scheme + client changes) |
+| X-1 | 🟠 | **Replay-proofing done** across server (dual-accept), PWA, native — sign METHOD+PATH+TIMESTAMP+NONCE+BODY; server enforces 5-min freshness + single-use nonce. Tested server-side 7/7 (replay, path-binding, legacy). Legacy body-only path kept until app rollout drains, then remove. **Remaining:** signed *reads* (SRV-2/SRV-3) not yet implemented; native runtime test pending |
 | SRV-2 | 🟠 | Re-bucketed into X-1 — export is a member transparency feature (GET); proper fix = signed member auth on reads, not admin-only |
 | NAT-3 | 🟠 | ⚠️ **manual: rotate keystore password + migrate to EAS remote credentials** |
 | NAT-4 | 🟠 | Open |
 | PWA-1 | 🟠 | Open |
 | PWA-2 | 🟠 | Open |
 | PWA-3 | 🟠 | Open |
-| X-2 | 🟡 | Open |
+| X-2 | 🟡 | **Done** — native HTTP signing consolidated into one buildSignedHeaders() helper (15 db.ts sites + welcome/settings/people/pillar-sync) |
 | X-3 | 🟢 | Open |
 | SRV-3 | 🟡 | Re-bucketed into X-1 — same GET-auth dependency (requester must be verified, not a query param) |
 | SRV-4 | 🟡 | Open |
