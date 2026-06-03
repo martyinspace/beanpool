@@ -224,7 +224,7 @@ export default function PostDetailModal() {
         return (
             <View style={[styles.errorContainer, { paddingTop: insets.top }]}>
                 <Text style={styles.errorText}>Post not found. It may have been expired by the Network.</Text>
-                <Pressable onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market'); }} style={styles.closeBtn}>
+                <Pressable onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)'); }} style={styles.closeBtn}>
                     <Text style={styles.closeBtnText}>Return to Market</Text>
                 </Pressable>
             </View>
@@ -307,7 +307,7 @@ export default function PostDetailModal() {
                 setDeleting(true);
                 try {
                     await deletePost(post.id);
-                    if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
+                    if (router.canGoBack()) router.back(); else router.replace('/(tabs)');
                 } catch (e) {
                     Alert.alert('Error', 'Failed to delete post');
                     setDeleting(false);
@@ -423,7 +423,7 @@ export default function PostDetailModal() {
         ]);
     };
 
-    const goBack = () => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market'); };
+    const goBack = () => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)'); };
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -643,13 +643,13 @@ export default function PostDetailModal() {
                                         setAccepting(true);
                                         try {
                                             await cancelMarketplaceTransaction(txToCancel, identity.publicKey);
-                                            if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
+                                            if (router.canGoBack()) router.back(); else router.replace('/(tabs)');
                                         } catch(e:any) { 
                                             if (e.message?.includes('not found') || e.message?.includes('not authorized')) {
                                                 Alert.alert('Already Updated', 'This transaction was already cancelled or completed on another device. Your feed will automatically refresh.');
                                                 const { requestSync } = require('../../services/pillar-sync');
                                                 requestSync().catch(console.error);
-                                                if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
+                                                if (router.canGoBack()) router.back(); else router.replace('/(tabs)');
                                             } else {
                                                 Alert.alert('Error', e.message); 
                                             }
@@ -841,7 +841,7 @@ export default function PostDetailModal() {
                                             }
                                             
                                             // Fallback if chat fails
-                                            router.replace({ pathname: '/(tabs)/market', params: { tab: 'deals', dealsTab: 'pending' } });
+                                            router.replace({ pathname: '/(tabs)', params: { tab: 'deals', dealsTab: 'pending' } });
                                         } catch (e: any) { 
                                             if (e.message?.includes('not found') || e.message?.includes('not active')) {
                                                 Alert.alert('Already Updated', 'This post was already accepted or modified elsewhere. Refreshing your screen...');
@@ -1029,11 +1029,11 @@ export default function PostDetailModal() {
                     targetCallsign={promptReviewForTx.targetCallsign}
                     onClose={() => {
                         setPromptReviewForTx(null);
-                        if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
+                        if (router.canGoBack()) router.back(); else router.replace('/(tabs)');
                     }}
                     onSuccess={() => {
                         setPromptReviewForTx(null);
-                        if (router.canGoBack()) router.back(); else router.replace('/(tabs)/market');
+                        if (router.canGoBack()) router.back(); else router.replace('/(tabs)');
                     }}
                 />
             )}

@@ -486,7 +486,7 @@ export default function MapScreen() {
                 setShowNewPost(false);
                 loadPosts();
                 setPosting(false);
-                router.push({ pathname: '/market', params: { tab: 'deals', dealsTab: 'active' } });
+                router.push({ pathname: '/', params: { tab: 'deals', dealsTab: 'active' } });
             }, 300);
         } catch (e: any) {
             console.error(e);

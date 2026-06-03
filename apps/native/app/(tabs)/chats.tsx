@@ -429,7 +429,7 @@ export default function ChatsScreen() {
                                     <MaterialCommunityIcons name="storefront-outline" size={48} color="#d1d5db" />
                                     <Text style={styles.emptyText}>No active transactions yet.</Text>
                                     <Pressable
-                                        onPress={() => router.push('/market')}
+                                        onPress={() => router.push('/')}
                                         style={{ marginTop: 12, backgroundColor: '#8b5cf6', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }}
                                     >
                                         <Text style={{ color: 'white', fontWeight: 'bold' }}>Browse Market</Text>

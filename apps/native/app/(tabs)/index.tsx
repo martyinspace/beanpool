@@ -809,14 +809,14 @@ export default function MarketScreen() {
                         )}
                         <Pressable 
                             style={{ backgroundColor: '#111827', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 }}
-                            onPress={() => router.push({ pathname: '/', params: { newPost: 'true' } })}
+                            onPress={() => router.push({ pathname: '/map', params: { newPost: 'true' } })}
                         >
                             <Text style={{ fontWeight: '700', color: '#fff', fontSize: 14 }}>+ Post a Deal</Text>
                         </Pressable>
                     </View>
                 }
             />
-            <Pressable style={styles.fab} onPress={() => router.push({ pathname: '/', params: { newPost: 'true' } })}>
+            <Pressable style={styles.fab} onPress={() => router.push({ pathname: '/map', params: { newPost: 'true' } })}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={{ color: '#fff', fontSize: 20, fontWeight: '400', marginTop: -2 }}>+</Text>
                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 }}>ADD POST</Text>
