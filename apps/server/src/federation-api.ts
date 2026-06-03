@@ -24,8 +24,14 @@ export function federationCors(): Koa.Middleware {
         const origin = ctx.get('Origin');
 
         if (origin) {
+            // SECURITY (SRV-5): exact-origin match only. The previous prefix match
+            // (origin.startsWith(o) || o.startsWith(origin)) granted CORS — with
+            // Allow-Credentials: true — to any origin that was a prefix of, or
+            // prefixed by, a peer URL (e.g. https://peer.com.evil.com matches
+            // https://peer.com). Compare full origins, ignoring a trailing slash.
             const allowedOrigins = getPeerOrigins();
-            if (allowedOrigins.some(o => origin.startsWith(o) || o.startsWith(origin))) {
+            const normalized = origin.replace(/\/+$/, '');
+            if (allowedOrigins.some(o => o.replace(/\/+$/, '') === normalized)) {
                 ctx.set('Access-Control-Allow-Origin', origin);
                 ctx.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
                 ctx.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
