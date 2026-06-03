@@ -141,6 +141,36 @@ function closeStreamSafe(stream: any) {
     try { stream.close(); } catch {}
 }
 
+/**
+ * SECURITY (SRV-1): authorize an inbound sync stream against the
+ * Noise-authenticated remote PeerID. Only peers in our connector list (and not
+ * blocked) may invoke a sync handler — the same gate the federation and
+ * handshake protocols already enforce. Without this, ANY host that can open a
+ * libp2p stream could push a self-signed payload into importRemoteState and
+ * overwrite balances, members, transactions, etc.
+ *
+ * `isPeerTrusted` is imported dynamically because connector-manager statically
+ * imports this module (registerSyncHandler), so a static import here would form
+ * a module cycle.
+ */
+async function isSyncPeerAuthorized(incomingData: any, label: string): Promise<boolean> {
+    const remotePeerId = incomingData?.connection?.remotePeer
+        ? incomingData.connection.remotePeer.toString()
+        : 'unknown';
+    try {
+        const { isPeerTrusted } = await import('./connector-manager.js');
+        const { trusted, trustLevel } = isPeerTrusted(remotePeerId);
+        if (!trusted || trustLevel === 'blocked') {
+            logger.security('P2P', `[Sync ${label}] Rejected stream from untrusted peer ${remotePeerId.slice(-8)}`);
+            return false;
+        }
+        return true;
+    } catch (e: any) {
+        logger.error('P2P', `[Sync ${label}] Trust check failed, rejecting: ${e.message || e}`);
+        return false;
+    }
+}
+
 // libp2p surfaces protocol-negotiation failures with a few different codes/messages
 // depending on transport; treat any of these as "peer doesn't speak v2".
 function isUnsupportedProtocol(err: any): boolean {
@@ -161,6 +191,7 @@ function isUnsupportedProtocol(err: any): boolean {
 function registerHashHandlerV2(node: Libp2p): void {
     node.handle(PROTOCOL_V2_HASH, async (incomingData: any) => {
         const stream = incomingData.stream || incomingData;
+        if (!(await isSyncPeerAuthorized(incomingData, 'v2 hash'))) { closeStreamSafe(stream); return; }
         try {
             const raw = await readFromStream(stream, 15000);
             const request = JSON.parse(raw);
@@ -192,6 +223,7 @@ function registerHashHandlerV2(node: Libp2p): void {
 function registerPayloadHandlerV2(node: Libp2p): void {
     node.handle(PROTOCOL_V2_PAYLOAD, async (incomingData: any) => {
         const stream = incomingData.stream || incomingData;
+        if (!(await isSyncPeerAuthorized(incomingData, 'v2 payload'))) { closeStreamSafe(stream); return; }
         try {
             const raw = await readFromStream(stream, 30000);
             const request = JSON.parse(raw);
@@ -385,6 +417,7 @@ async function syncWithPeerFullPayload(
 function registerDeltaHandlerV2(node: Libp2p): void {
     node.handle(PROTOCOL_V2_DELTA, async (incomingData: any) => {
         const stream = incomingData.stream || incomingData;
+        if (!(await isSyncPeerAuthorized(incomingData, 'v2 delta'))) { closeStreamSafe(stream); return; }
         try {
             const raw = await readFromStream(stream, 30000);
             const request = JSON.parse(raw);
@@ -431,6 +464,7 @@ function registerDeltaHandlerV2(node: Libp2p): void {
 function registerEventHandlerV2(node: Libp2p): void {
     node.handle(PROTOCOL_V2_EVENT, async (incomingData: any) => {
         const stream = incomingData.stream || incomingData;
+        if (!(await isSyncPeerAuthorized(incomingData, 'v2 event'))) { closeStreamSafe(stream); return; }
         try {
             const raw = await readFromStream(stream, 15000);
             const request = JSON.parse(raw);
@@ -471,6 +505,7 @@ function registerEventHandlerV2(node: Libp2p): void {
 function registerSyncHandlerV1(node: Libp2p): void {
     node.handle(PROTOCOL_V1, async (incomingData: any) => {
         const stream = incomingData.stream || incomingData;
+        if (!(await isSyncPeerAuthorized(incomingData, 'v1'))) { closeStreamSafe(stream); return; }
 
         try {
             const raw = await readFromStream(stream, 15000);

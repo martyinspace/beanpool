@@ -2887,7 +2887,25 @@ export async function importRemoteState(remote: SyncPayload): Promise<ImportResu
         if (!isValid) {
             throw new Error('Invalid cryptographic signature.');
         }
-        console.log(`[Sync] ✓ Cryptographically validated sync payload from nodeId: ${remote.nodeId}`);
+
+        // SECURITY (SRV-1) defense-in-depth: a valid signature only proves the
+        // payload was signed by whoever owns `publicKey` — NOT that this key
+        // belongs to a node we trust. Bind the signing key to a trusted connector
+        // PeerID so a self-signed payload from an unknown/attacker key is rejected
+        // even if it reaches this path. Nodes only ever sign+push their OWN
+        // payloads (see push-on-write.ts), so the signing key always maps to the
+        // connection identity — this has no false negatives for configured peers.
+        // Imported dynamically to avoid a module cycle (connector-manager imports
+        // state-engine).
+        const { peerIdFromPublicKey } = await import('@libp2p/peer-id');
+        const signerPeerId = peerIdFromPublicKey(pubKey as any).toString();
+        const { isPeerTrusted } = await import('./connector-manager.js');
+        const signerTrust = isPeerTrusted(signerPeerId);
+        if (!signerTrust.trusted || signerTrust.trustLevel === 'blocked') {
+            throw new Error(`Sync payload signing key maps to untrusted peer ${signerPeerId.slice(-8)}`);
+        }
+
+        console.log(`[Sync] ✓ Cryptographically validated sync payload from trusted peer: ${signerPeerId.slice(-8)} (nodeId: ${remote.nodeId})`);
     } catch (e: any) {
         console.error(`[Sync] ❌ SyncPayload signature validation failed:`, e.message || e);
         throw new Error(`Cryptographic sync payload verification failed: ${e.message}`);
