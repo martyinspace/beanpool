@@ -100,6 +100,23 @@ function rateLimit(ctx: Koa.Context): boolean {
     return true;
 }
 
+// X-1: replay protection for signed requests.
+// A signed request is valid for SIGNATURE_FRESHNESS_MS around its timestamp, and
+// each nonce may be used once within that window. `consumeNonce` is atomic
+// (check-and-set) so concurrent duplicates can't both pass.
+const SIGNATURE_FRESHNESS_MS = 5 * 60 * 1000;
+const seenNonces = new Map<string, number>();  // nonce -> expiry (ms epoch)
+function consumeNonce(nonce: string, now: number): boolean {
+    // Bounded store: opportunistically evict expired entries when it grows.
+    if (seenNonces.size > 10_000) {
+        for (const [n, exp] of seenNonces) if (exp <= now) seenNonces.delete(n);
+    }
+    const exp = seenNonces.get(nonce);
+    if (exp !== undefined && exp > now) return false;  // already used → replay
+    seenNonces.set(nonce, now + SIGNATURE_FRESHNESS_MS);
+    return true;
+}
+
 export async function startHttpsServer(port: number): Promise<void> {
     const app = new Koa();
     const router = new Router();
@@ -147,6 +164,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             if (ctx.request.type === 'application/json' || ctx.get('content-type')?.includes('json')) {
                 try {
                     const body = await readBody(ctx.req);
+                    (ctx as any).rawBody = body;  // X-1: exact bytes the client signed
                     const parsed = JSON.parse(body);
                     (ctx as any).requestBody = parsed;
 
@@ -186,9 +204,37 @@ export async function startHttpsServer(port: number): Promise<void> {
             return;
         }
 
+        // X-1: the replay-proof scheme binds method+path+timestamp+nonce to the
+        // body. Clients that send X-Timestamp + X-Nonce use it; older clients fall
+        // back to the legacy body-only signature (dual-accept transition — remove
+        // the legacy branch once the app-store rollout has drained).
+        const timestampHeader = ctx.get('X-Timestamp');
+        const nonce = ctx.get('X-Nonce');
+        const useReplayProof = !!timestampHeader && !!nonce;
+
         try {
-            const payloadString = JSON.stringify((ctx as any).requestBody || {});
-            
+            let signedMessage: string;
+            if (useReplayProof) {
+                const ts = Number(timestampHeader);
+                const now = Date.now();
+                if (!Number.isFinite(ts) || Math.abs(now - ts) > SIGNATURE_FRESHNESS_MS) {
+                    ctx.status = 401;
+                    ctx.body = { error: 'Request timestamp is stale or invalid' };
+                    return;
+                }
+                // Atomic check-and-consume: a replayed nonce is rejected here.
+                if (!consumeNonce(nonce, now)) {
+                    ctx.status = 403;
+                    ctx.body = { error: 'Replay detected: nonce already used' };
+                    return;
+                }
+                const rawBody = (ctx as any).rawBody ?? '';
+                signedMessage = `${ctx.method}\n${ctx.path}\n${timestampHeader}\n${nonce}\n${rawBody}`;
+            } else {
+                // Legacy: signature over the JSON body only (replayable).
+                signedMessage = JSON.stringify((ctx as any).requestBody || {});
+            }
+
             // Convert hex pubkey to SPKI format for Node.js verify
             const spkiHeader = Buffer.from('302a300506032b6570032100', 'hex');
             const spki = Buffer.concat([spkiHeader, Buffer.from(pubKeyHex, 'hex')]);
@@ -200,7 +246,7 @@ export async function startHttpsServer(port: number): Promise<void> {
 
             const isValid = crypto.verify(
                 undefined,
-                Buffer.from(payloadString),
+                Buffer.from(signedMessage),
                 publicKeyObject,
                 Buffer.from(signatureBase64, 'base64')
             );
