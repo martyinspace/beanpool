@@ -234,7 +234,7 @@ _(update as we go)_
 
 | ID | Severity | Status |
 |----|----------|--------|
-| SRV-1 | 🔴 | Open |
+| SRV-1 | 🔴 | **Fixed** (b405a79) — sync handlers gated on Noise-authenticated peer (Gate A) + payload signing-key bound to a trusted connector in importRemoteState (Gate B). connectionGater deferred. tsc clean; runtime two-node test pending |
 | NAT-1 | 🔴 | Partial — honesty labels fixed (Phase 0); real E2E pending (Phase 3) |
 | NAT-2 | 🔴 | Code fixed (untracked from git) — ⚠️ **manual: rotate the Firebase/FCM key** |
 | PWA-4 | 🔴 (unverified) | Open |
