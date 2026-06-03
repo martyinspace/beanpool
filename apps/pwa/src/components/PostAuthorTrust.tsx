@@ -80,10 +80,17 @@ function MiniAvatar({ callsign, avatarUrl, size }: { callsign: string; avatarUrl
 export function PostAuthorTrust({ callsign, energyCycled = 0, rating, mode = 'full', className = '', avatarUrl, publicKey, onOpenProfile }: PostAuthorTrustProps) {
     const tier = getTrustTier(energyCycled);
 
-    const handleClick = (e: React.MouseEvent) => {
+    const handleClick = (e: React.MouseEvent | React.KeyboardEvent) => {
         if (publicKey && onOpenProfile) {
             e.stopPropagation();
             onOpenProfile(publicKey);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleClick(e);
         }
     };
 
@@ -91,8 +98,12 @@ export function PostAuthorTrust({ callsign, energyCycled = 0, rating, mode = 'fu
         return (
             <>
                 <div 
-                    className={`flex items-center gap-1 ${publicKey ? 'cursor-pointer hover:opacity-80' : ''} ${className}`}
+                    className={`flex items-center gap-1 ${publicKey ? 'cursor-pointer hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-md' : ''} ${className}`}
                     onClick={handleClick}
+                    onKeyDown={handleKeyDown}
+                    role={publicKey ? "button" : undefined}
+                    tabIndex={publicKey ? 0 : undefined}
+                    aria-label={publicKey ? `View ${callsign}'s profile` : undefined}
                 >
                     {/* Avatar */}
                     <MiniAvatar callsign={callsign} avatarUrl={avatarUrl} size={18} />
@@ -119,8 +130,12 @@ export function PostAuthorTrust({ callsign, energyCycled = 0, rating, mode = 'fu
     return (
         <>
             <div 
-                className={`flex items-center gap-1.5 ${publicKey ? 'cursor-pointer hover:opacity-80' : ''} ${className}`}
+                className={`flex items-center gap-1.5 ${publicKey ? 'cursor-pointer hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-md' : ''} ${className}`}
                 onClick={handleClick}
+                onKeyDown={handleKeyDown}
+                role={publicKey ? "button" : undefined}
+                tabIndex={publicKey ? 0 : undefined}
+                aria-label={publicKey ? `View ${callsign}'s profile` : undefined}
             >
                 {/* Avatar */}
                 <MiniAvatar callsign={callsign} avatarUrl={avatarUrl} size={24} />
