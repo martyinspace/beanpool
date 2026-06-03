@@ -13,3 +13,6 @@
 **Learning:** In `createRecoveryRequest()`, validating guardian guess callsigns was previously done by mapping the guardian public keys to member profiles, filtering out empty profiles, and then executing `.some()` against the resulting array. This led to unnecessary allocations (`.map()` and `.filter()`) and executed database lookups for all guardians even if a match was found in the first element.
 **Action:** Refactored the lookups using `guardians.some(...)` with hoisted, pre-normalized callsign comparison. This enables short-circuiting database reads and completely avoids intermediate array allocations.
 
+## 2026-05-29 - [O(N) to O(1) Fetch in Array Length calculations]
+**Learning:** In `apps/server/src/state-engine.ts`, fetching an entire array of relational data (like members) just to count its length is highly inefficient, allocating a large amount of memory unnecessarily.
+**Action:** Replaced `getMembers().length` with `SELECT COUNT(*) as c FROM members WHERE status != 'pruned'` directly from the database for O(1) counting instead of O(N) memory allocations.
