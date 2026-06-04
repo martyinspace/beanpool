@@ -605,8 +605,8 @@ export default function MapScreen() {
                             <Text style={[styles.filterChipText, mapTypeFilter === 'needs' && styles.filterChipTextOnOrange]}>Needs</Text>
                         </Pressable>
                         <View style={styles.filterDivider} />
-                        <Pressable style={[styles.filterChip, styles.filterChipShrink, mapCategoryFilter !== 'all' && styles.filterChipActive]} onPress={() => setShowMapCategoryPicker(true)}>
-                            <Text numberOfLines={1} style={[styles.filterChipText, mapCategoryFilter !== 'all' && styles.filterChipTextActive]}>
+                        <Pressable style={[styles.filterChip, mapCategoryFilter !== 'all' && styles.filterChipActive]} onPress={() => setShowMapCategoryPicker(true)}>
+                            <Text style={[styles.filterChipText, mapCategoryFilter !== 'all' && styles.filterChipTextActive]}>
                                 {mapCategoryFilter === 'all' ? '🏷️ Category' : `${CATEGORIES.find(c => c.id === mapCategoryFilter)?.emoji || '🏷️'} ▼`}
                             </Text>
                         </Pressable>
@@ -967,9 +967,8 @@ const styles = StyleSheet.create({
 
     // Floating Filter Bar
     filterBarWrapper: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center', zIndex: 90, paddingTop: 100 },
-    filterBar: { flexDirection: 'row', alignItems: 'center', maxWidth: '94%', backgroundColor: 'rgba(255,255,255,0.85)', padding: 4, borderRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 8 },
-    filterChip: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 20 },
-    filterChipShrink: { flexShrink: 1 },
+    filterBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.85)', padding: 4, borderRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 8 },
+    filterChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
     filterChipActive: { backgroundColor: '#e5e7eb' },
     filterChipActiveOffers: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: '#10b981' },
     filterChipActiveNeeds: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: '#ea580c' },
