@@ -17,24 +17,9 @@ import { loadIdentity } from '../../utils/identity';
 import { ReviewModal } from '../../components/ReviewModal';
 import { CurrencyDisplay } from '../../components/CurrencyDisplay';
 import { MemberAvatar } from '../../components/MemberAvatar';
+import { PhotoCarousel } from '../../components/PhotoCarousel';
+import { POST_CATEGORIES, categoryEmoji, categoryLabel } from '../../constants/categories';
 import { hapticSuccess, hapticWarning, hapticTick } from '../../utils/haptics';
-
-const CATEGORIES = [
-    { id: 'food', emoji: '🥕', label: 'Food' },
-    { id: 'services', emoji: '🤝', label: 'Services' },
-    { id: 'labour', emoji: '👷', label: 'Labour' },
-    { id: 'tools', emoji: '🛠️', label: 'Tools' },
-    { id: 'goods', emoji: '📦', label: 'Goods' },
-    { id: 'housing', emoji: '🏠', label: 'Housing' },
-    { id: 'transport', emoji: '🚲', label: 'Transport' },
-    { id: 'education', emoji: '📚', label: 'Education' },
-    { id: 'arts', emoji: '🎨', label: 'Arts' },
-    { id: 'health', emoji: '🌿', label: 'Health' },
-    { id: 'care', emoji: '❤️', label: 'Care' },
-    { id: 'animals', emoji: '🐾', label: 'Animals' },
-    { id: 'energy', emoji: '☀️', label: 'Energy' },
-    { id: 'general', emoji: '🌱', label: 'General' },
-];
 
 export default function PostDetailModal() {
     const insets = useSafeAreaInsets();
@@ -251,8 +236,7 @@ export default function PostDetailModal() {
         : (isOwnPost ? post.accepted_by : post.author_pubkey);
 
     const isOffer = post.type === 'offer';
-    const catObj = CATEGORIES.find(c => c.id === post.category);
-    const emoji = catObj?.emoji || '📦';
+    const emoji = categoryEmoji(post.category);
     const cardAuthor = post.author_callsign || post.author_pubkey?.slice(0, 6) || 'Unknown';
     const priceLabel = isOffer ? 'ASKING PRICE' : 'WILLING TO PAY';
 
@@ -385,7 +369,7 @@ export default function PostDetailModal() {
     };
 
     const pickEditPhoto = async () => {
-        if (editPhotos.length >= 3) return;
+        if (editPhotos.length >= 5) return;
         Alert.alert('Add Photo', 'Choose a source', [
             { text: 'Camera', onPress: async () => {
                 try {
@@ -444,7 +428,7 @@ export default function PostDetailModal() {
                     <View style={styles.catBadge}>
                         <Text style={styles.catEmoji}>{emoji}</Text>
                         <Text style={[styles.catLabel, { color: isOffer ? '#10b981' : '#ea580c' }]} numberOfLines={1}>
-                            {isOffer ? '● ' : '● '}{post.type.toUpperCase()} · {(catObj?.label || post.category).toUpperCase()}
+                            {isOffer ? '● ' : '● '}{post.type.toUpperCase()} · {categoryLabel(post.category).toUpperCase()}
                             {post.repeatable ? ' · RECURRING' : ''}
                         </Text>
                     </View>
@@ -459,13 +443,9 @@ export default function PostDetailModal() {
 
                 {/* Photos */}
                 {photos.length > 0 && (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosScroll}>
-                        {photos.map((uri, i) => (
-                            uri && typeof uri === 'string' && uri.trim() !== '' && uri !== 'null' && uri !== 'undefined' ? (
-                                <Image key={i} source={{ uri }} style={styles.photoImage} />
-                            ) : null
-                        ))}
-                    </ScrollView>
+                    <View style={styles.carouselWrap}>
+                        <PhotoCarousel photos={photos} />
+                    </View>
                 )}
 
                 {/* Price Card */}
@@ -692,7 +672,7 @@ export default function PostDetailModal() {
                             {/* Category */}
                             <View style={styles.editPickerWrap}>
                                 <Picker selectedValue={editCategory} onValueChange={v => setEditCategory(v)} style={styles.editPicker} dropdownIconColor="#6b7280">
-                                    {CATEGORIES.map(c => <Picker.Item key={c.id} label={`${c.emoji} ${c.label}`} value={c.id} />)}
+                                    {POST_CATEGORIES.map(c => <Picker.Item key={c.id} label={`${c.emoji} ${c.label}`} value={c.id} />)}
                                 </Picker>
                             </View>
 
@@ -730,7 +710,7 @@ export default function PostDetailModal() {
                             </Pressable>
 
                             {/* Photos */}
-                            <Text style={styles.editPhotoLabel}>PHOTOS ({editPhotos.length}/3)</Text>
+                            <Text style={styles.editPhotoLabel}>PHOTOS ({editPhotos.length}/5)</Text>
                             <View style={styles.editPhotosRow}>
                                 {editPhotos.map((uri, i) => (
                                     uri && typeof uri === 'string' && uri.trim() !== '' && uri !== 'null' && uri !== 'undefined' ? (
@@ -742,7 +722,7 @@ export default function PostDetailModal() {
                                         </View>
                                     ) : null
                                 ))}
-                                {editPhotos.length < 3 && (
+                                {editPhotos.length < 5 && (
                                     <Pressable style={styles.editPhotoAdd} onPress={pickEditPhoto}>
                                         <Text style={styles.editPhotoAddIcon}>+</Text>
                                     </Pressable>
@@ -1116,8 +1096,7 @@ const styles = StyleSheet.create({
     description: { color: '#4b5563', fontSize: 15, lineHeight: 22, paddingHorizontal: 20, paddingBottom: 16 },
 
     // Photos
-    photosScroll: { paddingLeft: 20, marginBottom: 16 },
-    photoImage: { width: 160, height: 120, borderRadius: 12, marginRight: 10, backgroundColor: '#f3f4f6' },
+    carouselWrap: { marginHorizontal: 20, marginBottom: 16 },
 
     // Price Card
     priceCard: { marginHorizontal: 20, backgroundColor: '#ffffff', borderRadius: 16, borderWidth: 1, borderColor: '#e5e7eb', paddingVertical: 20, alignItems: 'center', marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },

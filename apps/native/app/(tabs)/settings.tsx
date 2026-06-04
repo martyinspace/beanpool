@@ -420,12 +420,25 @@ export default function SettingsScreen() {
             return;
         }
 
-        await removeSavedNode(targetUrl);
-        setSavedNodes(prev => prev.filter(n => n.url !== targetUrl));
-        // Optional: Physically delete the dormant .db file from the OS folder
-        try {
-            await FileSystem.deleteAsync(getDatabaseFilePath(getDatabaseFilenameForNode(targetUrl)), { idempotent: true });
-        } catch(e) {}
+        Alert.alert(
+            "Forget Community?",
+            `This removes "${targetUrl}" from your saved communities and deletes its local data from this phone. Your identity and other communities are not affected — you can rejoin later, but any unsynced local data for this community will be lost.`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Forget",
+                    style: "destructive",
+                    onPress: async () => {
+                        await removeSavedNode(targetUrl);
+                        setSavedNodes(prev => prev.filter(n => n.url !== targetUrl));
+                        // Physically delete the dormant .db file from the OS folder
+                        try {
+                            await FileSystem.deleteAsync(getDatabaseFilePath(getDatabaseFilenameForNode(targetUrl)), { idempotent: true });
+                        } catch(e) {}
+                    }
+                }
+            ]
+        );
     }
 
     async function handleForceResync(targetUrl: string) {
@@ -525,8 +538,8 @@ export default function SettingsScreen() {
             return;
         }
         Alert.alert(
-            "Wipe Device Identity",
-            "This will permanently erase your Ed25519 Private Key from the Secure Enclave. This cannot be undone unless you have your 12-word recovery phrase.",
+            "Wipe Everything",
+            "This permanently erases your Ed25519 private key AND every saved community and its local data from this phone. You will lose access to all communities and ledger balances everywhere. This cannot be undone unless you have your 12-word recovery phrase.",
             [
                 { text: "Cancel", style: "cancel" },
                 { 
@@ -1412,7 +1425,7 @@ export default function SettingsScreen() {
             {mode === 'wipe' && (
                 <View style={styles.card}>
                     <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#ef4444', marginBottom: 8 }}>Danger Zone</Text>
-                    <Text style={styles.infoText}>This destroys your cryptographic private keys from your phone permanently. You will not be able to recover your account or your ledger balances without a backup.</Text>
+                    <Text style={styles.infoText}>This is a total nuke. It permanently destroys your private key from this phone AND removes every saved community, all of their local data, and all sync state.{'\n\n'}Your identity is one key shared across every community — without your 12-word recovery phrase (or an identity export) you will lose access to all communities and all ledger balances, everywhere. This cannot be undone.</Text>
                     
                     <Text style={styles.label}>TYPE 'WIPE' TO VERIFY</Text>
                     <TextInput 

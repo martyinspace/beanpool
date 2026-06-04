@@ -10,6 +10,7 @@ import { CategoryPickerSheet } from '../../components/CategoryPickerSheet';
 import { MyDealsSheet, usePendingDealsCount } from '../../components/MyDealsSheet';
 import { PostAuthorTrust, isElder } from '../../components/PostAuthorTrust';
 import { CurrencyDisplay } from '../../components/CurrencyDisplay';
+import { categoryEmoji, categoryLabel } from '../../constants/categories';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import synonymMap from '../../utils/synonyms.json';
 
@@ -630,14 +631,17 @@ export default function MarketScreen() {
                 if (arr.length > 0) coverImage = arr[0];
             } catch {}
         }
-        
+
         const cardAuthor = item.author_callsign || item.author_pubkey?.slice(0, 6) || 'Unknown';
         const elderCard = isElder(item.author_energy_cycled);
         
-        const priceLabel = item.price_type === 'hourly' ? '/Hr' : 
-                           item.price_type === 'daily' ? '/Dy' : 
-                           item.price_type === 'weekly' ? '/Wk' : 
+        const priceLabel = item.price_type === 'hourly' ? '/Hr' :
+                           item.price_type === 'daily' ? '/Dy' :
+                           item.price_type === 'weekly' ? '/Wk' :
                            item.price_type === 'monthly' ? '/Mo' : '';
+
+        const catEmoji = categoryEmoji(item.category);
+        const catLabel = categoryLabel(item.category);
 
         if (viewMode === 'grid') {
             return (
@@ -655,7 +659,7 @@ export default function MarketScreen() {
                         ) : (
                             <View style={[styles.gridImage, styles.gridFallback]}>
                                 <Text style={styles.gridFallbackEmoji}>
-                                    {MARKETPLACE_CATEGORIES.find(c => c.id === item.category)?.emoji || '📦'}
+                                    {catEmoji}
                                 </Text>
                             </View>
                         )}
@@ -683,15 +687,13 @@ export default function MarketScreen() {
             );
         }
 
-        const categoryConfig = MARKETPLACE_CATEGORIES.find(c => c.id === item.category);
-
         // Compact View
         if (viewMode === 'compact') {
             return (
                 <Pressable onPress={() => router.push(`/post/${item.id}`)}>
                     <View style={[styles.compactRow, elderCard && styles.elderCompactRow]}>
                         <Text style={styles.compactEmoji}>
-                            {categoryConfig?.emoji || '📦'}
+                            {catEmoji}
                         </Text>
                         <View style={{ flex: 1, marginLeft: 10, marginRight: 8, justifyContent: 'center' }}>
                             <Text style={styles.compactTitle} numberOfLines={1}>
@@ -733,7 +735,7 @@ export default function MarketScreen() {
                     ) : (
                         <View style={{ width: 96, height: '100%', minHeight: 96, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', borderTopLeftRadius: 8, borderBottomLeftRadius: 8 }}>
                             <Text style={{ fontSize: 32, opacity: 0.5 }}>
-                                {categoryConfig?.emoji || '📦'}
+                                {catEmoji}
                             </Text>
                         </View>
                     )}
@@ -743,11 +745,9 @@ export default function MarketScreen() {
                                 <View style={[styles.badge, item.type === 'offer' ? styles.badgeOffer : styles.badgeNeed, { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, margin: 0 }]}>
                                     <Text style={[styles.badgeText, { fontSize: 10 }]}>{item.type.toUpperCase()}</Text>
                                 </View>
-                                {categoryConfig && (
-                                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#6b7280' }}>
-                                        {categoryConfig.emoji} {categoryConfig.label}
-                                    </Text>
-                                )}
+                                <Text style={{ fontSize: 11, fontWeight: '700', color: '#6b7280' }}>
+                                    {catEmoji} {catLabel}
+                                </Text>
                                 {!!item.repeatable && (
                                     <View style={{ backgroundColor: 'rgba(249, 115, 22, 0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(249, 115, 22, 0.2)' }}>
                                         <Text style={{ fontSize: 10, fontWeight: '800', color: '#c2410c' }}>↻ RECURRING</Text>
@@ -760,11 +760,11 @@ export default function MarketScreen() {
                                 asView={true}
                             />
                         </View>
-                        
+
                         <Text style={{ fontSize: 16, fontWeight: '900', color: '#1f2937', marginBottom: 4 }} numberOfLines={1}>
                             {item.title}
                         </Text>
-                        
+
                         <PostAuthorTrust pubkey={item.author_pubkey} callsign={cardAuthor} energyCycled={item.author_energy_cycled} avatarUrl={item.author_avatar} mode="full" />
                     </View>
                 </View>
