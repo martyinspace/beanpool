@@ -69,9 +69,19 @@ try {
     console.error('[BeanPool] FATAL:', err);
     const root = document.getElementById('root');
     if (root) {
-        root.innerHTML = `<div style="color: #ef4444; padding: 2rem; font-family: monospace; text-align: center;">
-            <h1>⚠️ BeanPool failed to start</h1>
-            <pre style="color: #ff6b6b; margin-top: 1rem;">${(err as Error).message}</pre>
-        </div>`;
+        // SECURITY (PWA-1): build the DOM with textContent rather than
+        // interpolating the error message into innerHTML. The private key lives
+        // in IndexedDB on this origin, so an unescaped message reaching innerHTML
+        // would be a script-execution → key-exfiltration sink.
+        root.replaceChildren();
+        const wrap = document.createElement('div');
+        wrap.setAttribute('style', 'color: #ef4444; padding: 2rem; font-family: monospace; text-align: center;');
+        const h1 = document.createElement('h1');
+        h1.textContent = '⚠️ BeanPool failed to start';
+        const pre = document.createElement('pre');
+        pre.setAttribute('style', 'color: #ff6b6b; margin-top: 1rem;');
+        pre.textContent = (err as Error)?.message ?? String(err);
+        wrap.append(h1, pre);
+        root.append(wrap);
     }
 }

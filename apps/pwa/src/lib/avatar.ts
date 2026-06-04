@@ -25,5 +25,16 @@ export function resolveAvatarUrl(url: string | null | undefined): string | null 
         const id = url.replace('bundled://', '').split('?')[0];
         return BUNDLED_MAP[id] || null;
     }
+    // SECURITY (PWA-2): the result feeds both <img src> and a CSS url(), and the
+    // value is server-controlled. Only allow inert, trusted sources — same-origin
+    // paths, https, and raster (non-SVG) data URIs — and reject any value with
+    // characters that could break out of a CSS url(...) or HTML attribute context
+    // (which also blocks javascript:/other-scheme beacons and SVG-script payloads).
+    const isAllowedSource =
+        url.startsWith('/') ||
+        url.startsWith('https://') ||
+        /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(url);
+    if (!isAllowedSource) return null;
+    if (/["'()\\\s<>]/.test(url)) return null;
     return url;
 }

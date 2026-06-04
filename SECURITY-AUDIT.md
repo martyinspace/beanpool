@@ -242,11 +242,11 @@ _(update as we go)_
 | SRV-2 | 🟠 | Re-bucketed into X-1 — export is a member transparency feature (GET); proper fix = signed member auth on reads, not admin-only |
 | NAT-3 | 🟠 | ⚠️ **manual: rotate keystore password + migrate to EAS remote credentials** |
 | NAT-4 | 🟠 | Open |
-| PWA-1 | 🟠 | Open |
-| PWA-2 | 🟠 | Open |
-| PWA-3 | 🟠 | Open |
+| PWA-1 | 🟠 | **Fixed** — error-boundary fallback builds DOM via textContent/createElement instead of innerHTML interpolation (main.tsx) |
+| PWA-2 | 🟠 | **Fixed** — resolveAvatarUrl allowlists inert sources (same-origin/https/raster data URIs) + rejects CSS/attr-breaking chars; ProfilePage CSS url() quoted |
+| PWA-3 | 🟠 | Open — couple with X-3 (connect-src) |
 | X-2 | 🟡 | **Done** — native HTTP signing consolidated into one buildSignedHeaders() helper (15 db.ts sites + welcome/settings/people/pillar-sync) |
-| X-3 | 🟢 | Open |
+| X-3 | 🟢 | Open — deferred: connect-src `*` needed for federation until PWA-3 adds a peer allowlist; dropping script-src 'unsafe-inline' needs a load-test |
 | SRV-3 | 🟡 | Re-bucketed into X-1 — same GET-auth dependency (requester must be verified, not a query param) |
 | SRV-4 | 🟡 | Open |
 | SRV-5 | 🟡 | **Fixed** (4d9a2de) — CORS exact-origin match |

@@ -127,7 +127,7 @@ export function ProfilePage({ identity, onBack, onIdentityUpdated }: Props) {
             <div className="text-center mb-8 relative">
                 <div
                     className="w-24 h-24 rounded-full flex items-center justify-center mx-auto text-4xl shadow-md border-4 border-white bg-oat-100 overflow-hidden relative group transition-transform hover:scale-105"
-                    style={{ background: avatar ? `url(${resolveAvatarUrl(avatar)}) center/cover` : undefined }}
+                    style={{ background: resolveAvatarUrl(avatar) ? `url("${resolveAvatarUrl(avatar)}") center/cover` : undefined }}
                 >
                     {!resolveAvatarUrl(avatar) && '📷'}
                     <div className="absolute inset-0 bg-black/20 hidden group-hover:flex items-center justify-center transition-opacity">
