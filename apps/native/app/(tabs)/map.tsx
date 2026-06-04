@@ -401,7 +401,7 @@ export default function MapScreen() {
     };
 
     const pickPhoto = async () => {
-        if (postPhotos.length >= 3) return;
+        if (postPhotos.length >= 5) return;
         Alert.alert('Add Photo', 'Choose a source', [
             { text: 'Camera', onPress: async () => {
                 try {
@@ -871,13 +871,13 @@ export default function MapScreen() {
                                         </View>
                                     ) : null
                                 ))}
-                                {postPhotos.length < 3 && (
+                                {postPhotos.length < 5 && (
                                     <Pressable style={styles.photoAdd} onPress={() => { pickPhoto(); setValidationErrors(prev => { const n = new Set(prev); n.delete('photos'); return n; }); }}>
                                         <Text style={styles.photoAddIcon}>📷</Text>
                                     </Pressable>
                                 )}
                             </View>
-                            <Text style={styles.photoCount}>{postPhotos.length}/3 photos</Text>
+                            <Text style={styles.photoCount}>{postPhotos.length}/5 photos</Text>
 
                             {/* Location */}
                             <Text style={styles.sectionLabel}>Location <Text style={styles.requiredStar}>*</Text></Text>

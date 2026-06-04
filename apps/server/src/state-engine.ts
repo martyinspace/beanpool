@@ -1262,7 +1262,7 @@ export function createPost(
 
         if (photos && photos.length > 0) {
             const insertPhoto = db.prepare(`INSERT INTO post_photos (post_id, photo_data, order_num) VALUES (?, ?, ?)`);
-            photos.slice(0, 3).forEach((p, idx) => insertPhoto.run(finalId, p, idx));
+            photos.slice(0, 5).forEach((p, idx) => insertPhoto.run(finalId, p, idx));
         }
     })();
 
@@ -1322,11 +1322,12 @@ export function getPosts(filter?: { id?: string; type?: string; category?: strin
     const rows = db.prepare(query).all(...params) as any[];
     const postIds = rows.map(r => r.id);
     
-    // Allow syncing photos so the global feed thumbnails can actually render. 
-    // We fetch only the first photo (order_num = 0) if it's a global feed to save payload size.
-    const photosQuery = filter?.id 
-        ? `SELECT * FROM post_photos WHERE post_id IN (${postIds.map(() => '?').join(',')})`
-        : `SELECT * FROM post_photos WHERE post_id IN (${postIds.map(() => '?').join(',')}) AND order_num = 0`;
+    // Return URLs for ALL photos of every post — but only the order numbers, never the
+    // image bytes. rowToPost maps these to /photos/:orderNum URLs, so the feed stays tiny
+    // (a few short strings per post) while the client can render the full set. The actual
+    // image data downloads lazily per-photo when each URL is rendered (e.g. post detail
+    // carousel), so the data-light feed behaviour is preserved.
+    const photosQuery = `SELECT post_id, order_num FROM post_photos WHERE post_id IN (${postIds.map(() => '?').join(',')})`;
 
     const photos = (postIds.length > 0) ? db.prepare(photosQuery).all(...postIds) : [];
 
@@ -1397,7 +1398,7 @@ export function updatePost(id: string, authorPublicKey: string, updates: Partial
             }
             db.prepare(`DELETE FROM post_photos WHERE post_id=?`).run(id);
             const insertPhoto = db.prepare(`INSERT INTO post_photos (post_id, photo_data, order_num) VALUES (?, ?, ?)`);
-            updates.photos.slice(0, 3).forEach((p, idx) => insertPhoto.run(id, p, idx));
+            updates.photos.slice(0, 5).forEach((p, idx) => insertPhoto.run(id, p, idx));
         }
     })();
 
