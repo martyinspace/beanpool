@@ -104,6 +104,8 @@ export function MemberAvatar({
             ]}
         >
             <Text
+                allowFontScaling={false}
+                numberOfLines={1}
                 style={[
                     styles.fallbackText,
                     { fontSize, color: bgColor },

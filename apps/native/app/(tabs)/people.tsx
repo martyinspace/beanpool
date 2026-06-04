@@ -434,7 +434,7 @@ export default function PeopleScreen() {
                             style={[styles.pill, isActive && styles.pillActive]}
                             onPress={() => setView(v)}
                         >
-                            <Text style={[styles.pillText, isActive && styles.pillTextActive]}>
+                            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.pillText, isActive && styles.pillTextActive]}>
                                 {v === 'friends' && '👫 Friends'}
                                 {v === 'community' && '🏘️ Community'}
                                 {v === 'invites' && (isGuest ? '🎟️ Register' : '🎟️ Invites')}
@@ -880,13 +880,13 @@ const styles = StyleSheet.create({
     boldGreen: { fontWeight: 'bold', color: '#15803d' },
 
     card: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#ffffff', padding: 16, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 4, elevation: 1 },
-    cardHeader: { flexDirection: 'row', alignItems: 'center' },
+    cardHeader: { flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 },
     avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', marginRight: 12, borderWidth: 1, borderColor: '#e5e7eb' },
     avatarEmoji: { fontSize: 20 },
-    textStack: { justifyContent: 'center' },
+    textStack: { justifyContent: 'center', flex: 1, minWidth: 0 },
     callsign: { fontSize: 16, fontWeight: '700', color: '#111827' },
     dateText: { fontSize: 12, color: '#9ca3af', marginTop: 2, fontWeight: '500' },
-    addBtn: { backgroundColor: '#059669', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
+    addBtn: { backgroundColor: '#059669', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, flexShrink: 0, marginLeft: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
     addBtnText: { color: '#ffffff', fontWeight: 'bold', fontSize: 13 },
 
     searchWrap: { paddingHorizontal: 16, paddingTop: 16, backgroundColor: '#f9fafb' },

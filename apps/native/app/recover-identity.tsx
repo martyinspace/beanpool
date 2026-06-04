@@ -124,9 +124,9 @@ export default function RecoverIdentityScreen() {
                                     <View style={styles.avatar}>
                                         <MemberAvatar avatarUrl={p.avatarUrl} pubkey={p.publicKey} callsign={p.callsign || '?'} size={44} />
                                     </View>
-                                    <View>
-                                        <Text style={styles.callsign}>{p.callsign}</Text>
-                                        <Text style={styles.joinedAt}>Joined {new Date(p.joinedAt).toLocaleDateString()}</Text>
+                                    <View style={{ flex: 1, minWidth: 0 }}>
+                                        <Text style={styles.callsign} numberOfLines={1}>{p.callsign}</Text>
+                                        <Text style={styles.joinedAt} numberOfLines={1}>Joined {new Date(p.joinedAt).toLocaleDateString()}</Text>
                                     </View>
                                 </Pressable>
                             ))}

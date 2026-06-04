@@ -443,12 +443,12 @@ export default function PostDetailModal() {
                 <View style={styles.typeBadgeRow}>
                     <View style={styles.catBadge}>
                         <Text style={styles.catEmoji}>{emoji}</Text>
-                        <Text style={[styles.catLabel, { color: isOffer ? '#10b981' : '#ea580c' }]}>
+                        <Text style={[styles.catLabel, { color: isOffer ? '#10b981' : '#ea580c' }]} numberOfLines={1}>
                             {isOffer ? '● ' : '● '}{post.type.toUpperCase()} · {(catObj?.label || post.category).toUpperCase()}
                             {post.repeatable ? ' · RECURRING' : ''}
                         </Text>
                     </View>
-                    <Text style={styles.timeAgo}>{getTimeAgo(post.created_at)}</Text>
+                    <Text style={styles.timeAgo} numberOfLines={1}>{getTimeAgo(post.created_at)}</Text>
                 </View>
 
                 {/* Title */}
@@ -556,7 +556,7 @@ export default function PostDetailModal() {
                                         )}
                                         <View style={{ flexDirection: 'row', gap: 10 }}>
                                             <Pressable style={styles.cancelActionBtn} onPress={() => setShowCompleteConfirm(false)} disabled={accepting}>
-                                                <Text style={styles.cancelActionBtnText}>Cancel</Text>
+                                                <Text style={styles.cancelActionBtnText} numberOfLines={1}>Cancel</Text>
                                             </Pressable>
                                             <Pressable style={[styles.confirmActionBtn, styles.confirmActionBtnGreen]} disabled={accepting || (post.price_type !== 'fixed' && !completeHours)} onPress={async () => {
                                                 const txToComplete = activeTx?.id || post.pending_transaction_id;
@@ -921,10 +921,10 @@ export default function PostDetailModal() {
                                     </View>
                                     <View style={{flexDirection: 'row', gap: 8}}>
                                         <Pressable style={[styles.rejectBtn, accepting && {opacity: 0.5}, { flex: 1, alignItems: 'center' }]} disabled={accepting} onPress={() => handleReject(req.id)}>
-                                            <Text style={styles.rejectBtnText}>Deny</Text>
+                                            <Text style={styles.rejectBtnText} numberOfLines={1}>Deny</Text>
                                         </Pressable>
                                         <Pressable style={[styles.approveBtn, accepting && {opacity: 0.5}, { flex: 2, alignItems: 'center' }]} disabled={accepting} onPress={() => handleApprove(req.id)}>
-                                            <Text style={styles.approveBtnText}>Approve & Escrow</Text>
+                                            <Text style={styles.approveBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Approve & Escrow</Text>
                                         </Pressable>
                                     </View>
                                 </View>
@@ -1106,10 +1106,10 @@ const styles = StyleSheet.create({
 
     // Type Badge
     typeBadgeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 4 },
-    catBadge: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    catBadge: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8 },
     catEmoji: { fontSize: 20 },
-    catLabel: { fontSize: 12, fontWeight: '900', letterSpacing: 0.5 },
-    timeAgo: { color: '#9ca3af', fontSize: 12, fontWeight: '600' },
+    catLabel: { flexShrink: 1, fontSize: 12, fontWeight: '900', letterSpacing: 0.5 },
+    timeAgo: { color: '#9ca3af', fontSize: 12, fontWeight: '600', flexShrink: 0, marginLeft: 8 },
 
     // Title & Description
     postTitle: { color: '#1f2937', fontSize: 24, fontWeight: '800', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },

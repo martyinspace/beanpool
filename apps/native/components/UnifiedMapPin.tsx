@@ -61,7 +61,7 @@ export const PinVisual = React.memo<PinVisualProps>(({
         <Circle cx={CX} cy={CY} r={EMOJI_BG_R} fill="rgba(255,255,255,0.85)" />
       </Svg>
       <View collapsable={false} style={pinStyles.emojiOverlay}>
-        <Text style={pinStyles.emoji}>{emoji}</Text>
+        <Text allowFontScaling={false} style={pinStyles.emoji}>{emoji}</Text>
       </View>
     </View>
   );
@@ -249,7 +249,7 @@ export const ClusterVisual = React.memo<{ points: number }>(({ points }) => {
       <View style={{ position: 'absolute', width: glow, height: glow, borderRadius: glow / 2, backgroundColor: 'rgba(59, 130, 246, 0.25)' }} />
       {/* Inner solid circle */}
       <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#3b82f6', justifyContent: 'center', alignItems: 'center', borderColor: '#ffffff', borderWidth: 3 }}>
-        <Text style={{ color: '#ffffff', fontWeight: '800', fontSize: labelSize }}>{label}</Text>
+        <Text allowFontScaling={false} style={{ color: '#ffffff', fontWeight: '800', fontSize: labelSize }}>{label}</Text>
       </View>
     </View>
   );

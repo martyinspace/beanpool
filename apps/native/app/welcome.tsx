@@ -264,7 +264,7 @@ export default function WelcomeScreen() {
                                 <View style={[stepperStyles.dot, isActive && stepperStyles.dotActive, isCompleted && stepperStyles.dotCompleted]}>
                                     {isCompleted && <Text style={stepperStyles.dotCheck}>✓</Text>}
                                 </View>
-                                <Text style={[stepperStyles.label, isActive && stepperStyles.labelActive]}>{label}</Text>
+                                <Text style={[stepperStyles.label, isActive && stepperStyles.labelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{label}</Text>
                             </View>
                         </React.Fragment>
                     );
@@ -464,7 +464,7 @@ export default function WelcomeScreen() {
                             {pendingIdentity.mnemonic?.map((word, i) => (
                                 <View key={i} style={styles.seedCell}>
                                     <Text style={styles.seedIndex}>{i + 1}.</Text>
-                                    <Text style={styles.seedWord}>{word}</Text>
+                                    <Text style={styles.seedWord} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{word}</Text>
                                 </View>
                             ))}
                         </View>
@@ -917,6 +917,8 @@ const stepperStyles = StyleSheet.create({
     },
     stepItem: {
         alignItems: 'center',
+        flexShrink: 1,
+        minWidth: 0,
     },
     dot: {
         width: 12,

@@ -337,7 +337,7 @@ export function GlobalHeader() {
                             size={16} 
                             color={!hasAnchorUrl ? '#ef4444' : isGuestOnActive ? '#d97706' : '#10b981'} 
                         />
-                        <Text style={{ fontSize: 13, fontWeight: '700', color: !hasAnchorUrl ? '#ef4444' : isGuestOnActive ? '#d97706' : '#10b981', marginLeft: 4 }}>
+                        <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: '700', color: !hasAnchorUrl ? '#ef4444' : isGuestOnActive ? '#d97706' : '#10b981', marginLeft: 4 }}>
                             {!hasAnchorUrl ? 'Connect' : isGuestOnActive ? 'Join' : 'Invite'}
                         </Text>
                     </TouchableOpacity>
@@ -602,7 +602,7 @@ const styles = StyleSheet.create({
         color: '#cb5326', // terra-400 equivalent
     },
     pillBase: {alignItems: 'center', justifyContent: 'flex-end', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', height: 32, overflow: 'hidden' },
-    headerLeftControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)', height: 32, width: 80, overflow: 'hidden' },
+    headerLeftControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)', height: 32, minWidth: 80, paddingHorizontal: 10, overflow: 'hidden' },
     headerLeftControlsGuest: { borderColor: 'rgba(217, 119, 6, 0.4)', backgroundColor: '#fffbeb' },
     headerLeftControlsDisconnected: { borderColor: 'rgba(239, 68, 68, 0.4)', backgroundColor: '#fef2f2' },
     headerRightControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff', borderRadius: 20, borderWidth: 1, borderColor: '#e5e7eb', height: 32, width: 72, overflow: 'hidden' },

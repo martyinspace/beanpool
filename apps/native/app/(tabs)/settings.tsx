@@ -1282,8 +1282,8 @@ export default function SettingsScreen() {
                             <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 8 }}>
                                 <View style={{ width: '48%', backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 14, marginBottom: 12 }}>
                                     <Text style={{ fontSize: 24, marginBottom: 2 }}>👥</Text>
-                                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }}>{dbStats?.members ?? 0}</Text>
-                                    <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }}>Cached Members</Text>
+                                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }} numberOfLines={1}>{dbStats?.members ?? 0}</Text>
+                                    <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }} numberOfLines={2}>Cached Members</Text>
                                     {remoteStats && (
                                         <Text style={{ fontSize: 10, color: dbStats?.members === remoteStats.members ? '#10b981' : '#d97706', fontWeight: 'bold', marginTop: 4 }}>
                                             {dbStats?.members === remoteStats.members ? '🟢 Node In Sync' : `⚠️ Node has ${remoteStats.members}`}
@@ -1292,8 +1292,8 @@ export default function SettingsScreen() {
                                 </View>
                                 <View style={{ width: '48%', backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 14, marginBottom: 12 }}>
                                     <Text style={{ fontSize: 24, marginBottom: 2 }}>🛒</Text>
-                                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }}>{dbStats?.posts ?? 0}</Text>
-                                    <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }}>Active Posts</Text>
+                                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }} numberOfLines={1}>{dbStats?.posts ?? 0}</Text>
+                                    <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }} numberOfLines={2}>Active Posts</Text>
                                     {remoteStats && (
                                         <Text style={{ fontSize: 10, color: dbStats?.posts === remoteStats.posts ? '#10b981' : '#d97706', fontWeight: 'bold', marginTop: 4 }}>
                                             {dbStats?.posts === remoteStats.posts ? '🟢 Node In Sync' : `⚠️ Node has ${remoteStats.posts}`}
@@ -1302,8 +1302,8 @@ export default function SettingsScreen() {
                                 </View>
                                 <View style={{ width: '48%', backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 14, marginBottom: 12 }}>
                                     <Text style={{ fontSize: 24, marginBottom: 2 }}>💸</Text>
-                                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }}>{dbStats?.transactions ?? 0}</Text>
-                                    <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }}>Ledger Transactions</Text>
+                                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827' }} numberOfLines={1}>{dbStats?.transactions ?? 0}</Text>
+                                    <Text style={{ fontSize: 12, color: '#9ca3af', fontWeight: '600' }} numberOfLines={2}>Ledger Transactions</Text>
                                     {remoteStats && (
                                         <Text style={{ fontSize: 10, color: dbStats?.transactions === remoteStats.transactions ? '#10b981' : '#d97706', fontWeight: 'bold', marginTop: 4 }}>
                                             {dbStats?.transactions === remoteStats.transactions ? '🟢 Node In Sync' : `⚠️ Node has ${remoteStats.transactions}`}

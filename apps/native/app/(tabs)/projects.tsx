@@ -191,7 +191,7 @@ export default function ProjectsScreen() {
                             }}
                         >
                             <MemberAvatar avatarUrl={item.creator_avatar} pubkey={item.creator_pubkey || ''} callsign={item.creator_callsign || '?'} size={20} />
-                            <Text style={styles.proposedByText}>
+                            <Text style={styles.proposedByText} numberOfLines={1}>
                                 Proposed by <Text style={styles.proposedByCallsign}>{item.creator_callsign || 'Unknown'}</Text>
                             </Text>
                         </Pressable>
@@ -341,14 +341,14 @@ export default function ProjectsScreen() {
                         {/* Commons Pool + My Governance Credits — two cards side by side */}
                         <View style={styles.statCardRow}>
                             <View style={styles.statCard}>
-                                <Text style={styles.statCardLabel}>Commons Pool</Text>
+                                <Text style={styles.statCardLabel} numberOfLines={2}>Commons Pool</Text>
                                 <View style={styles.statCardValueRow}>
                                     <CurrencyDisplay amount={(balanceState.commons || 0).toFixed(2)} style={styles.statCardAmount} />
                                 </View>
                             </View>
                             <View style={styles.statCard}>
-                                <Text style={styles.statCardLabel}>My Available Governance Credits</Text>
-                                <Text style={styles.statCardAmount}>{balanceState.earnedCredit || 0}</Text>
+                                <Text style={styles.statCardLabel} numberOfLines={2}>My Available Governance Credits</Text>
+                                <Text style={styles.statCardAmount} numberOfLines={1}>{balanceState.earnedCredit || 0}</Text>
                             </View>
                         </View>
 
@@ -377,7 +377,7 @@ export default function ProjectsScreen() {
                                     style={[styles.sortBtn, sortBy === option && styles.sortBtnActive]}
                                     onPress={() => setSortBy(option)}
                                 >
-                                    <Text style={[styles.sortBtnText, sortBy === option && styles.sortBtnTextActive]}>
+                                    <Text style={[styles.sortBtnText, sortBy === option && styles.sortBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
                                         {option.charAt(0).toUpperCase() + option.slice(1)}
                                     </Text>
                                 </Pressable>
@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
     infoBtn: { padding: 4 },
 
     statCardRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-    statCard: { flex: 1, backgroundColor: '#ffffff', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#e5e7eb' },
+    statCard: { flex: 1, minWidth: 0, backgroundColor: '#ffffff', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#e5e7eb' },
     statCardLabel: { fontSize: 11, color: '#6b7280', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
     statCardValueRow: { flexDirection: 'row', alignItems: 'center' },
     statCardAmount: { fontSize: 20, color: '#111827', fontWeight: '800' },
@@ -471,10 +471,10 @@ const styles = StyleSheet.create({
     cardBody: { padding: 16 },
     description: { fontSize: 14, color: '#6b7280', lineHeight: 20, marginBottom: 16 },
     metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-    proposedBy: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    proposedByText: { fontSize: 12, color: '#6b7280', fontWeight: '500' },
+    proposedBy: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, marginRight: 8 },
+    proposedByText: { fontSize: 12, color: '#6b7280', fontWeight: '500', flexShrink: 1 },
     proposedByCallsign: { color: '#10b981', fontWeight: 'bold' },
-    voteTriggerBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#ecfdf5', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: '#10b981' },
+    voteTriggerBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0, backgroundColor: '#ecfdf5', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: '#10b981' },
     voteTriggerBtnActive: { backgroundColor: '#10b981' },
     voteTriggerText: { fontSize: 12, fontWeight: '700', color: '#10b981' },
     votedMiniBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#ecfdf5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },

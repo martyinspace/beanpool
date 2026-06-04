@@ -228,14 +228,14 @@ export default function LedgerScreen() {
 
                     {/* ── Zero marker — only extends BELOW the line so it doesn't clip the bead label ── */}
                     <View style={[styles.rulerZeroLine, { left: `${ZERO_P * 100}%` }]} />
-                    <Text style={[styles.rulerZeroLabel, { left: `${ZERO_P * 100}%` }]}>0</Text>
+                    <Text style={[styles.rulerZeroLabel, { left: `${ZERO_P * 100}%` }]} allowFontScaling={false}>0</Text>
 
                     {/* ── Tier floor ticks (left) — value then emoji below ── */}
                     {tierMarkers.map(t => (
                         <View key={t.name} style={[styles.rulerTickWrap, { left: `${t.pos * 100}%` }]}>
                             <View style={[styles.rulerTickMark, { backgroundColor: '#9ca3af' }]} />
-                            <Text style={styles.rulerTickVal}>{t.floor}</Text>
-                            <Text style={styles.rulerTickSym}>{t.emoji}</Text>
+                            <Text style={styles.rulerTickVal} numberOfLines={1} allowFontScaling={false}>{t.floor}</Text>
+                            <Text style={styles.rulerTickSym} allowFontScaling={false}>{t.emoji}</Text>
                         </View>
                     ))}
 
@@ -243,8 +243,8 @@ export default function LedgerScreen() {
                     {circMarkers.map(c => (
                         <View key={c.v} style={[styles.rulerTickWrap, { left: `${c.pos * 100}%` }]}>
                             <View style={[styles.rulerTickMark, { backgroundColor: '#9ca3af' }]} />
-                            <Text style={styles.rulerTickVal}>{c.v}</Text>
-                            <Text style={styles.rulerTickRate}>{c.rate}</Text>
+                            <Text style={styles.rulerTickVal} numberOfLines={1} allowFontScaling={false}>{c.v}</Text>
+                            <Text style={styles.rulerTickRate} numberOfLines={1} allowFontScaling={false}>{c.rate}</Text>
                         </View>
                     ))}
 
@@ -365,8 +365,8 @@ export default function LedgerScreen() {
                 ].map(a => (
                     <View key={a.label} style={[styles.achieveCard, { borderColor: a.color + '30' }]}>
                         <Text style={{ fontSize: 22, marginBottom: 4 }}>{a.icon}</Text>
-                        <Text style={[styles.achieveCount, { color: a.color }]}>{a.count}</Text>
-                        <Text style={styles.achieveLabel}>{a.label}</Text>
+                        <Text numberOfLines={1} style={[styles.achieveCount, { color: a.color }]}>{a.count}</Text>
+                        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.achieveLabel}>{a.label}</Text>
                         <Text style={styles.achieveContrib}>+{a.contrib} pts</Text>
                         <View style={[styles.achieveBarBg, { backgroundColor: a.trackBg }]}>
                             <View style={[styles.achieveBarFill, { width: `${Math.min(100, (a.count / a.target) * 100)}%`, backgroundColor: a.color }]} />
@@ -775,10 +775,10 @@ const styles = StyleSheet.create({
 
     pathCard: { backgroundColor: '#ffffff', borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
     pathTitle: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 14 },
-    pathRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly' },
-    pathOption: { alignItems: 'center' },
+    pathRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-evenly' },
+    pathOption: { alignItems: 'center', flex: 1, minWidth: 0 },
     pathNumber: { fontSize: 32, fontWeight: '900', lineHeight: 36 },
-    pathLabel: { fontSize: 11, color: '#6b7280', fontWeight: '600', marginTop: 2 },
+    pathLabel: { fontSize: 11, color: '#6b7280', fontWeight: '600', marginTop: 2, textAlign: 'center' },
     pathOr: { fontSize: 11, color: '#d1d5db', fontWeight: '600' },
 
     sectionLabel: { fontSize: 11, fontWeight: '800', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 },

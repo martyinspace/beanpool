@@ -3,7 +3,8 @@ import { useEffect, useState, useRef } from 'react';
 import { Stack, useRouter, useSegments, useGlobalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
-import { Alert, LogBox, AppState, AppStateStatus, View, Text, Pressable, Platform } from 'react-native';
+import { Alert, LogBox, AppState, AppStateStatus, View, Text, TextInput, Pressable, Platform } from 'react-native';
+import { MAX_FONT_SCALE } from '../constants/responsive';
 import { registerPillarSync } from '../services/background-task';
 import { requestSync } from '../services/pillar-sync';
 import { startWebSocketSync, stopWebSocketSync } from '../services/ws-client';
@@ -17,6 +18,12 @@ import Constants from 'expo-constants';
 import appConfig from '../app.json';
 
 LogBox.ignoreLogs(['ProgressBarAndroid', 'Clipboard', 'PushNotificationIOS', 'has been extracted']);
+
+// Cap OS font scaling app-wide so enlarged system fonts (common on low-end
+// devices in our target markets) can't shatter row layouts. Components in
+// fixed-size containers may still override with a tighter local value.
+(Text as any).defaultProps = { ...(Text as any).defaultProps, maxFontSizeMultiplier: MAX_FONT_SCALE };
+(TextInput as any).defaultProps = { ...(TextInput as any).defaultProps, maxFontSizeMultiplier: MAX_FONT_SCALE };
 
 function RootLayoutNav() {
     const { identity, isLoading } = useIdentity();
