@@ -29,7 +29,7 @@ export default function WelcomeScreen() {
     const [recoveryAnchorUrl, setRecoveryAnchorUrl] = useState('');
     const [createAnchorUrl, setCreateAnchorUrl] = useState('');
     const [importData, setImportData] = useState('');
-    const [importPin, setImportPin] = useState('');
+    const [importCode, setImportCode] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [pendingIdentity, setPendingIdentity] = useState<BeanPoolIdentity | null>(null);
@@ -226,18 +226,18 @@ export default function WelcomeScreen() {
             setError('Paste the transfer code from your other device.');
             return;
         }
-        if (importPin.length < 4) {
-            setError('Enter the PIN (at least 4 digits).');
+        if (!importCode.trim()) {
+            setError('Enter the transfer code from your other device.');
             return;
         }
         setLoading(true);
         setError(null);
         try {
-            const imported = await nativeDecryptIdentity(importData.trim(), importPin);
+            const imported = await nativeDecryptIdentity(importData.trim(), importCode.trim());
             await importIdentity(imported);
             setIdentity(imported);
         } catch (e: any) {
-            setError('Import failed — wrong PIN or invalid transfer code.');
+            setError('Import failed — wrong transfer code or invalid link.');
         } finally {
             setLoading(false);
         }
@@ -630,31 +630,30 @@ export default function WelcomeScreen() {
                     <ScrollView contentContainerStyle={styles.scroll}>
                     <View style={styles.card}>
                         <Text style={styles.title}>📥 Import Identity</Text>
-                        <Text style={styles.subtitle}>Paste the transfer code from your other device and enter the PIN.</Text>
+                        <Text style={styles.subtitle}>Paste the transfer link from your other device and enter its transfer code.</Text>
 
                         <TextInput
                             style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
                             value={importData}
                             onChangeText={setImportData}
-                            placeholder="Paste transfer code here..."
+                            placeholder="Paste transfer link here..."
                             placeholderTextColor="#9ca3af"
                             multiline
                         />
 
                         <TextInput
-                            style={[styles.input, { textAlign: 'center', fontSize: 20, letterSpacing: 8 }]}
-                            value={importPin}
-                            onChangeText={setImportPin}
-                            placeholder="PIN"
+                            style={[styles.input, { textAlign: 'center', fontSize: 16 }]}
+                            value={importCode}
+                            onChangeText={setImportCode}
+                            placeholder="transfer code (e.g. anchor-velvet-ridge-amber)"
                             placeholderTextColor="#9ca3af"
-                            keyboardType="number-pad"
-                            maxLength={8}
-                            secureTextEntry
+                            autoCapitalize="none"
+                            autoCorrect={false}
                         />
 
                         {error && <Text style={styles.error}>{error}</Text>}
 
-                        <Pressable style={[styles.primaryBtn, (loading || importPin.length < 4) && styles.disabledBtn]} onPress={handleImport} disabled={loading || importPin.length < 4}>
+                        <Pressable style={[styles.primaryBtn, (loading || !importCode.trim()) && styles.disabledBtn]} onPress={handleImport} disabled={loading || !importCode.trim()}>
                             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Import Identity</Text>}
                         </Pressable>
 

@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { type BeanPoolIdentity } from '../lib/identity';
-import { exportIdentity } from '../lib/identity-transfer';
+import { exportIdentity, generateTransferCode } from '../lib/identity-transfer';
 import { getMemberProfile, redeemInvite, type MemberProfile } from '../lib/api';
 import { resolveAvatarUrl } from '../lib/avatar';
 import { ProfilePage } from './ProfilePage';
@@ -33,10 +33,10 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
         localStorage.setItem('beanpool_modern_markers', String(next));
     };
     const [mode, setMode] = useState<'menu' | 'export' | 'import' | 'profile' | 'advanced'>('menu');
-    const [pin, setPin] = useState('');
+    const [transferCode, setTransferCode] = useState('');
     const [exportUri, setExportUri] = useState('');
     const [importUri, setImportUri] = useState('');
-    const [importPin, setImportPin] = useState('');
+    const [importCode, setImportCode] = useState('');
     const [redeemInviteCode, setRedeemInviteCode] = useState('');
     const [redeemLoading, setRedeemLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -55,14 +55,13 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
     const fingerprint = identity.publicKey.slice(0, 16) + '…';
 
     async function handleExport() {
-        if (pin.length < 4) {
-            setError('PIN must be at least 4 digits.');
-            return;
-        }
         setLoading(true);
         setError(null);
         try {
-            const uri = await exportIdentity(identity, pin);
+            // The transfer code is auto-generated (high-entropy) — never user-chosen.
+            const code = generateTransferCode();
+            const uri = await exportIdentity(identity, code);
+            setTransferCode(code);
             setExportUri(uri);
         } catch {
             setError('Export failed.');
@@ -72,8 +71,8 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
     }
 
     async function handleImport() {
-        if (importPin.length < 4) {
-            setError('PIN must be at least 4 digits.');
+        if (!importCode.trim()) {
+            setError('Enter the transfer code from your other device.');
             return;
         }
         if (!importUri || (!importUri.includes('import=') && !importUri.includes('beanpool://'))) {
@@ -84,7 +83,7 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
         setError(null);
         try {
             const { decryptIdentity } = await import('../lib/identity-transfer');
-            const importedIdentity = await decryptIdentity(importUri, importPin);
+            const importedIdentity = await decryptIdentity(importUri, importCode.trim());
             
             if (window.confirm(`Do you want to permanently merge this device onto the "${importedIdentity.callsign}" identity? Your current web keys will be destroyed.`)) {
                 localStorage.setItem('beanpool_identity', JSON.stringify({
@@ -230,14 +229,14 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                             <span className="text-nature-400 dark:text-nature-500 group-hover:text-nature-600 dark:group-hover:text-nature-300 transition-colors">→</span>
                         </button>
                         <button
-                            onClick={() => { setMode('export'); setPin(''); setExportUri(''); setError(null); }}
+                            onClick={() => { setMode('export'); setTransferCode(''); setExportUri(''); setError(null); }}
                             className="w-full py-4 px-5 rounded-2xl bg-white dark:bg-nature-900 text-nature-900 dark:text-white font-bold border border-nature-200 dark:border-nature-800 shadow-sm hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors text-left flex items-center justify-between group"
                         >
                             <span>📤 Export Identity</span>
                             <span className="text-nature-400 dark:text-nature-500 group-hover:text-nature-600 dark:group-hover:text-nature-300 transition-colors">→</span>
                         </button>
                         <button
-                            onClick={() => { setMode('import'); setImportUri(''); setImportPin(''); setError(null); }}
+                            onClick={() => { setMode('import'); setImportUri(''); setImportCode(''); setError(null); }}
                             className="w-full py-4 px-5 rounded-2xl bg-white dark:bg-nature-900 text-nature-900 dark:text-white font-bold border border-nature-200 dark:border-nature-800 shadow-sm hover:bg-nature-50 dark:hover:bg-nature-800 transition-colors text-left flex items-center justify-between group"
                         >
                             <span>📥 Import Identity</span>
@@ -361,24 +360,16 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                         {!exportUri ? (
                             <>
                                 <p className="text-nature-600 dark:text-nature-400 text-[15px] mb-5 leading-relaxed transition-colors">
-                                    Choose a PIN to protect your identity during transfer.
-                                    You'll need this same PIN on the receiving device.
+                                    We'll generate a one-time transfer code that encrypts your identity.
+                                    You'll enter that code on the receiving device to unlock it.
                                 </p>
-                                <input
-                                    type="password"
-                                    inputMode="numeric"
-                                    value={pin}
-                                    onChange={(e) => setPin(e.target.value)}
-                                    placeholder="Enter PIN (4+ digits)"
-                                    className="w-full py-3 px-4 mb-4 rounded-xl border border-nature-200 dark:border-nature-800 bg-oat-50/50 dark:bg-nature-950/50 text-nature-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-terra-300 dark:focus:ring-terra-600 transition-all font-mono text-center tracking-[0.2em] text-lg placeholder:tracking-normal placeholder:font-sans placeholder:text-sm"
-                                />
                                 {error && <p className="text-red-500 dark:text-red-400 text-sm mb-4 font-medium px-1 animate-pulse">{error}</p>}
-                                <button 
-                                    onClick={handleExport} 
-                                    disabled={loading || pin.length < 4} 
+                                <button
+                                    onClick={handleExport}
+                                    disabled={loading}
                                     className={`w-full py-3.5 rounded-xl font-bold transition-all shadow-sm ${
-                                        !loading && pin.length >= 4 
-                                            ? 'bg-nature-900 dark:bg-white text-white dark:text-nature-900 hover:bg-nature-800 dark:hover:bg-oat-100 hover:shadow-md' 
+                                        !loading
+                                            ? 'bg-nature-900 dark:bg-white text-white dark:text-nature-900 hover:bg-nature-800 dark:hover:bg-oat-100 hover:shadow-md'
                                             : 'bg-oat-200 dark:bg-nature-800 text-oat-500 dark:text-nature-500 cursor-not-allowed'
                                     }`}
                                 >
@@ -388,7 +379,7 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                         ) : (
                             <>
                                 <p className="text-nature-600 dark:text-nature-400 text-[15px] mb-4 leading-relaxed transition-colors">
-                                    Your encrypted identity link is ready. Send it to your other device.
+                                    Your encrypted identity link is ready. Send it to your other device, then enter the transfer code below to unlock it.
                                 </p>
                                 <div className="bg-oat-50 dark:bg-nature-950 rounded-xl border border-nature-200 dark:border-nature-800 p-4 mb-4 break-all text-xs font-mono text-nature-500 dark:text-nature-400 h-24 overflow-hidden shadow-inner relative group transition-colors">
                                     <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-oat-50 dark:from-nature-950 to-transparent transition-colors"></div>
@@ -422,7 +413,7 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                                         onClick={async () => {
                                             const shareData = {
                                                 title: 'BeanPool Identity Transfer',
-                                                text: `Import your BeanPool identity (PIN: ${pin})`,
+                                                text: `Import your BeanPool identity (transfer code: ${transferCode})`,
                                                 url: exportUri,
                                             };
                                             if (navigator.share) {
@@ -438,9 +429,10 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                                         📤 Share
                                     </button>
                                 </div>
-                                <p className="text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800/50 py-3 px-4 rounded-xl text-[15px] text-center mb-6 shadow-sm transition-colors">
-                                    🔑 PIN: <strong className="font-mono text-lg tracking-widest bg-emerald-200/50 dark:bg-emerald-800/50 px-2 py-0.5 rounded mx-1 transition-colors">{pin}</strong>
-                                </p>
+                                <div className="text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800/50 py-3 px-4 rounded-xl text-center mb-6 shadow-sm transition-colors">
+                                    <div className="text-xs font-bold uppercase tracking-wide mb-1">🔑 Transfer Code</div>
+                                    <strong className="font-mono text-lg bg-emerald-200/50 dark:bg-emerald-800/50 px-2 py-0.5 rounded select-all break-all">{transferCode}</strong>
+                                </div>
                             </>
                         )}
                         <button
@@ -456,10 +448,10 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                     <div className="bg-white dark:bg-nature-900 rounded-2xl p-6 shadow-soft border border-nature-200 dark:border-nature-800 animate-in fade-in slide-in-from-bottom-2 duration-300 transition-colors">
                         <h3 className="text-lg font-bold text-nature-950 dark:text-white mb-3 m-0 transition-colors">📥 Import Identity</h3>
                         <p className="text-nature-600 dark:text-nature-400 text-[15px] mb-5 leading-relaxed transition-colors">
-                            Paste the Transfer URI and enter the 4+ digit PIN from your other device to securely merge.
+                            Paste the Transfer URI and enter the transfer code from your other device to securely merge.
                         </p>
-                        
-                        <textarea 
+
+                        <textarea
                             value={importUri}
                             onChange={(e) => setImportUri(e.target.value)}
                             placeholder="https://.../?import=..."
@@ -467,24 +459,24 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                             autoCapitalize="none"
                             autoCorrect="false"
                         />
-                        
+
                         <input
-                            type="password"
-                            inputMode="numeric"
-                            value={importPin}
-                            onChange={(e) => setImportPin(e.target.value)}
-                            placeholder="PIN"
-                            maxLength={8}
-                            className="w-full py-3 px-4 mb-4 rounded-xl border border-nature-200 dark:border-nature-800 bg-oat-50/50 dark:bg-nature-950/50 text-nature-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-terra-300 dark:focus:ring-terra-600 transition-all font-mono text-center tracking-[0.2em] text-lg placeholder:tracking-normal placeholder:font-sans placeholder:text-sm"
+                            type="text"
+                            value={importCode}
+                            onChange={(e) => setImportCode(e.target.value)}
+                            placeholder="transfer code (e.g. anchor-velvet-ridge-amber)"
+                            autoCapitalize="none"
+                            autoCorrect="false"
+                            className="w-full py-3 px-4 mb-4 rounded-xl border border-nature-200 dark:border-nature-800 bg-oat-50/50 dark:bg-nature-950/50 text-nature-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-terra-300 dark:focus:ring-terra-600 transition-all font-mono text-center placeholder:font-sans placeholder:text-sm"
                         />
-                        
+
                         {error && <p className="text-red-500 dark:text-red-400 text-sm mb-4 font-medium px-1 animate-pulse">{error}</p>}
-                        
-                        <button 
-                            onClick={handleImport} 
-                            disabled={loading || importPin.length < 4 || !importUri} 
+
+                        <button
+                            onClick={handleImport}
+                            disabled={loading || !importCode.trim() || !importUri}
                             className={`w-full py-3.5 mb-3 rounded-xl font-bold transition-all shadow-sm ${
-                                !loading && importPin.length >= 4 && importUri
+                                !loading && importCode.trim() && importUri
                                     ? 'bg-nature-900 dark:bg-white text-white dark:text-nature-900 hover:bg-nature-800 dark:hover:bg-oat-100 hover:shadow-md' 
                                     : 'bg-oat-200 dark:bg-nature-800 text-oat-500 dark:text-nature-500 cursor-not-allowed'
                             }`}

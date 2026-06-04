@@ -8,7 +8,7 @@ import { processProfileImage } from '../../utils/image-processing';
 import { AvatarPickerSheet } from '../../components/AvatarPickerSheet';
 import { resolveBundledAvatar } from '../../utils/bundled-avatars';
 import { updateCallsign, wipeIdentity } from '../../utils/identity';
-import { nativeExportIdentity } from '../../utils/native-crypto';
+import { nativeExportIdentity, generateTransferCode } from '../../utils/native-crypto';
 import { buildSignedHeaders } from '../../utils/crypto';
 import { updateMemberProfile, getMemberProfile, getPendingRecoveryRequests, approveRecoveryRequest, rejectRecoveryRequest, signedRequest } from '../../utils/db';
 import { getSavedNodes, SavedNode, removeSavedNode, getDatabaseFilenameForNode } from '../../utils/nodes';
@@ -252,10 +252,10 @@ export default function SettingsScreen() {
     }, [mode]);
     
     // Transfer logic
-    const [pin, setPin] = useState('');
+    const [transferCode, setTransferCode] = useState('');
     const [exportUri, setExportUri] = useState('');
     const [importUri, setImportUri] = useState('');
-    const [importPin, setImportPin] = useState('');
+    const [importCode, setImportCode] = useState('');
 
     // Recovery logic
     const [recoveryReqs, setRecoveryReqs] = useState<any[]>([]);
@@ -563,13 +563,12 @@ export default function SettingsScreen() {
 
     async function handleExport() {
         if (!identity) return;
-        if (pin.length < 4) {
-            Alert.alert('Error', 'PIN must be at least 4 digits.');
-            return;
-        }
         setLoading(true);
         try {
-            const uri = await nativeExportIdentity(identity, pin);
+            // The transfer code is auto-generated (high-entropy) — never user-chosen.
+            const code = generateTransferCode();
+            const uri = await nativeExportIdentity(identity, code);
+            setTransferCode(code);
             setExportUri(uri);
             await AsyncStorage.setItem('beanpool_identity_backed_up', 'true');
         } catch (e: any) {
@@ -580,18 +579,18 @@ export default function SettingsScreen() {
     }
 
     async function handleImport() {
-        if (importPin.length < 4) {
-            Alert.alert('Error', 'PIN must be at least 4 digits.');
+        if (!importCode.trim()) {
+            Alert.alert('Error', 'Enter the transfer code from your other device.');
             return;
         }
-        if (!importUri || !importUri.includes('import=')) {
+        if (!importUri || (!importUri.includes('import=') && !importUri.includes('beanpool://'))) {
             Alert.alert('Error', 'Invalid Transfer URI.');
             return;
         }
         setLoading(true);
         try {
             const { nativeDecryptIdentity } = await import('../../utils/native-crypto');
-            const importedIdentity = await nativeDecryptIdentity(importUri, importPin);
+            const importedIdentity = await nativeDecryptIdentity(importUri, importCode.trim());
             
             Alert.alert(
                 "Overwrite Device Identity?",
@@ -712,7 +711,7 @@ export default function SettingsScreen() {
                         </View>
                         <Text style={styles.menuChevron}>›</Text>
                     </Pressable>
-                    <Pressable style={styles.menuBtn} onPress={() => { setMode('export'); setPin(''); setExportUri(''); }}>
+                    <Pressable style={styles.menuBtn} onPress={() => { setMode('export'); setTransferCode(''); setExportUri(''); }}>
                         <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>📤</Text></View>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.menuText}>Export Identity</Text>
@@ -720,7 +719,7 @@ export default function SettingsScreen() {
                         </View>
                         <Text style={styles.menuChevron}>›</Text>
                     </Pressable>
-                    <Pressable style={styles.menuBtn} onPress={() => { setMode('import'); setImportUri(''); setImportPin(''); }}>
+                    <Pressable style={styles.menuBtn} onPress={() => { setMode('import'); setImportUri(''); setImportCode(''); }}>
                         <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>📥</Text></View>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.menuText}>Import Identity</Text>
@@ -982,24 +981,15 @@ export default function SettingsScreen() {
                     {!exportUri ? (
                         <>
                             <Text style={styles.infoText}>
-                                Choose a PIN to protect your identity during transfer. You'll need this same PIN on the receiving device.
+                                We'll generate a one-time transfer code that encrypts your identity. You'll enter that code on the receiving device to unlock it.
                             </Text>
-                            <TextInput 
-                                style={[styles.input, { textAlign: 'center', fontSize: 20, letterSpacing: 8 }]}
-                                value={pin}
-                                onChangeText={setPin}
-                                placeholder="4+ Digit PIN"
-                                keyboardType="number-pad"
-                                maxLength={8}
-                                secureTextEntry
-                            />
-                            <Pressable style={[styles.primaryBtn, pin.length < 4 && { opacity: 0.5 }]} onPress={handleExport} disabled={loading || pin.length < 4}>
+                            <Pressable style={styles.primaryBtn} onPress={handleExport} disabled={loading}>
                                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Generate Transfer Code</Text>}
                             </Pressable>
                         </>
                     ) : (
                         <>
-                            <Text style={styles.infoText}>Your encrypted identity link is ready. Send it to your other device.</Text>
+                            <Text style={styles.infoText}>Your encrypted identity link is ready. Send it to your other device, then enter the transfer code below to unlock it.</Text>
                             <View style={styles.uriBox}>
                                 <Text style={styles.uriText} selectable>{exportUri}</Text>
                             </View>
@@ -1012,7 +1002,8 @@ export default function SettingsScreen() {
                                 </Pressable>
                             </View>
                             <View style={{ backgroundColor: '#ecfdf5', borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: '#a7f3d0' }}>
-                                <Text style={{ color: '#059669', fontSize: 14, fontWeight: '800' }}>🔑 PIN: {pin}</Text>
+                                <Text style={{ color: '#047857', fontSize: 12, fontWeight: '700', marginBottom: 4 }}>🔑 TRANSFER CODE</Text>
+                                <Text selectable style={{ color: '#059669', fontSize: 18, fontWeight: '800', letterSpacing: 1, textAlign: 'center' }}>{transferCode}</Text>
                             </View>
                         </>
                     )}
@@ -1028,9 +1019,9 @@ export default function SettingsScreen() {
                     <Text style={styles.sectionTitle}>📥 Import Identity</Text>
                     
                     <Text style={styles.infoText}>
-                        Paste the Identity Transfer URI (or beanpool://import string) and enter the 4+ digit PIN from your other device to securely merge.
+                        Paste the Identity Transfer URI (or beanpool://import string) and enter the transfer code from your other device to securely merge.
                     </Text>
-                    <TextInput 
+                    <TextInput
                         style={[styles.input, { height: 80, textAlignVertical: 'top', fontSize: 13, fontFamily: 'monospace' }]}
                         value={importUri}
                         onChangeText={setImportUri}
@@ -1040,17 +1031,17 @@ export default function SettingsScreen() {
                         autoCapitalize="none"
                         autoCorrect={false}
                     />
-                    <TextInput 
-                        style={[styles.input, { textAlign: 'center', fontSize: 20, letterSpacing: 8, marginBottom: 24 }]}
-                        value={importPin}
-                        onChangeText={setImportPin}
-                        placeholder="PIN"
-                        keyboardType="number-pad"
-                        maxLength={8}
-                        secureTextEntry
+                    <TextInput
+                        style={[styles.input, { textAlign: 'center', fontSize: 16, marginBottom: 24 }]}
+                        value={importCode}
+                        onChangeText={setImportCode}
+                        placeholder="transfer code (e.g. anchor-velvet-ridge-amber)"
+                        placeholderTextColor="#9ca3af"
+                        autoCapitalize="none"
+                        autoCorrect={false}
                     />
-                    
-                    <Pressable style={[styles.primaryBtn, (importPin.length < 4 || !importUri) && { opacity: 0.5 }]} onPress={handleImport} disabled={loading || importPin.length < 4 || !importUri}>
+
+                    <Pressable style={[styles.primaryBtn, (!importCode.trim() || !importUri) && { opacity: 0.5 }]} onPress={handleImport} disabled={loading || !importCode.trim() || !importUri}>
                         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Decrypt & Merge Device</Text>}
                     </Pressable>
                     

@@ -118,7 +118,7 @@ export function WelcomePage({ onComplete }: Props) {
         const importParam = params.get('import');
         return importParam ? window.location.href : '';
     });
-    const [importPin, setImportPin] = useState('');
+    const [importCode, setImportCode] = useState('');
     const [showRecovery, setShowRecovery] = useState(false);
     const [recoveryWords, setRecoveryWords] = useState<string[]>(Array(12).fill(''));
     const [recoveryCallsign, setRecoveryCallsign] = useState('');
@@ -234,14 +234,14 @@ export function WelcomePage({ onComplete }: Props) {
     }
 
     async function handleImport() {
-        if (!importData.trim() || importPin.length < 4) {
-            setError('Paste the transfer code and enter your PIN.');
+        if (!importData.trim() || !importCode.trim()) {
+            setError('Paste the transfer link and enter the transfer code.');
             return;
         }
         setLoading(true);
         setError(null);
         try {
-            const imported = await decryptIdentity(importData.trim(), importPin);
+            const imported = await decryptIdentity(importData.trim(), importCode.trim());
             await importIdentity(imported);
             try {
                 await registerMember(imported.publicKey, imported.callsign);
@@ -253,7 +253,7 @@ export function WelcomePage({ onComplete }: Props) {
             }
             onComplete(imported);
         } catch {
-            setError('Import failed — wrong PIN or invalid code.');
+            setError('Import failed — wrong transfer code or invalid link.');
         } finally {
             setLoading(false);
         }
@@ -774,7 +774,7 @@ export function WelcomePage({ onComplete }: Props) {
                                 📥 Import Identity
                             </h3>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5, textAlign: 'left' }}>
-                                Paste the transfer code from your other device and enter the PIN.
+                                Paste the transfer link from your other device and enter its transfer code.
                             </p>
                             <label htmlFor="importData" style={{
                                 display: 'block', textAlign: 'left',
@@ -798,20 +798,21 @@ export function WelcomePage({ onComplete }: Props) {
                                 }}
                             />
 
-                            <label htmlFor="importPin" style={{
+                            <label htmlFor="importCode" style={{
                                 display: 'block', textAlign: 'left',
                                 fontSize: '0.85rem', fontWeight: 600,
                                 color: 'var(--text-secondary)', marginBottom: '0.5rem',
                             }}>
-                                PIN
+                                Transfer Code
                             </label>
                             <input
-                                id="importPin"
-                                type="password"
-                                inputMode="numeric"
-                                value={importPin}
-                                onChange={(e) => setImportPin(e.target.value)}
-                                placeholder="Enter PIN"
+                                id="importCode"
+                                type="text"
+                                autoCapitalize="none"
+                                autoCorrect="off"
+                                value={importCode}
+                                onChange={(e) => setImportCode(e.target.value)}
+                                placeholder="e.g. anchor-velvet-ridge-amber"
                                 style={inputStyle}
                             />
 
