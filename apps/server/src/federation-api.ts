@@ -11,7 +11,7 @@
 import type Koa from 'koa';
 import type Router from '@koa/router';
 import { getPeerOrigins, getConnectorsByLevel } from './connector-manager.js';
-import { getMembers, getPosts, getBalance, createConversation, sendMessage, registerVisitor } from './state-engine.js';
+import { getMembers, getPosts, getCommunityInfo, getBalance, createConversation, sendMessage, registerVisitor } from './state-engine.js';
 import { getLocalConfig } from './local-config.js';
 
 /**
@@ -57,8 +57,7 @@ export function mountFederationRoutes(router: Router): void {
     // Node info — public metadata for federation discovery
     router.get('/api/node/info', async (ctx) => {
         const config = getLocalConfig();
-        const members = getMembers();
-        const posts = getPosts({});
+        const communityInfo = getCommunityInfo();
         const peers = getConnectorsByLevel('peer')
             .filter(c => c.connected && c.mutualTrust)
             .map(c => ({
@@ -68,8 +67,8 @@ export function mountFederationRoutes(router: Router): void {
 
         ctx.body = {
             name: config.communityName || 'BeanPool Node',
-            memberCount: members.length,
-            postCount: posts.filter((p: any) => p.active).length,
+            memberCount: communityInfo.memberCount,
+            postCount: communityInfo.postCount,
             peerNodes: peers,
         };
     });
