@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadIdentity } from './identity';
 import * as Crypto from 'expo-crypto';
 import { encodeBase64, encodeUtf8, decodeBase64, decodeUtf8, buildSignedHeaders } from './crypto';
+import { encryptDM, decryptDM, isEncryptedNonce, type DMKeyContext } from './e2e-crypto';
 import { getDatabaseFilenameForNode, addSavedNode } from './nodes';
 
 /**
@@ -482,7 +483,9 @@ export async function getConversations(myPubkey: string) {
     `, [myPubkey, myPubkey, myPubkey, myPubkey, myPubkey, myPubkey, myPubkey, myPubkey, myPubkey]);
     
     const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || '';
-    
+    // Pre-load identity so encrypted DM previews can be decrypted below.
+    const previewIdentity = await loadIdentity();
+
     return rows.map(row => {
         let displayMsg = row.lastMessage ? '[Message]' : 'Started conversation';
         if (row.lastNonce && row.lastNonce.startsWith('plaintext')) {
@@ -490,6 +493,21 @@ export async function getConversations(myPubkey: string) {
                 displayMsg = decodeUtf8(decodeBase64(row.lastMessage));
             } catch {
                 displayMsg = '[Unreadable message]';
+            }
+        } else if (isEncryptedNonce(row.lastNonce)) {
+            // v2-encrypted DM — only ever set on dm threads, so otherPubkey is THE peer.
+            if (previewIdentity?.privateKey && row.otherPubkey) {
+                try {
+                    displayMsg = decryptDM(row.lastMessage, row.lastNonce, {
+                        myEdPrivHex: previewIdentity.privateKey,
+                        peerEdPubHex: row.otherPubkey,
+                        conversationId: row.id,
+                    });
+                } catch {
+                    displayMsg = '🔒 Encrypted message';
+                }
+            } else {
+                displayMsg = '🔒 Encrypted message';
             }
         } else if (row.lastNonce === '00000') {
             displayMsg = row.lastMessage;
@@ -1603,12 +1621,32 @@ export async function getConversation(id: string, myPubkey?: string) {
     return await database.getFirstAsync<any>('SELECT name, post_id as postId FROM conversations WHERE id = ?', [id]);
 }
 
+/**
+ * Resolve the E2E key context for a conversation, or null if it isn't a clean
+ * 2-party DM (groups/system threads stay plaintext-v1 for now). Used to encrypt
+ * outgoing and decrypt incoming direct messages (NAT-1).
+ */
+async function getDmKeyContext(conversationId: string): Promise<DMKeyContext | null> {
+    const identity = await loadIdentity();
+    if (!identity?.publicKey || !identity?.privateKey) return null;
+    const database = await getDb();
+    const conv = await database.getFirstAsync<any>('SELECT type FROM conversations WHERE id = ?', [conversationId]);
+    if (!conv || conv.type !== 'dm') return null;
+    const parts = await database.getAllAsync<any>('SELECT public_key FROM conversation_participants WHERE conversation_id = ?', [conversationId]);
+    const peers = parts.map(p => p.public_key).filter((pk: string) => pk && pk !== identity.publicKey);
+    if (peers.length !== 1) return null; // not a clean 2-party DM — don't encrypt
+    return { myEdPrivHex: identity.privateKey, peerEdPubHex: peers[0], conversationId };
+}
+
 export async function getMessages(conversationId: string) {
     const database = await getDb();
     const rows = await database.getAllAsync<any>(
-        'SELECT * FROM messages WHERE conversation_id = ? ORDER BY timestamp ASC', 
+        'SELECT * FROM messages WHERE conversation_id = ? ORDER BY timestamp ASC',
         [conversationId]
     );
+    // Load the DM key context once so v2-encrypted rows can be decrypted in the map below.
+    let dmCtx: DMKeyContext | null = null;
+    try { dmCtx = await getDmKeyContext(conversationId); } catch { dmCtx = null; }
     return rows.map(row => {
         let displayTxt = row.ciphertext;
         if (row.nonce && row.nonce.startsWith('plaintext')) {
@@ -1616,6 +1654,16 @@ export async function getMessages(conversationId: string) {
                 displayTxt = decodeUtf8(decodeBase64(row.ciphertext));
             } catch {
                 displayTxt = '[Unreadable message]';
+            }
+        } else if (isEncryptedNonce(row.nonce)) {
+            if (dmCtx) {
+                try {
+                    displayTxt = decryptDM(row.ciphertext, row.nonce, dmCtx);
+                } catch {
+                    displayTxt = '[Unable to decrypt this message]';
+                }
+            } else {
+                displayTxt = '[Encrypted — update your app to read]';
             }
         }
         return {
@@ -1632,10 +1680,25 @@ export async function getMessages(conversationId: string) {
 
 export async function insertMessage(conversationId: string, authorPubkey: string, text: string) {
     const database = await getDb();
-    
-    // Exact parity with PWA encodePlaintext()
-    const nonce = 'plaintext-v1'; 
-    const ciphertext = encodeBase64(encodeUtf8(text));
+
+    // E2E-encrypt direct messages (NAT-1). Falls back to legacy plaintext-v1 for
+    // group/system threads or if the peer key can't be resolved or crypto fails.
+    let nonce: string;
+    let ciphertext: string;
+    try {
+        const dmCtx = await getDmKeyContext(conversationId);
+        if (dmCtx) {
+            const enc = encryptDM(text, dmCtx);
+            ciphertext = enc.ciphertext;
+            nonce = enc.nonce;
+        } else {
+            nonce = 'plaintext-v1';
+            ciphertext = encodeBase64(encodeUtf8(text));
+        }
+    } catch {
+        nonce = 'plaintext-v1';
+        ciphertext = encodeBase64(encodeUtf8(text));
+    }
 
     const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
     if (!anchorUrl) {

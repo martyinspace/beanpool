@@ -13,7 +13,7 @@ import {
     markConversationReadApi,
     type Conversation, type ApiMessage, type Member,
 } from '../lib/api';
-import { encodePlaintext, decodePlaintext } from '../lib/e2e-crypto';
+import { encodePlaintext, decodePlaintext, encryptDM, decryptDM, isEncryptedNonce, type DMKeyContext } from '../lib/e2e-crypto';
 import { type BeanPoolIdentity } from '../lib/identity';
 import { resolveAvatarUrl } from '../lib/avatar';
 
@@ -129,11 +129,20 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
         }
     }
 
+    // E2E key context for a 2-party DM, or null for groups/unknown peer (NAT-1).
+    function dmCtxFor(conv: Conversation | null): DMKeyContext | null {
+        if (!conv || conv.type !== 'dm') return null;
+        const peer = (conv.participants || []).find(p => p && p !== identity.publicKey);
+        if (!peer) return null;
+        return { myEdPrivHex: identity.privateKey, peerEdPubHex: peer, conversationId: conv.id };
+    }
+
     async function handleSend() {
         if (!draft.trim() || !activeConv) return;
         setSending(true);
         try {
-            const { ciphertext, nonce } = encodePlaintext(draft.trim());
+            const ctx = dmCtxFor(activeConv);
+            const { ciphertext, nonce } = ctx ? encryptDM(draft.trim(), ctx) : encodePlaintext(draft.trim());
             // 1. Store locally (Server will handle Libp2p federation relay automatically)
             await sendMessageApi(activeConv.id, identity.publicKey, ciphertext, nonce);
 
@@ -149,9 +158,14 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
     function decryptMessage(msg: ApiMessage): string {
         try {
             if (msg.nonce === '00000') return msg.ciphertext;
+            if (isEncryptedNonce(msg.nonce)) {
+                const ctx = dmCtxFor(activeConv);
+                if (!ctx) return '[Encrypted — update your app to read]';
+                return decryptDM(msg.ciphertext, msg.nonce, ctx);
+            }
             return decodePlaintext(msg.ciphertext, msg.nonce);
         } catch {
-            return '[Unreadable message]';
+            return '[Unable to decrypt this message]';
         }
     }
 
