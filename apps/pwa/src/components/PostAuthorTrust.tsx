@@ -87,12 +87,29 @@ export function PostAuthorTrust({ callsign, energyCycled = 0, rating, mode = 'fu
         }
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if ((e.key === 'Enter' || e.key === ' ') && publicKey && onOpenProfile) {
+            e.preventDefault();
+            e.stopPropagation();
+            onOpenProfile(publicKey);
+        }
+    };
+
+    const interactiveProps = publicKey ? {
+        role: 'button',
+        tabIndex: 0,
+        onKeyDown: handleKeyDown,
+    } : {};
+
+    const interactiveClasses = publicKey ? 'cursor-pointer hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-sm' : '';
+
     if (mode === 'compact') {
         return (
             <>
                 <div 
-                    className={`flex items-center gap-1 ${publicKey ? 'cursor-pointer hover:opacity-80' : ''} ${className}`}
+                    className={`flex items-center gap-1 ${interactiveClasses} ${className}`}
                     onClick={handleClick}
+                    {...interactiveProps}
                 >
                     {/* Avatar */}
                     <MiniAvatar callsign={callsign} avatarUrl={avatarUrl} size={18} />
@@ -119,8 +136,9 @@ export function PostAuthorTrust({ callsign, energyCycled = 0, rating, mode = 'fu
     return (
         <>
             <div 
-                className={`flex items-center gap-1.5 ${publicKey ? 'cursor-pointer hover:opacity-80' : ''} ${className}`}
+                className={`flex items-center gap-1.5 ${interactiveClasses} ${className}`}
                 onClick={handleClick}
+                {...interactiveProps}
             >
                 {/* Avatar */}
                 <MiniAvatar callsign={callsign} avatarUrl={avatarUrl} size={24} />
