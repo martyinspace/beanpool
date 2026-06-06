@@ -1598,7 +1598,7 @@ export async function getConversation(id: string, myPubkey?: string) {
     const database = await getDb();
     if (myPubkey) {
         return await database.getFirstAsync<any>(`
-            SELECT c.name, c.post_id as postId, p.title as postTitle, p.status as postStatus, p.price_type, p.credits,
+            SELECT c.name, c.type as type, c.post_id as postId, p.title as postTitle, p.status as postStatus, p.price_type, p.credits,
             (SELECT memb.callsign FROM conversation_participants cp 
              LEFT JOIN members memb ON memb.public_key = cp.public_key
              WHERE cp.conversation_id = c.id AND cp.public_key != ? LIMIT 1) as otherCallsign,

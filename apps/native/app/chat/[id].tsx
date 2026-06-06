@@ -21,6 +21,8 @@ export default function ChatScreen() {
     const [peerName, setPeerName] = useState('Loading...');
     const [peerPubkey, setPeerPubkey] = useState<string | null>(null);
     const [peerAvatar, setPeerAvatar] = useState<string | null>(null);
+    // True when this thread is a 2-party DM (the only threads we E2E-encrypt).
+    const [isEncrypted, setIsEncrypted] = useState(false);
     const [postContext, setPostContext] = useState<any>(null);
     const [pendingTx, setPendingTx] = useState<{ id: string; amount: number; isPayer: boolean } | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
@@ -36,6 +38,7 @@ export default function ChatScreen() {
             if (res) {
                 setPeerName(res.name || res.otherCallsign || String(id).slice(0, 8));
                 if (res.otherPubkey) setPeerPubkey(res.otherPubkey);
+                setIsEncrypted(res.type === 'dm' && !!res.otherPubkey);
                 setPeerAvatar(res.otherAvatar || null);
                 if (res.postId) {
                     setPostContext({
@@ -458,7 +461,9 @@ export default function ChatScreen() {
                     />
                     <View style={styles.headerTextContainer}>
                         <Text style={styles.headerTitle} numberOfLines={1}>{peerName.toUpperCase()}</Text>
-                        <Text style={styles.headerSubtitle} numberOfLines={1}>Connected via Mullum Node</Text>
+                        <Text style={styles.headerSubtitle} numberOfLines={1}>
+                            {isEncrypted ? '🔒 End-to-end encrypted' : 'Connected via Mullum Node'}
+                        </Text>
                     </View>
                 </Pressable>
 
@@ -525,9 +530,9 @@ export default function ChatScreen() {
                 </View>
             )}
 
-            <KeyboardAvoidingView 
-                style={styles.keyboardView} 
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            <KeyboardAvoidingView
+                style={styles.keyboardView}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 95 : 0}
             >
                 {/* Messages List */}
