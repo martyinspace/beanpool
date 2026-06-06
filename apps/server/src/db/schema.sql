@@ -86,6 +86,16 @@ CREATE TABLE IF NOT EXISTS post_photos (
 );
 CREATE INDEX IF NOT EXISTS idx_post_photos_updated_at ON post_photos(updated_at);
 
+-- Encrypted message attachments (lazy-loaded; the node only ever holds ciphertext).
+-- data = base64 AEAD ciphertext of the image; nonce = its x25519-xc20p-v2 nonce.
+CREATE TABLE IF NOT EXISTS message_attachments (
+    message_id TEXT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+    data TEXT NOT NULL,
+    nonce TEXT NOT NULL,
+    mime TEXT,
+    created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
 -- 5. Marketplace Transactions
 CREATE TABLE IF NOT EXISTS marketplace_transactions (
     id TEXT PRIMARY KEY,

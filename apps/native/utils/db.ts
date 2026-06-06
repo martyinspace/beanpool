@@ -1786,6 +1786,67 @@ export async function insertMessage(conversationId: string, authorPubkey: string
     }
 }
 
+/**
+ * Send an image in a DM (NAT-1 attachments). The image is E2E-encrypted with the
+ * DM key and uploaded as a separate blob (lazy-loaded), so the node only ever holds
+ * ciphertext and the message feed stays light. DM-only — encryption requires a peer key.
+ */
+export async function sendImageMessage(conversationId: string, dataUri: string, caption: string = '') {
+    const database = await getDb();
+    const dmCtx = await getDmKeyContext(conversationId);
+    if (!dmCtx) throw new Error('Photos can only be sent in direct messages.');
+
+    const encImg = encryptDM(dataUri, dmCtx);   // big blob -> stored as attachment
+    const encCap = encryptDM(caption, dmCtx);   // (optional) caption -> message body
+
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (!anchorUrl) throw new Error('You are off-grid. Please connect to a BeanPool Node to send messages.');
+    const identity = await loadIdentity();
+    if (!identity) throw new Error('No identity found.');
+
+    const body = {
+        conversationId,
+        authorPubkey: identity.publicKey,
+        ciphertext: encCap.ciphertext,
+        nonce: encCap.nonce,
+        type: 'image',
+        attachment: { data: encImg.ciphertext, nonce: encImg.nonce, mime: 'image/jpeg' },
+    };
+    const bodyString = JSON.stringify(body);
+    const headers = await buildSignedHeaders('POST', '/api/messages/send', bodyString, identity.privateKey, identity.publicKey);
+    const res = await fetch(`${anchorUrl}/api/messages/send`, { method: 'POST', headers, body: bodyString });
+    if (!res.ok) {
+        let errMsg = 'Failed to send image.';
+        try { const j = JSON.parse(await res.text()); if (j.error) errMsg = j.error; } catch {}
+        throw new Error(errMsg);
+    }
+    const serverMsg = (await res.json()).message;
+    await database.runAsync(
+        'INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [serverMsg.id, conversationId, identity.publicKey, encCap.ciphertext, encCap.nonce, 'image', serverMsg.timestamp]
+    );
+}
+
+/**
+ * Fetch + decrypt an image attachment for a DM message. Returns a data URI ready
+ * for <Image>, or null if it can't be loaded/decrypted. The blob is fetched lazily
+ * (only when an image bubble is rendered).
+ */
+export async function getDecryptedAttachment(conversationId: string, messageId: string): Promise<string | null> {
+    try {
+        const dmCtx = await getDmKeyContext(conversationId);
+        if (!dmCtx) return null;
+        const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+        if (!anchorUrl) return null;
+        const res = await fetch(`${anchorUrl}/api/messages/${messageId}/attachment`, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) return null;
+        const { data, nonce } = await res.json();
+        return decryptDM(data, nonce, dmCtx);
+    } catch {
+        return null;
+    }
+}
+
 export async function createConversationApi(type: 'dm' | 'group', participants: string[], createdBy: string, name?: string, postId?: string): Promise<any> {
     const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
     if (!anchorUrl) throw new Error('You are off-grid. Please connect to a node first.');

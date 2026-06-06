@@ -1254,13 +1254,13 @@ export async function startHttpsServer(port: number): Promise<void> {
     });
 
     router.post('/api/messages/send', async (ctx) => {
-        const { conversationId, authorPubkey, ciphertext, nonce } = (ctx as any).requestBody || {};
+        const { conversationId, authorPubkey, ciphertext, nonce, type, attachment } = (ctx as any).requestBody || {};
         if (!conversationId || !authorPubkey || !ciphertext || !nonce) {
             ctx.status = 400;
             ctx.body = { error: 'conversationId, authorPubkey, ciphertext, and nonce are required' };
             return;
         }
-        const msg = sendMessage(conversationId, authorPubkey, ciphertext, nonce);
+        const msg = sendMessage(conversationId, authorPubkey, ciphertext, nonce, type === 'image' ? 'image' : 'text', attachment);
         if (!msg) {
             ctx.status = 400;
             ctx.body = { error: 'Failed to send — conversation not found or not a participant' };
@@ -1436,6 +1436,19 @@ export async function startHttpsServer(port: number): Promise<void> {
             ctx.type = 'image/jpeg';
             ctx.body = Buffer.from(photo.photo_data, 'base64');
         }
+    });
+
+    // Lazy-load an encrypted message attachment (image). Returns ciphertext only —
+    // the node can't read it; the recipient decrypts with the DM key + nonce.
+    router.get('/api/messages/:id/attachment', async (ctx) => {
+        const { id } = ctx.params;
+        const row = db.prepare(`SELECT data, nonce, mime FROM message_attachments WHERE message_id = ?`).get(id) as { data: string; nonce: string; mime: string } | undefined;
+        if (!row) {
+            ctx.status = 404;
+            ctx.body = { error: 'Attachment not found' };
+            return;
+        }
+        ctx.body = { data: row.data, nonce: row.nonce, mime: row.mime || 'image/jpeg' };
     });
 
     router.get('/api/marketplace/posts', async (ctx) => {

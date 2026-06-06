@@ -220,10 +220,16 @@ export interface ApiMessage {
     authorPubkey: string;
     ciphertext: string;
     nonce: string;
-    type?: 'text' | 'system';
+    type?: 'text' | 'system' | 'image';
     systemType?: SystemMessageType;
     metadata?: string;
     timestamp: string;
+}
+
+export interface MessageAttachment {
+    data: string;
+    nonce: string;
+    mime?: string;
 }
 
 export async function createConversationApi(
@@ -241,8 +247,10 @@ export async function sendMessageApi(
     authorPubkey: string,
     ciphertext: string,
     nonce: string,
+    type?: 'text' | 'image',
+    attachment?: MessageAttachment,
 ): Promise<{ success: boolean; message: ApiMessage }> {
-    return request('POST', '/api/messages/send', { conversationId, authorPubkey, ciphertext, nonce });
+    return request('POST', '/api/messages/send', { conversationId, authorPubkey, ciphertext, nonce, type, attachment });
 }
 
 export async function getConversations(publicKey: string): Promise<{ conversations: Conversation[]; totalUnread: number }> {
@@ -251,6 +259,10 @@ export async function getConversations(publicKey: string): Promise<{ conversatio
 
 export async function markConversationReadApi(pubkey: string, conversationId: string): Promise<void> {
     return request('POST', '/api/messages/mark-read', { pubkey, conversationId });
+}
+
+export async function getMessageAttachmentApi(messageId: string): Promise<MessageAttachment> {
+    return request('GET', `/api/messages/${encodeURIComponent(messageId)}/attachment`);
 }
 
 export async function getConversationMessages(conversationId: string, limit = 50): Promise<{

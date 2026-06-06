@@ -9,7 +9,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
     getConversations, getConversationMessages, createConversationApi,
-    sendMessageApi, getMembers, sendFederationMessage,
+    sendMessageApi, getMessageAttachmentApi, getMembers, sendFederationMessage,
     markConversationReadApi,
     type Conversation, type ApiMessage, type Member,
 } from '../lib/api';
@@ -21,6 +21,49 @@ interface Props {
     identity: BeanPoolIdentity;
     openConversationId?: string | null;
     onConversationOpened?: () => void;
+}
+
+/** Resize/compress a picked image to a JPEG data URI (keeps attachments light). */
+function resizeImageToDataUri(file: File, maxW: number, quality: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const img = new window.Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            const scale = Math.min(1, maxW / img.width);
+            const w = Math.round(img.width * scale);
+            const h = Math.round(img.height * scale);
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            const cctx = canvas.getContext('2d');
+            if (!cctx) { reject(new Error('Canvas not supported')); return; }
+            cctx.drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not load image')); };
+        img.src = url;
+    });
+}
+
+/** Lazily fetch + decrypt an encrypted image attachment, then render it. */
+function ChatImageBubble({ messageId, conversationId, peerPubHex, myPrivHex }:
+    { messageId: string; conversationId: string; peerPubHex: string; myPrivHex: string }) {
+    const [uri, setUri] = useState<string | null>(null);
+    const [failed, setFailed] = useState(false);
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            try {
+                const att = await getMessageAttachmentApi(messageId);
+                const dataUri = decryptDM(att.data, att.nonce, { myEdPrivHex: myPrivHex, peerEdPubHex: peerPubHex, conversationId });
+                if (active) setUri(dataUri);
+            } catch { if (active) setFailed(true); }
+        })();
+        return () => { active = false; };
+    }, [messageId, conversationId, peerPubHex, myPrivHex]);
+    if (failed) return <span style={{ fontStyle: 'italic', opacity: 0.7 }}>🔒 Image unavailable</span>;
+    if (!uri) return <span style={{ opacity: 0.6 }}>Loading image…</span>;
+    return <img src={uri} alt="" style={{ maxWidth: '220px', borderRadius: '12px', display: 'block' }} />;
 }
 
 export function MessagesPage({ identity, openConversationId, onConversationOpened }: Props) {
@@ -150,6 +193,25 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
             await loadMessages(activeConv.id);
         } catch (err: any) {
             alert(err.message || 'Failed to send message');
+        } finally {
+            setSending(false);
+        }
+    }
+
+    async function handleSendImage(file: File) {
+        if (!activeConv) return;
+        const ctx = dmCtxFor(activeConv);
+        if (!ctx) { alert('Photos can only be sent in direct messages.'); return; }
+        setSending(true);
+        try {
+            const dataUri = await resizeImageToDataUri(file, 1000, 0.7);
+            const encImg = encryptDM(dataUri, ctx);   // big blob -> lazy attachment
+            const encCap = encryptDM('', ctx);          // empty caption -> message body
+            await sendMessageApi(activeConv.id, identity.publicKey, encCap.ciphertext, encCap.nonce, 'image',
+                { data: encImg.ciphertext, nonce: encImg.nonce, mime: 'image/jpeg' });
+            await loadMessages(activeConv.id);
+        } catch (err: any) {
+            alert(err.message || 'Failed to send image');
         } finally {
             setSending(false);
         }
@@ -469,7 +531,11 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                     border: isMe ? 'none' : '1px solid var(--border-primary)',
                                     wordBreak: 'break-word',
                                 }}>
-                                    {decryptMessage(msg)}
+                                    {msg.type === 'image' ? (() => {
+                                        const ctx = dmCtxFor(activeConv);
+                                        if (!ctx) return <span style={{ fontStyle: 'italic', opacity: 0.7 }}>🔒 Image</span>;
+                                        return <ChatImageBubble messageId={msg.id} conversationId={ctx.conversationId} peerPubHex={ctx.peerEdPubHex} myPrivHex={ctx.myEdPrivHex} />;
+                                    })() : decryptMessage(msg)}
                                 </div>
                                 <div style={{
                                     fontSize: '0.65rem', color: 'var(--text-faint)',
@@ -500,6 +566,22 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                     borderTop: '1px solid var(--border-primary)',
                     background: 'var(--bg-secondary)',
                 }}>
+                    {activeConv.type === 'dm' && (
+                        <label title="Send photo" style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            padding: '0 0.4rem', fontSize: '1.2rem',
+                            cursor: sending ? 'default' : 'pointer', opacity: sending ? 0.5 : 1,
+                        }}>
+                            📎
+                            <input
+                                type="file"
+                                accept="image/*"
+                                disabled={sending}
+                                style={{ display: 'none' }}
+                                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleSendImage(f); e.target.value = ''; }}
+                            />
+                        </label>
+                    )}
                     <input
                         type="text"
                         value={draft}

@@ -1,14 +1,32 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, FlatList, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, Pressable, FlatList, KeyboardAvoidingView, Platform, Alert, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useFocusEffect, Stack } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useIdentity } from '../IdentityContext';
-import { getMessages, getConversation, insertMessage, syncMessages, syncSingleConversation, markConversationRead, completeMarketplaceTransaction, cancelMarketplaceTransaction, getDb, toggleMessageReactionApi } from '../../utils/db';
+import { getMessages, getConversation, insertMessage, sendImageMessage, getDecryptedAttachment, syncMessages, syncSingleConversation, markConversationRead, completeMarketplaceTransaction, cancelMarketplaceTransaction, getDb, toggleMessageReactionApi } from '../../utils/db';
 import { hapticSuccess, hapticWarning } from '../../utils/haptics';
 import { ReviewModal } from '../../components/ReviewModal';
 import { MemberAvatar } from '../../components/MemberAvatar';
+
+/** Image bubble that lazily fetches + decrypts an encrypted attachment for display. */
+function ChatImage({ conversationId, messageId }: { conversationId: string; messageId: string }) {
+    const [uri, setUri] = useState<string | null>(null);
+    const [failed, setFailed] = useState(false);
+    useEffect(() => {
+        let active = true;
+        getDecryptedAttachment(conversationId, messageId)
+            .then(u => { if (active) { u ? setUri(u) : setFailed(true); } })
+            .catch(() => { if (active) setFailed(true); });
+        return () => { active = false; };
+    }, [conversationId, messageId]);
+    if (failed) return <Text style={{ color: '#9ca3af', fontStyle: 'italic', padding: 8 }}>🔒 Image unavailable</Text>;
+    if (!uri) return <View style={{ width: 200, height: 200, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color="#9ca3af" /></View>;
+    return <Image source={{ uri }} style={{ width: 200, height: 200, borderRadius: 12 }} resizeMode="cover" />;
+}
 
 export default function ChatScreen() {
     const { id, triggerReview } = useLocalSearchParams();
@@ -154,6 +172,42 @@ export default function ChatScreen() {
         } finally {
             sendingRef.current = false;
         }
+    };
+
+    const pickAndSendImage = async () => {
+        if (!identity?.publicKey || sendingRef.current) return;
+        const sendUri = async (uri: string) => {
+            sendingRef.current = true;
+            try {
+                const manip = await ImageManipulator.manipulateAsync(
+                    uri,
+                    [{ resize: { width: 1000 } }],
+                    { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                );
+                if (!manip.base64) throw new Error('Could not process image.');
+                await sendImageMessage(id as string, `data:image/jpeg;base64,${manip.base64}`);
+                hapticSuccess();
+                loadMessages();
+            } catch (err: any) {
+                hapticWarning();
+                Alert.alert('Image Failed', err.message || 'Could not send image.');
+            } finally {
+                sendingRef.current = false;
+            }
+        };
+        Alert.alert('Send Photo', 'Choose a source', [
+            { text: 'Camera', onPress: async () => {
+                const perm = await ImagePicker.requestCameraPermissionsAsync();
+                if (!perm.granted) { Alert.alert('Permission needed', 'Camera access is required.'); return; }
+                const r = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 });
+                if (!r.canceled && r.assets[0]?.uri) sendUri(r.assets[0].uri);
+            }},
+            { text: 'Gallery', onPress: async () => {
+                const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
+                if (!r.canceled && r.assets[0]?.uri) sendUri(r.assets[0].uri);
+            }},
+            { text: 'Cancel', style: 'cancel' },
+        ]);
     };
 
     const handleReleaseCredits = () => {
@@ -410,9 +464,20 @@ export default function ChatScreen() {
                             { position: 'relative', zIndex: 1 }
                         ]}
                     >
-                        <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther]}>
-                            {item.text}
-                        </Text>
+                        {item.type === 'image' ? (
+                            <>
+                                <ChatImage conversationId={id as string} messageId={item.id} />
+                                {!!item.text && (
+                                    <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther, { marginTop: 6 }]}>
+                                        {item.text}
+                                    </Text>
+                                )}
+                            </>
+                        ) : (
+                            <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther]}>
+                                {item.text}
+                            </Text>
+                        )}
                         <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: isMe ? 'flex-end' : 'flex-start' }}>
                             <Text style={[styles.messageTime, isMe ? styles.messageTimeMe : styles.messageTimeOther]}>
                                 {item.timestamp}
@@ -562,7 +627,7 @@ export default function ChatScreen() {
 
                 {/* Input Area */}
                 <View style={[styles.inputContainer, { paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 12) : 12 }]}>
-                    <Pressable style={styles.attachBtn}>
+                    <Pressable style={styles.attachBtn} onPress={pickAndSendImage}>
                         <MaterialCommunityIcons name="plus-circle-outline" size={26} color="#9ca3af" />
                     </Pressable>
                     <TextInput
