@@ -413,9 +413,19 @@ export default function ChatScreen() {
                         <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther]}>
                             {item.text}
                         </Text>
-                        <Text style={[styles.messageTime, isMe ? styles.messageTimeMe : styles.messageTimeOther]}>
-                            {item.timestamp}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: isMe ? 'flex-end' : 'flex-start' }}>
+                            <Text style={[styles.messageTime, isMe ? styles.messageTimeMe : styles.messageTimeOther]}>
+                                {item.timestamp}
+                            </Text>
+                            {isMe && item.outgoing && (
+                                <MaterialCommunityIcons
+                                    name={item.readByPeer ? 'check-all' : 'check'}
+                                    size={14}
+                                    color={item.readByPeer ? '#a5f3fc' : 'rgba(255,255,255,0.65)'}
+                                    style={{ marginLeft: 3 }}
+                                />
+                            )}
+                        </View>
 
                         {totalReactionsCount > 0 && (
                             <View style={[styles.reactionBadgeContainer, isMe ? styles.reactionBadgeMe : styles.reactionBadgeOther]}>

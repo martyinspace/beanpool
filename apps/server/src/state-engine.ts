@@ -1996,11 +1996,12 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
     // ⚡ Bolt: Batch fetch participants to avoid N+1 queries
     const conversationIds = rows.map(r => r.id);
     const participantsByConv = new Map<string, string[]>();
+    const peerLastReadByConv = new Map<string, string | null>();
     const allPeerPubkeys = new Set<string>();
 
     if (conversationIds.length > 0) {
         const placeholders = conversationIds.map(() => '?').join(',');
-        const partsQuery = `SELECT conversation_id, public_key FROM conversation_participants WHERE conversation_id IN (${placeholders})`;
+        const partsQuery = `SELECT conversation_id, public_key, last_read_at FROM conversation_participants WHERE conversation_id IN (${placeholders})`;
         const allParts = db.prepare(partsQuery).all(...conversationIds) as any[];
 
         for (const part of allParts) {
@@ -2010,6 +2011,8 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
             participantsByConv.get(part.conversation_id)!.push(part.public_key);
             if (part.public_key !== pubkey) {
                 allPeerPubkeys.add(part.public_key);
+                // Track the peer's read cursor for read receipts (DM = the one peer).
+                peerLastReadByConv.set(part.conversation_id, part.last_read_at || null);
             }
         }
     }
@@ -2080,6 +2083,7 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
             participants: parts,
             peerCallsign,
             peerAvatar,
+            peerLastReadAt: peerLastReadByConv.get(r.id) || null,
         };
     });
 }

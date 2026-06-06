@@ -195,6 +195,7 @@ export interface Conversation {
     unreadCount?: number;
     peerCallsign?: string;
     peerAvatar?: string | null;
+    peerLastReadAt?: string | null;
 }
 
 export enum SystemMessageType {

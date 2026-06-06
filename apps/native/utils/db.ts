@@ -1498,7 +1498,10 @@ export async function syncMessages(publicKey: string) {
         
         const convData = await convRes.json();
         if (!convData.conversations) return;
-        
+
+        // Identity, so we can attribute the peer's read cursor (read receipts).
+        const myIdentity = await loadIdentity();
+
         for (const conv of convData.conversations) {
             await acquireSyncLock();
             try {
@@ -1513,6 +1516,16 @@ export async function syncMessages(publicKey: string) {
                     if (Array.isArray(conv.participants)) {
                         for (const pub of conv.participants) {
                             await txn.runAsync('INSERT OR IGNORE INTO conversation_participants (conversation_id, public_key) VALUES (?, ?)', [conv.id, pub]);
+                        }
+                        // Read receipts: record the peer's read cursor (monotonic — never regress).
+                        if (conv.peerLastReadAt && myIdentity?.publicKey) {
+                            const peer = conv.participants.find((p: string) => p && p !== myIdentity.publicKey);
+                            if (peer) {
+                                await txn.runAsync(
+                                    'UPDATE conversation_participants SET last_read_at = ? WHERE conversation_id = ? AND public_key = ? AND (last_read_at IS NULL OR last_read_at < ?)',
+                                    [conv.peerLastReadAt, conv.id, peer, conv.peerLastReadAt]
+                                );
+                            }
                         }
                     }
                 });
@@ -1647,6 +1660,20 @@ export async function getMessages(conversationId: string) {
     // Load the DM key context once so v2-encrypted rows can be decrypted in the map below.
     let dmCtx: DMKeyContext | null = null;
     try { dmCtx = await getDmKeyContext(conversationId); } catch { dmCtx = null; }
+    // Read receipts: my pubkey (to flag outgoing) + the peer's read cursor.
+    let myPubkey: string | null = null;
+    let peerLastReadAt: string | null = null;
+    try {
+        const identity = await loadIdentity();
+        myPubkey = identity?.publicKey ?? null;
+        if (dmCtx) {
+            const peerRow = await database.getFirstAsync<any>(
+                'SELECT last_read_at FROM conversation_participants WHERE conversation_id = ? AND public_key = ?',
+                [conversationId, dmCtx.peerEdPubHex]
+            );
+            peerLastReadAt = peerRow?.last_read_at ?? null;
+        }
+    } catch {}
     return rows.map(row => {
         let displayTxt = row.ciphertext;
         if (row.nonce && row.nonce.startsWith('plaintext')) {
@@ -1666,6 +1693,9 @@ export async function getMessages(conversationId: string) {
                 displayTxt = '[Encrypted — update your app to read]';
             }
         }
+        const outgoing = !!myPubkey && row.author_pubkey === myPubkey;
+        const readByPeer = outgoing && !!peerLastReadAt &&
+            new Date(row.timestamp).getTime() <= new Date(peerLastReadAt).getTime();
         return {
             id: row.id,
             senderId: row.author_pubkey,
@@ -1673,6 +1703,8 @@ export async function getMessages(conversationId: string) {
             type: row.type || 'text',
             systemType: row.system_type,
             metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+            outgoing,
+            readByPeer,
             timestamp: new Date(row.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
     });

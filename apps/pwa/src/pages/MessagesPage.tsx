@@ -477,6 +477,15 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                     textAlign: isMe ? 'right' : 'left',
                                 }}>
                                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {isMe && (() => {
+                                        const readByPeer = !!activeConv?.peerLastReadAt &&
+                                            new Date(msg.timestamp).getTime() <= new Date(activeConv.peerLastReadAt).getTime();
+                                        return (
+                                            <span style={{ marginLeft: '4px', color: readByPeer ? '#38bdf8' : 'var(--text-faint)' }}>
+                                                {readByPeer ? '✓✓' : '✓'}
+                                            </span>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         );
