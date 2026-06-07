@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { type BeanPoolIdentity } from '../lib/identity';
+import { importIdentity, wipeIdentity } from '../lib/identity';
 import { exportIdentity, generateTransferCode } from '../lib/identity-transfer';
 import { getMemberProfile, redeemInvite, type MemberProfile } from '../lib/api';
 import { resolveAvatarUrl } from '../lib/avatar';
@@ -104,12 +105,7 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
             const importedIdentity = await decryptIdentity(importUri, importCode.trim());
             
             if (window.confirm(`Do you want to permanently merge this device onto the "${importedIdentity.callsign}" identity? Your current web keys will be destroyed.`)) {
-                localStorage.setItem('beanpool_identity', JSON.stringify({
-                    publicKey: importedIdentity.publicKey,
-                    privateKey: importedIdentity.privateKey,
-                    callsign: importedIdentity.callsign,
-                    createdAt: importedIdentity.createdAt,
-                }));
+                await importIdentity(importedIdentity);
                 onIdentityUpdated(importedIdentity);
                 setMode('menu');
                 alert('Success: Device Unified Successfully!');
@@ -370,8 +366,8 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                                             Cancel
                                         </button>
                                         <button
-                                            onClick={() => {
-                                                localStorage.removeItem('beanpool_identity');
+                                            onClick={async () => {
+                                                await wipeIdentity();
                                                 localStorage.removeItem('beanpool_modern_markers');
                                                 setWipeConfirmStep(2);
                                                 setTimeout(() => window.location.reload(), 1500);

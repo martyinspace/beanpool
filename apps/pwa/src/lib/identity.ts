@@ -114,3 +114,17 @@ async function saveIdentity(identity: BeanPoolIdentity): Promise<void> {
         tx.onerror = () => reject(tx.error);
     });
 }
+
+/**
+ * Wipe the identity from IndexedDB.
+ */
+export async function wipeIdentity(): Promise<void> {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.delete(KEY_ID);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}

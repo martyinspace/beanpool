@@ -44,3 +44,10 @@
 4. Cryptographically secured P2P sync using Ed25519 payload signing (`exportSyncState`) and public key protobuf verification (`importRemoteState`).
 5. Added administrative sliding-window rate limiting (60 req/min per IP) and standard global modern security headers.
 
+## 2025-06-07 - Inconsistent Key Storage Leads to Exposure
+
+**Vulnerability:** The web keys were being imported directly into `localStorage` during the identity transfer merge process, and similarly, wiping the identity was only removing it from `localStorage`.
+
+**Learning:** This is a serious issue where components directly interact with raw storage APIs (`localStorage`) rather than the centralized abstract storage manager (`lib/identity.ts`). This allows sensitive keys to exist unencrypted in `localStorage` which makes them accessible to potential XSS vulnerabilities, whereas the intended data flow was correctly using IndexedDB wrapper APIs elsewhere. This inconsistency meant that a user attempting to securely wipe their device would unintentionally leave the real working keys untouched in IndexedDB.
+
+**Prevention:** All identity and key operations must strictly pass through the dedicated `lib/identity.ts` service. Direct references to `localStorage.setItem('beanpool_identity', ...)` or `removeItem` within React components should be actively flagged in code review.
