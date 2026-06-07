@@ -13,3 +13,6 @@
 **Learning:** In `createRecoveryRequest()`, validating guardian guess callsigns was previously done by mapping the guardian public keys to member profiles, filtering out empty profiles, and then executing `.some()` against the resulting array. This led to unnecessary allocations (`.map()` and `.filter()`) and executed database lookups for all guardians even if a match was found in the first element.
 **Action:** Refactored the lookups using `guardians.some(...)` with hoisted, pre-normalized callsign comparison. This enables short-circuiting database reads and completely avoids intermediate array allocations.
 
+## 2026-06-07 - [O(N) In-Memory Array Counts]
+**Learning:** In `state-engine.ts`, checking the length of member registries was being calculated by fetching all members into memory via `getMembers().length`. This forces unnecessary large database retrievals, allocations, and CPU cycles simply to obtain a count, which impacts scalability and blocks the event loop.
+**Action:** When counting large datasets, prefer querying SQLite directly with O(1) aggregates (e.g. `SELECT COUNT(*) as c FROM table WHERE...`) instead of loading arrays into application memory.
