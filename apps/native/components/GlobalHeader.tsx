@@ -357,9 +357,6 @@ export function GlobalHeader() {
                                     style={{ width: 280, height: 76, marginTop: -8, marginBottom: -12 }} 
                                     resizeMode="contain" 
                                 />
-                                <Text style={{ position: 'absolute', left: 80, bottom: -8, fontSize: 10, fontWeight: '900', color: '#fbbf24', letterSpacing: 1, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
-                                    v{appConfig.expo.version} ({Platform.OS === 'ios' ? appConfig.expo.ios.buildNumber : appConfig.expo.android.versionCode})
-                                </Text>
                                 <View style={{ position: 'absolute', bottom: -10, right: 90, flexDirection: 'row', alignItems: 'center', gap: 2 }}>
                                     <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isOffline ? '#ef4444' : isGuestOnActive ? '#d97706' : '#10b981', borderWidth: 1, borderColor: '#fff' }} />
                                     <MaterialCommunityIcons 
@@ -459,6 +456,7 @@ export function GlobalHeader() {
             <Modal visible={dropdownVisible} transparent animationType="fade">
                 <Pressable style={styles.modalBg} onPress={() => setDropdownVisible(false)}>
                     <View style={[styles.modalContent, { marginTop: insets.top + 80 }]}>
+                        <Text style={styles.modalVersion}>v{appConfig.expo.version} ({Platform.OS === 'ios' ? appConfig.expo.ios.buildNumber : appConfig.expo.android.versionCode})</Text>
                         <Text style={styles.modalHeader}>Select Community</Text>
                         {savedNodes.length === 0 && (
                             <View style={{ padding: 14 }}>
@@ -609,6 +607,7 @@ const styles = StyleSheet.create({
     controlPillBtn: { flex: 1, height: '100%', justifyContent: 'center', alignItems: 'center' },
     modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center' },
     modalContent: { backgroundColor: '#fff', width: '85%', borderRadius: 16, padding: 16, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 10, shadowOffset: { width: 0, height: 10 }, elevation: 5 },
+    modalVersion: { fontSize: 14, fontWeight: '900', color: '#9ca3af', letterSpacing: 1, textAlign: 'right', marginBottom: 4 },
     modalHeader: { fontSize: 13, fontWeight: '800', color: '#6b7280', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 },
     nodeBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 12, borderRadius: 8, marginBottom: 4 },
     activeNodeBtn: { backgroundColor: '#f3e8ff' },

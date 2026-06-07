@@ -188,6 +188,10 @@ export default function LedgerScreen() {
         const P_500   = 0.68;
         const P_1000  = 0.79;
         const P_2000  = 0.91;
+        // Negative-side anchor positions (tier floors) — for the mirrored zones
+        const P_N80   = 0.38;
+        const P_N200  = 0.27;
+        const P_N600  = 0.15;
 
         const balancePct = toPos(balance);
 
@@ -197,13 +201,21 @@ export default function LedgerScreen() {
             pos: ANCHORS.find(a => a[0] === t.floor)?.[1] ?? toPos(t.floor),
         }));
 
-        // Circ zone ticks — correct rates per CommonsInfoModal BRACKETS:
-        // The rate shown at each marker is what applies ABOVE that point
+        // Circ zone boundary ticks — just the threshold values; the rate label
+        // for each bracket sits centered in the zone it applies to (zoneRates below).
         const circMarkers = [
-            { v: 200,  rate: '1%',   pos: P_200  },  // above 200: 1%
-            { v: 500,  rate: '1.5%', pos: P_500  },  // above 500: 1.5%
-            { v: 1000, rate: '2%',   pos: P_1000 },  // above 1000: 2%
-            { v: 2000, rate: '2.5%', pos: P_2000 },  // above 2000: 2.5%
+            { v: 200,  pos: P_200  },
+            { v: 500,  pos: P_500  },
+            { v: 1000, pos: P_1000 },
+            { v: 2000, pos: P_2000 },
+        ];
+
+        // Tax rate per bracket, positioned at the CENTER of the zone it applies to.
+        const zoneRates = [
+            { rate: '1%',   pos: (P_200 + P_500) / 2 },   // 200–500
+            { rate: '1.5%', pos: (P_500 + P_1000) / 2 },  // 500–1000
+            { rate: '2%',   pos: (P_1000 + P_2000) / 2 }, // 1000–2000
+            { rate: '2.5%', pos: (P_2000 + 1) / 2 },      // 2000+
         ];
 
         const vg = balanceState.velocityGate;
@@ -212,9 +224,16 @@ export default function LedgerScreen() {
             <View style={styles.creditBarOuter}>
                 <View style={styles.rulerWrap}>
 
-                    {/* ── Continuous bar: 5 colour-coded brackets matching CommonsInfoModal ── */}
-                    {/* Grey credit zone — rounded left cap starts slightly before -1400 tick */}
-                    <View style={[styles.rulerSeg, { left: '2%', width: `${ZERO_P * 100 - 2}%`, backgroundColor: '#d1d5db', borderTopLeftRadius: 6, borderBottomLeftRadius: 6, borderTopRightRadius: 0, borderBottomRightRadius: 0 }]} />
+                    {/* ── Continuous diverging bar: zero is the sweet spot, worse the further out either way ── */}
+                    {/* Negative side (mirrored): green near zero → red at the Elder floor */}
+                    {/* Red: ≤ -600 (down to the Elder floor) — rounded left cap */}
+                    <View style={[styles.rulerSeg, { left: '2%', width: `${(P_N600 - 0.02) * 100}%`, backgroundColor: '#ef4444', borderTopLeftRadius: 6, borderBottomLeftRadius: 6, borderTopRightRadius: 0, borderBottomRightRadius: 0 }]} />
+                    {/* Orange: -600 to -200 */}
+                    <View style={[styles.rulerSeg, { left: `${P_N600 * 100}%`, width: `${(P_N200 - P_N600) * 100}%`, backgroundColor: '#f97316', borderRadius: 0 }]} />
+                    {/* Yellow: -200 to -80 */}
+                    <View style={[styles.rulerSeg, { left: `${P_N200 * 100}%`, width: `${(P_N80 - P_N200) * 100}%`, backgroundColor: '#eab308', borderRadius: 0 }]} />
+                    {/* Green: -80 to 0 (sweet-spot band continues across zero) */}
+                    <View style={[styles.rulerSeg, { left: `${P_N80 * 100}%`, width: `${(ZERO_P - P_N80) * 100}%`, backgroundColor: '#22c55e', borderRadius: 0 }]} />
                     {/* Green: 0–200 (Tax-Free Zone) */}
                     <View style={[styles.rulerSeg, { left: `${ZERO_P * 100}%`, width: `${(P_200 - ZERO_P) * 100}%`, backgroundColor: '#22c55e', borderRadius: 0 }]} />
                     {/* Lime: 200–500 (1%) */}
@@ -239,13 +258,17 @@ export default function LedgerScreen() {
                         </View>
                     ))}
 
-                    {/* ── Circ zone ticks (right) — value then rate below ── */}
+                    {/* ── Circ zone boundary ticks (right) — threshold value only ── */}
                     {circMarkers.map(c => (
                         <View key={c.v} style={[styles.rulerTickWrap, { left: `${c.pos * 100}%` }]}>
                             <View style={[styles.rulerTickMark, { backgroundColor: '#9ca3af' }]} />
                             <Text style={styles.rulerTickVal} numberOfLines={1} allowFontScaling={false}>{c.v}</Text>
-                            <Text style={styles.rulerTickRate} numberOfLines={1} allowFontScaling={false}>{c.rate}</Text>
                         </View>
+                    ))}
+
+                    {/* ── Tax rate centered in the bracket it applies to ── */}
+                    {zoneRates.map(z => (
+                        <Text key={z.rate} style={[styles.rulerZoneRate, { left: `${z.pos * 100}%` }]} numberOfLines={1} allowFontScaling={false}>{z.rate}</Text>
                     ))}
 
                     {/* ── Balance bead: label above, circle on the line ── */}
@@ -891,6 +914,7 @@ const styles = StyleSheet.create({
     rulerTickVal: { fontSize: 8, fontWeight: '600', color: '#6b7280', marginTop: 2, textAlign: 'center', width: 32 },
     rulerTickSym: { fontSize: 11, marginTop: 1, textAlign: 'center' },
     rulerTickRate: { fontSize: 9, fontWeight: '600', color: '#9ca3af', marginTop: 1, textAlign: 'center' },
+    rulerZoneRate: { position: 'absolute', top: 54, fontSize: 9, fontWeight: '700', color: '#6b7280', textAlign: 'center', width: 40, marginLeft: -20 },
     // Equilibrium note centred below the zero mark
     rulerEquilibriumWrap: { alignItems: 'center', marginTop: 2, marginBottom: 4 },
     rulerEquilibriumText: { fontSize: 10, color: '#6b7280', fontStyle: 'italic', textAlign: 'center', lineHeight: 14 },
