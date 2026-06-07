@@ -625,7 +625,16 @@ export function WelcomePage({ onComplete }: Props) {
                                         }}
                                     >
                                         <div
+                                            role="button"
+                                            tabIndex={0}
+                                            aria-expanded={openFaq === i}
                                             onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                    e.preventDefault();
+                                                    setOpenFaq(openFaq === i ? null : i);
+                                                }
+                                            }}
                                             style={{
                                                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                                                 cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600,
