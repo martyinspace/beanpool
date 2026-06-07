@@ -160,6 +160,7 @@ export interface MemberProfile {
         visibility: 'hidden' | 'trade_partners' | 'community' | 'friends';
     } | null;
     callsign?: string;
+    joinedAt?: string;
 }
 
 export async function updateMemberProfile(publicKey: string, update: {
@@ -289,6 +290,17 @@ export interface BalanceInfo {
     earnedCredit?: number;
     commonsBalance: number;
     callsign: string;
+    trustStats?: {
+        tradeCount: number;
+        uniquePartners: number;
+        ageDays: number;
+    };
+    velocityGate?: {
+        active: boolean;
+        dailyLimit?: number;
+        dailyUsed?: number;
+        unlockHours?: number;
+    };
 }
 
 export interface Transaction {
@@ -340,6 +352,7 @@ export interface MarketplacePost {
     lng?: number;
     photos?: string[];
     authorEnergyCycled?: number;
+    authorFoundingNeeded?: boolean; // author has no completed trades yet — their first trade unlocks their floor
 }
 
 export interface MarketplaceTransaction {
@@ -482,6 +495,9 @@ export interface Rating {
     role: 'provider' | 'receiver';
     transactionId: string;
     createdAt: string;
+    // Present on "reviews given" results (who the review was about) — populated server-side
+    target_callsign?: string;
+    target_avatar?: string | null;
 }
 
 export async function submitRating(raterPubkey: string, targetPubkey: string, stars: number, comment: string, transactionId: string): Promise<{ success: boolean; rating: Rating }> {
@@ -490,6 +506,10 @@ export async function submitRating(raterPubkey: string, targetPubkey: string, st
 
 export async function getMemberRatings(publicKey: string): Promise<{ ratings: Rating[]; average: number; count: number; asProvider: { average: number; count: number }; asReceiver: { average: number; count: number } }> {
     return request('GET', `/api/ratings/${publicKey}`);
+}
+
+export async function getRatingsGiven(publicKey: string): Promise<{ ratings: Rating[] }> {
+    return request('GET', `/api/ratings/${publicKey}?direction=given`);
 }
 
 // ===================== REPORTS =====================

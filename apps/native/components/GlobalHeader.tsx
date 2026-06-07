@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Image, Alert, Linking, Modal, Pressable, Platform } from 'react-native';
-import * as Location from 'expo-location';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, usePathname } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSavedNodes, SavedNode, removeSavedNode } from '../utils/nodes';
+import { getMemberProfile } from '../utils/db';
+import { MemberAvatar } from './MemberAvatar';
 import { getLastSyncTime } from '../services/pillar-sync';
 import { useIdentity } from '../app/IdentityContext';
 import Constants from 'expo-constants';
@@ -43,7 +44,7 @@ export function GlobalHeader() {
     const insets = useSafeAreaInsets();
     const pathname = usePathname();
     const { identity } = useIdentity();
-    const [locationEnabled, setLocationEnabled] = useState(false);
+    const [myAvatar, setMyAvatar] = useState<string | null>(null);
     const [dropdownVisible, setDropdownVisible] = useState(false);
     const [savedNodes, setSavedNodes] = useState<(SavedNode & { status: 'pinging' | 'online' | 'guest' | 'offline' })[]>([]);
     const [softUpdateVersion, setSoftUpdateVersion] = useState<string | null>(null);
@@ -151,11 +152,11 @@ export function GlobalHeader() {
     }, []);
 
     useEffect(() => {
-        (async () => {
-            const { status } = await Location.getForegroundPermissionsAsync();
-            setLocationEnabled(status === 'granted');
-        })();
-    }, []);
+        if (!identity?.publicKey) return;
+        getMemberProfile(identity.publicKey)
+            .then(p => { if (p?.avatar_url) setMyAvatar(p.avatar_url); })
+            .catch(() => {});
+    }, [identity?.publicKey]);
 
     // Check membership on active node at mount and when identity/node changes
     useEffect(() => {
@@ -281,30 +282,6 @@ export function GlobalHeader() {
         }
     };
 
-    const handleLocationToggle = async () => {
-        const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
-        
-        if (status === 'granted') {
-            Alert.alert("Location Enabled", "BeanPool currently has access to your location. To disable it, please visit your device Settings.", [
-                { text: "Cancel", style: "cancel" },
-                { text: "Open Settings", onPress: () => Linking.openSettings() }
-            ]);
-            return;
-        }
-
-        if (canAskAgain) {
-            const res = await Location.requestForegroundPermissionsAsync();
-            if (res.status === 'granted') {
-                setLocationEnabled(true);
-            }
-        } else {
-            Alert.alert("Permission Denied", "Location permission was denied. Please enable it in your device settings to use location features.", [
-                { text: "Cancel", style: "cancel" },
-                { text: "Open Settings", onPress: () => Linking.openSettings() }
-            ]);
-        }
-    };
-
     const headerHeight = Math.max(insets.top + 10, 40) + 56;
     const isMapScreen = pathname === '/map';
 
@@ -391,11 +368,15 @@ export function GlobalHeader() {
                 {/* RIGHT: Controls */}
                 <View style={styles.headerRight}>
                     <View style={styles.headerRightControls}>
-                        <TouchableOpacity 
-                            style={[styles.controlPillBtn, { borderRightWidth: 1, borderColor: '#e5e7eb' }]} 
-                            onPress={handleLocationToggle} 
+                        <TouchableOpacity
+                            style={[styles.controlPillBtn, { borderRightWidth: 1, borderColor: '#e5e7eb' }]}
+                            onPress={() => {
+                                if (identity?.publicKey) {
+                                    router.push({ pathname: '/public-profile', params: { publicKey: identity.publicKey, callsign: identity.callsign } });
+                                }
+                            }}
                         >
-                            <MaterialCommunityIcons name={locationEnabled ? "map-marker-outline" : "map-marker-off-outline"} size={17} color="#4b5563" />
+                            <MemberAvatar avatarUrl={myAvatar} pubkey={identity?.publicKey || ''} callsign={identity?.callsign || '?'} size={24} />
                         </TouchableOpacity>
                         <TouchableOpacity 
                             style={styles.controlPillBtn} 

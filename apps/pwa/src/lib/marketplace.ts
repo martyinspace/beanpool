@@ -46,6 +46,7 @@ export interface MarketplacePost {
     repeatable?: boolean;
     acceptedBy?: string;
     authorEnergyCycled?: number;
+    authorFoundingNeeded?: boolean; // author has no completed trades yet — first trade unlocks their floor
     lat?: number;
     lng?: number;
 }

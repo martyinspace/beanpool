@@ -89,6 +89,7 @@ function getDistanceInKm(lat1: number, lon1: number, lat2: number, lon2: number)
 export default function MarketScreen() {
     const { identity } = useIdentity();
     const [filter, setFilter] = useState<'all' | 'needs' | 'offers' | 'for-you'>('all');
+    const [foundingOnly, setFoundingOnly] = useState(false); // show only newcomers needing a founding trade
     const [viewMode, setViewMode] = useState<'list' | 'grid' | 'compact'>('list');
     const [favCategories, setFavCategories] = useState<string[]>([]);
     const [isCustomizerExpanded, setIsCustomizerExpanded] = useState(true);
@@ -298,7 +299,8 @@ export default function MarketScreen() {
         if (filter === 'offers' && p.type !== 'offer') return false;
         if (filter === 'needs' && p.type !== 'need') return false;
         if (filter === 'for-you' && !favCategories.includes(p.category)) return false;
-        
+        if (foundingOnly && !p.authorFoundingNeeded) return false;
+
         if (radiusKm && p.lat && p.lng) {
             const centerLat = locationCenter ? locationCenter.lat : -28.5523;
             const centerLng = locationCenter ? locationCenter.lng : 153.4991;
@@ -323,7 +325,7 @@ export default function MarketScreen() {
     });
 
     const selectedCategory = MARKETPLACE_CATEGORIES.find(c => c.id === categoryFilter);
-    const hasActiveFilters = categoryFilter !== 'all' || radiusKm !== null || filter !== 'all';
+    const hasActiveFilters = categoryFilter !== 'all' || radiusKm !== null || filter !== 'all' || foundingOnly;
 
     const freshTodayCount = posts.filter(post => {
         if (post.status !== 'active') return false;
@@ -429,6 +431,13 @@ export default function MarketScreen() {
                         <Text style={[styles.segmentText, filter === 'needs' && styles.segmentTextActive]}>🟠 Needs</Text>
                     </Pressable>
                 </View>
+
+                {/* Founding-trade filter: surface newcomers whose first trade unlocks their account */}
+                <Pressable onPress={() => setFoundingOnly(v => !v)} style={[styles.foundingChip, foundingOnly && styles.foundingChipActive]}>
+                    <Text style={[styles.foundingChipText, foundingOnly && styles.foundingChipTextActive]} numberOfLines={1}>
+                        🌱 New members{foundingOnly ? ' ✓' : ''}
+                    </Text>
+                </Pressable>
 
                 {/* Row 3: Symmetrical Filter Dropdowns (50% / 50% split) */}
                 <View style={styles.dropdownsRow}>
@@ -753,6 +762,11 @@ export default function MarketScreen() {
                                         <Text style={{ fontSize: 10, fontWeight: '800', color: '#c2410c' }}>↻ RECURRING</Text>
                                     </View>
                                 )}
+                                {!!item.authorFoundingNeeded && (
+                                    <View style={{ backgroundColor: 'rgba(34, 197, 94, 0.12)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(34, 197, 94, 0.35)' }}>
+                                        <Text style={{ fontSize: 10, fontWeight: '800', color: '#15803d' }}>🌱 FOUNDING TRADE</Text>
+                                    </View>
+                                )}
                             </View>
                             <CurrencyDisplay
                                 amount={`${item.credits !== undefined && item.credits !== null ? item.credits : '?'}${priceLabel || ''}`}
@@ -802,7 +816,7 @@ export default function MarketScreen() {
                         {hasActiveFilters && (
                             <Pressable 
                                 style={{ backgroundColor: '#f3f4f6', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, marginBottom: 12 }}
-                                onPress={() => { setFilter('all'); setCategoryFilter('all'); setRadiusKm(null); setLocationCenter(null); }}
+                                onPress={() => { setFilter('all'); setCategoryFilter('all'); setRadiusKm(null); setLocationCenter(null); setFoundingOnly(false); }}
                             >
                                 <Text style={{ fontWeight: '700', color: '#4b5563', fontSize: 14 }}>Clear All Filters</Text>
                             </Pressable>
@@ -877,6 +891,10 @@ const styles = StyleSheet.create({
 
     // Horizontal filter chips
     chipScrollContainer: { flexGrow: 1, justifyContent: 'center', flexDirection: 'row', gap: 4, paddingHorizontal: 16, paddingVertical: 4 },
+    foundingChip: { alignSelf: 'center', marginTop: 8, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(34,197,94,0.4)', backgroundColor: '#ffffff' },
+    foundingChipActive: { backgroundColor: '#dcfce7', borderColor: '#22c55e' },
+    foundingChipText: { fontSize: 12, fontWeight: '800', color: '#15803d' },
+    foundingChipTextActive: { color: '#166534' },
     chip: { 
         flexDirection: 'row', 
         alignItems: 'center', 

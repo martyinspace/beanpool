@@ -381,7 +381,12 @@ export async function getPosts(filter?: { type?: string; category?: string }) {
     const database = await waitForInit();
     let query = `
         SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar,
-               COALESCE((SELECT SUM(amount) FROM transactions WHERE from_pubkey = m.public_key), 0) as author_energy_cycled
+               COALESCE((SELECT SUM(amount) FROM transactions WHERE from_pubkey = m.public_key), 0) as author_energy_cycled,
+               COALESCE((SELECT COUNT(*) FROM transactions t
+                    WHERE (t.from_pubkey = m.public_key OR t.to_pubkey = m.public_key)
+                      AND t.from_pubkey != t.to_pubkey
+                      AND t.from_pubkey NOT LIKE 'escrow_%' AND t.to_pubkey NOT LIKE 'escrow_%'
+                      AND t.from_pubkey != 'SYSTEM' AND t.to_pubkey != 'SYSTEM'), 0) as author_trade_count
         FROM posts p
         LEFT JOIN members m ON p.author_pubkey = m.public_key
         WHERE p.status IN ('active', 'pending', 'completed')
@@ -408,9 +413,13 @@ export async function getPosts(filter?: { type?: string; category?: string }) {
     const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || '';
 
     return rows.map(r => {
+        // Founding trade needed = author has no completed trades yet (their first
+        // trade unlocks their floor). Local DB has no earned_credit, so trade-count
+        // is the signal (admin-vouched accounts are rare).
+        r.authorFoundingNeeded = (r.author_trade_count ?? 0) === 0;
         if (typeof r.photos === 'string') {
-            try { 
-                r.photos = JSON.parse(r.photos); 
+            try {
+                r.photos = JSON.parse(r.photos);
                 if (Array.isArray(r.photos)) {
                     r.photos = r.photos.map((p: string) => p && p.startsWith('/') ? `${anchorUrl}${p}` : p);
                 }
@@ -610,16 +619,24 @@ export async function getBalance(pubkey: string) {
                         ['COMMONS', balData.commonsBalance, 0]
                     );
                 }
-                // Store protocol fields in AsyncStorage for UI access
+                // Store protocol fields in AsyncStorage for UI access.
+                // Only flag `changed` (which emits 'sync_data_updated') when the tier
+                // data ACTUALLY differs from what's cached — otherwise a listener that
+                // re-calls getBalance (e.g. the ledger screen) creates an infinite
+                // emit→reload→emit loop ("Maximum update depth exceeded").
                 if (balData.tier || balData.floor !== undefined) {
-                    await AsyncStorage.setItem(`bp_tier_${pubkey}`, JSON.stringify({
+                    const newTierStr = JSON.stringify({
                         tier: balData.tier || tier,
                         floor: balData.floor ?? floor,
                         earnedCredit: balData.earnedCredit ?? 0,
                         trustStats: balData.trustStats ?? null,
                         velocityGate: balData.velocityGate ?? null,
-                    }));
-                    changed = true;
+                    });
+                    const prevTierStr = await AsyncStorage.getItem(`bp_tier_${pubkey}`);
+                    if (prevTierStr !== newTierStr) {
+                        await AsyncStorage.setItem(`bp_tier_${pubkey}`, newTierStr);
+                        changed = true;
+                    }
                 }
                 if (changed) {
                     DeviceEventEmitter.emit('sync_data_updated');
@@ -2352,6 +2369,24 @@ export async function getMemberRatings(publicKey: string): Promise<{ ratings: an
     }
 }
 
+/** Reviews the given member has WRITTEN about others (local DB), newest first. */
+export async function getRatingsGiven(raterPubkey: string): Promise<any[]> {
+    const database = await getDb();
+    try {
+        return await database.getAllAsync<any>(`
+            SELECT r.id, r.target_pubkey, r.stars, r.comment, r.role, r.transaction_id, r.created_at,
+                   m.callsign as target_callsign, m.avatar_url as target_avatar
+            FROM ratings r
+            LEFT JOIN members m ON r.target_pubkey = m.public_key
+            WHERE r.rater_pubkey = ?
+            ORDER BY r.created_at DESC
+        `, [raterPubkey]);
+    } catch (e) {
+        console.warn('getRatingsGiven failed:', e);
+        return [];
+    }
+}
+
 export async function getMarketplaceTransactions(publicKey: string, filter?: { status?: string }, limit = 50, offset = 0) {
     const database = await getDb();
     const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || '';
@@ -2659,15 +2694,22 @@ export async function getRecoveryStatus(pubkey: string): Promise<any> {
 
 export async function getMemberPosts(pubkey: string) {
     const database = await waitForInit();
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || '';
     const rows = await database.getAllAsync<any>(`
         SELECT * FROM posts
         WHERE author_pubkey = ? AND status = 'active'
         ORDER BY created_at DESC
     `, [pubkey]);
-    
+
     return rows.map(r => {
         if (typeof r.photos === 'string') {
-            try { r.photos = JSON.parse(r.photos); } catch (e) { r.photos = []; }
+            try {
+                r.photos = JSON.parse(r.photos);
+                // Resolve relative photo paths against the active node (same as getPosts/getPost)
+                if (Array.isArray(r.photos)) {
+                    r.photos = r.photos.map((p: string) => p && p.startsWith('/') ? `${anchorUrl}${p}` : p);
+                }
+            } catch (e) { r.photos = []; }
         }
         return r;
     });

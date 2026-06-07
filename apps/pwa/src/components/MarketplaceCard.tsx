@@ -55,8 +55,13 @@ export function MarketplaceCard({ post, authorRating, authorEnergy = 0, authorAv
                         <h3 className="font-extrabold text-sm text-nature-950 dark:text-white truncate">
                             {post.title}
                         </h3>
-                        <span className="text-[10px] text-nature-500 truncate flex items-center gap-1">
+                        <span className="text-[10px] text-nature-500 truncate flex items-center gap-1 flex-wrap">
                             by {post.authorCallsign || 'Anonymous'} {elderCard && '👑'}
+                            {post.authorFoundingNeeded && (
+                                <span className="text-[8px] font-black tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300/30 shrink-0">
+                                    🌱 FOUNDING
+                                </span>
+                            )}
                         </span>
                     </div>
                 </div>
@@ -119,6 +124,11 @@ export function MarketplaceCard({ post, authorRating, authorEnergy = 0, authorAv
                             {post.repeatable && (
                                 <span className={`text-[9px] font-black tracking-wider px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400`}>
                                     ↻ RECURRING
+                                </span>
+                            )}
+                            {post.authorFoundingNeeded && (
+                                <span className="text-[9px] font-black tracking-wider px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300/50">
+                                    🌱 FOUNDING TRADE
                                 </span>
                             )}
                         </div>
@@ -205,6 +215,11 @@ export function MarketplaceCard({ post, authorRating, authorEnergy = 0, authorAv
                                 🌐 {nodeBadge}
                             </span>
                         )}
+                        {post.authorFoundingNeeded && (
+                            <span className={`font-bold bg-emerald-500/90 text-white backdrop-blur-sm rounded-lg shadow-sm text-[0.6rem] px-1.5 py-0.5`}>
+                                🌱 FOUNDING TRADE
+                            </span>
+                        )}
                     </div>
 
                     {/* Price Overlay */}
@@ -228,6 +243,26 @@ export function MarketplaceCard({ post, authorRating, authorEnergy = 0, authorAv
             ) : (
                 <div className={`relative w-full rounded-xl bg-oat-50 dark:bg-nature-900 flex items-center justify-center shadow-inner h-[80px] mb-3`}>
                     <span className={`text-3xl opacity-20`}>{emoji}</span>
+                    
+                    {/* Status Overlays */}
+                    <div className={`absolute left-2 flex flex-col gap-1 items-start top-1.5`}>
+                        {post.status === 'pending' && (
+                            <span className={`font-bold bg-amber-400 text-amber-950 rounded-lg shadow-sm text-[0.6rem] px-1.5 py-0.5`}>
+                                ⏳ PENDING
+                            </span>
+                        )}
+                        {nodeBadge && (
+                            <span className={`font-bold bg-indigo-500/90 text-white backdrop-blur-sm rounded-lg shadow-sm text-[0.6rem] px-1.5 py-0.5`}>
+                                🌐 {nodeBadge}
+                            </span>
+                        )}
+                        {post.authorFoundingNeeded && (
+                            <span className={`font-bold bg-emerald-500/90 text-white backdrop-blur-sm rounded-lg shadow-sm text-[0.6rem] px-1.5 py-0.5`}>
+                                🌱 FOUNDING TRADE
+                            </span>
+                        )}
+                    </div>
+
                     <div className={`absolute right-2 bg-nature-900/90 backdrop-blur-md text-white font-bold tracking-tight shadow-md bottom-2 px-2.5 py-1 rounded-lg text-sm`}>
                         <span style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap' }}>
                             <span>{post.credits !== undefined ? post.credits : '?'}</span>

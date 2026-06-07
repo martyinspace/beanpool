@@ -26,25 +26,7 @@ import { ProjectsPage } from './pages/ProjectsPage';
 import { InstallPrompt } from './components/InstallPrompt';
 import { PublicProfilePage } from './pages/PublicProfilePage';
 
-function HeaderControls({ showSettings, setShowSettings }: { showSettings: boolean, setShowSettings: (v: boolean) => void }) {
-    const [locationEnabled, setLocationEnabled] = useState(() => {
-        // Tie to legacy tier 3 (Live) vs tier 0 (Ghost) logic
-        const saved = localStorage.getItem('beanpool-privacy-tier');
-        return saved === '3';
-    });
-
-    const toggleLocation = () => {
-        const nextState = !locationEnabled;
-        setLocationEnabled(nextState);
-        localStorage.setItem('beanpool-privacy-tier', nextState ? '3' : '0');
-        if ('vibrate' in navigator) navigator.vibrate(50);
-        
-        // Explicitly request location permission when toggling ON
-        if (nextState && 'geolocation' in navigator) {
-            navigator.geolocation.getCurrentPosition(() => {}, () => {});
-        }
-    };
-
+function HeaderControls({ showSettings, setShowSettings, identityPubkey, onOpenProfile }: { showSettings: boolean, setShowSettings: (v: boolean) => void, identityPubkey?: string, onOpenProfile: (pk: string) => void }) {
     return (
         <div style={{
             display: 'flex',
@@ -59,24 +41,14 @@ function HeaderControls({ showSettings, setShowSettings }: { showSettings: boole
             justifyContent: 'center',
         }}>
             <button
-                onClick={toggleLocation}
-                aria-label="Toggle location privacy"
-                aria-pressed={locationEnabled}
-                title={locationEnabled ? "Location: On (Live)" : "Location: Off (Ghost)"}
+                onClick={() => identityPubkey && onOpenProfile(identityPubkey)}
+                aria-label="My profile"
+                title="My profile"
                 className="text-nature-600 dark:text-nature-400 hover:text-nature-900 dark:hover:text-nature-200 transition-colors flex items-center justify-center p-0"
             >
-                {locationEnabled ? (
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-                    </svg>
-                ) : (
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3l18 18" />
-                    </svg>
-                )}
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                </svg>
             </button>
 
             <div className="w-[1px] h-[12px] bg-nature-200 dark:bg-nature-700 mx-[1px]" />
@@ -108,6 +80,7 @@ export function App() {
     const [activeTab, setActiveTab] = useState<Tab>('marketplace');
     const [peopleSubView, setPeopleSubView] = useState<'friends' | 'community' | 'invites' | 'guardians'>('friends');
     const [showSettings, setShowSettings] = useState(false);
+    const [settingsInitialMode, setSettingsInitialMode] = useState<'menu' | 'profile'>('menu');
     const [openConversationId, setOpenConversationId] = useState<string | null>(null);
     const [openMarketPostId, setOpenMarketPostId] = useState<string | null>(null);
     const [openNewPost, setOpenNewPost] = useState(false);
@@ -361,7 +334,7 @@ export function App() {
                             {isGuest ? 'Join' : 'Invite'}
                         </span>
                     </button>
-                    <HeaderControls showSettings={showSettings} setShowSettings={setShowSettings} />
+                    <HeaderControls showSettings={showSettings} setShowSettings={(v) => { setSettingsInitialMode('menu'); setShowSettings(v); }} identityPubkey={identity?.publicKey} onOpenProfile={(pk) => setOpenProfilePubkey(pk)} />
                 </div>
             </header>
 
@@ -381,6 +354,7 @@ export function App() {
                             onBack={() => setShowSettings(false)}
                             theme={theme}
                             onToggleTheme={toggleTheme}
+                            initialMode={settingsInitialMode}
                         />
                     </div>
                 )}
@@ -410,6 +384,19 @@ export function App() {
                         onNavigatePost={(postId) => {
                             setOpenProfilePubkey(null);
                             navigateToTab('marketplace', postId);
+                        }}
+                        onEditProfile={() => {
+                            setOpenProfilePubkey(null);
+                            setSettingsInitialMode('profile');
+                            setShowSettings(true);
+                        }}
+                        onNavigateTab={(tab, subView) => {
+                            setOpenProfilePubkey(null);
+                            if (tab === 'people' && subView) {
+                                setPeopleSubView(subView as any);
+                            }
+                            setActiveTab(tab as any);
+                            setShowSettings(false);
                         }}
                     />
                 )}

@@ -20,9 +20,10 @@ interface Props {
     onBack: () => void;
     theme: Theme;
     onToggleTheme: () => void;
+    initialMode?: 'menu' | 'export' | 'import' | 'profile' | 'advanced';
 }
 
-export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onToggleTheme }: Props) {
+export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onToggleTheme, initialMode }: Props) {
     const [useModernMarkers, setUseModernMarkers] = useState(() => {
         return localStorage.getItem('beanpool_modern_markers') !== 'false';
     });
@@ -32,7 +33,24 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
         setUseModernMarkers(next);
         localStorage.setItem('beanpool_modern_markers', String(next));
     };
-    const [mode, setMode] = useState<'menu' | 'export' | 'import' | 'profile' | 'advanced'>('menu');
+
+    const [privacyTier, setPrivacyTier] = useState<'3' | '0'>(() => {
+        return (localStorage.getItem('beanpool-privacy-tier') as '3' | '0') || '0';
+    });
+
+    const handleTogglePrivacy = () => {
+        const next = privacyTier === '3' ? '0' : '3';
+        setPrivacyTier(next);
+        localStorage.setItem('beanpool-privacy-tier', next);
+    };
+
+    const [mode, setMode] = useState<'menu' | 'export' | 'import' | 'profile' | 'advanced'>(initialMode || 'menu');
+
+    useEffect(() => {
+        if (initialMode) {
+            setMode(initialMode);
+        }
+    }, [initialMode]);
     const [transferCode, setTransferCode] = useState('');
     const [exportUri, setExportUri] = useState('');
     const [importUri, setImportUri] = useState('');
@@ -215,6 +233,27 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                     >
                         <span className={`block w-[22px] h-[22px] rounded-full bg-white absolute top-[2px] shadow-sm transform transition-transform duration-300 ease-in-out ${
                             useModernMarkers ? 'translate-x-[26px]' : 'translate-x-[2px]'
+                        }`} />
+                    </button>
+                </div>
+
+                {/* Location Privacy Toggle */}
+                <div className="bg-white dark:bg-nature-900 rounded-2xl px-6 py-5 mb-6 shadow-soft border border-nature-200 dark:border-nature-800 flex justify-between items-center transition-colors">
+                    <div>
+                        <span className="block text-[15px] font-bold text-nature-900 dark:text-white transition-colors">
+                            {privacyTier === '3' ? '🔴 Live Location Sharing' : '👻 Ghost Mode (Location Hidden)'}
+                        </span>
+                        <span className="block text-xs text-nature-500 dark:text-nature-400 mt-0.5">Toggle real-time sharing vs absolute privacy</span>
+                    </div>
+                    <button
+                        onClick={handleTogglePrivacy}
+                        className={`w-14 h-[30px] rounded-full relative cursor-pointer outline-none transition-colors duration-300 ease-in-out border-2 shadow-inner ${
+                            privacyTier === '3' ? 'bg-red-500 border-red-600' : 'bg-nature-200 dark:bg-nature-700 border-nature-300 dark:border-nature-600'
+                        }`}
+                        aria-label="Toggle Location Privacy"
+                    >
+                        <span className={`block w-[22px] h-[22px] rounded-full bg-white absolute top-[2px] shadow-sm transform transition-transform duration-300 ease-in-out ${
+                            privacyTier === '3' ? 'translate-x-[26px]' : 'translate-x-[2px]'
                         }`} />
                     </button>
                 </div>

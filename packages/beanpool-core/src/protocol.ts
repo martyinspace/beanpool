@@ -92,7 +92,7 @@ export function getTier(floor: number): TierInfo {
     const c = PROTOCOL_CONSTANTS;
 
     if (floor > c.GHOST_THRESHOLD) {
-        return { name: 'Newcomer', emoji: '🌱', color: '#6b7280', canGift: false, canInvite: false };
+        return { name: 'Newcomer', emoji: '🌱', color: '#6b7280', canGift: false, canInvite: true };
     }
     if (floor > c.RESIDENT_THRESHOLD) {
         return { name: 'Resident', emoji: '🏠', color: '#3b82f6', canGift: true, canInvite: true };

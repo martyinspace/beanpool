@@ -54,7 +54,7 @@ import {
     getConversationMessages, getConversation,
     getCommunityHealth,
     seedGenesisMember,
-    addRating, getRatings, getAverageRating,
+    addRating, getRatings, getAverageRating, getRatingsGiven,
     submitReport, getReports, dismissReport, actionReport, getReportCount,
     getFriends, addFriend, removeFriend, setGuardian,
     adminSetUserStatus, adminDeletePost, adminPruneUser, adminBulkDeletePosts,
@@ -1723,9 +1723,15 @@ export async function startHttpsServer(port: number): Promise<void> {
 
     router.get('/api/ratings/:publicKey', async (ctx) => {
         const { publicKey } = ctx.params;
-        const memberRatings = getRatings(publicKey);
-        const average = getAverageRating(publicKey);
-        ctx.body = { ratings: memberRatings, ...average };
+        const { direction } = ctx.query;
+        if (direction === 'given') {
+            const memberRatings = getRatingsGiven(publicKey);
+            ctx.body = { ratings: memberRatings };
+        } else {
+            const memberRatings = getRatings(publicKey);
+            const average = getAverageRating(publicKey);
+            ctx.body = { ratings: memberRatings, ...average };
+        }
     });
 
     // ===================== COMMUNITY COMMONS =====================

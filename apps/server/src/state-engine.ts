@@ -122,6 +122,7 @@ export interface MarketplacePost {
     photos?: string[];
     originNode?: string;
     authorEnergyCycled?: number;
+    authorFoundingNeeded?: boolean; // true = author has no completed trades yet (their first trade unlocks their floor)
     authorAvatarUrl?: string | null;
 }
 
@@ -160,6 +161,7 @@ export interface MemberProfile {
     callsign?: string;
     lastActiveAt?: string;
     status?: 'active' | 'disabled' | 'pruned';
+    joinedAt?: string;
 }
 
 export interface Conversation {
@@ -216,6 +218,8 @@ export interface Rating {
     role: 'provider' | 'receiver';
     transactionId: string;
     createdAt: string;
+    target_callsign?: string;
+    target_avatar?: string | null;
 }
 
 export interface AbuseReport {
@@ -583,7 +587,8 @@ function rowToProfile(row: any): MemberProfile {
         contact: row.contact_value ? { value: row.contact_value, visibility: row.contact_visibility } : null,
         status: row.status,
         lastActiveAt: row.last_active_at,
-        callsign: row.callsign
+        callsign: row.callsign,
+        joinedAt: row.joined_at
     };
 }
 
@@ -1045,8 +1050,17 @@ export function getMemberTrustProfile(publicKey: string): {
     // Build augmented stats: add pre-seeded credit as equivalent trade activity
     // This is done by calculating the raw floor first, then subtracting the pre-seeded bonus
     const organicFloor = calculateDynamicFloor(stats);
-    const floor = organicFloor - preSeeded; // Pre-seeded credit deepens the floor
+    let floor = organicFloor - preSeeded; // Pre-seeded credit deepens the floor
 
+    // Floor-gate: no overdraft until the account's FIRST genuine trade. A fresh
+    // account can still earn/receive (go positive), but cannot spend unearned
+    // credit — this is what neutralises sybil/siphon, identically on every client
+    // (the rule is server-side, keyed on the identity). Genesis-vouched accounts
+    // (preSeeded > 0) are admin-trusted and exempt, so ambassadors can overdraft
+    // to trade with — and bootstrap — newcomers.
+    if (stats.tradeCount === 0 && preSeeded === 0) {
+        floor = 0;
+    }
 
     const tier = getTier(floor);
     const c = PROTOCOL_CONSTANTS;
@@ -1164,8 +1178,11 @@ export function transfer(from: string, to: string, amount: number, memo: string,
         }
     }
 
-    // Calculate dynamic floor for the sender (escrow wallets are exempt)
-    const senderFloor = from.startsWith('escrow_') ? -Infinity : calculateDynamicFloor(getMemberTrustStats(from));
+    // Calculate dynamic floor for the sender (escrow wallets are exempt).
+    // Use getMemberTrustProfile so the SAME floor definition applies to direct
+    // transfers as to marketplace spends — including the first-trade gate and the
+    // genesis-vouched exemption.
+    const senderFloor = from.startsWith('escrow_') ? -Infinity : getMemberTrustProfile(from).floor;
     const success = ledger.transfer(from, to, amount, senderFloor);
     if (!success) return null;
 
@@ -1237,6 +1254,7 @@ function rowToPost(row: any, photosByPost: Map<string, any[]>): MarketplacePost 
         photos: postPhotos.sort((a: any, b: any) => a.order_num - b.order_num).map((p: any) => `/api/marketplace/posts/${row.id}/photos/${p.order_num}`),
         originNode: row.origin_node,
         authorEnergyCycled: row.author_energy_cycled ?? 0,
+        authorFoundingNeeded: (row.author_trade_count ?? 0) === 0 && (row.author_earned_credit ?? 0) === 0,
         authorAvatarUrl: row.author_avatar ?? null
     };
 }
@@ -1274,7 +1292,13 @@ export function createPost(
 export function getPosts(filter?: { id?: string; type?: string; category?: string; status?: string; offset?: number; limit?: number; updatedAfter?: string; query?: string; authorPubkey?: string }): MarketplacePost[] {
     let query = `
         SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar, a.callsign as accepted_callsign,
-               COALESCE((SELECT SUM(amount) FROM transactions WHERE from_pubkey = m.public_key), 0) as author_energy_cycled
+               COALESCE((SELECT SUM(amount) FROM transactions WHERE from_pubkey = m.public_key), 0) as author_energy_cycled,
+               COALESCE(m.earned_credit, 0) as author_earned_credit,
+               COALESCE((SELECT COUNT(*) FROM transactions t
+                    WHERE (t.from_pubkey = m.public_key OR t.to_pubkey = m.public_key)
+                      AND t.from_pubkey != t.to_pubkey
+                      AND t.from_pubkey NOT LIKE 'escrow_%' AND t.to_pubkey NOT LIKE 'escrow_%'
+                      AND t.from_pubkey != 'SYSTEM' AND t.to_pubkey != 'SYSTEM'), 0) as author_trade_count
         FROM posts p
         LEFT JOIN members m ON p.author_pubkey = m.public_key
         LEFT JOIN members a ON p.accepted_by = a.public_key
@@ -3362,6 +3386,29 @@ export function addRating(raterPubkey: string, targetPubkey: string, stars: numb
 export function getRatings(targetPubkey: string): Rating[] {
     const rows = db.prepare("SELECT * FROM ratings WHERE target_pubkey=? ORDER BY created_at DESC").all(targetPubkey) as any[];
     return rows.map(r => ({ id: r.id, targetPubkey: r.target_pubkey, raterPubkey: r.rater_pubkey, stars: r.stars, comment: r.comment, role: r.role, transactionId: r.transaction_id, createdAt: r.created_at }));
+}
+
+export function getRatingsGiven(raterPubkey: string): Rating[] {
+    const rows = db.prepare(`
+        SELECT r.id, r.target_pubkey, r.rater_pubkey, r.stars, r.comment, r.role, r.transaction_id, r.created_at,
+               m.callsign as target_callsign, m.avatar_url as target_avatar
+        FROM ratings r
+        LEFT JOIN members m ON r.target_pubkey = m.public_key
+        WHERE r.rater_pubkey=?
+        ORDER BY r.created_at DESC
+    `).all(raterPubkey) as any[];
+    return rows.map(r => ({
+        id: r.id,
+        targetPubkey: r.target_pubkey,
+        raterPubkey: r.rater_pubkey,
+        stars: r.stars,
+        comment: r.comment,
+        role: r.role,
+        transactionId: r.transaction_id,
+        createdAt: r.created_at,
+        target_callsign: r.target_callsign,
+        target_avatar: r.target_avatar
+    }));
 }
 
 export function getAverageRating(targetPubkey: string): { average: number; count: number; asProvider: { average: number; count: number }; asReceiver: { average: number; count: number } } {

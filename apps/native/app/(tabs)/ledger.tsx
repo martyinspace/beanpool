@@ -20,7 +20,7 @@ import { TrustInfoModal } from '../../components/info-content/TrustInfoModal';
 // floor: the credit limit at that tier (negative = how far into debt you can go)
 // dailyLimit: velocity gate bean limit (null = unrestricted)
 const TIERS = [
-    { name: 'Newcomer', emoji: '🌱', color: '#6b7280', bg: '#f3f4f6', border: '#d1d5db', min: 0,    floor: -80,   dailyLimit: 20, perks: ['Marketplace access', 'Receive credits'] },
+    { name: 'Newcomer', emoji: '🌱', color: '#6b7280', bg: '#f3f4f6', border: '#d1d5db', min: 0,    floor: -80,   dailyLimit: 20, perks: ['Marketplace access', 'Receive credits', 'Invite members', 'Overdraft unlocks after 1st trade'] },
     { name: 'Resident', emoji: '🏠', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', min: 120,  floor: -200,  dailyLimit: null, perks: ['Send credits', 'Invite members', 'Full marketplace'] },
     { name: 'Citizen',  emoji: '🏛️', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', min: 520,  floor: -600,  dailyLimit: null, perks: ['All Resident perks', 'Trusted trader status'] },
     { name: 'Elder',    emoji: '👑', color: '#d97706', bg: '#fffbeb', border: '#fde68a', min: 1320, floor: -1400, dailyLimit: null, perks: ['All perks', 'Community governance voice'] },
@@ -140,7 +140,8 @@ export default function LedgerScreen() {
     const tierIdx = getTierIndex(ec);
     const tier = TIERS[tierIdx];
     const nextTier = TIERS[tierIdx + 1] || null;
-    const overallProgress = nextTier ? Math.min(1, (ec - tier.min) / (nextTier.min - tier.min)) : 1;
+    const ELDER_MIN = TIERS[TIERS.length - 1].min;
+    const journeyPct = ELDER_MIN > 0 ? Math.min(1, ec / ELDER_MIN) : 1; // cumulative progress toward Elder
     const creditsToNext = nextTier ? Math.max(0, nextTier.min - ec) : 0;
     const tradesToLevel   = nextTier ? Math.ceil(creditsToNext / W_TRADES)   : 0;
     const partnersToLevel = nextTier ? Math.ceil(creditsToNext / W_PARTNERS) : 0;
@@ -157,9 +158,9 @@ export default function LedgerScreen() {
         // 9 anchors: 4 tier floors + zero + 4 circ bracket boundaries (incl. 2000)
         const ANCHORS: [number, number][] = [
             [-1400, 0.04],  // Elder floor       👑
-            [-600,  0.15],  // Citizen floor      🏛️
-            [-200,  0.27],  // Resident floor     🏠
-            [-80,   0.38],  // Newcomer floor     🌱
+            [-600,  0.13],  // Citizen floor      🏛️  (evenly spaced so each colour band is equal width)
+            [-200,  0.24],  // Resident floor     🏠
+            [-80,   0.35],  // Newcomer floor     🌱
             [0,     0.46],  // Zero line
             [200,   0.57],  // 0–200: 0% (Tax-Free Green Zone) → rate changes to 1% above 200
             [500,   0.68],  // 200–500: 1% → rate changes to 1.5% above here
@@ -189,9 +190,9 @@ export default function LedgerScreen() {
         const P_1000  = 0.79;
         const P_2000  = 0.91;
         // Negative-side anchor positions (tier floors) — for the mirrored zones
-        const P_N80   = 0.38;
-        const P_N200  = 0.27;
-        const P_N600  = 0.15;
+        const P_N80   = 0.35;
+        const P_N200  = 0.24;
+        const P_N600  = 0.13;
 
         const balancePct = toPos(balance);
 
@@ -211,7 +212,8 @@ export default function LedgerScreen() {
         ];
 
         // Tax rate per bracket, positioned at the CENTER of the zone it applies to.
-        const zoneRates = [
+        const zoneRates: { rate: string; pos: number; color?: string }[] = [
+            { rate: '0%',   pos: (ZERO_P + P_200) / 2, color: '#16a34a' }, // 0–200 tax-free
             { rate: '1%',   pos: (P_200 + P_500) / 2 },   // 200–500
             { rate: '1.5%', pos: (P_500 + P_1000) / 2 },  // 500–1000
             { rate: '2%',   pos: (P_1000 + P_2000) / 2 }, // 1000–2000
@@ -250,13 +252,19 @@ export default function LedgerScreen() {
                     <Text style={[styles.rulerZeroLabel, { left: `${ZERO_P * 100}%` }]} allowFontScaling={false}>0</Text>
 
                     {/* ── Tier floor ticks (left) — value then emoji below ── */}
-                    {tierMarkers.map(t => (
-                        <View key={t.name} style={[styles.rulerTickWrap, { left: `${t.pos * 100}%` }]}>
-                            <View style={[styles.rulerTickMark, { backgroundColor: '#9ca3af' }]} />
-                            <Text style={styles.rulerTickVal} numberOfLines={1} allowFontScaling={false}>{t.floor}</Text>
-                            <Text style={styles.rulerTickSym} allowFontScaling={false}>{t.emoji}</Text>
-                        </View>
-                    ))}
+                    {tierMarkers.map(t => {
+                        const isCurrent = t.name === tier.name;
+                        return (
+                            <View key={t.name} style={[styles.rulerTickWrap, { left: `${t.pos * 100}%` }]}>
+                                <View style={[styles.rulerTickMark, { backgroundColor: isCurrent ? t.color : '#9ca3af' }]} />
+                                <Text style={[styles.rulerTickVal, isCurrent && { color: t.color, fontWeight: '800' }]} numberOfLines={1} allowFontScaling={false}>{t.floor}</Text>
+                                <View style={isCurrent ? [styles.rulerSymRing, { borderColor: t.color, backgroundColor: t.bg }] : null}>
+                                    <Text style={styles.rulerTickSym} allowFontScaling={false}>{t.emoji}</Text>
+                                </View>
+                                {isCurrent && <Text style={[styles.rulerYouTag, { color: t.color }]} allowFontScaling={false}>YOU</Text>}
+                            </View>
+                        );
+                    })}
 
                     {/* ── Circ zone boundary ticks (right) — threshold value only ── */}
                     {circMarkers.map(c => (
@@ -268,7 +276,7 @@ export default function LedgerScreen() {
 
                     {/* ── Tax rate centered in the bracket it applies to ── */}
                     {zoneRates.map(z => (
-                        <Text key={z.rate} style={[styles.rulerZoneRate, { left: `${z.pos * 100}%` }]} numberOfLines={1} allowFontScaling={false}>{z.rate}</Text>
+                        <Text key={z.rate} style={[styles.rulerZoneRate, z.color ? { color: z.color, fontWeight: '800' } : null, { left: `${z.pos * 100}%` }]} numberOfLines={1} allowFontScaling={false}>{z.rate}</Text>
                     ))}
 
                     {/* ── Balance bead: label above, circle on the line ── */}
@@ -327,13 +335,24 @@ export default function LedgerScreen() {
                     </View>
                 </View>
 
-                <View style={styles.progressBg}>
-                    <View style={[styles.progressFill, { width: `${overallProgress * 100}%`, backgroundColor: tier.color }]} />
+                {/* Journey bar: cumulative progress 0 → Elder, with tier milestone ticks */}
+                <View style={styles.journeyTrack}>
+                    <View style={[styles.journeyFill, { width: `${journeyPct * 100}%`, backgroundColor: tier.color }]} />
+                    {TIERS.filter(t => t.min > 0).map(t => {
+                        const pos = Math.min(1, t.min / ELDER_MIN);
+                        const reached = ec >= t.min;
+                        return (
+                            <View key={t.name} style={[styles.journeyTick, { left: `${pos * 100}%` }]}>
+                                <View style={[styles.journeyTickMark, reached && { backgroundColor: t.color }]} />
+                                <Text style={styles.journeyTickEmoji} allowFontScaling={false}>{t.emoji}</Text>
+                            </View>
+                        );
+                    })}
                 </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-                    <Text style={styles.progressLabel}>{ec} credits earned</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 }}>
+                    <Text style={styles.progressLabel}>{ec} trust points</Text>
                     {nextTier
-                        ? <Text style={styles.progressLabel}>{nextTier.min} for {nextTier.emoji} {nextTier.name}</Text>
+                        ? <Text style={styles.progressLabel}>{creditsToNext} to {nextTier.emoji} {nextTier.name}</Text>
                         : <Text style={[styles.progressLabel, { color: '#d97706', fontWeight: '700' }]}>✨ Maximum level!</Text>
                     }
                 </View>
@@ -348,31 +367,31 @@ export default function LedgerScreen() {
                         <MaterialCommunityIcons name={balanceState.tier.canInvite ? 'check-circle' : 'lock-outline'} size={13} color={balanceState.tier.canInvite ? '#10b981' : '#9ca3af'} />
                         <Text style={[styles.perkText, { color: balanceState.tier.canInvite ? '#059669' : '#9ca3af' }]}>Invite Members</Text>
                     </View>
-                    <View style={[styles.perkPill, { borderColor: '#bfdbfe', backgroundColor: '#eff6ff' }]}>
-                        <MaterialCommunityIcons name="scale-balance" size={13} color="#3b82f6" />
-                        <Text style={[styles.perkText, { color: '#1d4ed8' }]}>Floor: {balanceState.floor}</Text>
-                    </View>
                 </View>
             </View>
 
-            {/* Path to next tier */}
+            {/* How to reach the next tier — leads with the highest-leverage lever */}
             {nextTier && (
                 <View style={styles.pathCard}>
-                    <Text style={styles.pathTitle}>🚀 Fastest paths to {nextTier.emoji} {nextTier.name}</Text>
+                    <Text style={styles.pathTitle}>🚀 Reach {nextTier.emoji} {nextTier.name}</Text>
+                    <Text style={styles.pathGap}>{creditsToNext} trust points to go</Text>
+                    <Text style={styles.pathHint}>
+                        Trading with someone new is the fastest route — each new partner is worth {W_PARTNERS} points,
+                        vs {W_TRADES} for a repeat trade. You also earn {W_DAYS}/day just by staying active.
+                    </Text>
                     <View style={styles.pathRow}>
                         <View style={styles.pathOption}>
-                            <Text style={[styles.pathNumber, { color: '#10b981' }]}>{tradesToLevel}</Text>
-                            <Text style={styles.pathLabel}>more trades</Text>
-                        </View>
-                        <Text style={styles.pathOr}>or</Text>
-                        <View style={styles.pathOption}>
                             <Text style={[styles.pathNumber, { color: '#3b82f6' }]}>{partnersToLevel}</Text>
-                            <Text style={styles.pathLabel}>new trade partners</Text>
+                            <Text style={styles.pathLabel} numberOfLines={2}>new partners</Text>
+                            <Text style={[styles.pathLeverTag, { color: '#3b82f6' }]}>fastest</Text>
                         </View>
-                        <Text style={styles.pathOr}>or</Text>
                         <View style={styles.pathOption}>
-                            <Text style={[styles.pathNumber, { color: '#f97316' }]}>{daysToLevel}</Text>
-                            <Text style={styles.pathLabel}>more days</Text>
+                            <Text style={[styles.pathNumber, { color: '#10b981' }]}>{tradesToLevel}</Text>
+                            <Text style={styles.pathLabel} numberOfLines={2}>repeat trades</Text>
+                        </View>
+                        <View style={styles.pathOption}>
+                            <Text style={[styles.pathNumber, { color: '#f97316' }]}>~{Math.max(1, Math.round(daysToLevel / 30))}mo</Text>
+                            <Text style={styles.pathLabel} numberOfLines={2}>just waiting</Text>
                         </View>
                     </View>
                 </View>
@@ -694,7 +713,7 @@ export default function LedgerScreen() {
             {/* ── Compact profile + balance bar ── */}
             <View style={styles.topBar}>
                 {/* Avatar + name + tier — left side */}
-                <Pressable style={styles.profileChunk} onPress={() => router.push({ pathname: '/(tabs)/settings', params: { section: 'profile' } })}>
+                <Pressable style={styles.profileChunk} onPress={() => identity?.publicKey && router.push({ pathname: '/public-profile', params: { publicKey: identity.publicKey, callsign: identity.callsign } })}>
                     <View style={styles.avatarRing}>
                         <MemberAvatar avatarUrl={avatarUrl} pubkey={identity?.publicKey || ''} callsign={identity?.callsign || 'G'} size={48} />
                     </View>
@@ -705,7 +724,7 @@ export default function LedgerScreen() {
                         </View>
                     </View>
                     <View style={styles.editHint}>
-                        <MaterialCommunityIcons name="pencil-outline" size={14} color="#9ca3af" />
+                        <MaterialCommunityIcons name="chevron-right" size={18} color="#9ca3af" />
                     </View>
                 </Pressable>
 
@@ -792,6 +811,12 @@ const styles = StyleSheet.create({
     progressBg: { height: 10, backgroundColor: '#e5e7eb', borderRadius: 5, overflow: 'hidden' },
     progressFill: { height: '100%', borderRadius: 5 },
     progressLabel: { fontSize: 11, color: '#6b7280', fontWeight: '600' },
+    // Journey-to-Elder bar
+    journeyTrack: { height: 10, backgroundColor: '#e5e7eb', borderRadius: 5, position: 'relative', marginTop: 6 },
+    journeyFill: { position: 'absolute', left: 0, top: 0, height: 10, borderRadius: 5 },
+    journeyTick: { position: 'absolute', top: -2, alignItems: 'center', width: 16, marginLeft: -8 },
+    journeyTickMark: { width: 2, height: 14, backgroundColor: '#cbd5e1', borderRadius: 1 },
+    journeyTickEmoji: { fontSize: 12, marginTop: 2 },
     perksRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
     perkPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1 },
     perkText: { fontSize: 12, fontWeight: '700' },
@@ -803,6 +828,9 @@ const styles = StyleSheet.create({
     pathNumber: { fontSize: 32, fontWeight: '900', lineHeight: 36 },
     pathLabel: { fontSize: 11, color: '#6b7280', fontWeight: '600', marginTop: 2, textAlign: 'center' },
     pathOr: { fontSize: 11, color: '#d1d5db', fontWeight: '600' },
+    pathGap: { fontSize: 18, fontWeight: '900', color: '#111827', marginTop: -6, marginBottom: 6 },
+    pathHint: { fontSize: 12, color: '#6b7280', lineHeight: 18, marginBottom: 14 },
+    pathLeverTag: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 },
 
     sectionLabel: { fontSize: 11, fontWeight: '800', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 },
 
@@ -913,11 +941,13 @@ const styles = StyleSheet.create({
     rulerTickMark: { width: 1, height: 6 },
     rulerTickVal: { fontSize: 8, fontWeight: '600', color: '#6b7280', marginTop: 2, textAlign: 'center', width: 32 },
     rulerTickSym: { fontSize: 11, marginTop: 1, textAlign: 'center' },
+    rulerSymRing: { marginTop: 1, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 3, paddingVertical: 0, alignItems: 'center', justifyContent: 'center' },
+    rulerYouTag: { fontSize: 7, fontWeight: '900', letterSpacing: 0.5, marginTop: 1 },
     rulerTickRate: { fontSize: 9, fontWeight: '600', color: '#9ca3af', marginTop: 1, textAlign: 'center' },
     rulerZoneRate: { position: 'absolute', top: 54, fontSize: 9, fontWeight: '700', color: '#6b7280', textAlign: 'center', width: 40, marginLeft: -20 },
     // Equilibrium note centred below the zero mark
     rulerEquilibriumWrap: { alignItems: 'center', marginTop: 2, marginBottom: 4 },
-    rulerEquilibriumText: { fontSize: 10, color: '#6b7280', fontStyle: 'italic', textAlign: 'center', lineHeight: 14 },
+    rulerEquilibriumText: { fontSize: 12, color: '#374151', fontStyle: 'italic', textAlign: 'center', lineHeight: 17 },
     // Bead: 64px centered wrap, label above, circle below — fixed width prevents horizontal drifting
     rulerBeadWrap: { position: 'absolute', alignItems: 'center', width: 64, top: 3, marginLeft: -32 },
     rulerBeadLabel: { fontSize: 12, fontWeight: '800', marginBottom: 3, textAlign: 'center' },

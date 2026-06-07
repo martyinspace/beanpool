@@ -13,6 +13,7 @@ import { buildSignedHeaders } from '../../utils/crypto';
 import { updateMemberProfile, getMemberProfile, getPendingRecoveryRequests, approveRecoveryRequest, rejectRecoveryRequest, signedRequest } from '../../utils/db';
 import { getSavedNodes, SavedNode, removeSavedNode, getDatabaseFilenameForNode } from '../../utils/nodes';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Location from 'expo-location';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import Constants from 'expo-constants';
 import appConfig from '../../app.json';
@@ -54,6 +55,31 @@ export default function SettingsScreen() {
     const [dbSize, setDbSize] = useState<string>('0.0 MB');
     const [remoteStats, setRemoteStats] = useState<{ members: number, posts: number, transactions: number } | null>(null);
     const params = useLocalSearchParams<{ section?: string }>();
+
+    // Location permission (relocated here from the global header)
+    const [locationEnabled, setLocationEnabled] = useState(false);
+    useEffect(() => {
+        Location.getForegroundPermissionsAsync().then(({ status }) => setLocationEnabled(status === 'granted')).catch(() => {});
+    }, []);
+    const handleLocationToggle = async () => {
+        const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+        if (status === 'granted') {
+            Alert.alert('Location Enabled', 'BeanPool currently has access to your location. To disable it, please visit your device Settings.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ]);
+            return;
+        }
+        if (canAskAgain) {
+            const res = await Location.requestForegroundPermissionsAsync();
+            setLocationEnabled(res.status === 'granted');
+        } else {
+            Alert.alert('Permission Denied', 'Location permission was denied. Please enable it in your device settings to use location features.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ]);
+        }
+    };
 
     // Reset to the main menu when settings is focused, or auto-open deep-linked sections
     useFocusEffect(
@@ -753,7 +779,7 @@ export default function SettingsScreen() {
                 {/* ─── App Settings ─── */}
                 <Text style={styles.sectionHeader}>APP SETTINGS</Text>
                 <View style={styles.menuGroup}>
-                    <Pressable style={[styles.menuBtn, styles.menuBtnLast]} onPress={async () => {
+                    <Pressable style={styles.menuBtn} onPress={async () => {
                         setMode('notifications');
                         setNotifLoading(true);
                         try {
@@ -774,6 +800,14 @@ export default function SettingsScreen() {
                         <View style={{ flex: 1 }}>
                             <Text style={styles.menuText}>Notification Preferences</Text>
                             <Text style={styles.menuSub}>Control push alerts by category</Text>
+                        </View>
+                        <Text style={styles.menuChevron}>›</Text>
+                    </Pressable>
+                    <Pressable style={[styles.menuBtn, styles.menuBtnLast]} onPress={handleLocationToggle}>
+                        <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>📍</Text></View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.menuText}>Location</Text>
+                            <Text style={styles.menuSub}>{locationEnabled ? 'Enabled — used for nearby posts & map' : 'Disabled — tap to enable'}</Text>
                         </View>
                         <Text style={styles.menuChevron}>›</Text>
                     </Pressable>

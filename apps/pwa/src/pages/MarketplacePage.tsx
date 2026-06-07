@@ -42,6 +42,7 @@ interface Props {
 export function MarketplacePage({ identity, marketClickCount = 0, openPostId, onPostOpened, onNavigate, onOpenProfile }: Props) {
     const [posts, setPosts] = useState<MarketplacePost[]>([]);
     const [typeFilter, setTypeFilter] = useState<PostType | 'all' | 'for-you'>('all');
+    const [foundingOnly, setFoundingOnly] = useState(false); // show only newcomers needing a founding trade
     const [categoryFilter, setCategoryFilter] = useState<string | 'all'>('all');
     const [loading, setLoading] = useState(true);
 
@@ -1391,6 +1392,18 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                     })}
                 </div>
 
+                {/* Founding-trade filter: surface newcomers whose first trade unlocks their account */}
+                <button
+                    onClick={() => setFoundingOnly(v => !v)}
+                    className={`self-center mt-1 px-3 py-1 rounded-full text-xs font-extrabold border transition-colors cursor-pointer ${
+                        foundingOnly
+                            ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 border-emerald-400'
+                            : 'bg-white dark:bg-nature-900 text-emerald-700 dark:text-emerald-400 border-emerald-300/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+                    }`}
+                >
+                    🌱 New members{foundingOnly ? ' ✓' : ''}
+                </button>
+
                 {/* Row 3: Symmetrical Filter Dropdowns (50% / 50% split) */}
                 <div className="grid grid-cols-2 gap-2 mt-0.5 mb-2.5">
                     {/* Category Dropdown Button */}
@@ -1513,6 +1526,11 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                 // Local "★ For You" category filter
                 if (typeFilter === 'for-you') {
                     filtered = filtered.filter(p => favCategories.includes(p.category));
+                }
+
+                // Founding-trade filter: surface newcomers whose first trade unlocks their account
+                if (foundingOnly) {
+                    filtered = filtered.filter(p => p.authorFoundingNeeded);
                 }
 
                 // Compute fresh today count
