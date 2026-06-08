@@ -1,6 +1,6 @@
 # BeanPool Commons Pool & Solvency Protocol
 
-This document provides transparent documentation on the design, economics, and necessity of the **Commons Pool** and **Transactional Tax** in the BeanPool mutual credit network.
+This document provides transparent documentation on the design, economics, and necessity of the **Commons Pool** and **Transactional Fee** in the BeanPool mutual credit network.
 
 ---
 
@@ -42,12 +42,12 @@ Previously, the Commons Pool was funded solely via **Community Circulation (demu
 
 ---
 
-## 4. The 1.5% Transactional Tax Solution
+## 4. The 1.5% Transactional Fee Solution
 
-To resolve the circulation paradox and protect the ledger, the protocol introduces a flat **1.5% Transactional Tax** on direct P2P transfers and completed marketplace trades.
+To resolve the circulation paradox and protect the ledger, the protocol introduces a flat **1.5% Transactional Fee** on direct P2P transfers and completed marketplace trades.
 
-* **Proportional Funding**: The tax funds the Commons Pool in direct proportion to economic activity. The more trading that occurs, the healthier the Commons Pool becomes.
-* **Exempted Holds & Cancellations**: The tax is *only* applied on successful, completed economic exchanges. All escrow holds (deposits) and cancelled trades (refunds) are completely tax-exempt.
+* **Proportional Funding**: The fee funds the Commons Pool in direct proportion to economic activity. The more trading that occurs, the healthier the Commons Pool becomes.
+* **Exempted Holds & Cancellations**: The fee is *only* applied on successful, completed economic exchanges. All escrow holds (deposits) and cancelled trades (refunds) are completely fee-exempt.
 * **Calculation**:
   $$\text{Recipient Receives} = \text{Amount} \times (1 - 0.015)$$
   $$\text{Commons Pool Receives} = \text{Amount} \times 0.015$$

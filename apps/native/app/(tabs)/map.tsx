@@ -951,9 +951,9 @@ export default function MapScreen() {
                                         const parsed = parseFloat(postCredits);
                                         if (!isNaN(parsed) && parsed > 0) {
                                             const net = Math.round(parsed * 0.985 * 100) / 100;
-                                            return `1.5% tax: ${postType === 'offer' ? 'You will receive' : 'Fulfiller receives'} ${net.toFixed(2)} B. `;
+                                            return `1.5% fee: ${postType === 'offer' ? 'You will receive' : 'Fulfiller receives'} ${net.toFixed(2)} B. `;
                                         }
-                                        return '1.5% transaction tax funds community projects & solvency. ';
+                                        return '1.5% transaction fee funds community projects & solvency. ';
                                     })()}<Text style={{ color: '#d97706', fontWeight: 'bold' }}>Learn more ⓘ</Text>
                                     <Text style={{ color: '#10b981', fontWeight: 'bold' }}> (100% community owned)</Text>
                                 </Text>

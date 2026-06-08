@@ -16,7 +16,7 @@ export function SliderInfoModal({ isOpen, onClose }: Props) {
             content: (
                 <View style={styles.tabContent}>
                     <Text style={styles.descriptionText}>
-                        The balance slider is a continuous, color-coded spectrum showing your current financial state relative to your credit limits and tax brackets.
+                        The balance slider is a continuous, color-coded spectrum showing your current financial state relative to your credit limits and demurrage brackets.
                     </Text>
 
                     <View style={styles.sweetSpotCard}>
@@ -34,7 +34,7 @@ export function SliderInfoModal({ isOpen, onClose }: Props) {
                             <View style={[styles.zoneIndicator, { backgroundColor: '#ef4444' }]} />
                             <View style={styles.zoneTextContainer}>
                                 <Text style={styles.zoneTitle}>Red Zone (Extremes)</Text>
-                                <Text style={styles.zoneDesc}>Max overdraft reached (left) or high demurrage tax bracket (2.5% at +2000B, right).</Text>
+                                <Text style={styles.zoneDesc}>Max overdraft reached (left) or high demurrage bracket (2.5% at +2000B, right).</Text>
                             </View>
                         </View>
 
@@ -42,7 +42,7 @@ export function SliderInfoModal({ isOpen, onClose }: Props) {
                             <View style={[styles.zoneIndicator, { backgroundColor: '#f97316' }]} />
                             <View style={styles.zoneTextContainer}>
                                 <Text style={styles.zoneTitle}>Orange & Yellow (Warning)</Text>
-                                <Text style={styles.zoneDesc}>Approaching overdraft limits, or entering higher tax brackets (1.5% to 2.0%).</Text>
+                                <Text style={styles.zoneDesc}>Approaching overdraft limits, or entering higher demurrage brackets (1.5% to 2.0%).</Text>
                             </View>
                         </View>
 
@@ -50,7 +50,7 @@ export function SliderInfoModal({ isOpen, onClose }: Props) {
                             <View style={[styles.zoneIndicator, { backgroundColor: '#22c55e' }]} />
                             <View style={styles.zoneTextContainer}>
                                 <Text style={styles.zoneTitle}>Green Zone (Optimal)</Text>
-                                <Text style={styles.zoneDesc}>Healthy balance near zero (down to -80B and up to +200B tax-free zone).</Text>
+                                <Text style={styles.zoneDesc}>Healthy balance near zero (down to -80B and up to +200B demurrage-free zone).</Text>
                             </View>
                         </View>
                     </View>
@@ -113,11 +113,11 @@ export function SliderInfoModal({ isOpen, onClose }: Props) {
         },
         {
             id: 'brackets',
-            label: 'Tax Brackets',
+            label: 'Demurrage Brackets',
             content: (
                 <View style={styles.tabContent}>
                     <Text style={styles.descriptionText}>
-                        The positive (right) side of the slider shows your <Text style={styles.boldWhiteText}>Demurrage Tax Brackets</Text>. Progressive circulation fees apply monthly to positive balances to prevent hoarding.
+                        The positive (right) side of the slider shows your <Text style={styles.boldWhiteText}>Demurrage Brackets</Text>. Progressive circulation fees apply monthly to positive balances to prevent hoarding.
                     </Text>
 
                     <View style={styles.cardContainer}>
@@ -125,7 +125,7 @@ export function SliderInfoModal({ isOpen, onClose }: Props) {
                         
                         <View style={styles.bracketRow}>
                             <Text style={styles.bracketRange}>0 – 200B</Text>
-                            <Text style={[styles.bracketRate, { color: '#22c55e' }]}>0.0% (Tax-Free)</Text>
+                            <Text style={[styles.bracketRate, { color: '#22c55e' }]}>0.0% (Demurrage-Free)</Text>
                         </View>
                         
                         <View style={styles.bracketRow}>

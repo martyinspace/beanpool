@@ -114,7 +114,7 @@ export default function PostDetailModal() {
 
                     if (singleTxId) {
                         database.getFirstAsync(`
-                            SELECT t.*, m.callsign as buyer_callsign, s.callsign as seller_callsign 
+                            SELECT t.*, m.callsign as buyer_callsign, m.avatar_url as buyer_avatar, s.callsign as seller_callsign, s.avatar_url as seller_avatar 
                             FROM marketplace_transactions t 
                             LEFT JOIN members m ON t.buyer_pubkey = m.public_key 
                             LEFT JOIN members s ON t.seller_pubkey = s.public_key 
@@ -122,7 +122,7 @@ export default function PostDetailModal() {
                         `, [singleTxId]).then(updateActiveTx);
                     } else if (activeIdentity) {
                         database.getFirstAsync(`
-                            SELECT t.*, m.callsign as buyer_callsign, s.callsign as seller_callsign 
+                            SELECT t.*, m.callsign as buyer_callsign, m.avatar_url as buyer_avatar, s.callsign as seller_callsign, s.avatar_url as seller_avatar 
                             FROM marketplace_transactions t 
                             LEFT JOIN members m ON t.buyer_pubkey = m.public_key 
                             LEFT JOIN members s ON t.seller_pubkey = s.public_key 
@@ -131,7 +131,7 @@ export default function PostDetailModal() {
                     }
 
                     database.getAllAsync(`
-                        SELECT t.*, m.callsign as buyer_callsign, s.callsign as seller_callsign 
+                        SELECT t.*, m.callsign as buyer_callsign, m.avatar_url as buyer_avatar, s.callsign as seller_callsign, s.avatar_url as seller_avatar 
                         FROM marketplace_transactions t 
                         LEFT JOIN members m ON t.buyer_pubkey = m.public_key LEFT JOIN members s ON t.seller_pubkey = s.public_key 
                         WHERE t.post_id=? AND t.status='requested'
@@ -234,6 +234,9 @@ export default function PostDetailModal() {
     const targetPeerPubkey = activeTx
         ? (isPayer ? activeTx.seller_pubkey : activeTx.buyer_pubkey)
         : (isOwnPost ? post.accepted_by : post.author_pubkey);
+    const targetPeerAvatar = activeTx 
+        ? (isPayer ? activeTx.seller_avatar : activeTx.buyer_avatar)
+        : (isOwnPost ? post.accepted_by_avatar : post.author_avatar);
 
     const isOffer = post.type === 'offer';
     const emoji = categoryEmoji(post.category);
@@ -465,7 +468,7 @@ export default function PostDetailModal() {
                         <Text style={styles.authorCardLabel}>{isOffer ? 'ACCEPTED BY' : 'PROVIDER'}</Text>
                         <View style={styles.authorRow}>
                             <View style={styles.avatar}>
-                                <MemberAvatar avatarUrl={undefined} pubkey={targetPeerPubkey} callsign={targetPeerCallsign} size={48} borderRadius={24} />
+                                <MemberAvatar avatarUrl={targetPeerAvatar} pubkey={targetPeerPubkey} callsign={targetPeerCallsign} size={48} borderRadius={24} />
                             </View>
                             <View style={styles.authorInfo}>
                                 <Text style={styles.authorName}>🤝 {targetPeerCallsign}</Text>
@@ -576,7 +579,7 @@ export default function PostDetailModal() {
                                 </Text>
                                 <View style={{ paddingHorizontal: 16, marginBottom: 16, gap: 8 }}>
                                     <Text style={{ color: '#1f2937', fontSize: 14, textAlign: 'center', fontWeight: '600', lineHeight: 20 }}>
-                                        You are the Payee. Fulfill the terms exactly as agreed, then ask the Payer to release your credits. You will receive the net amount minus 1.5% transaction tax (retained to balance the pool).
+                                        You are the Payee. Fulfill the terms exactly as agreed, then ask the Payer to release your credits. You will receive the net amount minus 1.5% transaction fee<Text style={{ color: '#10b981', fontWeight: 'bold' }}> (100% community owned)</Text> (retained to balance the pool).
                                     </Text>
                                     <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.2)' }}>
                                         <Text style={{ color: '#b91c1c', fontSize: 13, textAlign: 'center', fontWeight: '700' }}>
@@ -758,10 +761,15 @@ export default function PostDetailModal() {
                             <View style={styles.confirmBox}>
                                 <Text style={[styles.confirmBoxTitle, { color: '#10b981' }]}>Deal Established</Text>
                                 <Text style={{ color: '#4b5563', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>
-                                    {isOffer 
-                                        ? `You have committed ${myRequest.credits} credits ${myRequest.hours ? `(${myRequest.hours} hours)` : ''} to Escrow for this offer.`
-                                        : `You have requested to earn ${myRequest.credits} credits ${myRequest.hours ? `(${myRequest.hours} hours)` : ''} (${(myRequest.credits * 0.985).toFixed(2)} net after 1.5% transaction tax) for fulfilling this need.`
-                                    }
+                                    {isOffer ? (
+                                        `You have committed ${myRequest.credits} credits ${myRequest.hours ? `(${myRequest.hours} hours)` : ''} to Escrow for this offer.`
+                                    ) : (
+                                        <>
+                                            {`You have requested to earn ${myRequest.credits} credits ${myRequest.hours ? `(${myRequest.hours} hours)` : ''} (${(myRequest.credits * 0.985).toFixed(2)} net after 1.5% transaction fee)`}
+                                            <Text style={{ color: '#10b981', fontWeight: 'bold' }}> (100% community owned)</Text>
+                                            {` for fulfilling this need.`}
+                                        </>
+                                    )}
                                 </Text>
                                 <Pressable style={[styles.cancelActionBtn, { width: '100%' }]} onPress={handleWithdraw} disabled={accepting}>
                                     <Text style={styles.cancelActionBtnText}>{accepting ? 'Withdrawing...' : 'Withdraw Request'}</Text>
@@ -774,9 +782,19 @@ export default function PostDetailModal() {
                                 <View style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: 12, borderRadius: 8, borderColor: 'rgba(245, 158, 11, 0.3)', borderWidth: 1, marginBottom: 16 }}>
                                     <Text style={{ color: '#c2410c', fontSize: 12, fontWeight: 'bold', marginBottom: 4 }}>🔒 Escrow Protocol</Text>
                                     <Text style={{ color: '#4b5563', fontSize: 12, lineHeight: 18 }}>
-                                        {isOffer 
-                                            ? `By proceeding, you commit ${post.price_type === 'fixed' ? post.credits : `your authorized`} credits to an Escrow smart contract. Upon completion, the provider receives the credits net of 1.5% transaction tax to fund the Commons Pool.`
-                                            : `This transaction is protected by Escrow. The payer has already committed the credits. Upon completion, you will receive the credits net of 1.5% transaction tax to fund the Commons Pool.`}
+                                        {isOffer ? (
+                                            <>
+                                                {`By proceeding, you commit ${post.price_type === 'fixed' ? post.credits : `your authorized`} credits to an Escrow smart contract. Upon completion, the provider receives the credits net of 1.5% transaction fee`}
+                                                <Text style={{ color: '#10b981', fontWeight: 'bold' }}> (100% community owned)</Text>
+                                                {` to fund the Commons Pool.`}
+                                            </>
+                                        ) : (
+                                            <>
+                                                {`This transaction is protected by Escrow. The payer has already committed the credits. Upon completion, you will receive the credits net of 1.5% transaction fee`}
+                                                <Text style={{ color: '#10b981', fontWeight: 'bold' }}> (100% community owned)</Text>
+                                                {` to fund the Commons Pool.`}
+                                            </>
+                                        )}
                                     </Text>
                                 </View>
                                 {post.price_type !== 'fixed' && (

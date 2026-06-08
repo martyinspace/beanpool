@@ -15,7 +15,7 @@ export function setCommonsBalance(value: number): void {
     COMMONS_BALANCE = value;
 }
 
-export const TRANSACTION_TAX_RATE = 0.015;
+export const TRANSACTION_FEE_RATE = 0.015;
 
 export class LedgerManager {
     private accounts: Map<string, LedgerAccount>;
@@ -73,7 +73,7 @@ export class LedgerManager {
 
     /**
      * Applies demurrage using progressive brackets:
-     * 1st Bracket (0–200 Ʀ): 0.0%/mo (Tax-Free Green Zone)
+     * 1st Bracket (0–200 Ʀ): 0.0%/mo (Fee-Free Green Zone)
      * 2nd Bracket (200–500 Ʀ): 1.0%/mo
      * 3rd Bracket (500–1000 Ʀ): 1.5%/mo
      * 4th Bracket (1000–2000 Ʀ): 2.0%/mo
@@ -150,9 +150,9 @@ export class LedgerManager {
      * Transfers funds between nodes using Mutual Credit logic.
      * Participants can go into debt down to the dynamic credit floor.
      * @param floorOverride - The sender's dynamic credit floor (e.g. -420). If omitted, uses legacy default (-100).
-     * @param isTaxExempt - If true, bypasses the transaction tax (e.g., escrow holds, refunds, admin settlements).
+     * @param isFeeExempt - If true, bypasses the transaction fee (e.g., escrow holds, refunds, admin settlements).
      */
-    transfer(fromId: string, toId: string, amount: number, floorOverride?: number, isTaxExempt = false): boolean {
+    transfer(fromId: string, toId: string, amount: number, floorOverride?: number, isFeeExempt = false): boolean {
         if (amount < 0) return false;
         if (amount === 0) return true; // 0-credit transfer is always a no-op success
         if (fromId === toId) return false;
@@ -171,15 +171,15 @@ export class LedgerManager {
             return false;
         }
 
-        // Calculate transaction tax
-        const tax = isTaxExempt ? 0 : amount * TRANSACTION_TAX_RATE;
-        const netAmount = amount - tax;
+        // Calculate transaction fee
+        const fee = isFeeExempt ? 0 : amount * TRANSACTION_FEE_RATE;
+        const netAmount = amount - fee;
 
         // Execute transfer
         fromAccount.balance -= amount;
         toAccount.balance += netAmount;
-        if (tax > 0) {
-            COMMONS_BALANCE += tax;
+        if (fee > 0) {
+            COMMONS_BALANCE += fee;
         }
 
         // Update timestamps

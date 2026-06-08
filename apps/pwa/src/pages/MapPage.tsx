@@ -764,9 +764,9 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                         const parsed = parseFloat(newPostCredits);
                         if (!isNaN(parsed) && parsed > 0) {
                             const net = Math.round(parsed * 0.985 * 100) / 100;
-                            return `1.5% tax: ${newPostType === 'offer' ? 'You will receive' : 'Fulfiller receives'} ${net.toFixed(2)} B. `;
+                            return `1.5% fee: ${newPostType === 'offer' ? 'You will receive' : 'Fulfiller receives'} ${net.toFixed(2)} B. `;
                         }
-                        return '1.5% transaction tax funds community projects & solvency. ';
+                        return '1.5% transaction fee funds community projects & solvency. ';
                     })()}<span className="text-amber-600 dark:text-amber-500 font-bold underline decoration-dotted underline-offset-2 ml-1">Learn more ⓘ</span>
                     <span className="text-emerald-600 dark:text-emerald-500 font-bold ml-1">(100% community owned)</span>
                 </p>

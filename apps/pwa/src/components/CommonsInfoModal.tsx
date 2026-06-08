@@ -15,7 +15,7 @@ const BRACKETS = [
 
 const FLOW_STEPS = [
     { icon: '🤝', label: 'My Trade', desc: 'Credits transacted through community exchange' },
-    { icon: '٪', label: 'Transaction Tax', desc: 'Flat 1.5% tax on direct transfers and completed trades' },
+    { icon: '٪', label: 'Transaction Fee', desc: 'Flat 1.5% fee on direct transfers and completed trades' },
     { icon: '🌿', label: 'Demurrage', desc: 'Progressive monthly contribution from positive balances' },
     { icon: '🏛️', label: 'Commons Pool', desc: 'Community fund growing from all tax and demurrage contributions' },
     { icon: '🗳️', label: 'My Vote', desc: 'Quadratic Voting: N votes costs N² credits' },

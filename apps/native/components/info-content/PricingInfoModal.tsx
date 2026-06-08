@@ -84,17 +84,17 @@ export function PricingInfoModal({ isOpen, onClose, initialTab }: Props) {
         },
         {
             id: 'tax',
-            label: '🔒 Transaction Tax',
+            label: '🔒 Transaction Fee',
             content: (
                 <View style={styles.tabContent}>
                     <Text style={styles.descriptionText}>
-                        To protect the integrity of the community ledger, BeanPool applies a flat 1.5% Transaction Tax on all completed trades and direct transfers.
+                        To protect the integrity of the community ledger, BeanPool applies a flat 1.5% Transaction Fee on all completed trades and direct transfers.
                         {"\n\n"}
-                        <Text style={{ fontWeight: 'bold', color: '#10b981' }}>🌱 100% Community-Owned:</Text> This tax is never taken for private profit. All collected credits remain fully inside the Commons Pool to support local project grants and guarantee system solvency.
+                        <Text style={{ fontWeight: 'bold', color: '#10b981' }}>🌱 100% Community-Owned:</Text> This fee is never taken for private profit. All collected credits remain fully inside the Commons Pool to support local project grants and guarantee system solvency.
                     </Text>
 
                     <View style={styles.processContainer}>
-                        <Text style={styles.processLabel}>WHY DO WE TAX TRANSACTIONS?</Text>
+                        <Text style={styles.processLabel}>WHY DO WE COLLECT FEES?</Text>
                         
                         <View style={{ marginBottom: 12 }}>
                             <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 14, marginBottom: 4 }}>Solvency & Balance</Text>
@@ -121,7 +121,7 @@ export function PricingInfoModal({ isOpen, onClose, initialTab }: Props) {
                     <View style={styles.infoBox}>
                         <Text style={styles.infoBoxIcon}>🛡️</Text>
                         <Text style={styles.infoBoxText}>
-                            The 1.5% tax is only applied when credits are successfully released to the recipient. Escrow deposits and cancellations (refunds) are completely tax-exempt.
+                            The 1.5% fee is only applied when credits are successfully released to the recipient. Escrow deposits and cancellations (refunds) are completely fee-exempt.
                         </Text>
                     </View>
                 </View>
@@ -133,7 +133,7 @@ export function PricingInfoModal({ isOpen, onClose, initialTab }: Props) {
         <InfoModal
             isOpen={isOpen}
             onClose={onClose}
-            title="Pricing & Tax"
+            title="Pricing & Fees"
             icon={<Text style={{ fontSize: 24 }}>💡</Text>}
             tabs={tabs}
             defaultTab={initialTab}

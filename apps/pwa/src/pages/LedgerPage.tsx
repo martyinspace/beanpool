@@ -580,7 +580,7 @@ export function LedgerPage({ identity }: Props) {
                                                     <span className="font-mono font-bold text-nature-950 dark:text-white">{recipientReceives.toFixed(2)} B</span>
                                                 </div>
                                                 <div className="flex justify-between items-center text-nature-500 dark:text-nature-450">
-                                                    <span>Community tax (1.5%):</span>
+                                                    <span>Community fee (1.5% - <span className="text-emerald-600 dark:text-emerald-500 font-bold ml-0.5">100% community owned</span>):</span>
                                                     <span className="font-mono font-bold text-nature-950 dark:text-white">{tax.toFixed(2)} B</span>
                                                 </div>
                                             </div>

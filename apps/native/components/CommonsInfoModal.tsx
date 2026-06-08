@@ -14,7 +14,7 @@ const BRACKETS = [
 
 const FLOW_STEPS = [
     { icon: <MaterialCommunityIcons name="handshake" size={24} color="#10b981" />, label: 'My Trade', desc: 'Credits transacted through community exchange' },
-    { icon: <MaterialCommunityIcons name="percent" size={24} color="#10b981" />, label: 'Transaction Tax', desc: 'Flat 1.5% tax on direct transfers and completed trades' },
+    { icon: <MaterialCommunityIcons name="percent" size={24} color="#10b981" />, label: 'Transaction Fee', desc: 'Flat 1.5% fee on direct transfers and completed trades' },
     { icon: <MaterialCommunityIcons name="leaf" size={24} color="#10b981" />, label: 'Demurrage', desc: 'Progressive monthly contribution from positive balances' },
     { icon: <MaterialCommunityIcons name="bank" size={24} color="#fcd34d" />, label: 'Commons Pool', desc: 'Community fund growing from all tax and demurrage contributions' },
     { icon: <MaterialCommunityIcons name="vote" size={24} color="#3b82f6" />, label: 'My Vote', desc: 'Quadratic Voting: N votes costs N² credits' },

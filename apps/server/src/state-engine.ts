@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { LedgerManager, COMMONS_BALANCE, setCommonsBalance, calculateDynamicFloor, getTier, getGenesisEarnedCredit, PROTOCOL_CONSTANTS, TRANSACTION_TAX_RATE } from '@beanpool/core';
+import { LedgerManager, COMMONS_BALANCE, setCommonsBalance, calculateDynamicFloor, getTier, getGenesisEarnedCredit, PROTOCOL_CONSTANTS, TRANSACTION_FEE_RATE } from '@beanpool/core';
 import type { TrustStats, TierInfo, GenesisInviteType } from '@beanpool/core';
 import { getThresholds, getLocalConfig } from './local-config.js';
 import { db, initSchema, migrateLegacyState, writeTombstone } from './db/db.js';
@@ -1156,7 +1156,7 @@ export function getBalance(publicKey: string): { balance: number; floor: number;
 }
 
 
-export function transfer(from: string, to: string, amount: number, memo: string, method?: 'direct' | 'escrow', isTaxExempt = false): Transaction | null {
+export function transfer(from: string, to: string, amount: number, memo: string, method?: 'direct' | 'escrow', isFeeExempt = false): Transaction | null {
     if (from !== 'genesis' && from !== 'COMMONS_POOL') assertMemberActive(from);
     if (amount < 0) return null;
     // Only register real members — skip synthetic wallets (escrow_*, project_*, etc.) and COMMONS_POOL
@@ -1214,14 +1214,14 @@ export function transfer(from: string, to: string, amount: number, memo: string,
     // transfers as to marketplace spends — including the first-trade gate and the
     // genesis-vouched exemption.
     const senderFloor = (from.startsWith('escrow_') || from === 'COMMONS_POOL' || from === 'genesis') ? -Infinity : getMemberTrustProfile(from).floor;
-    const success = ledger.transfer(from, to, amount, senderFloor, isTaxExempt);
+    const success = ledger.transfer(from, to, amount, senderFloor, isFeeExempt);
     if (!success) return null;
 
     if (!from.startsWith('escrow_') && !from.startsWith('project_') && from !== 'COMMONS_POOL' && from !== 'genesis') {
         recordActivity(from);
     }
 
-    const taxFee = isTaxExempt ? 0 : amount * TRANSACTION_TAX_RATE;
+    const taxFee = isFeeExempt ? 0 : amount * TRANSACTION_FEE_RATE;
 
     const txn: Transaction = {
         id: crypto.randomUUID(),

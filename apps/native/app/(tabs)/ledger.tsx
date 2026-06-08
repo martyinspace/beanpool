@@ -715,7 +715,7 @@ export default function LedgerScreen() {
                                             <CurrencyDisplay amount={recipientReceives.toFixed(2)} style={styles.breakdownValue} asView />
                                         </View>
                                         <View style={styles.breakdownRow}>
-                                            <Text style={styles.breakdownLabel}>Community tax (1.5%):</Text>
+                                            <Text style={styles.breakdownLabel}>Community fee (1.5%):<Text style={{ color: '#10b981', fontWeight: 'bold' }}> (100% community owned)</Text></Text>
                                             <CurrencyDisplay amount={tax.toFixed(2)} style={styles.breakdownValue} asView />
                                         </View>
                                     </View>
