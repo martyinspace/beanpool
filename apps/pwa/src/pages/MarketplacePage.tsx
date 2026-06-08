@@ -18,7 +18,7 @@ import { loadEnabledPeers, togglePeer } from '../lib/peer-prefs';
 import {
     getMarketplacePosts, removeMarketplacePost, updateMarketplacePost,
     getMemberProfile, createConversationApi, sendTransfer,
-    submitRating, getMemberRatings, reportAbuse,
+    submitRating, getMemberRatings, reportAbuse, getRatingsGiven,
     getNodeInfo, getRemotePosts, sendRemoteTransfer, sendFederationMessage,
     acceptMarketplacePost, completeMarketplaceTransaction,
     cancelMarketplaceTransaction, getMyMarketplaceTransactions, getNodeConfig,
@@ -139,6 +139,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
     const [ratingComment, setRatingComment] = useState('');
     const [showRatingForm, setShowRatingForm] = useState(false);
     const [submittingRating, setSubmittingRating] = useState(false);
+    const [hasExistingRating, setHasExistingRating] = useState(false);
 
     // Report
     const [showReportForm, setShowReportForm] = useState(false);
@@ -309,6 +310,20 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
         getMemberRatings(selectedPost.authorPublicKey)
             .then(r => setAuthorAvgRating({ average: r.average, count: r.count, asProvider: r.asProvider, asReceiver: r.asReceiver }))
             .catch(() => {});
+        
+        setHasExistingRating(false);
+        if (identity && selectedPost.pendingTransactionId) {
+            getRatingsGiven(identity.publicKey)
+                .then(res => {
+                    const existing = res.ratings.find(r => r.transactionId === selectedPost.pendingTransactionId);
+                    if (existing) {
+                        setMyRating(existing.stars);
+                        setRatingComment(existing.comment || '');
+                        setHasExistingRating(true);
+                    }
+                })
+                .catch(err => console.error('[MarketplacePage] Failed to fetch given ratings:', err));
+        }
         
         // Fetch requests if this is a Need
         if (selectedPost.type === 'need') {
@@ -961,11 +976,15 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                         onClick={() => setShowRatingForm(!showRatingForm)}
                                         className={`w-full py-3 mt-3 rounded-xl font-bold text-[14px] transition-all border ${
                                             showRatingForm 
-                                                ? 'bg-amber-100 dark:bg-amber-900/40 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-500' 
-                                                : 'bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-amber-600 dark:text-amber-500 hover:bg-amber-50 dark:hover:bg-nature-800 shadow-sm'
+                                                ? (hasExistingRating 
+                                                    ? 'bg-emerald-100 dark:bg-emerald-900/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-500' 
+                                                    : 'bg-amber-100 dark:bg-amber-900/40 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-500') 
+                                                : (hasExistingRating 
+                                                    ? 'bg-white dark:bg-nature-900 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-nature-800 shadow-sm' 
+                                                    : 'bg-white dark:bg-nature-900 border-nature-200 dark:border-nature-800 text-amber-600 dark:text-amber-500 hover:bg-amber-50 dark:hover:bg-nature-800 shadow-sm')
                                         }`}
                                     >
-                                        ⭐ Rate {targetName} as {targetRole}
+                                        {hasExistingRating ? `⭐ Edit rating for ${targetName} (as ${targetRole})` : `⭐ Rate ${targetName} as ${targetRole}`}
                                     </button>
 
                                     {showRatingForm && (
@@ -1002,9 +1021,8 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                                         await submitRating(identity.publicKey, targetPubkey, myRating, ratingComment, selectedPost.pendingTransactionId);
                                                         const fresh = await getMemberRatings(targetPubkey);
                                                         setAuthorAvgRating({ average: fresh.average, count: fresh.count });
+                                                        setHasExistingRating(true);
                                                         setShowRatingForm(false);
-                                                        setRatingComment('');
-                                                        setMyRating(0);
                                                     } catch (e: any) {
                                                         alert(e.message || 'Failed to submit rating');
                                                     } finally {
@@ -1013,10 +1031,12 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                                 }}
                                                 disabled={myRating < 1 || submittingRating}
                                                 className={`w-full py-2.5 rounded-lg font-bold text-sm text-white transition-colors ${
-                                                    myRating >= 1 ? 'bg-amber-500 hover:bg-amber-600 shadow-sm' : 'bg-nature-300 cursor-not-allowed'
+                                                    myRating >= 1 
+                                                        ? (hasExistingRating ? 'bg-emerald-500 hover:bg-emerald-600 shadow-sm' : 'bg-amber-500 hover:bg-amber-600 shadow-sm') 
+                                                        : 'bg-nature-300 cursor-not-allowed'
                                                 }`}
                                             >
-                                                {submittingRating ? 'Submitting...' : myRating < 1 ? 'Tap stars to rate' : `Submit ${myRating}⭐ Rating`}
+                                                {submittingRating ? 'Submitting...' : myRating < 1 ? 'Tap stars to rate' : (hasExistingRating ? `Update ${myRating}⭐ Rating` : `Submit ${myRating}⭐ Rating`)}
                                             </button>
                                         </div>
                                     )}

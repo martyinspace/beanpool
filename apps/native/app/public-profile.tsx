@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MemberAvatar } from '../components/MemberAvatar';
 import { getMemberProfile, getMemberRatings, getMemberPosts, getBalance, getRatingsGiven, getFriendsLocal } from '../utils/db';
 import { useIdentity } from './IdentityContext';
+import { ReviewModal } from '../components/ReviewModal';
 
 export default function PublicProfileScreen() {
     const { publicKey, callsign } = useLocalSearchParams();
@@ -21,6 +22,7 @@ export default function PublicProfileScreen() {
     const [given, setGiven] = useState<any[]>([]);
     const [friendsCount, setFriendsCount] = useState(0);
     const [guardianCount, setGuardianCount] = useState(0);
+    const [editingReview, setEditingReview] = useState<any | null>(null);
 
     const pubKeyStr = Array.isArray(publicKey) ? publicKey[0] : publicKey;
     const isSelf = !!identity?.publicKey && identity.publicKey === pubKeyStr;
@@ -310,6 +312,26 @@ export default function PublicProfileScreen() {
                                             ) : (
                                                 <Text style={styles.noCommentText}>No comment provided.</Text>
                                             )}
+                                            
+                                            {/* Edit review button */}
+                                            {r.transaction_id && (
+                                                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 }}>
+                                                    <Pressable
+                                                        style={({ pressed }) => [
+                                                            styles.editReviewBtn,
+                                                            pressed && { opacity: 0.8 }
+                                                        ]}
+                                                        onPress={() => setEditingReview({
+                                                            txId: r.transaction_id,
+                                                            targetPubkey: r.target_pubkey,
+                                                            targetCallsign: r.target_callsign || 'Partner'
+                                                        })}
+                                                    >
+                                                        <MaterialCommunityIcons name="pencil" size={12} color="#4b5563" style={{ marginRight: 4 }} />
+                                                        <Text style={styles.editReviewBtnText}>Edit Review</Text>
+                                                    </Pressable>
+                                                </View>
+                                            )}
                                         </View>
                                     ))
                                 )}
@@ -318,6 +340,23 @@ export default function PublicProfileScreen() {
                     </>
                 )}
             </ScrollView>
+
+            {editingReview && (
+                <ReviewModal
+                    visible={!!editingReview}
+                    txId={editingReview.txId}
+                    targetPubkey={editingReview.targetPubkey}
+                    targetCallsign={editingReview.targetCallsign}
+                    onClose={() => setEditingReview(null)}
+                    onSuccess={async () => {
+                        setEditingReview(null);
+                        if (identity?.publicKey) {
+                            const givenRatings = await getRatingsGiven(identity.publicKey).catch(() => []);
+                            setGiven(givenRatings);
+                        }
+                    }}
+                />
+            )}
         </SafeAreaView>
     );
 }
@@ -463,4 +502,19 @@ const styles = StyleSheet.create({
 
     // Given reviews
     givenName: { fontSize: 14, fontWeight: '800', color: '#111827', flexShrink: 1 },
+    editReviewBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f3f4f6',
+        borderColor: '#d1d5db',
+        borderWidth: 1,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 8,
+    },
+    editReviewBtnText: {
+        color: '#4b5563',
+        fontSize: 11,
+        fontWeight: '700',
+    },
 });

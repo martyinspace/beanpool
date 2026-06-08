@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, Modal, ActivityIndicator, Alert, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Keyboard } from 'react-native';
-import { submitRating } from '../utils/db';
+import { submitRating, getDb } from '../utils/db';
 import { useIdentity } from '../app/IdentityContext';
 
 interface ReviewModalProps {
@@ -18,12 +18,38 @@ export function ReviewModal({ visible, txId, targetPubkey, targetCallsign, onClo
     const [comment, setComment] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [keyboardHeight, setKeyboardHeight] = useState(0);
+    const [isExisting, setIsExisting] = useState(false);
 
     React.useEffect(() => {
         const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
         const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
         return () => { showSub.remove(); hideSub.remove(); };
     }, []);
+
+    React.useEffect(() => {
+        if (visible && txId && identity?.publicKey) {
+            (async () => {
+                try {
+                    const db = await getDb();
+                    const existing = await db.getFirstAsync<any>(
+                        "SELECT stars, comment FROM ratings WHERE transaction_id=? AND rater_pubkey=?",
+                        [txId, identity.publicKey]
+                    );
+                    if (existing) {
+                        setStars(existing.stars);
+                        setComment(existing.comment || '');
+                        setIsExisting(true);
+                    } else {
+                        setStars(5);
+                        setComment('');
+                        setIsExisting(false);
+                    }
+                } catch (e) {
+                    console.error("[ReviewModal] Failed to load existing rating:", e);
+                }
+            })();
+        }
+    }, [visible, txId, identity?.publicKey]);
 
     const handleSubmit = async () => {
         if (!identity) return;
@@ -51,7 +77,7 @@ export function ReviewModal({ visible, txId, targetPubkey, targetCallsign, onClo
                 >
                     <View style={styles.card}>
                         <Text style={styles.emoji}>🎉</Text>
-                        <Text style={styles.title}>Deal Complete!</Text>
+                        <Text style={styles.title}>{isExisting ? 'Edit Your Review' : 'Deal Complete!'}</Text>
                         <Text style={styles.subtitle}>
                             How was your experience with <Text style={styles.bold}>{targetCallsign}</Text>?
                         </Text>
@@ -82,7 +108,7 @@ export function ReviewModal({ visible, txId, targetPubkey, targetCallsign, onClo
                                 {submitting ? (
                                     <ActivityIndicator size="small" color="#fff" />
                                 ) : (
-                                    <Text style={styles.submitText}>Submit Rating</Text>
+                                    <Text style={styles.submitText}>{isExisting ? 'Update Rating' : 'Submit Rating'}</Text>
                                 )}
                             </Pressable>
                         </View>

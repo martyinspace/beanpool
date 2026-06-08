@@ -135,13 +135,22 @@ export function MyDealsSheet({ visible, identity, onClose, initialTab = 'pending
                                 <Text style={styles.partnerName}>{partnerCallsign}</Text>
                             </Text>
                         </View>
-                        {needsReview && (
-                            <Pressable
-                                style={styles.reviewBtn}
-                                onPress={() => setPromptReview({ txId: item.id, targetPubkey: partnerPubkey, targetCallsign: partnerCallsign })}
-                            >
-                                <Text style={styles.reviewBtnText}>Leave Review</Text>
-                            </Pressable>
+                        {isCompleted && (
+                            needsReview ? (
+                                <Pressable
+                                    style={styles.reviewBtn}
+                                    onPress={() => setPromptReview({ txId: item.id, targetPubkey: partnerPubkey, targetCallsign: partnerCallsign })}
+                                >
+                                    <Text style={styles.reviewBtnText}>Leave Review</Text>
+                                </Pressable>
+                            ) : (
+                                <Pressable
+                                    style={[styles.reviewBtn, { backgroundColor: '#f3f4f6', borderColor: '#d1d5db' }]}
+                                    onPress={() => setPromptReview({ txId: item.id, targetPubkey: partnerPubkey, targetCallsign: partnerCallsign })}
+                                >
+                                    <Text style={[styles.reviewBtnText, { color: '#4b5563' }]}>Edit Review</Text>
+                                </Pressable>
+                            )
                         )}
                     </View>
                 </View>

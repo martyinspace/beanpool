@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
     getMemberProfile, getMemberRatings, getMarketplacePosts, getBalance, getRatingsGiven, getFriends,
-    type MemberProfile, type Rating, type MarketplacePost, type BalanceInfo
+    submitRating, type MemberProfile, type Rating, type MarketplacePost, type BalanceInfo
 } from '../lib/api';
 import { type BeanPoolIdentity } from '../lib/identity';
 import { resolveAvatarUrl } from '../lib/avatar';
@@ -28,6 +28,10 @@ export function PublicProfilePage({ identity, pubkey, onBack, onMessage, onNavig
     const [friendsCount, setFriendsCount] = useState(0);
     const [guardianCount, setGuardianCount] = useState(0);
     const [activeTab, setActiveTab] = useState<'listings' | 'reviews' | 'given'>('listings');
+    const [editingReview, setEditingReview] = useState<Rating | null>(null);
+    const [reviewStars, setReviewStars] = useState(5);
+    const [reviewComment, setReviewComment] = useState('');
+    const [submittingReview, setSubmittingReview] = useState(false);
 
     const isSelf = pubkey === identity.publicKey;
 
@@ -391,6 +395,22 @@ export function PublicProfilePage({ identity, pubkey, onBack, onMessage, onNavig
                                                     ) : (
                                                         <div className="text-xs text-nature-400 italic">No comment provided.</div>
                                                     )}
+
+                                                    {/* Edit review button */}
+                                                    {r.transactionId && (
+                                                        <div className="flex justify-end mt-3 border-t border-nature-100 dark:border-nature-800 pt-2">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setEditingReview(r);
+                                                                    setReviewStars(r.stars);
+                                                                    setReviewComment(r.comment || '');
+                                                                }}
+                                                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-nature-200 dark:border-nature-800 bg-nature-50 hover:bg-nature-100 dark:bg-nature-950 dark:hover:bg-nature-900 text-nature-600 dark:text-nature-400 font-bold text-xs cursor-pointer transition-colors"
+                                                            >
+                                                                ✏️ Edit Review
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
@@ -401,6 +421,82 @@ export function PublicProfilePage({ identity, pubkey, onBack, onMessage, onNavig
                     </>
                 )}
             </div>
+
+            {/* Edit Review Modal */}
+            {editingReview && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="w-full max-w-sm bg-white dark:bg-nature-900 rounded-3xl shadow-2xl border border-nature-200 dark:border-nature-800 overflow-hidden animate-in slide-in-from-bottom-4 zoom-in-95 duration-300">
+                        <div className="p-6 text-center">
+                            <div className="text-4xl mb-4">✍️</div>
+                            <h3 className="text-xl font-black text-nature-900 dark:text-white mb-2">Edit Your Review</h3>
+                            <p className="text-nature-600 dark:text-nature-400 text-sm mb-6">
+                                Update your rating for <strong>{editingReview.target_callsign || 'Partner'}</strong>
+                            </p>
+
+                            <div className="flex justify-center gap-2 mb-4 drop-shadow-sm">
+                                {[1, 2, 3, 4, 5].map(star => (
+                                    <button
+                                        key={star}
+                                        onClick={() => setReviewStars(star)}
+                                        className="text-4xl hover:scale-110 transition-transform focus:outline-none bg-transparent border-none cursor-pointer"
+                                    >
+                                        <span className={star <= reviewStars ? "text-amber-400" : "text-nature-200 dark:text-nature-700"}>★</span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <textarea
+                                value={reviewComment}
+                                onChange={e => setReviewComment(e.target.value)}
+                                placeholder="Write a short review (optional)..."
+                                className="w-full p-3 bg-nature-50 border border-nature-200 dark:bg-nature-950 dark:border-nature-800 rounded-xl text-sm focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 mb-6 font-medium text-nature-900 dark:text-white resize-none"
+                                rows={3}
+                            />
+
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setEditingReview(null)}
+                                    className="flex-1 py-3 text-nature-600 dark:text-nature-400 text-sm font-bold bg-nature-100 hover:bg-nature-200 dark:bg-nature-800 dark:hover:bg-nature-700 rounded-xl transition-colors border-none cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    disabled={submittingReview}
+                                    onClick={async () => {
+                                        setSubmittingReview(true);
+                                        try {
+                                            const txId = editingReview.transactionId;
+                                            const targetPubkey = editingReview.targetPubkey;
+                                            if (!txId || !targetPubkey) throw new Error('Missing transaction or user details');
+
+                                            await submitRating(
+                                                identity.publicKey,
+                                                targetPubkey,
+                                                reviewStars,
+                                                reviewComment,
+                                                txId
+                                            );
+                                            setEditingReview(null);
+                                            // Refresh given list
+                                            const res = await getRatingsGiven(pubkey).catch(() => ({ ratings: [] }));
+                                            setGiven(res.ratings || []);
+                                        } catch (e: any) {
+                                            alert(e.message || 'Failed to update review');
+                                        } finally {
+                                            setSubmittingReview(false);
+                                        }
+                                    }}
+                                    className={`flex-[1.5] py-3 text-white text-sm font-bold rounded-xl shadow-[0_4px_15px_rgb(203,83,38,0.4)] border-none cursor-pointer transition-all ${
+                                        submittingReview ? 'bg-terra-400 opacity-75 cursor-not-allowed' : 'bg-gradient-to-r from-terra-500 to-amber-500 hover:-translate-y-0.5'
+                                    }`}
+                                >
+                                    {submittingReview ? 'Updating...' : 'Update Rating'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -10,8 +10,8 @@ import { useState, useEffect, useRef } from 'react';
 import {
     getConversations, getConversationMessages, createConversationApi,
     sendMessageApi, getMessageAttachmentApi, getMembers, sendFederationMessage,
-    markConversationReadApi,
-    type Conversation, type ApiMessage, type Member,
+    markConversationReadApi, getMyMarketplaceTransactions,
+    type Conversation, type ApiMessage, type Member, type MarketplaceTransaction,
 } from '../lib/api';
 import { encodePlaintext, decodePlaintext, encryptDM, decryptDM, isEncryptedNonce, type DMKeyContext } from '../lib/e2e-crypto';
 import { type BeanPoolIdentity } from '../lib/identity';
@@ -68,6 +68,7 @@ function ChatImageBubble({ messageId, conversationId, peerPubHex, myPrivHex }:
 
 export function MessagesPage({ identity, openConversationId, onConversationOpened }: Props) {
     const [conversations, setConversations] = useState<Conversation[]>([]);
+    const [userTransactions, setUserTransactions] = useState<MarketplaceTransaction[]>([]);
     const [activeTab, setActiveTab] = useState<'all' | 'transactions' | 'direct'>('all');
     const [activeConv, setActiveConv] = useState<Conversation | null>(null);
     const [messages, setMessages] = useState<ApiMessage[]>([]);
@@ -106,6 +107,8 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
         try {
             const result = await getConversations(identity.publicKey);
             setConversations(result.conversations);
+            const txs = await getMyMarketplaceTransactions(identity.publicKey);
+            setUserTransactions(txs);
         } catch { /* offline */ }
     }
 
@@ -489,17 +492,25 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                         </button>
                                     )}
                                     
-                                    {msg.systemType === 'ESCROW_RELEASED' && metaObj?.postId && (
-                                        <button 
-                                            onClick={() => console.log('Reviewing post:', metaObj.postId)}
-                                            style={{
-                                                marginTop: '0.5rem', background: '#fff', color: '#f59e0b', border: '1px solid #f59e0b',
-                                                padding: '4px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer'
-                                            }}
-                                        >
-                                            ⭐ Rate your partner
-                                        </button>
-                                    )}
+                                    {msg.systemType === 'ESCROW_RELEASED' && metaObj?.postId && (() => {
+                                        const relatedTx = userTransactions.find(t => t.postId === metaObj.postId && t.status === 'completed');
+                                        const isBuyer = relatedTx ? relatedTx.buyerPublicKey === identity.publicKey : false;
+                                        const hasRated = relatedTx ? (isBuyer ? relatedTx.ratedByBuyer : relatedTx.ratedBySeller) : false;
+                                        return (
+                                            <button 
+                                                onClick={() => window.location.href = `/?post=${metaObj.postId}`}
+                                                style={{
+                                                    marginTop: '0.5rem', background: '#fff', 
+                                                    color: hasRated ? '#10b981' : '#f59e0b', 
+                                                    border: `1px solid ${hasRated ? '#10b981' : '#f59e0b'}`,
+                                                    padding: '4px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
+                                                    display: 'flex', alignItems: 'center', gap: '4px'
+                                                }}
+                                            >
+                                                {hasRated ? '✓ Rating Submitted' : '⭐ Rate your partner'}
+                                            </button>
+                                        );
+                                    })()}
                                 </div>
                             );
                         }
@@ -689,7 +700,10 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
                     })
                     .map(conv => {
-                        const needsReview = conv.lastMsgType === 'system' && conv.lastSysType === 'ESCROW_RELEASED';
+                        const relatedTx = userTransactions.find(t => t.postId === conv.postId && t.status === 'completed');
+                        const isBuyer = relatedTx ? relatedTx.buyerPublicKey === identity.publicKey : false;
+                        const hasRated = relatedTx ? (isBuyer ? relatedTx.ratedByBuyer : relatedTx.ratedBySeller) : false;
+                        const needsReview = conv.lastMsgType === 'system' && conv.lastSysType === 'ESCROW_RELEASED' && !hasRated;
                         
                         return (
                         <div

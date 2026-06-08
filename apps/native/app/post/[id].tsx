@@ -58,6 +58,7 @@ export default function PostDetailModal() {
     const [myRating, setMyRating] = useState(0);
     const [ratingComment, setRatingComment] = useState('');
     const [submittingRating, setSubmittingRating] = useState(false);
+    const [hasExistingRating, setHasExistingRating] = useState(false);
     const [showReportForm, setShowReportForm] = useState(false);
     const [reportReason, setReportReason] = useState('');
     const [submittingReport, setSubmittingReport] = useState(false);
@@ -204,6 +205,32 @@ export default function PostDetailModal() {
                 .catch(console.error);
         }
     }, [identity?.publicKey, post?.id, activeTx]);
+
+    useEffect(() => {
+        const txToRate = activeTx?.id || post?.pending_transaction_id;
+        if (txToRate && identity?.publicKey) {
+            (async () => {
+                try {
+                    const db = await getDb();
+                    const existing = await db.getFirstAsync<any>(
+                        "SELECT stars, comment FROM ratings WHERE transaction_id=? AND rater_pubkey=?",
+                        [txToRate, identity.publicKey]
+                    );
+                    if (existing) {
+                        setMyRating(existing.stars);
+                        setRatingComment(existing.comment || '');
+                        setHasExistingRating(true);
+                    } else {
+                        setMyRating(0);
+                        setRatingComment('');
+                        setHasExistingRating(false);
+                    }
+                } catch (e) {
+                    console.error("[PostDetails] Failed to load existing rating:", e);
+                }
+            })();
+        }
+    }, [activeTx?.id, post?.pending_transaction_id, identity?.publicKey]);
 
     if (!post) {
         return (
@@ -956,8 +983,10 @@ export default function PostDetailModal() {
                         )}
                         {identity && (post.status === 'completed' || activeTx?.status === 'completed') && (activeTx?.id || post.pending_transaction_id) && targetPeerPubkey && (
                             <View style={{ marginTop: 16 }}>
-                                <Pressable style={[styles.messageBtn, { borderColor: 'rgba(245,158,11,0.3)', backgroundColor: 'rgba(245,158,11,0.05)' }]} onPress={() => setShowRatingForm(!showRatingForm)}>
-                                    <Text style={[styles.messageBtnText, { color: '#f59e0b' }]}>★ Rate {targetPeerCallsign}</Text>
+                                <Pressable style={[styles.messageBtn, { borderColor: hasExistingRating ? '#10b981' : 'rgba(245,158,11,0.3)', backgroundColor: hasExistingRating ? 'rgba(16,185,129,0.05)' : 'rgba(245,158,11,0.05)' }]} onPress={() => setShowRatingForm(!showRatingForm)}>
+                                    <Text style={[styles.messageBtnText, { color: hasExistingRating ? '#10b981' : '#f59e0b' }]}>
+                                        {hasExistingRating ? `★ Edit rating for ${targetPeerCallsign}` : `★ Rate ${targetPeerCallsign}`}
+                                    </Text>
                                 </Pressable>
                                 {showRatingForm && (
                                     <View style={[styles.confirmBox, { marginTop: 8 }]}>
@@ -969,18 +998,21 @@ export default function PostDetailModal() {
                                             ))}
                                         </View>
                                         <TextInput style={[styles.editInput, { minHeight: 60, marginBottom: 12 }]} value={ratingComment} onChangeText={setRatingComment} placeholder="Leave an optional comment..." placeholderTextColor="#9ca3af" multiline />
-                                        <Pressable style={[styles.confirmActionBtn, { backgroundColor: myRating >= 1 ? '#f59e0b' : '#e5e7eb' }]} disabled={myRating < 1 || submittingRating} onPress={async () => {
+                                        <Pressable style={[styles.confirmActionBtn, { backgroundColor: myRating >= 1 ? (hasExistingRating ? '#10b981' : '#f59e0b') : '#e5e7eb' }]} disabled={myRating < 1 || submittingRating} onPress={async () => {
                                             const txToRate = activeTx?.id || post.pending_transaction_id;
                                             if(!identity || !txToRate) return;
                                             try {
                                                 setSubmittingRating(true);
                                                 await submitRating(identity.publicKey, targetPeerPubkey, myRating, ratingComment, txToRate);
                                                 setShowRatingForm(false);
+                                                setHasExistingRating(true);
                                                 hapticSuccess();
-                                                Alert.alert('Success', 'Rating submitted!');
+                                                Alert.alert('Success', hasExistingRating ? 'Rating updated!' : 'Rating submitted!');
                                             } catch(e:any) { hapticWarning(); Alert.alert('Error', e.message); } finally { setSubmittingRating(false); }
                                         }}>
-                                            <Text style={styles.confirmActionBtnText}>{submittingRating ? 'Submitting...' : 'Submit Rating'}</Text>
+                                            <Text style={styles.confirmActionBtnText}>
+                                                {submittingRating ? 'Submitting...' : hasExistingRating ? 'Update Rating' : 'Submit Rating'}
+                                            </Text>
                                         </Pressable>
                                     </View>
                                 )}

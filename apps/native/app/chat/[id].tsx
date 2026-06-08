@@ -45,10 +45,26 @@ export default function ChatScreen() {
     const [pendingTx, setPendingTx] = useState<{ id: string; amount: number; isPayer: boolean } | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
     const [promptReviewForTx, setPromptReviewForTx] = useState<{ txId: string; targetPubkey: string; targetCallsign: string } | null>(null);
+    const [ratedPostIds, setRatedPostIds] = useState<Set<string>>(new Set());
     const flatListRef = useRef<FlatList>(null);
     const insets = useSafeAreaInsets();
     const sendingRef = useRef(false);
     const promptedRef = useRef(false);
+
+    const loadRatedTransactions = useCallback(async () => {
+        if (!identity?.publicKey) return;
+        try {
+            const db = await getDb();
+            const ratedRows = await db.getAllAsync<any>(
+                "SELECT mt.post_id FROM ratings r JOIN marketplace_transactions mt ON r.transaction_id = mt.id WHERE r.rater_pubkey = ?",
+                [identity.publicKey]
+            );
+            const ids = new Set<string>(ratedRows.map(r => r.post_id).filter(Boolean));
+            setRatedPostIds(ids);
+        } catch (e) {
+            console.error("[Chat] Failed to load rated transaction list:", e);
+        }
+    }, [identity?.publicKey]);
 
     const loadConversationData = useCallback(async () => {
         if (id && identity?.publicKey) {
@@ -113,10 +129,12 @@ export default function ChatScreen() {
             if (id && identity?.publicKey) {
                 // Initial Load
                 loadConversationData();
+                loadRatedTransactions();
                 loadMessages().then(() => {
                     syncMessages(identity!.publicKey).then(() => {
                         loadConversationData();
                         loadMessages(true);
+                        loadRatedTransactions();
                     });
                 });
                 
@@ -132,6 +150,7 @@ export default function ChatScreen() {
                 sub = DeviceEventEmitter.addListener('sync_data_updated', () => {
                     loadConversationData();
                     loadMessages(true);
+                    loadRatedTransactions();
                 });
             }
             return () => {
@@ -333,36 +352,46 @@ export default function ChatScreen() {
                         </Pressable>
                     )}
                     
-                    {item.systemType === 'ESCROW_RELEASED' && item.metadata?.postId && (
-                        <Pressable 
-                            style={[styles.systemActionBtn, { borderColor: '#f59e0b' }]}
-                            onPress={async () => {
-                                try {
-                                    const db = await getDb();
-                                    const txRow = await db.getFirstAsync<any>(
-                                        "SELECT id, buyer_pubkey, seller_pubkey FROM marketplace_transactions WHERE post_id=? AND status='completed' LIMIT 1",
-                                        [item.metadata.postId]
-                                    );
-                                    if (txRow && identity?.publicKey) {
-                                        const targetPubkey = txRow.buyer_pubkey === identity.publicKey ? txRow.seller_pubkey : txRow.buyer_pubkey;
-                                        setPromptReviewForTx({
-                                            txId: txRow.id,
-                                            targetPubkey,
-                                            targetCallsign: peerName
-                                        });
-                                    } else {
-                                        Alert.alert("Notice", "Transaction details not found locally. Please try viewing the post.");
+                    {item.systemType === 'ESCROW_RELEASED' && item.metadata?.postId && (() => {
+                        const hasRated = ratedPostIds.has(item.metadata.postId);
+                        return (
+                            <Pressable 
+                                style={[styles.systemActionBtn, { borderColor: hasRated ? '#10b981' : '#f59e0b' }]}
+                                onPress={async () => {
+                                    try {
+                                        const db = await getDb();
+                                        const txRow = await db.getFirstAsync<any>(
+                                            "SELECT id, buyer_pubkey, seller_pubkey FROM marketplace_transactions WHERE post_id=? AND status='completed' LIMIT 1",
+                                            [item.metadata.postId]
+                                        );
+                                        if (txRow && identity?.publicKey) {
+                                            const targetPubkey = txRow.buyer_pubkey === identity.publicKey ? txRow.seller_pubkey : txRow.buyer_pubkey;
+                                            setPromptReviewForTx({
+                                                txId: txRow.id,
+                                                targetPubkey,
+                                                targetCallsign: peerName
+                                            });
+                                        } else {
+                                            Alert.alert("Notice", "Transaction details not found locally. Please try viewing the post.");
+                                        }
+                                    } catch (e) {
+                                        console.error(e);
+                                        Alert.alert("Error", "Could not load transaction details for rating.");
                                     }
-                                } catch (e) {
-                                    console.error(e);
-                                    Alert.alert("Error", "Could not load transaction details for rating.");
-                                }
-                            }}
-                        >
-                            <MaterialCommunityIcons name="star-outline" size={14} color="#f59e0b" style={{ marginRight: 4 }} />
-                            <Text style={[styles.systemActionText, { color: '#f59e0b' }]}>Rate your partner</Text>
-                        </Pressable>
-                    )}
+                                }}
+                            >
+                                <MaterialCommunityIcons 
+                                    name={hasRated ? "star" : "star-outline"} 
+                                    size={14} 
+                                    color={hasRated ? '#10b981' : '#f59e0b'} 
+                                    style={{ marginRight: 4 }} 
+                                />
+                                <Text style={[styles.systemActionText, { color: hasRated ? '#10b981' : '#f59e0b' }]}>
+                                    {hasRated ? '✓ Rating submitted (Tap to edit)' : 'Rate your partner'}
+                                </Text>
+                            </Pressable>
+                        );
+                    })()}
                 </View>
             );
         }
@@ -676,6 +705,7 @@ export default function ChatScreen() {
                     onSuccess={() => {
                         Alert.alert("Success", "Your rating has been submitted!");
                         setPromptReviewForTx(null);
+                        loadRatedTransactions();
                         if (triggerReview === 'true') {
                             router.navigate('/(tabs)/chats');
                         }
