@@ -267,7 +267,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             for (const [key, value] of Object.entries(body)) {
                 const k = key.toLowerCase();
                 const isIdentityField = k.endsWith('pubkey') || k.endsWith('publickey') || k === 'from' || k === 'createdby';
-                const isOtherEntity = k.startsWith('target') || k.startsWith('old') || k.startsWith('to') || k.startsWith('invited');
+                const isOtherEntity = k.startsWith('target') || k.startsWith('old') || k.startsWith('to') || k.startsWith('invited') || k.startsWith('friend');
                 
                 if (isIdentityField && !isOtherEntity && typeof value === 'string' && value !== pubKeyHex) {
                     throw new Error(`Identity mismatch: body field '${key}' does not match header public key.`);
