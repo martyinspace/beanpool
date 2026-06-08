@@ -19,7 +19,7 @@ function ChatImage({ conversationId, messageId }: { conversationId: string; mess
     useEffect(() => {
         let active = true;
         getDecryptedAttachment(conversationId, messageId)
-            .then(u => { if (active) { u ? setUri(u) : setFailed(true); } })
+            .then(u => { if (active) { if (u) { setUri(u); } else { setFailed(true); } } })
             .catch(() => { if (active) setFailed(true); });
         return () => { active = false; };
     }, [conversationId, messageId]);

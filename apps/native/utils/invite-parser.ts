@@ -1,7 +1,7 @@
 export function extractNodeOrigin(raw: string): string | null {
     const trimmed = raw.trim();
     if (trimmed.includes('http')) {
-        const originMatch = trimmed.match(/^.*?https?:\/\/[^\/?#\s]+/);
+        const originMatch = trimmed.match(/^.*?https?:\/\/[^/?#\s]+/);
         if (originMatch) {
             let extracted = originMatch[0];
             const whitespaceIndex = extracted.indexOf('http');
