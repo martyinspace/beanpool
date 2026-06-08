@@ -872,7 +872,7 @@ export default function SettingsScreen() {
 
                 {/* ─── Version Footer ─── */}
                 <Text style={styles.versionText}>
-                    BEANPOOL OS {appConfig.expo.version} (Build {appConfig.expo.ios.buildNumber})
+                    BEANPOOL OS {appConfig.expo.version} (Build {Platform.OS === 'ios' ? appConfig.expo.ios.buildNumber : appConfig.expo.android.versionCode})
                 </Text>
                 </>
             )}
