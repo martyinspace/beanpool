@@ -214,7 +214,8 @@ async function _doInitDB() {
             status TEXT DEFAULT 'pending',
             created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
             completed_at DATETIME,
-            cover_image TEXT
+            cover_image TEXT,
+            post_title TEXT
         );
 
         -- 5. Messaging & Chat
@@ -224,7 +225,11 @@ async function _doInitDB() {
             post_id TEXT,
             name TEXT,
             created_by TEXT,
-            created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+            created_at DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            post_title TEXT,
+            post_status TEXT,
+            post_photo TEXT,
+            post_credits REAL
         );
 
         CREATE TABLE IF NOT EXISTS conversation_participants (
@@ -325,6 +330,15 @@ async function _doInitDB() {
         try {
             await database.execAsync(`ALTER TABLE marketplace_transactions ADD COLUMN cover_image TEXT;`);
         } catch (e) {}
+
+        // Add post caching columns to conversations table
+        try { await database.execAsync(`ALTER TABLE conversations ADD COLUMN post_title TEXT;`); } catch (e) {}
+        try { await database.execAsync(`ALTER TABLE conversations ADD COLUMN post_status TEXT;`); } catch (e) {}
+        try { await database.execAsync(`ALTER TABLE conversations ADD COLUMN post_photo TEXT;`); } catch (e) {}
+        try { await database.execAsync(`ALTER TABLE conversations ADD COLUMN post_credits REAL;`); } catch (e) {}
+
+        // Add post caching column to marketplace_transactions table
+        try { await database.execAsync(`ALTER TABLE marketplace_transactions ADD COLUMN post_title TEXT;`); } catch (e) {}
 
         // Add price_type column if not exists
         try {
@@ -481,7 +495,12 @@ export async function getPost(id: string) {
 export async function getConversations(myPubkey: string) {
     const database = await getDb();
     const rows = await database.getAllAsync<any>(`
-        SELECT c.id, c.name, c.post_id, p.title as postTitle, p.status as postStatus, p.credits as postCredits, p.photos as postPhotos, m.ciphertext as lastMessage, m.nonce as lastNonce, m.type as lastMsgType, m.system_type as lastSysType, MAX(m.timestamp) as timestamp,
+        SELECT c.id, c.name, c.post_id,
+               COALESCE(p.title, c.post_title) as postTitle,
+               COALESCE(p.status, c.post_status) as postStatus,
+               COALESCE(p.credits, c.post_credits) as postCredits,
+               COALESCE(p.photos, c.post_photo) as postPhotos,
+               m.ciphertext as lastMessage, m.nonce as lastNonce, m.type as lastMsgType, m.system_type as lastSysType, MAX(m.timestamp) as timestamp,
         (SELECT memb.callsign FROM conversation_participants cp 
          LEFT JOIN members memb ON memb.public_key = cp.public_key
          WHERE cp.conversation_id = c.id AND cp.public_key != ? LIMIT 1) as otherCallsign,
@@ -1384,7 +1403,7 @@ export async function applyDelta(delta: any) {
                 }
 
                 await txn.runAsync(
-                    'INSERT OR REPLACE INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, completed_at, cover_image, rated_by_buyer, rated_by_seller) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT OR REPLACE INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, completed_at, cover_image, rated_by_buyer, rated_by_seller, post_title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         tx.id ?? null,
                         tx.postId ?? tx.post_id ?? null,
@@ -1397,7 +1416,8 @@ export async function applyDelta(delta: any) {
                         tx.completedAt ?? tx.completed_at ?? null,
                         tx.coverImage ?? tx.cover_image ?? null,
                         tx.ratedByBuyer ? 1 : 0,
-                        tx.ratedBySeller ? 1 : 0
+                        tx.ratedBySeller ? 1 : 0,
+                        tx.postTitle ?? tx.post_title ?? null
                     ]
                 );
 
@@ -1597,9 +1617,34 @@ export async function syncMessages(publicKey: string) {
                 await database.withTransactionAsync(async () => {
                     const txn = database;
                     const localConv = await txn.getFirstAsync<any>('SELECT id FROM conversations WHERE id = ?', [conv.id]);
+                    const postPhotoString = conv.postPhoto ? JSON.stringify([conv.postPhoto]) : null;
                     if (!localConv) {
-                        await txn.runAsync('INSERT INTO conversations (id, type, post_id, name, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-                            [conv.id, conv.type || 'dm', conv.postId || conv.post_id || null, conv.name || null, conv.createdBy || '', conv.createdAt || new Date().toISOString()]);
+                        await txn.runAsync(
+                            'INSERT INTO conversations (id, type, post_id, name, created_by, created_at, post_title, post_status, post_photo, post_credits) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                            [
+                                conv.id,
+                                conv.type || 'dm',
+                                conv.postId || conv.post_id || null,
+                                conv.name || null,
+                                conv.createdBy || '',
+                                conv.createdAt || new Date().toISOString(),
+                                conv.postTitle || null,
+                                conv.postStatus || null,
+                                postPhotoString,
+                                conv.postCredits || null
+                            ]
+                        );
+                    } else {
+                        await txn.runAsync(
+                            'UPDATE conversations SET post_title = ?, post_status = ?, post_photo = ?, post_credits = ? WHERE id = ?',
+                            [
+                                conv.postTitle || null,
+                                conv.postStatus || null,
+                                postPhotoString,
+                                conv.postCredits || null,
+                                conv.id
+                            ]
+                        );
                     }
                     if (Array.isArray(conv.participants)) {
                         for (const pub of conv.participants) {
@@ -1974,9 +2019,39 @@ export async function createConversationApi(type: 'dm' | 'group', participants: 
         // immediately, without waiting for the next syncMessages cycle.
         if (conv?.id) {
             const database = await getDb();
+            let postTitle: string | null = null;
+            let postStatus: string | null = null;
+            let postPhoto: string | null = null;
+            let postCredits: number | null = null;
+            const pid = conv.postId || conv.post_id || postId;
+            if (pid) {
+                const post = await database.getFirstAsync<{ title: string, status: string, photos: string, credits: number }>('SELECT title, status, photos, credits FROM posts WHERE id = ?', [pid]);
+                if (post) {
+                    postTitle = post.title;
+                    postStatus = post.status;
+                    postCredits = post.credits;
+                    if (post.photos) {
+                        try {
+                            const arr = JSON.parse(post.photos);
+                            if (Array.isArray(arr) && arr.length > 0) postPhoto = JSON.stringify([arr[0]]);
+                        } catch {}
+                    }
+                }
+            }
             await database.runAsync(
-                'INSERT OR IGNORE INTO conversations (id, type, post_id, name, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-                [conv.id, conv.type || type, conv.postId || conv.post_id || postId || null, conv.name || name || null, conv.createdBy || createdBy, conv.createdAt || new Date().toISOString()]
+                'INSERT OR IGNORE INTO conversations (id, type, post_id, name, created_by, created_at, post_title, post_status, post_photo, post_credits) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [
+                    conv.id,
+                    conv.type || type,
+                    pid || null,
+                    conv.name || name || null,
+                    conv.createdBy || createdBy,
+                    conv.createdAt || new Date().toISOString(),
+                    postTitle,
+                    postStatus,
+                    postPhoto,
+                    postCredits
+                ]
             );
             const partList: string[] = Array.isArray(conv.participants) && conv.participants.length > 0 ? conv.participants : participants;
             for (const pub of partList) {
@@ -2209,9 +2284,12 @@ export async function acceptMarketplacePost(postId: string, buyerPublicKey: stri
         // Also store the marketplace transaction locally so completion can find it
         if (res?.transaction) {
             const tx = res.transaction;
+            let postTitle: string | null = null;
+            const postRow = await database.getFirstAsync<{ title: string }>('SELECT title FROM posts WHERE id = ?', [postId]);
+            if (postRow) postTitle = postRow.title;
             await database.runAsync(
-                'INSERT OR REPLACE INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, cover_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [tx.id, tx.postId || postId, tx.buyerPublicKey || buyerPublicKey, tx.sellerPublicKey || null, tx.credits || 0, tx.hours || null, tx.status || 'pending', tx.createdAt || new Date().toISOString(), tx.coverImage || null]
+                'INSERT OR REPLACE INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, cover_image, post_title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [tx.id, tx.postId || postId, tx.buyerPublicKey || buyerPublicKey, tx.sellerPublicKey || null, tx.credits || 0, tx.hours || null, tx.status || 'pending', tx.createdAt || new Date().toISOString(), tx.coverImage || null, postTitle]
             );
         }
         
@@ -2347,9 +2425,12 @@ export async function requestMarketplacePost(postId: string, buyerPublicKey: str
         const database = await getDb();
         if (res?.transaction) {
             const tx = res.transaction;
+            let postTitle: string | null = null;
+            const postRow = await database.getFirstAsync<{ title: string }>('SELECT title FROM posts WHERE id = ?', [postId]);
+            if (postRow) postTitle = postRow.title;
             await database.runAsync(
-                'INSERT OR REPLACE INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, cover_image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [tx.id, tx.postId || postId, tx.buyerPublicKey || buyerPublicKey, tx.sellerPublicKey || null, tx.credits || 0, tx.hours || null, tx.status || 'requested', tx.createdAt || new Date().toISOString(), tx.coverImage || null]
+                'INSERT OR REPLACE INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at, cover_image, post_title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [tx.id, tx.postId || postId, tx.buyerPublicKey || buyerPublicKey, tx.sellerPublicKey || null, tx.credits || 0, tx.hours || null, tx.status || 'requested', tx.createdAt || new Date().toISOString(), tx.coverImage || null, postTitle]
             );
         }
     } catch(e) {
@@ -2677,7 +2758,7 @@ export async function getMarketplaceTransactions(publicKey: string, filter?: { s
     const database = await getDb();
     const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || '';
     let query = `
-        SELECT mt.*, p.title as postTitle, p.photos as postPhotos, m1.callsign as buyerCallsign, m1.avatar_url as buyerAvatar, m2.callsign as sellerCallsign, m2.avatar_url as sellerAvatar,
+        SELECT mt.*, COALESCE(p.title, mt.post_title) as postTitle, p.photos as postPhotos, m1.callsign as buyerCallsign, m1.avatar_url as buyerAvatar, m2.callsign as sellerCallsign, m2.avatar_url as sellerAvatar,
                EXISTS(SELECT 1 FROM ratings r WHERE r.transaction_id = mt.id AND r.rater_pubkey = mt.buyer_pubkey) as ratedByBuyer,
                EXISTS(SELECT 1 FROM ratings r WHERE r.transaction_id = mt.id AND r.rater_pubkey = mt.seller_pubkey) as ratedBySeller
         FROM marketplace_transactions mt
