@@ -309,6 +309,16 @@ The script will run 114 checks (38 routes × 3 tests) and must print `Boundary h
 
 ---
 
+### 🛡️ Federation Security & Verification Gates
+
+To protect federated nodes from replay attacks, origin spoofing, and balance manipulation, the node enforces several security gates:
+1. **Replay-Proof Signed Requests (X-1)**: Every mutating REST API request uses cryptographic client Ed25519 signatures validated against timestamps and request nonces to prevent capture and replay.
+2. **CORS Exact-Origin Verification (SRV-5)**: Cross-community API requests are verified against an exact allowed list of trusted peer node origins rather than permitting wildcard origins.
+3. **Positive-Amount Ledger Validation (SRV-8)**: Deep ledger routing checks enforce that all credit transfer transactions carry positive amounts (> 0), preventing zero-amount or negative-amount credit drain attacks.
+4. **Trusted Peer Sync Gating (SRV-1)**: P2P replication sync endpoints are gated strictly behind authenticated and trusted peer domains, dropping connections from untrusted node identities.
+
+---
+
 ## 🪞 Mirroring, Failover & Merging Nodes
 
 Because BeanPool's internal state engine (Ledger, Members, Web of Trust, and Posts) is built entirely on top of **Conflict-Free Replicated Data Types (CRDTs)**, node operators have incredibly flexible options for backing up, failing over, and even merging communities together.

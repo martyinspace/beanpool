@@ -48,6 +48,7 @@ Full-screen Leaflet/OSM map as the landing page:
 ### 🫘 Bean Reputation System
 Community trust through bean ratings:
 - **5-bean rating** with optional comment (one rating per rater-per-target, updatable)
+- **Review Editing**: Option to edit reviews directly from the profile's Given tab or My Deals card, with pre-populated stars and comments inside `ReviewModal`.
 - **Bean display** on marketplace tiles (`🫘🫘🫘○○`) and post detail view
 - **Always visible** — shows `○○○○○ No ratings yet` for unrated members
 - **Rate button** in post detail — "🫘 Rate {name}" opens picker + comment form
@@ -59,12 +60,19 @@ Flag bad actors for admin review:
 - **Admin panel** in Settings → "🚩 Abuse Reports" — view all reports with reporter, target, reason, date
 
 ### 💬 E2E Messaging & Smart CRM Inbox
-DMs and group chats with an E2E-ready data model and transaction context:
+DMs and group chats with real E2E encryption and transaction context:
 - **Smart CRM Inbox** — Message threads automatically link to their parent Marketplace post, displaying the active title and Object Status (Active/Escrow/Completed). 
 - **Inbox Tab Filtering** — Sort conversations easily via the 'All', 'Transactions', or 'Direct' filters to manage deals logically.
 - **Direct messages** — tap any member or use "Message" from a post detail (cross-node DMs are authenticated via PeerID Noise streams)
 - **Group chats** — create named groups with multiple members
-- **Plaintext v1** encoding (base64) — data model ready for X25519/AES-256-GCM upgrade
+- **E2E Encryption**: Real end-to-end encryption for direct messages (Noise/X25519/AES-GCM) protecting chat content from server visibility (NAT-1).
+- **Sent/Read Receipts**: Sent and read receipt indicators on direct messages.
+- **Encrypted Photo Attachments**: Support for encrypted camera/photo attachments in direct messages, lazy-loaded on the client.
+
+### 💾 SQLite Post Context Caching
+Preserve conversation and transaction contexts on restoration:
+- **Local SQLite Caching**: Metadata (titles, status, cover photos, credits) is cached directly in client-side `conversations` and `marketplace_transactions` tables.
+- **Phone Change Recovery**: Ensures active thread contexts and deals history show correct titles and photos when restoring an identity, even when completed posts are no longer sent in active sync payloads.
 
 ### 🎟️ Invite Tree
 Invite-only membership with hierarchical accountability:
@@ -120,6 +128,9 @@ Mutual credit balance and transaction history:
 - **Balance gauge** with dynamic credit floor (see [Protocol Rules](docs/protocol-rules.md))
 - **Commons Pool** display (funds from progressive circulation)
 - **Transaction history** with sent/received indicators
+- **Solvency Transparency**: Interactive modals showing community-wide ledger solvency statistics.
+- **Tax/Fee Notices & Green Zone**: Detailed 1.5% circulation fee notices and a 0% circulation fee "Green Zone" on balances between 0 and 200 Ʀ.
+- **Transaction Fee Renames**: Renaming of "transaction tax" references to "transaction fee" across ledger components.
 
 ### 💚 Community Health Dashboard
 Admin insights in Settings page:

@@ -78,7 +78,10 @@ apps/native/
 
 ## Key Features
 
-- **Self-Managed Identity** — Ed25519 keypair from BIP-39 12-word mnemonic, stored securely in hardware-backed Expo SecureStore (iOS Keychain / Android Keystore) with all legacy plaintext fallback lookup routines completely eliminated.
+- **Self-Managed Identity & E2E Encryption** — Ed25519 keypair from BIP-39 12-word mnemonic, stored securely in hardware-backed Expo SecureStore. Direct messages are fully E2E encrypted (Noise/X25519/AES-GCM) protecting user chats from server visibility (NAT-1), with sent/read receipts and encrypted camera/photo attachments.
+- **SQLite Post Context Caching** — Metadata (titles, status, cover photos, credits) is cached in local SQLite `conversations` and `marketplace_transactions` tables. This guarantees transaction histories and active chats display correct titles and photos when restoring/migrating accounts on a new phone.
+- **Review Editing** — Option to edit reviews directly from the Given tab of a profile, with pre-populated stars and comments inside the `ReviewModal`.
+- **Android Memory Optimization** — Configured `largeHeap: true` to prevent Out-of-Memory (OOM) heap limit crashes during dense image handling or map rendering.
 - **Official App & Play Store Update Checks** — Querying unauthenticated store APIs (iTunes Lookup for iOS, regex parsing of Play details HTML scripts for Android) on a 24-hour throttled check, showing an organic header upgrade banner decoupled from node updates.
 - **Decoupled Release Versioning** — Support for individual native-only bumps (`node scripts/bump-version.mjs patch --native`) and Git tags (`native-v*`), decoupling review times from server nodes.
 - **Real-time Node Parity Settings** — Displaying sync status indicators (`🟢 Synced`, `⚠️ Out of Sync`, `⚪ Offline / Local-First`) under SQLite cache details by querying table aggregates against live remote transactions, posts, and member sizes.
@@ -98,7 +101,7 @@ apps/native/
 - **Push Notifications** — DM and marketplace deal alerts via Expo Push, per-member notification preferences, token registration
 - **Guest Mode** — multi-node onboarding flow with membership probe; guest indicators in header and sync status when visiting a node you're not a member of
 - **Community Search** — search and infinite scroll on the Community member list
-- **App Store & Play Store Submission** — Published/built for both stores (v1.1.3, build 112).
+- **App Store & Play Store Submission** — Published/built for both stores (v1.1.18, Android versionCode 131, iOS build 126).
 - **Community Projects** — crowdfund tab with progress bars, funding badges, and proposal creation
 - **Branded Tab Bar** — neon-vine artwork background with semi-transparent overlay
 - **Post Detail View** — full-screen view with photos, credits, author info
@@ -168,7 +171,7 @@ npx expo start                      # Native dev client
 | Marketplace (grid/list) | ✅ | ✅ | Native has 14 categories (adds Care) |
 | Post creation | ✅ | ✅ | Photo upload, location pin |
 | Post detail view | ✅ | ✅ | |
-| Chat (DM + groups) | ✅ | ✅ | Base64 E2E plaintext-v1 encoding |
+| Chat (DM + groups) | ✅ | ✅ | Real E2E encryption (Noise/X25519/AES-GCM) with sent/read receipts |
 | Live Chat Response Polling | ✅ | ✅ | 3-sec foreground hook interval |
 | Unread Notification Badges | ✅ | ✅ | Tab bar indicator with JS Date Timezone corrections |
 | People browser | ✅ | ✅ | Connects to `/api/members` dictionary for Callsign resolutions |
@@ -194,4 +197,4 @@ npx expo start                      # Native dev client
 
 ---
 
-_Last updated: 2026-05-30_
+_Last updated: 2026-06-09_
