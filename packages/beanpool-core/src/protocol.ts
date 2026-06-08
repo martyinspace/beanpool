@@ -43,6 +43,7 @@ export const PROTOCOL_CONSTANTS = {
     //   Ambassador: -600 = -80 - earned → earned = 520
     GENESIS_TRUSTED_EARNED: 120,       // Places new member at -200 floor (Resident)
     GENESIS_AMBASSADOR_EARNED: 520,    // Places new member at -600 floor (Citizen)
+    GENESIS_ELDER_EARNED: 1320,        // Places new member at -1400 floor (Elder)
 
     // === Transaction Guardrails ===
     TRANSACTION_WARNING_THRESHOLD: 0.5, // Warn when using >50% of remaining credit
@@ -51,7 +52,7 @@ export const PROTOCOL_CONSTANTS = {
 // ===================== TYPES =====================
 
 export type TierName = 'Newcomer' | 'Resident' | 'Citizen' | 'Elder';
-export type GenesisInviteType = 'standard' | 'trusted' | 'ambassador';
+export type GenesisInviteType = 'standard' | 'trusted' | 'ambassador' | 'elder';
 
 export interface TierInfo {
     name: TierName;
@@ -92,7 +93,7 @@ export function getTier(floor: number): TierInfo {
     const c = PROTOCOL_CONSTANTS;
 
     if (floor > c.GHOST_THRESHOLD) {
-        return { name: 'Newcomer', emoji: '🌱', color: '#6b7280', canGift: false, canInvite: true };
+        return { name: 'Newcomer', emoji: '🥚', color: '#6b7280', canGift: false, canInvite: true };
     }
     if (floor > c.RESIDENT_THRESHOLD) {
         return { name: 'Resident', emoji: '🏠', color: '#3b82f6', canGift: true, canInvite: true };
@@ -112,6 +113,7 @@ export function getGenesisEarnedCredit(type: GenesisInviteType): number {
     switch (type) {
         case 'trusted': return c.GENESIS_TRUSTED_EARNED;
         case 'ambassador': return c.GENESIS_AMBASSADOR_EARNED;
+        case 'elder': return c.GENESIS_ELDER_EARNED;
         default: return 0;
     }
 }

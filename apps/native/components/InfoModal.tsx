@@ -13,10 +13,17 @@ export interface InfoModalProps {
     title: string;
     icon: React.ReactNode;
     tabs: InfoModalTab[];
+    defaultTab?: string;
 }
 
-export function InfoModal({ isOpen, onClose, title, icon, tabs }: InfoModalProps) {
-    const [activeTab, setActiveTab] = useState<string>(tabs.length > 0 ? tabs[0].id : '');
+export function InfoModal({ isOpen, onClose, title, icon, tabs, defaultTab }: InfoModalProps) {
+    const [activeTab, setActiveTab] = useState<string>(defaultTab || (tabs.length > 0 ? tabs[0].id : ''));
+
+    React.useEffect(() => {
+        if (isOpen && defaultTab) {
+            setActiveTab(defaultTab);
+        }
+    }, [isOpen, defaultTab]);
 
     if (!isOpen) return null;
 
@@ -27,58 +34,60 @@ export function InfoModal({ isOpen, onClose, title, icon, tabs }: InfoModalProps
             animationType="slide"
             onRequestClose={onClose}
         >
-            <TouchableOpacity
-                style={styles.overlay}
-                activeOpacity={1}
-                onPress={onClose}
-            >
-                <TouchableWithoutFeedback>
-                    <View style={styles.modalContainer}>
-                        {/* Header */}
-                        <View style={styles.header}>
-                            <View style={styles.headerTitleContainer}>
-                                <View style={styles.headerIconContainer}>{icon}</View>
-                                <Text style={styles.headerTitle}>{title}</Text>
-                            </View>
-                            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                                <Text style={styles.closeButtonText}>✕</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Tabs */}
-                        {tabs.length > 1 && (
-                            <View style={styles.tabWrapper}>
-                                <ScrollView
-                                    horizontal
-                                    showsHorizontalScrollIndicator={false}
-                                    contentContainerStyle={styles.tabContainer}
-                                >
-                                    {tabs.map(tab => (
-                                        <TouchableOpacity
-                                            key={tab.id}
-                                            style={[
-                                                styles.tabButton,
-                                                activeTab === tab.id && styles.tabButtonActive
-                                            ]}
-                                            onPress={() => setActiveTab(tab.id)}
-                                        >
-                                            <Text style={[
-                                                styles.tabText,
-                                                activeTab === tab.id && styles.tabTextActive
-                                            ]}>{tab.label}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </ScrollView>
-                            </View>
-                        )}
-
-                        {/* Content */}
-                        <ScrollView style={styles.contentContainer} showsVerticalScrollIndicator={false}>
-                            {tabs.find(t => t.id === activeTab)?.content}
-                        </ScrollView>
-                    </View>
+            <View style={styles.overlay}>
+                <TouchableWithoutFeedback onPress={onClose}>
+                    <View style={styles.backdrop} />
                 </TouchableWithoutFeedback>
-            </TouchableOpacity>
+
+                <View style={styles.modalContainer}>
+                    {/* Header */}
+                    <View style={styles.header}>
+                        <View style={styles.headerTitleContainer}>
+                            <View style={styles.headerIconContainer}>{icon}</View>
+                            <Text style={styles.headerTitle}>{title}</Text>
+                        </View>
+                        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                            <Text style={styles.closeButtonText}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Tabs */}
+                    {tabs.length > 1 && (
+                        <View style={styles.tabWrapper}>
+                            <ScrollView
+                                horizontal
+                                showsHorizontalScrollIndicator={false}
+                                contentContainerStyle={styles.tabContainer}
+                            >
+                                {tabs.map(tab => (
+                                    <TouchableOpacity
+                                        key={tab.id}
+                                        style={[
+                                            styles.tabButton,
+                                            activeTab === tab.id && styles.tabButtonActive
+                                        ]}
+                                        onPress={() => setActiveTab(tab.id)}
+                                    >
+                                        <Text style={[
+                                            styles.tabText,
+                                            activeTab === tab.id && styles.tabTextActive
+                                        ]}>{tab.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    )}
+
+                    {/* Content */}
+                    <ScrollView 
+                        style={styles.scrollView} 
+                        contentContainerStyle={styles.contentContainerStyle} 
+                        showsVerticalScrollIndicator={false}
+                    >
+                        {tabs.find(t => t.id === activeTab)?.content}
+                    </ScrollView>
+                </View>
+            </View>
         </Modal>
     );
 }
@@ -89,12 +98,18 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.6)',
         justifyContent: 'flex-end',
     },
+    backdrop: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+    },
     modalContainer: {
         backgroundColor: '#111827',
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
-        maxHeight: '90%',
-        minHeight: '60%',
+        height: '90%',
     },
     header: {
         flexDirection: 'row',
@@ -154,7 +169,10 @@ const styles = StyleSheet.create({
     tabTextActive: {
         color: '#34d399',
     },
-    contentContainer: {
+    scrollView: {
+        flex: 1,
+    },
+    contentContainerStyle: {
         padding: 24,
     },
 });

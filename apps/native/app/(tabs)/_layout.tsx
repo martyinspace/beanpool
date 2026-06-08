@@ -1,7 +1,7 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter, useSegments } from 'expo-router';
 import { GlobalHeader } from '../../components/GlobalHeader';
-import { View, Image, StyleSheet, Text } from 'react-native';
-import { useState, useEffect } from 'react';
+import { View, Image, StyleSheet, Text, PanResponder, Dimensions } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
 import { useIdentity } from '../IdentityContext';
 import { getGlobalUnreadCount, syncMessages, getPosts, getMarketplaceTransactions } from '../../utils/db';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,6 +11,65 @@ export default function TabLayout() {
     const [unread, setUnread] = useState(0);
     const [dealsCount, setDealsCount] = useState(0);
     const [needsBackup, setNeedsBackup] = useState(false);
+
+    const router = useRouter();
+    const segments = useSegments() as string[];
+    const currentTab = segments[0] === '(tabs)' ? segments[1] || 'index' : 'index';
+
+    const currentTabRef = useRef(currentTab);
+    useEffect(() => {
+        currentTabRef.current = currentTab;
+    }, [currentTab]);
+
+    const visibleTabs = ['index', 'map', 'chats', 'people', 'projects', 'ledger'];
+
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => false,
+            onStartShouldSetPanResponderCapture: () => false,
+            onMoveShouldSetPanResponder: () => false,
+            onMoveShouldSetPanResponderCapture: (evt, gestureState) => {
+                const { width } = Dimensions.get('window');
+                const { dx, dy, x0 } = gestureState;
+                const isHorizontal = Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 3;
+                
+                if (!isHorizontal) return false;
+                
+                const activeTab = currentTabRef.current;
+                if (!visibleTabs.includes(activeTab)) return false;
+                
+                if (activeTab === 'map') {
+                    // On Map view, only intercept edge swipes (within 20px) to preserve panning
+                    return x0 < 20 || x0 > width - 20;
+                }
+                
+                return true;
+            },
+            onPanResponderRelease: (evt, gestureState) => {
+                const { dx } = gestureState;
+                const activeTab = currentTabRef.current;
+                const idx = visibleTabs.indexOf(activeTab);
+                
+                if (idx === -1) return;
+                
+                if (dx < -50) {
+                    // Swipe left -> go to next tab
+                    if (idx < visibleTabs.length - 1) {
+                        const nextTab = visibleTabs[idx + 1];
+                        const path = nextTab === 'index' ? '/' : `/(tabs)/${nextTab}`;
+                        router.navigate(path as any);
+                    }
+                } else if (dx > 50) {
+                    // Swipe right -> go to previous tab
+                    if (idx > 0) {
+                        const prevTab = visibleTabs[idx - 1];
+                        const path = prevTab === 'index' ? '/' : `/(tabs)/${prevTab}`;
+                        router.navigate(path as any);
+                    }
+                }
+            },
+        })
+    ).current;
 
     useEffect(() => {
         if (!identity?.publicKey) return;
@@ -60,94 +119,96 @@ export default function TabLayout() {
     }, [identity]);
 
     return (
-        <Tabs screenOptions={{
-            header: () => <GlobalHeader />,
-            tabBarBackground: () => (
-                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#1a2e1a', overflow: 'hidden' }}>
-                    <Image 
-                        source={require('../../assets/images/neon-vines-banner.jpg')} 
-                        style={[StyleSheet.absoluteFillObject, { width: '100%', height: '100%', transform: [{ scale: 1.5 }] }]}
-                        resizeMode="cover"
-                    />
-                    <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.5)' }]} />
-                </View>
-            ),
-            tabBarStyle: { 
-                backgroundColor: 'transparent', 
-                borderTopWidth: 0,
-                elevation: 0,
-            },
-            tabBarActiveTintColor: '#ffffff',
-            tabBarInactiveTintColor: '#ffffff',
-            tabBarLabelStyle: {
-                textShadowColor: 'rgba(0,0,0,1)',
-                textShadowOffset: { width: 0, height: 0 },
-                textShadowRadius: 5,
-                fontWeight: '700',
-                fontSize: 10,
-            },
-        }}>
-            <Tabs.Screen
-                name="index"
-                options={{
-                    title: 'Market',
-                    tabBarBadge: dealsCount > 0 ? dealsCount : undefined,
-                    tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>🤝</Text>
-                }}
-            />
-            <Tabs.Screen
-                name="map"
-                options={{
-                    title: 'Map',
-                    headerTransparent: true,
-                    tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>🗺️</Text>
-                }}
-            />
+        <View style={{ flex: 1 }} {...panResponder.panHandlers}>
+            <Tabs backBehavior="none" screenOptions={{
+                header: () => <GlobalHeader />,
+                tabBarBackground: () => (
+                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#1a2e1a', overflow: 'hidden' }}>
+                        <Image 
+                            source={require('../../assets/images/neon-vines-banner.jpg')} 
+                            style={[StyleSheet.absoluteFillObject, { width: '100%', height: '100%', transform: [{ scale: 1.5 }] }]}
+                            resizeMode="cover"
+                        />
+                        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.5)' }]} />
+                    </View>
+                ),
+                tabBarStyle: { 
+                    backgroundColor: 'transparent', 
+                    borderTopWidth: 0,
+                    elevation: 0,
+                },
+                tabBarActiveTintColor: '#ffffff',
+                tabBarInactiveTintColor: '#ffffff',
+                tabBarLabelStyle: {
+                    textShadowColor: 'rgba(0,0,0,1)',
+                    textShadowOffset: { width: 0, height: 0 },
+                    textShadowRadius: 5,
+                    fontWeight: '700',
+                    fontSize: 10,
+                },
+            }}>
+                <Tabs.Screen
+                    name="index"
+                    options={{
+                        title: 'Market',
+                        tabBarBadge: dealsCount > 0 ? dealsCount : undefined,
+                        tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, transform: [{ scale: focused ? 1.3 : 1 }, { translateY: focused ? -4 : 0 }], opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>🤝</Text>
+                    }}
+                />
+                <Tabs.Screen
+                    name="map"
+                    options={{
+                        title: 'Map',
+                        headerTransparent: true,
+                        tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, transform: [{ scale: focused ? 1.3 : 1 }, { translateY: focused ? -4 : 0 }], opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>🗺️</Text>
+                    }}
+                />
 
-            <Tabs.Screen 
-                name="chats" 
-                options={{ 
-                    title: 'Chat',
-                    tabBarBadge: unread > 0 ? unread : undefined,
-                    tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>💬</Text> 
-                }} 
-            />
-            <Tabs.Screen 
-                name="people" 
-                options={{ 
-                    title: 'People',
-                    tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>👥</Text> 
-                }} 
-            />
-            <Tabs.Screen 
-                name="projects" 
-                options={{ 
-                    title: 'Projects',
-                    tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>🌱</Text> 
-                }} 
-            />
-            <Tabs.Screen 
-                name="ledger" 
-                options={{ 
-                    title: 'Ledger',
-                    tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>📊</Text> 
-                }} 
-            />
-            <Tabs.Screen 
-                name="settings" 
-                options={{ 
-                    title: 'Settings',
-                    href: null,
-                    tabBarIcon: ({ focused }) => (
-                        <View>
-                            <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>⚙️</Text>
-                            {needsBackup && (
-                                <View style={{ position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: '#1a2e1a' }} />
-                            )}
-                        </View>
-                    )
-                }} 
-            />
-        </Tabs>
+                <Tabs.Screen 
+                    name="chats" 
+                    options={{ 
+                        title: 'Chat',
+                        tabBarBadge: unread > 0 ? unread : undefined,
+                        tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, transform: [{ scale: focused ? 1.3 : 1 }, { translateY: focused ? -4 : 0 }], opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>💬</Text> 
+                    }} 
+                />
+                <Tabs.Screen 
+                    name="people" 
+                    options={{ 
+                        title: 'People',
+                        tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, transform: [{ scale: focused ? 1.3 : 1 }, { translateY: focused ? -4 : 0 }], opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>👥</Text> 
+                    }} 
+                />
+                <Tabs.Screen 
+                    name="projects" 
+                    options={{ 
+                        title: 'Projects',
+                        tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, transform: [{ scale: focused ? 1.3 : 1 }, { translateY: focused ? -4 : 0 }], opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>🌳</Text> 
+                    }} 
+                />
+                <Tabs.Screen 
+                    name="ledger" 
+                    options={{ 
+                        title: 'Ledger',
+                        tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, transform: [{ scale: focused ? 1.3 : 1 }, { translateY: focused ? -4 : 0 }], opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>📊</Text> 
+                    }} 
+                />
+                <Tabs.Screen 
+                    name="settings" 
+                    options={{ 
+                        title: 'Settings',
+                        href: null,
+                        tabBarIcon: ({ focused }) => (
+                            <View style={{ transform: [{ scale: focused ? 1.3 : 1 }, { translateY: focused ? -4 : 0 }] }}>
+                                <Text style={{ fontSize: 24, opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>⚙️</Text>
+                                {needsBackup && (
+                                    <View style={{ position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: '#1a2e1a' }} />
+                                )}
+                            </View>
+                        )
+                    }} 
+                />
+            </Tabs>
+        </View>
     );
 }

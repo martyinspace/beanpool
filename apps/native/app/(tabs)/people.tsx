@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { MemberAvatar } from '../../components/MemberAvatar';
-import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image, ActivityIndicator, Platform, DeviceEventEmitter } from 'react-native';
 import { getDb, getFriendsLocal, addFriendLocal, removeFriendLocal, createConversationApi, setGuardianApi } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
 import { hexToBytes, encodeUtf8, encodeBase64, signData, buildSignedHeaders } from '../../utils/crypto';
@@ -114,6 +114,17 @@ export default function PeopleScreen() {
         }
         if (view === 'friends') loadFriends();
     }, [view]);
+
+    useEffect(() => {
+        const sub = DeviceEventEmitter.addListener('sync_data_updated', () => {
+            if (view === 'community') {
+                loadMembers(0, searchQuery, true);
+            } else if (view === 'friends') {
+                loadFriends();
+            }
+        });
+        return () => sub.remove();
+    }, [view, searchQuery]);
 
     const loadFriends = async () => {
         if (!identity?.publicKey) return;

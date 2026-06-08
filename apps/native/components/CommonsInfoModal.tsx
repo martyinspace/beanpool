@@ -24,9 +24,10 @@ interface Props {
     isOpen: boolean;
     onClose: () => void;
     commonsBalance?: number;
+    initialTab?: 'flow' | 'brackets' | 'qv';
 }
 
-export function CommonsInfoModal({ isOpen, onClose, commonsBalance }: Props) {
+export function CommonsInfoModal({ isOpen, onClose, commonsBalance, initialTab }: Props) {
     const tabs: InfoModalTab[] = [
         {
             id: 'flow',
@@ -159,6 +160,7 @@ export function CommonsInfoModal({ isOpen, onClose, commonsBalance }: Props) {
             title="Community Commons"
             icon={<MaterialCommunityIcons name="bank" size={24} color="#fcd34d" />}
             tabs={tabs}
+            defaultTab={initialTab}
         />
     );
 }

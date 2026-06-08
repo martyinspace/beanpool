@@ -14,7 +14,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { BeanPoolMerkleTree } from '@beanpool/core';
-import { applyDelta, fetchFriendsFromServer } from '../utils/db';
+import { applyDelta, fetchFriendsFromServer, getDb } from '../utils/db';
 import { getDatabaseFilenameForNode } from '../utils/nodes';
 
 const SYNC_TIMEOUT_MS = 20_000;
@@ -208,61 +208,51 @@ export async function performSync(): Promise<SyncResult> {
             }
         } catch (e) {}
 
-        const kLastMembersSync = 'pillar_sync_members_last_sync';
+        const kLastMembersSync = await getSyncCursorKey('members_last_sync');
         const lastMembersSync = await AsyncStorage.getItem(kLastMembersSync);
-        const shouldFetchMembers = !lastMembersSync || (Date.now() - parseInt(lastMembersSync, 10)) > 3600_000;
+        
+        let localMembersCount = 0;
+        try {
+            const database = await getDb();
+            const membersRow = await database.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM members');
+            localMembersCount = membersRow?.count || 0;
+        } catch (e) {
+            console.error('[Pillar Sync] Failed to query local members count', e);
+        }
+
+        const shouldFetchMembers = !lastMembersSync || 
+                                   (Date.now() - parseInt(lastMembersSync, 10)) > 3600_000 ||
+                                   localMembersCount === 0;
 
         const postsController = new AbortController();
         const balanceController = new AbortController();
         const postsTimeout = setTimeout(() => postsController.abort(), 30000); // Extended for heavy initial payloads
         const balanceTimeout = setTimeout(() => balanceController.abort(), 30000);
 
-        const [postsRes, balanceRes, directoryRes, projectsRes, txRes, mkptxRes, friendsData] = await Promise.all([
-            fetch(`${anchorUrl}/api/marketplace/posts?limit=1000${lastSyncParam}&_t=${Date.now()}`, {
+        let postsData = [];
+        try {
+            const postsRes = await fetch(`${anchorUrl}/api/marketplace/posts?limit=1000${lastSyncParam}&_t=${Date.now()}`, {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' },
                 signal: postsController.signal
-            }),
-            pubKey ? fetch(`${anchorUrl}/api/ledger/balance/${pubKey}?_t=${Date.now()}`, {
-                method: 'GET',
-                headers: { 'Accept': 'application/json' },
-                signal: balanceController.signal
-            }) : Promise.resolve(null),
-            shouldFetchMembers ? fetch(`${anchorUrl}/api/members?_t=${Date.now()}`, {
-                method: 'GET',
-                headers: { 'Accept': 'application/json' },
-                signal: postsController.signal
-            }) : Promise.resolve(null),
-            fetch(`${anchorUrl}/api/crowdfund/projects?limit=1000${lastSyncParam}&_t=${Date.now()}`, {
-                method: 'GET',
-                headers: { 'Accept': 'application/json' },
-                signal: postsController.signal
-            }),
-            pubKey ? fetch(`${anchorUrl}/api/ledger/transactions?publicKey=${pubKey}&limit=200&_t=${Date.now()}`, {
-                method: 'GET',
-                headers: { 'Accept': 'application/json' },
-                signal: balanceController.signal
-            }) : Promise.resolve(null),
-            pubKey ? fetch(`${anchorUrl}/api/marketplace/transactions?publicKey=${pubKey}&limit=50&_t=${Date.now()}`, {
-                method: 'GET',
-                headers: { 'Accept': 'application/json' },
-                signal: postsController.signal
-            }) : Promise.resolve(null),
-            pubKey ? fetchFriendsFromServer(pubKey) : Promise.resolve([])
-        ]);
-
-        clearTimeout(postsTimeout);
-        clearTimeout(balanceTimeout);
-
-        if (!postsRes.ok) {
+            });
+            if (!postsRes.ok) {
+                clearTimeout(postsTimeout);
+                clearTimeout(balanceTimeout);
+                result.durationMs = Date.now() - startTime;
+                result.errorMessage = `Posts fetch failed with status: ${postsRes.status}`;
+                return result;
+            }
+            postsData = await postsRes.json();
+            console.log(`[Pillar Sync] Received ${Array.isArray(postsData) ? postsData.length : 'non-array'} posts from server`);
+        } catch (e: any) {
+            clearTimeout(postsTimeout);
+            clearTimeout(balanceTimeout);
             result.durationMs = Date.now() - startTime;
-            result.errorMessage = `Posts fetch failed with status: ${postsRes.status}`;
+            result.errorMessage = `Posts fetch exception: ${e.message || e}`;
             return result;
         }
 
-        const postsData = await postsRes.json();
-        console.log(`[Pillar Sync] Received ${Array.isArray(postsData) ? postsData.length : 'non-array'} posts from server`);
-        
         const delta: any = {
             posts: Array.isArray(postsData) ? postsData : [],
             accounts: [],
@@ -271,23 +261,55 @@ export async function performSync(): Promise<SyncResult> {
             projects: []
         };
 
-        // Add friends to delta (already parsed array from fetchFriendsFromServer)
-        if (Array.isArray(friendsData)) {
-            delta.friends = friendsData;
-        }
-        
-        if (directoryRes && directoryRes.ok) {
+        // Fetch balance
+        if (pubKey) {
             try {
-                const dirData = await directoryRes.json();
-                if (Array.isArray(dirData)) {
-                    delta.members = dirData;
-                    await AsyncStorage.setItem(kLastMembersSync, String(Date.now()));
+                const balanceRes = await fetch(`${anchorUrl}/api/ledger/balance/${pubKey}?_t=${Date.now()}`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' },
+                    signal: balanceController.signal
+                });
+                if (balanceRes.ok) {
+                    const balData = await balanceRes.json();
+                    delta.accounts.push({
+                        public_key: pubKey,
+                        balance: balData.balance || 0,
+                        last_demurrage_epoch: balData.last_demurrage_epoch || 0
+                    });
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.warn('[Pillar Sync] Balance fetch failed:', e);
+            }
         }
 
-        if (projectsRes && projectsRes.ok) {
+        // Fetch directory (members)
+        if (shouldFetchMembers) {
             try {
+                const directoryRes = await fetch(`${anchorUrl}/api/members?_t=${Date.now()}`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' },
+                    signal: postsController.signal
+                });
+                if (directoryRes && directoryRes.ok) {
+                    const dirData = await directoryRes.json();
+                    if (Array.isArray(dirData)) {
+                        delta.members = dirData;
+                        await AsyncStorage.setItem(kLastMembersSync, String(Date.now()));
+                    }
+                }
+            } catch (e) {
+                console.warn('[Pillar Sync] Members fetch failed:', e);
+            }
+        }
+
+        // Fetch projects
+        try {
+            const projectsRes = await fetch(`${anchorUrl}/api/crowdfund/projects?limit=1000${lastSyncParam}&_t=${Date.now()}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                signal: postsController.signal
+            });
+            if (projectsRes && projectsRes.ok) {
                 const projData = await projectsRes.json();
                 if (projData && Array.isArray(projData.projects)) {
                     delta.projects = projData.projects;
@@ -297,46 +319,72 @@ export async function performSync(): Promise<SyncResult> {
                 } else if (Array.isArray(projData)) {
                     delta.projects = projData;
                 }
-            } catch (e) {}
+            }
+        } catch (e) {
+            console.warn('[Pillar Sync] Projects fetch failed:', e);
         }
 
-        if (balanceRes && balanceRes.ok) {
-            const balData = await balanceRes.json();
-            delta.accounts.push({
-                public_key: pubKey,
-                balance: balData.balance || 0,
-                last_demurrage_epoch: balData.last_demurrage_epoch || 0
-            });
-        }
-
-        if (txRes && txRes.ok) {
+        // Fetch transactions
+        if (pubKey) {
             try {
-                const txData = await txRes.json();
-                if (Array.isArray(txData)) {
-                    delta.transactions = txData;
-                }
-            } catch (e) {}
-        }
-        
-        if (mkptxRes && mkptxRes.ok) {
-            try {
-                const mkptxData = await mkptxRes.json();
-                console.log(`[Pillar Sync] Fetched ${mkptxData?.length} marketplaceTransactions from server`);
-                if (Array.isArray(mkptxData)) {
-                    delta.marketplaceTransactions = mkptxData;
+                const txRes = await fetch(`${anchorUrl}/api/ledger/transactions?publicKey=${pubKey}&limit=200&_t=${Date.now()}`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' },
+                    signal: balanceController.signal
+                });
+                if (txRes && txRes.ok) {
+                    const txData = await txRes.json();
+                    if (Array.isArray(txData)) {
+                        delta.transactions = txData;
+                    }
                 }
             } catch (e) {
-                console.error('[Pillar Sync] Failed to parse marketplaceTransactions response:', e);
+                console.warn('[Pillar Sync] Transactions fetch failed:', e);
             }
-        } else if (mkptxRes && !mkptxRes.ok) {
-            console.error(`[Pillar Sync] market transactions fetch failed: status ${mkptxRes.status}`);
         }
+
+        // Fetch marketplace transactions
+        if (pubKey) {
+            try {
+                const mkptxRes = await fetch(`${anchorUrl}/api/marketplace/transactions?publicKey=${pubKey}&limit=50&_t=${Date.now()}`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' },
+                    signal: postsController.signal
+                });
+                if (mkptxRes && mkptxRes.ok) {
+                    const mkptxData = await mkptxRes.json();
+                    console.log(`[Pillar Sync] Fetched ${mkptxData?.length} marketplaceTransactions from server`);
+                    if (Array.isArray(mkptxData)) {
+                        delta.marketplaceTransactions = mkptxData;
+                    }
+                } else if (mkptxRes && !mkptxRes.ok) {
+                    console.error(`[Pillar Sync] market transactions fetch failed: status ${mkptxRes.status}`);
+                }
+            } catch (e) {
+                console.warn('[Pillar Sync] Marketplace transactions fetch failed:', e);
+            }
+        }
+
+        // Fetch friends
+        if (pubKey) {
+            try {
+                const friendsData = await fetchFriendsFromServer(pubKey);
+                if (Array.isArray(friendsData)) {
+                    delta.friends = friendsData;
+                }
+            } catch (e) {
+                console.warn('[Pillar Sync] Friends fetch failed:', e);
+            }
+        }
+
+        clearTimeout(postsTimeout);
+        clearTimeout(balanceTimeout);
 
         // Apply physical updates to local Native device SQLite Matrix
         await applyDelta(delta);
 
-        // Notify active screens to re-render if we received new posts, projects, or balance changes
-        if (delta.posts?.length > 0 || delta.projects?.length > 0 || delta.accounts?.length > 0 || delta.transactions?.length > 0 || delta.marketplaceTransactions?.length > 0) {
+        // Notify active screens to re-render if we received new posts, projects, members, friends, or balance changes
+        if (delta.posts?.length > 0 || delta.projects?.length > 0 || delta.accounts?.length > 0 || delta.transactions?.length > 0 || delta.marketplaceTransactions?.length > 0 || delta.members?.length > 0 || delta.friends?.length > 0) {
             try {
                 const { DeviceEventEmitter } = require('react-native');
                 DeviceEventEmitter.emit('sync_data_updated');

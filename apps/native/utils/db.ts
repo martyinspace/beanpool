@@ -146,7 +146,8 @@ async function _doInitDB() {
             contact_visibility TEXT,
             status TEXT DEFAULT 'active',
             last_active_at DATETIME,
-            profile_updated_at DATETIME
+            profile_updated_at DATETIME,
+            earned_credit REAL DEFAULT 0
         );
 
         -- 2. Ledger Accounts & Transactions
@@ -193,7 +194,9 @@ async function _doInitDB() {
             lat REAL,
             lng REAL,
             origin_node TEXT,
-            photos TEXT
+            photos TEXT,
+            author_energy_cycled INTEGER DEFAULT 0,
+            author_founding_needed INTEGER DEFAULT 1
         );
 
         CREATE INDEX IF NOT EXISTS idx_active_posts ON posts(created_at DESC) WHERE status = 'active';
@@ -338,6 +341,9 @@ async function _doInitDB() {
         try { await database.execAsync(`ALTER TABLE posts ADD COLUMN completed_at DATETIME;`); } catch (e) {}
         // Profile sync: track when a profile was last updated for cache-busting
         try { await database.execAsync(`ALTER TABLE members ADD COLUMN profile_updated_at DATETIME;`); } catch (e) {}
+        try { await database.execAsync(`ALTER TABLE members ADD COLUMN earned_credit REAL DEFAULT 0;`); } catch (e) {}
+        try { await database.execAsync(`ALTER TABLE posts ADD COLUMN author_energy_cycled INTEGER DEFAULT 0;`); } catch (e) {}
+        try { await database.execAsync(`ALTER TABLE posts ADD COLUMN author_founding_needed INTEGER DEFAULT 1;`); } catch (e) {}
         // Ratings table migration for legacy setups where Schema wasn't ran
         try { 
             await database.execAsync(`
@@ -354,6 +360,27 @@ async function _doInitDB() {
                 );
             `);
         } catch (e) {}
+
+        // Force full synchronization once to populate new columns
+        AsyncStorage.getItem('bp_trust_sync_v3').then(async (val) => {
+            if (!val) {
+                console.log('[SQLite] Forcing full sync for unified trust system migration.');
+                await AsyncStorage.setItem('bp_trust_sync_v3', 'true');
+                await AsyncStorage.removeItem('pillar_sync_members_last_sync');
+                try {
+                    const keys = await AsyncStorage.getAllKeys();
+                    const syncKeys = keys.filter(k => k.startsWith('pillar_sync_') && (k.endsWith('_last-sync') || k.endsWith('_members_last_sync')));
+                    for (const k of syncKeys) {
+                        await AsyncStorage.removeItem(k);
+                    }
+                } catch (e) {}
+                // Trigger sync immediately in the background
+                try {
+                    const { requestSync } = require('../services/pillar-sync');
+                    requestSync().catch(() => {});
+                } catch (e) {}
+            }
+        });
     } catch (e) {
         console.error('[SQLite] Database init error:', e);
     }
@@ -380,13 +407,7 @@ export async function clearDB() {
 export async function getPosts(filter?: { type?: string; category?: string }) {
     const database = await waitForInit();
     let query = `
-        SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar,
-               COALESCE((SELECT SUM(amount) FROM transactions WHERE from_pubkey = m.public_key), 0) as author_energy_cycled,
-               COALESCE((SELECT COUNT(*) FROM transactions t
-                    WHERE (t.from_pubkey = m.public_key OR t.to_pubkey = m.public_key)
-                      AND t.from_pubkey != t.to_pubkey
-                      AND t.from_pubkey NOT LIKE 'escrow_%' AND t.to_pubkey NOT LIKE 'escrow_%'
-                      AND t.from_pubkey != 'SYSTEM' AND t.to_pubkey != 'SYSTEM'), 0) as author_trade_count
+        SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar, m.joined_at
         FROM posts p
         LEFT JOIN members m ON p.author_pubkey = m.public_key
         WHERE p.status IN ('active', 'pending', 'completed')
@@ -413,10 +434,9 @@ export async function getPosts(filter?: { type?: string; category?: string }) {
     const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || '';
 
     return rows.map(r => {
-        // Founding trade needed = author has no completed trades yet (their first
-        // trade unlocks their floor). Local DB has no earned_credit, so trade-count
-        // is the signal (admin-vouched accounts are rare).
-        r.authorFoundingNeeded = (r.author_trade_count ?? 0) === 0;
+        r.authorFoundingNeeded = r.author_founding_needed === 1;
+        r.author_energy_cycled = r.author_energy_cycled ?? 0;
+
         if (typeof r.photos === 'string') {
             try {
                 r.photos = JSON.parse(r.photos);
@@ -433,19 +453,25 @@ export async function getPost(id: string) {
     const database = await waitForInit();
     const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url') || '';
     const row = await database.getFirstAsync<any>(`
-        SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar, a.callsign as accepted_by_callsign, a.avatar_url as accepted_by_avatar
+        SELECT p.*, m.callsign as author_callsign, m.avatar_url as author_avatar, a.callsign as accepted_by_callsign, a.avatar_url as accepted_by_avatar, m.joined_at
         FROM posts p
         LEFT JOIN members m ON p.author_pubkey = m.public_key
         LEFT JOIN members a ON p.accepted_by = a.public_key
         WHERE p.id = ?
     `, [id]);
-    if (row && typeof row.photos === 'string') {
-        try { 
-            row.photos = JSON.parse(row.photos); 
-            if (Array.isArray(row.photos)) {
-                row.photos = row.photos.map((p: string) => p && p.startsWith('/') ? `${anchorUrl}${p}` : p);
-            }
-        } catch (e) { row.photos = []; }
+    
+    if (row) {
+        row.authorFoundingNeeded = row.author_founding_needed === 1;
+        row.author_energy_cycled = row.author_energy_cycled ?? 0;
+
+        if (typeof row.photos === 'string') {
+            try { 
+                row.photos = JSON.parse(row.photos); 
+                if (Array.isArray(row.photos)) {
+                    row.photos = row.photos.map((p: string) => p && p.startsWith('/') ? `${anchorUrl}${p}` : p);
+                }
+            } catch (e) { row.photos = []; }
+        }
     }
     return row;
 }
@@ -1262,14 +1288,16 @@ export async function applyDelta(delta: any) {
             const av = m.avatarUrl || m.avatar_url || null;
             const joinedAt = m.joinedAt || m.joined_at || null;
             const profileUpdatedAt = m.profileUpdatedAt || m.profile_updated_at || null;
+            const ec = m.earnedCredit || m.earned_credit || 0;
             await txn.runAsync(
-                `INSERT INTO members (public_key, callsign, avatar_url, joined_at, profile_updated_at) VALUES (?, ?, ?, ?, ?)
+                `INSERT INTO members (public_key, callsign, avatar_url, joined_at, profile_updated_at, earned_credit) VALUES (?, ?, ?, ?, ?, ?)
                  ON CONFLICT(public_key) DO UPDATE SET
                    callsign = excluded.callsign,
                    avatar_url = COALESCE(excluded.avatar_url, members.avatar_url),
                    joined_at = COALESCE(excluded.joined_at, members.joined_at),
-                   profile_updated_at = COALESCE(excluded.profile_updated_at, members.profile_updated_at)`,
-                [pk, cs, av, joinedAt, profileUpdatedAt]
+                   profile_updated_at = COALESCE(excluded.profile_updated_at, members.profile_updated_at),
+                   earned_credit = excluded.earned_credit`,
+                [pk, cs, av, joinedAt, profileUpdatedAt, ec]
             );
         }
 
@@ -1302,7 +1330,7 @@ export async function applyDelta(delta: any) {
             // Deleted posts are transmitted with active=0 and tombstoned here natively.
             for (const p of delta.posts) {
                 await txn.runAsync(
-                    'INSERT OR REPLACE INTO posts (id, type, category, title, description, credits, author_pubkey, lat, lng, photos, price_type, repeatable, status, active, accepted_by, accepted_by_callsign, accepted_at, completed_at, pending_transaction_id, created_at, updated_at, origin_node) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT OR REPLACE INTO posts (id, type, category, title, description, credits, author_pubkey, lat, lng, photos, price_type, repeatable, status, active, accepted_by, accepted_by_callsign, accepted_at, completed_at, pending_transaction_id, created_at, updated_at, origin_node, author_energy_cycled, author_founding_needed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         p.id ?? null,
                         p.type ?? null,
@@ -1325,7 +1353,9 @@ export async function applyDelta(delta: any) {
                         p.pending_transaction_id || p.pendingTransactionId || null,
                         p.created_at || p.createdAt || null,
                         p.updated_at || p.updatedAt || null,
-                        p.origin_node || p.originNode || null
+                        p.origin_node || p.originNode || null,
+                        p.author_energy_cycled ?? p.authorEnergyCycled ?? 0,
+                        p.author_founding_needed !== undefined ? (p.author_founding_needed ? 1 : 0) : (p.authorFoundingNeeded ? 1 : 0)
                     ]
                 );
             }
@@ -1440,13 +1470,25 @@ export async function applyDelta(delta: any) {
         if (delta.ratings !== undefined && Array.isArray(delta.ratings)) {
             console.log(`[DB] applyDelta: applying ${delta.ratings.length} ratings...`);
             for (const r of delta.ratings) {
+                const stars = r.stars ?? r.rating;
+                if (!stars || stars < 1 || stars > 5) {
+                    console.warn(`[DB] Skipping invalid rating from server:`, r);
+                    continue;
+                }
+                const rId = r.id ?? null;
+                const targetPubkey = r.targetPubkey ?? r.target_pubkey ?? null;
+                const raterPubkey = r.raterPubkey ?? r.rater_pubkey ?? null;
+                if (!rId || !targetPubkey || !raterPubkey) {
+                    console.warn(`[DB] Skipping rating from server due to missing required keys:`, r);
+                    continue;
+                }
                 await txn.runAsync(
                     'INSERT OR REPLACE INTO ratings (id, target_pubkey, rater_pubkey, stars, comment, role, transaction_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                     [
-                        r.id ?? null,
-                        r.targetPubkey ?? r.target_pubkey ?? null,
-                        r.raterPubkey ?? r.rater_pubkey ?? null,
-                        r.stars ?? r.rating ?? 0,
+                        rId,
+                        targetPubkey,
+                        raterPubkey,
+                        stars,
                         r.comment ?? '',
                         r.role ?? 'provider',
                         r.transactionId ?? r.transaction_id ?? null,
@@ -1468,22 +1510,46 @@ export async function syncMessages(publicKey: string) {
         const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
         if (!anchorUrl) return;
         
-        const kLastMembersSync = 'pillar_sync_members_last_sync';
+        const expectedDbName = getDatabaseFilenameForNode(anchorUrl);
+        const kLastMembersSync = `pillar_sync_${expectedDbName}_members_last_sync`;
         const lastMembersSync = await AsyncStorage.getItem(kLastMembersSync);
-        const shouldFetchMembers = !lastMembersSync || (Date.now() - parseInt(lastMembersSync, 10)) > 3600_000;
+        
+        let localMembersCount = 0;
+        try {
+            const database = await getDb();
+            const membersRow = await database.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM members');
+            localMembersCount = membersRow?.count || 0;
+        } catch (e) {}
+
+        const shouldFetchMembers = !lastMembersSync || 
+                                   (Date.now() - parseInt(lastMembersSync, 10)) > 3600_000 ||
+                                   localMembersCount === 0;
 
         const controller1 = new AbortController();
         const timeout1 = setTimeout(() => controller1.abort(), 10000);
         
-        const [convRes, dirRes] = await Promise.all([
-            fetch(`${anchorUrl}/api/messages/conversations/${publicKey}`, { headers: { 'Accept': 'application/json' }, signal: controller1.signal }),
-            shouldFetchMembers ? fetch(`${anchorUrl}/api/members`, { headers: { 'Accept': 'application/json' }, signal: controller1.signal }).catch(() => null) : Promise.resolve(null)
-        ]);
+        let convRes;
+        try {
+            convRes = await fetch(`${anchorUrl}/api/messages/conversations/${publicKey}`, { headers: { 'Accept': 'application/json' }, signal: controller1.signal });
+        } catch (e) {
+            console.error('[DB] conversations fetch failed:', e);
+            clearTimeout(timeout1);
+            return;
+        }
+
+        let dirRes = null;
+        if (shouldFetchMembers) {
+            try {
+                dirRes = await fetch(`${anchorUrl}/api/members`, { headers: { 'Accept': 'application/json' }, signal: controller1.signal });
+            } catch (e) {
+                console.error('[DB] members fetch failed:', e);
+            }
+        }
         clearTimeout(timeout1);
         
         if (dirRes && dirRes.ok) {
             try {
-                const dirData = await dirRes.ok ? await dirRes.json() : null;
+                const dirData = await dirRes.json();
                 if (Array.isArray(dirData) && dirData.length > 0) {
                     await acquireSyncLock();
                     try {
@@ -2329,17 +2395,43 @@ export async function reportAbuse(reporterPublicKey: string, targetPublicKey: st
 export async function submitRating(raterPublicKey: string, targetPublicKey: string, rating: number, comment: string, transactionId?: string) {
     const res = await _signedRequest('/api/ratings', { raterPubkey: raterPublicKey, targetPubkey: targetPublicKey, stars: rating, comment, transactionId });
     if (res?.success && transactionId) {
+        await acquireSyncLock();
         try {
             const database = await getDb();
-            await database.runAsync(`
-                UPDATE marketplace_transactions 
-                SET rated_by_buyer = CASE WHEN buyer_pubkey = ? THEN 1 ELSE rated_by_buyer END,
-                    rated_by_seller = CASE WHEN seller_pubkey = ? THEN 1 ELSE rated_by_seller END
-                WHERE id = ?
-            `, [raterPublicKey, raterPublicKey, transactionId]);
-            console.log(`[Rating] Optimistically marked tx ${transactionId} as rated in local SQLite`);
+            await database.withTransactionAsync(async () => {
+                await database.runAsync(`
+                    UPDATE marketplace_transactions 
+                    SET rated_by_buyer = CASE WHEN buyer_pubkey = ? THEN 1 ELSE rated_by_buyer END,
+                        rated_by_seller = CASE WHEN seller_pubkey = ? THEN 1 ELSE rated_by_seller END
+                    WHERE id = ?
+                `, [raterPublicKey, raterPublicKey, transactionId]);
+                console.log(`[Rating] Optimistically marked tx ${transactionId} as rated in local SQLite`);
+
+                if (res.rating) {
+                    const r = res.rating;
+                    const stars = r.stars ?? r.rating;
+                    if (stars && stars >= 1 && stars <= 5 && r.id && r.targetPubkey && r.raterPubkey) {
+                        await database.runAsync(`
+                            INSERT OR REPLACE INTO ratings (id, target_pubkey, rater_pubkey, role, stars, comment, transaction_id, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        `, [
+                            r.id,
+                            r.targetPubkey,
+                            r.raterPubkey,
+                            r.role ?? 'provider',
+                            stars,
+                            r.comment ?? null,
+                            r.transactionId ?? r.transaction_id ?? null,
+                            r.createdAt ?? r.created_at ?? new Date().toISOString()
+                        ]);
+                        console.log(`[Rating] Inserted rating ${r.id} into local SQLite ratings table`);
+                    }
+                }
+            });
         } catch (e) {
             console.warn('[Rating] Local DB rating state update failed:', e);
+        } finally {
+            releaseSyncLock();
         }
     }
     return res;
@@ -2348,8 +2440,48 @@ export async function submitRating(raterPublicKey: string, targetPublicKey: stri
 export async function getMemberRatings(publicKey: string): Promise<{ ratings: any[]; average: number; count: number; asProvider: { average: number; count: number }; asReceiver: { average: number; count: number } }> {
     const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
     if (!anchorUrl) {
-        // Return default empty state if offline
-        return { ratings: [], average: 0, count: 0, asProvider: { average: 0, count: 0 }, asReceiver: { average: 0, count: 0 } };
+        await acquireSyncLock();
+        try {
+            const database = await getDb();
+            const rows = await database.getAllAsync<any>(`
+                SELECT r.id, r.target_pubkey, r.rater_pubkey, r.stars, r.comment, r.role, r.transaction_id, r.created_at,
+                       m.callsign as rater_callsign, m.avatar_url as rater_avatar
+                FROM ratings r
+                LEFT JOIN members m ON r.rater_pubkey = m.public_key
+                WHERE r.target_pubkey = ?
+                ORDER BY r.created_at DESC
+            `, [publicKey]);
+            
+            const count = rows.length;
+            const average = count > 0 ? rows.reduce((sum, r) => sum + r.stars, 0) / count : 0;
+            const provRows = rows.filter(r => r.role === 'provider');
+            const recvRows = rows.filter(r => r.role === 'receiver');
+            const provAvg = provRows.length > 0 ? provRows.reduce((sum, r) => sum + r.stars, 0) / provRows.length : 0;
+            const recvAvg = recvRows.length > 0 ? recvRows.reduce((sum, r) => sum + r.stars, 0) / recvRows.length : 0;
+            
+            return {
+                ratings: rows.map(r => ({
+                    id: r.id,
+                    targetPubkey: r.target_pubkey,
+                    raterPubkey: r.rater_pubkey,
+                    stars: r.stars,
+                    comment: r.comment,
+                    role: r.role,
+                    transactionId: r.transaction_id,
+                    createdAt: r.created_at,
+                    rater_callsign: r.rater_callsign || 'Unknown',
+                    rater_avatar: r.rater_avatar || null
+                })),
+                average,
+                count,
+                asProvider: { average: provAvg, count: provRows.length },
+                asReceiver: { average: recvAvg, count: recvRows.length }
+            };
+        } catch (e) {
+            return { ratings: [], average: 0, count: 0, asProvider: { average: 0, count: 0 }, asReceiver: { average: 0, count: 0 } };
+        } finally {
+            releaseSyncLock();
+        }
     }
     
     try {
@@ -2362,17 +2494,164 @@ export async function getMemberRatings(publicKey: string): Promise<{ ratings: an
         if (!res.ok) {
             throw new Error(`Failed to fetch ratings: ${res.statusText}`);
         }
-        return await res.json();
+        const data = await res.json();
+        if (data.ratings) {
+            await acquireSyncLock();
+            try {
+                const database = await getDb();
+                await database.withTransactionAsync(async () => {
+                    for (const r of data.ratings) {
+                        const stars = r.stars ?? r.rating;
+                        if (!stars || stars < 1 || stars > 5) {
+                            console.warn(`[DB] Skipping invalid rating in getMemberRatings:`, r);
+                            continue;
+                        }
+                        const rId = r.id ?? null;
+                        const targetPubkey = r.targetPubkey ?? r.target_pubkey ?? null;
+                        const raterPubkey = r.raterPubkey ?? r.rater_pubkey ?? null;
+                        if (!rId || !targetPubkey || !raterPubkey) {
+                            console.warn(`[DB] Skipping rating due to missing required keys in getMemberRatings:`, r);
+                            continue;
+                        }
+                        await database.runAsync(`
+                            INSERT OR REPLACE INTO ratings (id, target_pubkey, rater_pubkey, role, stars, comment, transaction_id, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        `, [
+                            rId,
+                            targetPubkey,
+                            raterPubkey,
+                            r.role ?? 'provider',
+                            stars,
+                            r.comment ?? null,
+                            r.transactionId ?? r.transaction_id ?? null,
+                            r.createdAt ?? r.created_at ?? new Date().toISOString()
+                        ]);
+                    }
+                });
+            } finally {
+                releaseSyncLock();
+            }
+        }
+        return data;
     } catch (e: any) {
-        console.warn('Failed to fetch ratings, defaulting to 0:', e.message);
-        return { ratings: [], average: 0, count: 0, asProvider: { average: 0, count: 0 }, asReceiver: { average: 0, count: 0 } };
+        console.warn('Failed to fetch ratings, defaulting to local DB:', e.message);
+        await acquireSyncLock();
+        try {
+            const database = await getDb();
+            const rows = await database.getAllAsync<any>(`
+                SELECT r.id, r.target_pubkey, r.rater_pubkey, r.stars, r.comment, r.role, r.transaction_id, r.created_at,
+                       m.callsign as rater_callsign, m.avatar_url as rater_avatar
+                FROM ratings r
+                LEFT JOIN members m ON r.rater_pubkey = m.public_key
+                WHERE r.target_pubkey = ?
+                ORDER BY r.created_at DESC
+            `, [publicKey]);
+            
+            const count = rows.length;
+            const average = count > 0 ? rows.reduce((sum, r) => sum + r.stars, 0) / count : 0;
+            const provRows = rows.filter(r => r.role === 'provider');
+            const recvRows = rows.filter(r => r.role === 'receiver');
+            const provAvg = provRows.length > 0 ? provRows.reduce((sum, r) => sum + r.stars, 0) / provRows.length : 0;
+            const recvAvg = recvRows.length > 0 ? recvRows.reduce((sum, r) => sum + r.stars, 0) / recvRows.length : 0;
+            
+            return {
+                ratings: rows.map(r => ({
+                    id: r.id,
+                    targetPubkey: r.target_pubkey,
+                    raterPubkey: r.rater_pubkey,
+                    stars: r.stars,
+                    comment: r.comment,
+                    role: r.role,
+                    transactionId: r.transaction_id,
+                    createdAt: r.created_at,
+                    rater_callsign: r.rater_callsign || 'Unknown',
+                    rater_avatar: r.rater_avatar || null
+                })),
+                average,
+                count,
+                asProvider: { average: provAvg, count: provRows.length },
+                asReceiver: { average: recvAvg, count: recvRows.length }
+            };
+        } catch (localErr) {
+            return { ratings: [], average: 0, count: 0, asProvider: { average: 0, count: 0 }, asReceiver: { average: 0, count: 0 } };
+        } finally {
+            releaseSyncLock();
+        }
     }
 }
 
-/** Reviews the given member has WRITTEN about others (local DB), newest first. */
+/** Reviews the given member has WRITTEN about others, newest first. */
 export async function getRatingsGiven(raterPubkey: string): Promise<any[]> {
-    const database = await getDb();
+    const anchorUrl = await AsyncStorage.getItem('beanpool_anchor_url');
+    if (anchorUrl) {
+        try {
+            const res = await fetch(`${anchorUrl}/api/ratings/${raterPubkey}?direction=given`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.ratings) {
+                    await acquireSyncLock();
+                    try {
+                        const database = await getDb();
+                        await database.withTransactionAsync(async () => {
+                            for (const r of data.ratings) {
+                                const stars = r.stars ?? r.rating;
+                                if (!stars || stars < 1 || stars > 5) {
+                                    console.warn(`[DB] Skipping invalid rating in getRatingsGiven:`, r);
+                                    continue;
+                                }
+                                const rId = r.id ?? null;
+                                const targetPubkey = r.targetPubkey ?? r.target_pubkey ?? null;
+                                const raterPubkey = r.raterPubkey ?? r.rater_pubkey ?? null;
+                                if (!rId || !targetPubkey || !raterPubkey) {
+                                    console.warn(`[DB] Skipping rating due to missing required keys in getRatingsGiven:`, r);
+                                    continue;
+                                }
+                                await database.runAsync(`
+                                    INSERT OR REPLACE INTO ratings (id, target_pubkey, rater_pubkey, role, stars, comment, transaction_id, created_at)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                `, [
+                                    rId,
+                                    targetPubkey,
+                                    raterPubkey,
+                                    r.role ?? 'provider',
+                                    stars,
+                                    r.comment ?? null,
+                                    r.transactionId ?? r.transaction_id ?? null,
+                                    r.createdAt ?? r.created_at ?? new Date().toISOString()
+                                ]);
+                            }
+                        });
+                    } finally {
+                        releaseSyncLock();
+                    }
+                    
+                    return data.ratings.map((r: any) => ({
+                        id: r.id,
+                        target_pubkey: r.targetPubkey || r.target_pubkey,
+                        rater_pubkey: r.raterPubkey || r.rater_pubkey,
+                        stars: r.stars,
+                        comment: r.comment,
+                        role: r.role,
+                        transaction_id: r.transactionId || r.transaction_id,
+                        created_at: r.createdAt || r.created_at,
+                        target_callsign: r.target_callsign || r.targetCallsign || 'Unknown',
+                        target_avatar: r.target_avatar || r.targetAvatar || null
+                    }));
+                }
+            }
+        } catch (e: any) {
+            console.warn('Failed to fetch given ratings from server, falling back to local DB:', e.message);
+        }
+    }
+
+    await acquireSyncLock();
     try {
+        const database = await getDb();
         return await database.getAllAsync<any>(`
             SELECT r.id, r.target_pubkey, r.stars, r.comment, r.role, r.transaction_id, r.created_at,
                    m.callsign as target_callsign, m.avatar_url as target_avatar
@@ -2384,6 +2663,8 @@ export async function getRatingsGiven(raterPubkey: string): Promise<any[]> {
     } catch (e) {
         console.warn('getRatingsGiven failed:', e);
         return [];
+    } finally {
+        releaseSyncLock();
     }
 }
 

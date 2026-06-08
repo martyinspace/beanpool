@@ -60,10 +60,10 @@ index 73700baaea2b58b6380688a389292bd9de98a840..e3aba0ec38bfefe2f3db77ef4aaf60f0
        <TouchableOpacity
          activeOpacity={0.5}
 diff --git a/lib/helpers.js b/lib/helpers.js
-index 8961171543c06564a26c0dd35f64052857e888e3..7ee8d708281a6dcea684184f8003b861bfd86533 100644
+index 8961171543c06564a26c0dd35f64052857e888e3..779c67ed8bce04643a04d2dfddf84600b944231f 100644
 --- a/lib/helpers.js
 +++ b/lib/helpers.js
-@@ -15,10 +15,10 @@ export const calculateBBox = (region) => {
+@@ -15,20 +15,24 @@ export const calculateBBox = (region) => {
    else lngD = region.longitudeDelta;
  
    return [
@@ -78,3 +78,23 @@ index 8961171543c06564a26c0dd35f64052857e888e3..7ee8d708281a6dcea684184f8003b861
    ];
  };
  
+ export const returnMapZoom = (region, bBox, minZoom) => {
+-  const viewport =
+-    region.longitudeDelta >= 40
+-      ? { zoom: minZoom }
+-      : GeoViewport.viewport(bBox, [width, height]);
+-
+-  return viewport.zoom;
++  try {
++    const viewport =
++      region.longitudeDelta >= 40
++        ? { zoom: minZoom }
++        : GeoViewport.viewport(bBox, [width, height]);
++
++    return (viewport && typeof viewport.zoom === 'number' && !isNaN(viewport.zoom)) ? Math.round(viewport.zoom) : minZoom;
++  } catch (e) {
++    return minZoom;
++  }
+ };
+ 
+ export const markerToGeoJSONFeature = (marker, index) => {

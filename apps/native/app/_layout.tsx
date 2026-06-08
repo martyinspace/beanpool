@@ -266,7 +266,7 @@ function RootLayoutNav() {
 
     return (
         <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
             <Stack.Screen name="welcome" />
             <Stack.Screen name="post/[id]" options={{ presentation: 'modal' }} />
             <Stack.Screen name="propose-project" options={{ presentation: 'modal' }} />

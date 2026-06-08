@@ -9,10 +9,10 @@ import { MemberAvatar } from './MemberAvatar';
  * Energy = total outbound transaction volume
  */
 const TRUST_TIERS = [
-    { min: 10000, emoji: '✨', label: 'Elder', color: '#fbbf24', bgColor: 'rgba(251, 191, 36, 0.15)', borderColor: 'rgba(251, 191, 36, 0.3)' },
-    { min: 5000,  emoji: '🌳', label: 'Trusted', color: '#059669', bgColor: 'rgba(5, 150, 105, 0.1)', borderColor: 'rgba(5, 150, 105, 0.2)' },
-    { min: 1000,  emoji: '🌿', label: 'Member', color: '#6366f1', bgColor: 'rgba(99, 102, 241, 0.1)', borderColor: 'rgba(99, 102, 241, 0.2)' },
-    { min: 0,     emoji: '🌱', label: 'New', color: '#9ca3af', bgColor: 'rgba(156, 163, 175, 0.1)', borderColor: 'rgba(156, 163, 175, 0.2)' },
+    { min: 1320, emoji: '👑', label: 'Elder', color: '#d97706', bgColor: '#fffbeb', borderColor: '#fde68a' },
+    { min: 520,  emoji: '🏛️', label: 'Citizen', color: '#7c3aed', bgColor: '#f5f3ff', borderColor: '#ddd6fe' },
+    { min: 120,  emoji: '🏠', label: 'Resident', color: '#2563eb', bgColor: '#eff6ff', borderColor: '#bfdbfe' },
+    { min: 0,    emoji: '🥚', label: 'Newcomer', color: '#6b7280', bgColor: '#f3f4f6', borderColor: '#d1d5db' },
 ] as const;
 
 export function getTrustTier(energyCycled: number = 0) {
@@ -23,7 +23,7 @@ export function getTrustTier(energyCycled: number = 0) {
 }
 
 export function isElder(energyCycled: number = 0): boolean {
-    return energyCycled >= 10000;
+    return energyCycled >= 1320;
 }
 
 interface PostAuthorTrustProps {
@@ -35,13 +35,15 @@ interface PostAuthorTrustProps {
     mode?: 'compact' | 'full';
     /** Whether to show navigation to public profile */
     navigable?: boolean;
+    /** Whether author needs a founding trade (no prior trades completed) */
+    isFounding?: boolean;
 }
 
 /**
- * Hybrid Trust Display: Tier Badge + Star Rating
- * Tier badge always shows. Star rating only shows when count > 0.
+ * Hybrid Trust Display: Tier Badge + Star Rating / Founding Trade indicator
+ * Tier badge always shows. Star rating shows when count > 0; otherwise founding badge shows if isFounding is true.
  */
-export function PostAuthorTrust({ pubkey, callsign, energyCycled = 0, avatarUrl, mode = 'full', navigable = true }: PostAuthorTrustProps) {
+export function PostAuthorTrust({ pubkey, callsign, energyCycled = 0, avatarUrl, mode = 'full', navigable = true, isFounding = false }: PostAuthorTrustProps) {
     const [ratingInfo, setRatingInfo] = useState<{ average: number; count: number } | null>(null);
     const tier = getTrustTier(energyCycled);
 
@@ -71,11 +73,15 @@ export function PostAuthorTrust({ pubkey, callsign, energyCycled = 0, avatarUrl,
                 </View>
                 {/* Callsign */}
                 <Text style={styles.compactCallsign} numberOfLines={1}>{callsign}</Text>
-                {/* Stars (only if rated) */}
-                {ratingInfo && ratingInfo.count > 0 && (
+                {/* Stars / Founding key indicator */}
+                {ratingInfo && ratingInfo.count > 0 ? (
                     <Text style={styles.compactStars}>
                         {'★'.repeat(Math.min(Math.round(ratingInfo.average), 5))}
                     </Text>
+                ) : (
+                    isFounding && (
+                        <Text style={{ fontSize: 10, fontWeight: '800', color: '#15803d', marginLeft: 2 }}>🔑</Text>
+                    )
                 )}
             </Wrapper>
         );
@@ -95,8 +101,8 @@ export function PostAuthorTrust({ pubkey, callsign, energyCycled = 0, avatarUrl,
             <Text style={styles.fullCallsign} numberOfLines={1}>
                 {callsign}
             </Text>
-            {/* Star rating (compact inline, only when rated) */}
-            {ratingInfo && ratingInfo.count > 0 && (
+            {/* Star rating / Founding key badge */}
+            {ratingInfo && ratingInfo.count > 0 ? (
                 <View style={styles.starsContainer}>
                     <Text style={styles.fullStars}>
                         {'★'.repeat(Math.min(Math.round(ratingInfo.average), 5))}
@@ -104,6 +110,12 @@ export function PostAuthorTrust({ pubkey, callsign, energyCycled = 0, avatarUrl,
                     </Text>
                     <Text style={styles.ratingCount}>({ratingInfo.count})</Text>
                 </View>
+            ) : (
+                isFounding && (
+                    <View style={{ backgroundColor: 'rgba(34, 197, 94, 0.12)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(34, 197, 94, 0.35)', marginLeft: 4 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '800', color: '#15803d' }}>🔑 FOUNDING</Text>
+                    </View>
+                )
             )}
         </Wrapper>
     );

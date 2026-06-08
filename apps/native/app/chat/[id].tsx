@@ -226,6 +226,17 @@ export default function ChatScreen() {
                             await completeMarketplaceTransaction(pendingTx.id, identity.publicKey);
                             hapticSuccess();
                             Alert.alert('Success', 'Credits have been released!');
+                            
+                            // Immediately prompt for review
+                            const targetPubkey = peerPubkey;
+                            if (targetPubkey) {
+                                setPromptReviewForTx({
+                                    txId: pendingTx.id,
+                                    targetPubkey,
+                                    targetCallsign: peerName
+                                });
+                            }
+                            
                             // Refresh conversation state
                             syncSingleConversation(id as string).then(() => {
                                 loadConversationData();

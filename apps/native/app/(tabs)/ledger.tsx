@@ -15,6 +15,7 @@ import { BalanceInfoModal } from '../../components/info-content/BalanceInfoModal
 import { CirculationInfoModal } from '../../components/info-content/CirculationInfoModal';
 import { CommonsInfoModal } from '../../components/CommonsInfoModal';
 import { TrustInfoModal } from '../../components/info-content/TrustInfoModal';
+import { SliderInfoModal } from '../../components/info-content/SliderInfoModal';
 
 // ── Tier constants (mirrors beanpool-core/protocol.ts) ──
 // floor: the credit limit at that tier (negative = how far into debt you can go)
@@ -61,6 +62,8 @@ export default function LedgerScreen() {
     const [showCommonsInfo, setShowCommonsInfo] = useState(false);
     const [showCirculationInfo, setShowCirculationInfo] = useState(false);
     const [showTrustInfo, setShowTrustInfo] = useState(false);
+    const [trustInfoTab, setTrustInfoTab] = useState<'levels' | 'perks'>('levels');
+    const [showSliderInfo, setShowSliderInfo] = useState(false);
 
     const [showSend, setShowSend] = useState(false);
     const [members, setMembers] = useState<{ publicKey: string; callsign: string }[]>([]);
@@ -223,7 +226,12 @@ export default function LedgerScreen() {
         const vg = balanceState.velocityGate;
 
         return (
-            <View style={styles.creditBarOuter}>
+            <Pressable 
+                style={styles.creditBarOuter} 
+                onPress={() => {
+                    setShowSliderInfo(true);
+                }}
+            >
                 <View style={styles.rulerWrap}>
 
                     {/* ── Continuous diverging bar: zero is the sweet spot, worse the further out either way ── */}
@@ -307,7 +315,7 @@ export default function LedgerScreen() {
                         <Text style={styles.velocityPillText}>Lifts in ~{vg.unlockHours}h</Text>
                     </View>
                 )}
-            </View>
+            </Pressable>
         );
     };
 
@@ -318,13 +326,19 @@ export default function LedgerScreen() {
         <ScrollView style={{ flex: 1, backgroundColor: '#f9fafb' }} contentContainerStyle={{ padding: 16, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
 
             {/* Tier Hero */}
-            <View style={[styles.tierHero, { backgroundColor: tier.bg, borderColor: tier.border }]}>
+            <Pressable 
+                style={[styles.tierHero, { backgroundColor: tier.bg, borderColor: tier.border }]} 
+                onPress={() => {
+                    setTrustInfoTab('levels');
+                    setShowTrustInfo(true);
+                }}
+            >
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                     <View>
-                        <Pressable style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => setShowTrustInfo(true)}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                             <Text style={styles.tierHeroLabel}>YOUR TRUST LEVEL</Text>
                             <MaterialCommunityIcons name="information-outline" size={14} color="#9ca3af" style={{ marginLeft: 4 }} />
-                        </Pressable>
+                        </View>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
                             <Text style={{ fontSize: 32 }}>{tier.emoji}</Text>
                             <Text style={[styles.tierHeroName, { color: tier.color }]}>{tier.name}</Text>
@@ -368,12 +382,24 @@ export default function LedgerScreen() {
                         <Text style={[styles.perkText, { color: balanceState.tier.canInvite ? '#059669' : '#9ca3af' }]}>Invite Members</Text>
                     </View>
                 </View>
-            </View>
+            </Pressable>
 
             {/* How to reach the next tier — leads with the highest-leverage lever */}
             {nextTier && (
-                <View style={styles.pathCard}>
-                    <Text style={styles.pathTitle}>🚀 Reach {nextTier.emoji} {nextTier.name}</Text>
+                <Pressable 
+                    style={styles.pathCard} 
+                    onPress={() => {
+                        setTrustInfoTab('levels');
+                        setShowTrustInfo(true);
+                    }}
+                >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                        <Text style={[styles.pathTitle, { marginBottom: 0 }]}>🚀 Reach {nextTier.emoji} {nextTier.name}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: '#6366f1' }}>Trust Manual</Text>
+                            <MaterialCommunityIcons name="information-outline" size={14} color="#6366f1" />
+                        </View>
+                    </View>
                     <Text style={styles.pathGap}>{creditsToNext} trust points to go</Text>
                     <Text style={styles.pathHint}>
                         Trading with someone new is the fastest route — each new partner is worth {W_PARTNERS} points,
@@ -394,7 +420,7 @@ export default function LedgerScreen() {
                             <Text style={styles.pathLabel} numberOfLines={2}>just waiting</Text>
                         </View>
                     </View>
-                </View>
+                </Pressable>
             )}
 
             {/* Achievement cards */}
@@ -405,7 +431,14 @@ export default function LedgerScreen() {
                     { icon: '👥', label: 'TRADE PARTNERS', count: uniquePartners, contrib: uniquePartners * W_PARTNERS, target: 20, color: '#3b82f6', trackBg: '#eff6ff' },
                     { icon: '📅', label: 'DAYS',     count: ageDays,        contrib: ageDays * W_DAYS,          target: 365, color: '#f97316', trackBg: '#fff7ed' },
                 ].map(a => (
-                    <View key={a.label} style={[styles.achieveCard, { borderColor: a.color + '30' }]}>
+                    <Pressable 
+                        key={a.label} 
+                        style={[styles.achieveCard, { borderColor: a.color + '30' }]}
+                        onPress={() => {
+                            setTrustInfoTab('levels');
+                            setShowTrustInfo(true);
+                        }}
+                    >
                         <Text style={{ fontSize: 22, marginBottom: 4 }}>{a.icon}</Text>
                         <Text numberOfLines={1} style={[styles.achieveCount, { color: a.color }]}>{a.count}</Text>
                         <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.achieveLabel}>{a.label}</Text>
@@ -414,7 +447,7 @@ export default function LedgerScreen() {
                             <View style={[styles.achieveBarFill, { width: `${Math.min(100, (a.count / a.target) * 100)}%`, backgroundColor: a.color }]} />
                         </View>
                         <Text style={styles.achieveFooter}>{a.count}/{a.target}</Text>
-                    </View>
+                    </Pressable>
                 ))}
             </View>
 
@@ -427,7 +460,14 @@ export default function LedgerScreen() {
                     const hoursEquiv = Math.round(Math.abs(t.floor) / 40 * 10) / 10;
                     const creditsNeeded = Math.max(0, t.min - ec);
                     return (
-                        <View key={t.name} style={[styles.ladderRow, isCurrent && { backgroundColor: t.bg, borderColor: t.border }]}>
+                        <Pressable 
+                            key={t.name} 
+                            style={[styles.ladderRow, isCurrent && { backgroundColor: t.bg, borderColor: t.border }]}
+                            onPress={() => {
+                                setTrustInfoTab('perks');
+                                setShowTrustInfo(true);
+                            }}
+                        >
                             <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
                                 <View style={[styles.ladderDot, { backgroundColor: reached ? t.color : '#e5e7eb', borderColor: t.color, marginTop: 4 }]} />
                                 <Text style={{ fontSize: 18, width: 24, textAlign: 'center', marginTop: 1 }}>{t.emoji}</Text>
@@ -476,7 +516,7 @@ export default function LedgerScreen() {
                                     </View>
                                 </View>
                             </View>
-                        </View>
+                        </Pressable>
                     );
                 })}
             </View>
@@ -771,7 +811,8 @@ export default function LedgerScreen() {
             <BalanceInfoModal isOpen={showBalanceInfo} onClose={() => setShowBalanceInfo(false)} />
             <CommonsInfoModal isOpen={showCommonsInfo} onClose={() => setShowCommonsInfo(false)} commonsBalance={balanceState.commons} />
             <CirculationInfoModal isOpen={showCirculationInfo} onClose={() => setShowCirculationInfo(false)} />
-            <TrustInfoModal isOpen={showTrustInfo} onClose={() => setShowTrustInfo(false)} />
+            <TrustInfoModal isOpen={showTrustInfo} onClose={() => setShowTrustInfo(false)} initialTab={trustInfoTab} />
+            <SliderInfoModal isOpen={showSliderInfo} onClose={() => setShowSliderInfo(false)} />
         </SafeAreaView>
     );
 }

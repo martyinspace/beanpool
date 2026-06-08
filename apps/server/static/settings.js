@@ -504,7 +504,7 @@
                     l.style.borderColor = '#334155';
                     l.style.background = 'transparent';
                 });
-                const colors = { standard: '#6b7280', trusted: '#3b82f6', ambassador: '#8b5cf6' };
+                const colors = { standard: '#6b7280', trusted: '#3b82f6', ambassador: '#8b5cf6', elder: '#f59e0b' };
                 const type = label.dataset.type;
                 label.style.borderColor = colors[type] || '#334155';
                 label.style.background = (colors[type] || '#334155') + '15';

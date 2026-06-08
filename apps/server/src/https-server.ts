@@ -439,7 +439,7 @@ export async function startHttpsServer(port: number): Promise<void> {
         }
 
         // Validate invite type
-        const genesisType = (['standard', 'trusted', 'ambassador'].includes(inviteType) ? inviteType : 'standard') as 'standard' | 'trusted' | 'ambassador';
+        const genesisType = (['standard', 'trusted', 'ambassador', 'elder'].includes(inviteType) ? inviteType : 'standard') as 'standard' | 'trusted' | 'ambassador' | 'elder';
 
         // Check if there are already members
         const info = getCommunityInfo();
@@ -457,7 +457,7 @@ export async function startHttpsServer(port: number): Promise<void> {
                 const invite = adminGenerateInvite(genesisMember.publicKey, genesisType);
                 if (invite) {
                     logger.info('ADMIN', `Seed invite generated: ${invite.code} [${genesisType}]`);
-                    const tierLabels: Record<string, string> = { standard: '👻 Ghost', trusted: '🏠 Resident', ambassador: '🏛️ Citizen' };
+                    const tierLabels: Record<string, string> = { standard: '🥚 Newcomer', trusted: '🏠 Resident', ambassador: '🏛️ Citizen', elder: '👑 Elder' };
                     ctx.body = { success: true, code: invite.code, type: genesisType, tierLabel: tierLabels[genesisType], message: `${tierLabels[genesisType]} invite generated` };
                     return;
                 }
@@ -2269,6 +2269,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             joinedAt: m.joinedAt,
             avatarUrl: m.avatarUrl,
             profileUpdatedAt: m.profileUpdatedAt,
+            earnedCredit: m.earnedCredit ?? 0,
         }));
     });
 

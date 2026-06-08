@@ -9,6 +9,7 @@ import { RadiusPickerModal } from '../../components/RadiusPickerModal';
 import { CategoryPickerSheet } from '../../components/CategoryPickerSheet';
 import { MyDealsSheet, usePendingDealsCount } from '../../components/MyDealsSheet';
 import { PostAuthorTrust, isElder } from '../../components/PostAuthorTrust';
+import { TrustPickerSheet, TRUST_FILTERS } from '../../components/TrustPickerSheet';
 import { CurrencyDisplay } from '../../components/CurrencyDisplay';
 import { categoryEmoji, categoryLabel } from '../../constants/categories';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -89,7 +90,8 @@ function getDistanceInKm(lat1: number, lon1: number, lat2: number, lon2: number)
 export default function MarketScreen() {
     const { identity } = useIdentity();
     const [filter, setFilter] = useState<'all' | 'needs' | 'offers' | 'for-you'>('all');
-    const [foundingOnly, setFoundingOnly] = useState(false); // show only newcomers needing a founding trade
+    const [trustFilter, setTrustFilter] = useState<string>('all');
+    const [showTrustPicker, setShowTrustPicker] = useState(false);
     const [viewMode, setViewMode] = useState<'list' | 'grid' | 'compact'>('list');
     const [favCategories, setFavCategories] = useState<string[]>([]);
     const [isCustomizerExpanded, setIsCustomizerExpanded] = useState(true);
@@ -210,6 +212,8 @@ export default function MarketScreen() {
                             author_callsign: p.author_callsign ?? p.authorCallsign,
                             author_avatar: p.author_avatar ?? p.authorAvatarUrl ?? null,
                             author_energy_cycled: p.author_energy_cycled ?? p.authorEnergyCycled ?? 0,
+                            authorFoundingNeeded: p.authorFoundingNeeded ?? (p.author_founding_needed === 1),
+                            author_founding_needed: p.author_founding_needed ?? (p.authorFoundingNeeded ? 1 : 0),
                         };
                     });
                     setSearchResults(parsed);
@@ -299,7 +303,13 @@ export default function MarketScreen() {
         if (filter === 'offers' && p.type !== 'offer') return false;
         if (filter === 'needs' && p.type !== 'need') return false;
         if (filter === 'for-you' && !favCategories.includes(p.category)) return false;
-        if (foundingOnly && !p.authorFoundingNeeded) return false;
+        
+        // Trust Level filters
+        if (trustFilter === 'founding' && !p.authorFoundingNeeded) return false;
+        if (trustFilter === 'new' && (p.author_energy_cycled ?? 0) >= 120) return false;
+        if (trustFilter === 'resident' && (p.author_energy_cycled ?? 0) < 120) return false;
+        if (trustFilter === 'citizen' && (p.author_energy_cycled ?? 0) < 520) return false;
+        if (trustFilter === 'elder' && (p.author_energy_cycled ?? 0) < 1320) return false;
 
         if (radiusKm && p.lat && p.lng) {
             const centerLat = locationCenter ? locationCenter.lat : -28.5523;
@@ -325,7 +335,8 @@ export default function MarketScreen() {
     });
 
     const selectedCategory = MARKETPLACE_CATEGORIES.find(c => c.id === categoryFilter);
-    const hasActiveFilters = categoryFilter !== 'all' || radiusKm !== null || filter !== 'all' || foundingOnly;
+    const selectedTrustFilter = TRUST_FILTERS.find(f => f.id === trustFilter);
+    const hasActiveFilters = categoryFilter !== 'all' || radiusKm !== null || filter !== 'all' || trustFilter !== 'all';
 
     const freshTodayCount = posts.filter(post => {
         if (post.status !== 'active') return false;
@@ -432,14 +443,7 @@ export default function MarketScreen() {
                     </Pressable>
                 </View>
 
-                {/* Founding-trade filter: surface newcomers whose first trade unlocks their account */}
-                <Pressable onPress={() => setFoundingOnly(v => !v)} style={[styles.foundingChip, foundingOnly && styles.foundingChipActive]}>
-                    <Text style={[styles.foundingChipText, foundingOnly && styles.foundingChipTextActive]} numberOfLines={1}>
-                        🌱 New members{foundingOnly ? ' ✓' : ''}
-                    </Text>
-                </Pressable>
-
-                {/* Row 3: Symmetrical Filter Dropdowns (50% / 50% split) */}
+                {/* Row 3: Symmetrical Filter Dropdowns (Category, Distance, New Members) */}
                 <View style={styles.dropdownsRow}>
                     {/* Category Dropdown */}
                     <Pressable 
@@ -473,6 +477,27 @@ export default function MarketScreen() {
                         {radiusKm !== null ? (
                             <Pressable 
                                 onPress={(e) => { e.stopPropagation(); setRadiusKm(null); setLocationCenter(null); }}
+                                hitSlop={8}
+                                style={{ marginLeft: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1 }}
+                            >
+                                <Text style={{ fontSize: 9, color: '#fff', fontWeight: 'bold' }}>✕</Text>
+                            </Pressable>
+                        ) : (
+                            <Text style={{ fontSize: 8, color: '#9ca3af', marginLeft: 4 }}>▼</Text>
+                        )}
+                    </Pressable>
+
+                    {/* Trust Filter */}
+                    <Pressable 
+                        onPress={() => setShowTrustPicker(true)} 
+                        style={[styles.dropdownBtn, trustFilter !== 'all' && styles.dropdownBtnNewMembersActive]}
+                    >
+                        <Text style={[styles.dropdownText, trustFilter !== 'all' && styles.dropdownTextActive]} numberOfLines={1}>
+                            {selectedTrustFilter?.emoji || '🤝'} {trustFilter !== 'all' ? selectedTrustFilter?.label : 'Trust'}
+                        </Text>
+                        {trustFilter !== 'all' ? (
+                            <Pressable 
+                                onPress={(e) => { e.stopPropagation(); setTrustFilter('all'); }}
                                 hitSlop={8}
                                 style={{ marginLeft: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1 }}
                             >
@@ -690,7 +715,7 @@ export default function MarketScreen() {
                     </View>
                     <View style={styles.gridTextContent}>
                         <Text style={styles.gridCardTitle} numberOfLines={1}>{item.title}</Text>
-                        <PostAuthorTrust pubkey={item.author_pubkey} callsign={cardAuthor} energyCycled={item.author_energy_cycled} avatarUrl={item.author_avatar} mode="compact" />
+                        <PostAuthorTrust pubkey={item.author_pubkey} callsign={cardAuthor} energyCycled={item.author_energy_cycled} avatarUrl={item.author_avatar} mode="compact" isFounding={item.authorFoundingNeeded} />
                     </View>
                 </Pressable>
             );
@@ -762,11 +787,6 @@ export default function MarketScreen() {
                                         <Text style={{ fontSize: 10, fontWeight: '800', color: '#c2410c' }}>↻ RECURRING</Text>
                                     </View>
                                 )}
-                                {!!item.authorFoundingNeeded && (
-                                    <View style={{ backgroundColor: 'rgba(34, 197, 94, 0.12)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(34, 197, 94, 0.35)' }}>
-                                        <Text style={{ fontSize: 10, fontWeight: '800', color: '#15803d' }}>🌱 FOUNDING TRADE</Text>
-                                    </View>
-                                )}
                             </View>
                             <CurrencyDisplay
                                 amount={`${item.credits !== undefined && item.credits !== null ? item.credits : '?'}${priceLabel || ''}`}
@@ -779,7 +799,7 @@ export default function MarketScreen() {
                             {item.title}
                         </Text>
 
-                        <PostAuthorTrust pubkey={item.author_pubkey} callsign={cardAuthor} energyCycled={item.author_energy_cycled} avatarUrl={item.author_avatar} mode="full" />
+                        <PostAuthorTrust pubkey={item.author_pubkey} callsign={cardAuthor} energyCycled={item.author_energy_cycled} avatarUrl={item.author_avatar} mode="full" isFounding={item.authorFoundingNeeded} />
                     </View>
                 </View>
             </Pressable>
@@ -816,7 +836,7 @@ export default function MarketScreen() {
                         {hasActiveFilters && (
                             <Pressable 
                                 style={{ backgroundColor: '#f3f4f6', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, marginBottom: 12 }}
-                                onPress={() => { setFilter('all'); setCategoryFilter('all'); setRadiusKm(null); setLocationCenter(null); setFoundingOnly(false); }}
+                                onPress={() => { setFilter('all'); setCategoryFilter('all'); setRadiusKm(null); setLocationCenter(null); setTrustFilter('all'); }}
                             >
                                 <Text style={{ fontWeight: '700', color: '#4b5563', fontSize: 14 }}>Clear All Filters</Text>
                             </Pressable>
@@ -860,6 +880,13 @@ export default function MarketScreen() {
                 selected={categoryFilter}
                 onSelect={setCategoryFilter}
                 onClose={() => setShowCategoryPicker(false)}
+            />
+
+            <TrustPickerSheet
+                visible={showTrustPicker}
+                selected={trustFilter}
+                onSelect={setTrustFilter}
+                onClose={() => setShowTrustPicker(false)}
             />
 
             <MyDealsSheet
@@ -1218,6 +1245,10 @@ const styles = StyleSheet.create({
     dropdownBtnDistanceActive: {
         backgroundColor: '#b45309',
         borderColor: '#92400e',
+    },
+    dropdownBtnNewMembersActive: {
+        backgroundColor: '#16a34a',
+        borderColor: '#15803d',
     },
     dropdownText: {
         fontSize: 12,

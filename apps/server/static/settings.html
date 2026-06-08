@@ -793,17 +793,17 @@
                 <div id="invite-tier-selector" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;">
                     <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-radius: 10px; border: 2px solid #334155; cursor: pointer; transition: border-color 0.2s;" class="tier-option selected" data-type="standard">
                         <input type="radio" name="invite-type" value="standard" checked style="accent-color: #6b7280;">
-                        <span style="font-size: 1.2rem;">👻</span>
+                        <span style="font-size: 1.2rem;">🥚</span>
                         <div style="flex: 1;">
-                            <strong style="color: #e2e8f0; font-size: 0.85rem;">Standard</strong>
-                            <p style="color: #64748b; font-size: 0.7rem; margin: 0;">Starts as Ghost. Earns trust through trades.</p>
+                            <strong style="color: #e2e8f0; font-size: 0.85rem;">Newcomer</strong>
+                            <p style="color: #64748b; font-size: 0.7rem; margin: 0;">Starts as Newcomer. Earns trust through trades.</p>
                         </div>
                     </label>
                     <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-radius: 10px; border: 2px solid #334155; cursor: pointer; transition: border-color 0.2s;" class="tier-option" data-type="trusted">
                         <input type="radio" name="invite-type" value="trusted" style="accent-color: #3b82f6;">
                         <span style="font-size: 1.2rem;">🏠</span>
                         <div style="flex: 1;">
-                            <strong style="color: #93c5fd; font-size: 0.85rem;">Trusted</strong>
+                            <strong style="color: #93c5fd; font-size: 0.85rem;">Resident</strong>
                             <p style="color: #64748b; font-size: 0.7rem; margin: 0;">Starts as Resident. Can gift &amp; invite immediately.</p>
                         </div>
                     </label>
@@ -811,8 +811,16 @@
                         <input type="radio" name="invite-type" value="ambassador" style="accent-color: #8b5cf6;">
                         <span style="font-size: 1.2rem;">🏛️</span>
                         <div style="flex: 1;">
-                            <strong style="color: #c4b5fd; font-size: 0.85rem;">Ambassador</strong>
+                            <strong style="color: #c4b5fd; font-size: 0.85rem;">Citizen</strong>
                             <p style="color: #64748b; font-size: 0.7rem; margin: 0;">Starts as Citizen. For market promoters &amp; organisers.</p>
+                        </div>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-radius: 10px; border: 2px solid #334155; cursor: pointer; transition: border-color 0.2s;" class="tier-option" data-type="elder">
+                        <input type="radio" name="invite-type" value="elder" style="accent-color: #f59e0b;">
+                        <span style="font-size: 1.2rem;">👑</span>
+                        <div style="flex: 1;">
+                            <strong style="color: #fde68a; font-size: 0.85rem;">Elder</strong>
+                            <p style="color: #64748b; font-size: 0.7rem; margin: 0;">Starts as Elder. Highest trust level and borrowing limits.</p>
                         </div>
                     </label>
                 </div>
@@ -1146,9 +1154,9 @@
                 </details>
 
                 <details class="threshold-group">
-                    <summary>🛡️ Ghost Velocity Gate <span style="font-size:0.65rem;color:#64748b;font-weight:400;">(4 settings)</span></summary>
+                    <summary>🛡️ Newcomer Velocity Gate <span style="font-size:0.65rem;color:#64748b;font-weight:400;">(4 settings)</span></summary>
                     <div class="group-body">
-                        <p style="font-size:0.7rem;color:#64748b;margin-bottom:0.75rem;">ℹ️ Only affects accounts less than 72 hours old.</p>
+                        <p style="font-size:0.7rem;color:#64748b;margin-bottom:0.75rem;">ℹ️ Only affects newcomer accounts less than 72 hours old.</p>
                         <div class="field">
                             <label>Tier 1 Cutoff (hours)</label>
                             <input type="number" id="th-ghostVelocityTier1Hours" step="1">

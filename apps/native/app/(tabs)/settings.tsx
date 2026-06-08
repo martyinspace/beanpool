@@ -489,12 +489,14 @@ export default function SettingsScreen() {
                             ];
                             const keysToRemove: string[] = [
                                 'beanpool_last_version_check_time',
-                                'beanpool_latest_known_version'
+                                'beanpool_latest_known_version',
+                                'pillar_sync_members_last_sync'
                             ];
                             for (const u of urlsToClear) {
                                 const filename = getDatabaseFilenameForNode(u);
                                 keysToRemove.push(`pillar_sync_${filename}_last-sync`);
                                 keysToRemove.push(`pillar_sync_${filename}_checkpoint`);
+                                keysToRemove.push(`pillar_sync_${filename}_members_last_sync`);
                             }
                             await AsyncStorage.multiRemove(keysToRemove);
                             const { clearDB, initDB } = await import('../../utils/db');
