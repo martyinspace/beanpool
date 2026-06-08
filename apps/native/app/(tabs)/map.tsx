@@ -946,15 +946,16 @@ export default function MapScreen() {
                                 onPress={showTaxGuide} 
                                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, marginTop: -4, paddingRight: 10 }}
                             >
-                                <Text style={{ color: '#4b5563', fontSize: 12.5, lineHeight: 18 }}>
-                                    A 1.5% transaction tax applies to trades to fund community projects and cover defaults. {(() => {
+                                <Text style={{ color: '#4b5563', fontSize: 13.5, lineHeight: 19 }}>
+                                    {(() => {
                                         const parsed = parseFloat(postCredits);
                                         if (!isNaN(parsed) && parsed > 0) {
                                             const net = Math.round(parsed * 0.985 * 100) / 100;
-                                            return `${postType === 'offer' ? 'You will receive' : 'Fulfiller receives'} ${net.toFixed(2)} B. `;
+                                            return `1.5% tax: ${postType === 'offer' ? 'You will receive' : 'Fulfiller receives'} ${net.toFixed(2)} B. `;
                                         }
-                                        return '';
+                                        return '1.5% transaction tax funds community projects & solvency. ';
                                     })()}<Text style={{ color: '#d97706', fontWeight: 'bold' }}>Learn more ⓘ</Text>
+                                    <Text style={{ color: '#10b981', fontWeight: 'bold' }}> (100% community owned)</Text>
                                 </Text>
                             </Pressable>
 
