@@ -83,6 +83,9 @@ export function CommonsInfoModal({ isOpen, onClose, commonsBalance }: Props) {
                         <div>
                             <p style={{ fontSize: 13, color: '#9ca3af', marginBottom: 16, lineHeight: 1.5 }}>
                                 The Community Commons is a self-sustaining fund that redistributes value back to the community through democratically-voted projects.
+                                <span style={{ display: 'block', marginTop: 10, color: '#10b981', fontWeight: 600 }}>
+                                    🌱 100% Community-Owned: All collected taxes and demurrage remain inside the pool for local grants and solvency—never taken for private profit.
+                                </span>
                             </p>
 
                             {commonsBalance !== undefined && (

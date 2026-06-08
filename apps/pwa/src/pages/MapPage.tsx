@@ -758,7 +758,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
 
                 <p 
                     onClick={() => setShowCommonsInfo(true)}
-                    className="text-xs text-nature-500 dark:text-nature-450 mt-1 mb-3 font-medium cursor-pointer hover:text-nature-700 dark:hover:text-white transition-colors"
+                    className="text-[12.5px] text-nature-700 dark:text-nature-300 mt-1 mb-3 font-semibold cursor-pointer hover:text-nature-900 dark:hover:text-white transition-colors"
                 >
                     A 1.5% transaction tax applies to trades to fund community projects and cover defaults. {(() => {
                         const parsed = parseFloat(newPostCredits);

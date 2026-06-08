@@ -89,6 +89,8 @@ export function PricingInfoModal({ isOpen, onClose, initialTab }: Props) {
                 <View style={styles.tabContent}>
                     <Text style={styles.descriptionText}>
                         To protect the integrity of the community ledger, BeanPool applies a flat 1.5% Transaction Tax on all completed trades and direct transfers.
+                        {"\n\n"}
+                        <Text style={{ fontWeight: 'bold', color: '#10b981' }}>🌱 100% Community-Owned:</Text> This tax is never taken for private profit. All collected credits remain fully inside the Commons Pool to support local project grants and guarantee system solvency.
                     </Text>
 
                     <View style={styles.processContainer}>
