@@ -3517,6 +3517,14 @@ export function removeFriend(ownerPubkey: string, friendPubkey: string): boolean
 }
 
 export function setGuardian(ownerPubkey: string, friendPubkey: string, isGuardian: boolean): boolean {
+    if (!getMember(ownerPubkey) || !getMember(friendPubkey) || ownerPubkey === friendPubkey) return false;
+    
+    // Ensure the friend entry exists first
+    const exists = db.prepare("SELECT * FROM friends WHERE owner_pubkey=? AND friend_pubkey=?").get(ownerPubkey, friendPubkey);
+    if (!exists) {
+        db.prepare("INSERT INTO friends (owner_pubkey, friend_pubkey, added_at) VALUES (?, ?, ?)").run(ownerPubkey, friendPubkey, new Date().toISOString());
+    }
+
     const res = db.prepare("UPDATE friends SET is_guardian=? WHERE owner_pubkey=? AND friend_pubkey=?").run(isGuardian ? 1 : 0, ownerPubkey, friendPubkey);
     return res.changes > 0;
 }
