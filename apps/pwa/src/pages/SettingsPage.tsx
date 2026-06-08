@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { type BeanPoolIdentity } from '../lib/identity';
+import { type BeanPoolIdentity, importIdentity, deleteIdentity } from '../lib/identity';
 import { exportIdentity, generateTransferCode } from '../lib/identity-transfer';
 import { getMemberProfile, redeemInvite, type MemberProfile } from '../lib/api';
 import { resolveAvatarUrl } from '../lib/avatar';
@@ -104,12 +104,11 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
             const importedIdentity = await decryptIdentity(importUri, importCode.trim());
             
             if (window.confirm(`Do you want to permanently merge this device onto the "${importedIdentity.callsign}" identity? Your current web keys will be destroyed.`)) {
-                localStorage.setItem('beanpool_identity', JSON.stringify({
-                    publicKey: importedIdentity.publicKey,
-                    privateKey: importedIdentity.privateKey,
-                    callsign: importedIdentity.callsign,
-                    createdAt: importedIdentity.createdAt,
-                }));
+                await importIdentity(importedIdentity);
+
+                // Clear any legacy artifact just in case
+                localStorage.removeItem('beanpool_identity');
+
                 onIdentityUpdated(importedIdentity);
                 setMode('menu');
                 alert('Success: Device Unified Successfully!');
@@ -370,7 +369,8 @@ export function SettingsPage({ identity, onIdentityUpdated, onBack, theme, onTog
                                             Cancel
                                         </button>
                                         <button
-                                            onClick={() => {
+                                            onClick={async () => {
+                                                await deleteIdentity();
                                                 localStorage.removeItem('beanpool_identity');
                                                 localStorage.removeItem('beanpool_modern_markers');
                                                 setWipeConfirmStep(2);

@@ -104,6 +104,20 @@ export async function updateCallsign(newCallsign: string): Promise<BeanPoolIdent
     return identity;
 }
 
+/**
+ * Delete the existing identity from IndexedDB.
+ */
+export async function deleteIdentity(): Promise<void> {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.delete(KEY_ID);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
 async function saveIdentity(identity: BeanPoolIdentity): Promise<void> {
     const db = await openDb();
     await new Promise<void>((resolve, reject) => {

@@ -44,3 +44,10 @@
 4. Cryptographically secured P2P sync using Ed25519 payload signing (`exportSyncState`) and public key protobuf verification (`importRemoteState`).
 5. Added administrative sliding-window rate limiting (60 req/min per IP) and standard global modern security headers.
 
+## 2025-02-28 - Insecure PWA Identity Import via LocalStorage
+
+**Vulnerability:** When importing an identity into the PWA via a transfer URI (`?import=...`), the application was saving the decrypted identity (which includes the plaintext `privateKey`) directly into `localStorage`. This was inconsistent with how the application typically stores the identity (in IndexedDB using `saveIdentity`/`importIdentity`) and exposed the private key to potential XSS attacks.
+
+**Learning:** It is crucial to ensure that sensitive data storage paths are consistent across the entire application, and that no code path accidentally bypasses secure storage abstractions (like IndexedDB) and falls back to insecure ones (like `localStorage`).
+
+**Prevention:** Ensure that wrapper functions for state management (like `importIdentity` and `deleteIdentity`) are used uniformly instead of relying on ad-hoc `localStorage` manipulation for sensitive operations.
