@@ -20,6 +20,7 @@ import { getMarketplacePosts, createMarketplacePost, getNodeInfo, getRemotePosts
 import { haversineDistance } from '../lib/geo';
 import { MARKETPLACE_CATEGORIES, POST_TYPE_COLORS } from '../lib/marketplace';
 import { loadEnabledPeers } from '../lib/peer-prefs';
+import { CommonsInfoModal } from '../components/CommonsInfoModal';
 
 // Simple deterministic hash for consistent pin placement
 function simpleHash(str: string): number {
@@ -52,6 +53,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
     const [locating, setLocating] = useState(false);
     const [posts, setPosts] = useState<MarketplacePost[]>([]);
     const [showNewPost, setShowNewPost] = useState(false);
+    const [showCommonsInfo, setShowCommonsInfo] = useState(false);
     const [newPostType, setNewPostType] = useState<'offer' | 'need'>('need');
     const [newPostCategory, setNewPostCategory] = useState('general');
     const [newPostTitle, setNewPostTitle] = useState('');
@@ -754,6 +756,20 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                     </select>
                 </div>
 
+                <p 
+                    onClick={() => setShowCommonsInfo(true)}
+                    className="text-xs text-nature-500 dark:text-nature-450 mt-1 mb-3 font-medium cursor-pointer hover:text-nature-700 dark:hover:text-white transition-colors"
+                >
+                    A 1.5% transaction tax applies to trades to fund community projects and cover defaults. {(() => {
+                        const parsed = parseFloat(newPostCredits);
+                        if (!isNaN(parsed) && parsed > 0) {
+                            const net = Math.round(parsed * 0.985 * 100) / 100;
+                            return `${newPostType === 'offer' ? 'You will receive' : 'Fulfiller receives'} ${net.toFixed(2)} B. `;
+                        }
+                        return '';
+                    })()}<span className="text-amber-600 dark:text-amber-500 font-bold underline decoration-dotted underline-offset-2 ml-1">Learn more ⓘ</span>
+                </p>
+
                 {/* Repeatable toggle */}
                 <label className="flex items-center gap-3 text-sm font-medium text-nature-700 cursor-pointer py-2 px-1 mb-1">
                     <input
@@ -845,6 +861,10 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                 </button>
             </div>
         )}
+        <CommonsInfoModal 
+            isOpen={showCommonsInfo} 
+            onClose={() => setShowCommonsInfo(false)} 
+        />
     </>
     );
 }

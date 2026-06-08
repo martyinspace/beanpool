@@ -85,6 +85,7 @@ export function initSchema() {
     try { db.prepare(`ALTER TABLE posts ADD COLUMN price_type TEXT DEFAULT 'fixed'`).run(); } catch { }
     try { db.prepare(`ALTER TABLE marketplace_transactions ADD COLUMN hours REAL`).run(); } catch { }
     try { db.prepare(`ALTER TABLE transactions ADD COLUMN project_id TEXT REFERENCES projects(id)`).run(); } catch { }
+    try { db.prepare(`ALTER TABLE transactions ADD COLUMN tax_fee REAL DEFAULT 0.0`).run(); } catch { }
     try {
         db.prepare(`ALTER TABLE posts ADD COLUMN updated_at DATETIME`).run();
         db.prepare(`UPDATE posts SET updated_at = created_at WHERE updated_at IS NULL`).run();

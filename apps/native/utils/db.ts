@@ -163,6 +163,7 @@ async function _doInitDB() {
             from_pubkey TEXT NOT NULL,
             to_pubkey TEXT NOT NULL,
             amount REAL NOT NULL CHECK (amount > 0),
+            tax_fee REAL DEFAULT 0.0,
             memo TEXT,
             timestamp DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
         );
@@ -344,6 +345,7 @@ async function _doInitDB() {
         try { await database.execAsync(`ALTER TABLE members ADD COLUMN earned_credit REAL DEFAULT 0;`); } catch (e) {}
         try { await database.execAsync(`ALTER TABLE posts ADD COLUMN author_energy_cycled INTEGER DEFAULT 0;`); } catch (e) {}
         try { await database.execAsync(`ALTER TABLE posts ADD COLUMN author_founding_needed INTEGER DEFAULT 1;`); } catch (e) {}
+        try { await database.execAsync(`ALTER TABLE transactions ADD COLUMN tax_fee REAL DEFAULT 0.0;`); } catch (e) {}
         // Ratings table migration for legacy setups where Schema wasn't ran
         try { 
             await database.execAsync(`
@@ -712,8 +714,8 @@ export async function getTransactions(pubkey: string) {
                     for (const t of txns) {
                         try {
                             const result = await database.runAsync(
-                                'INSERT OR IGNORE INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
-                                [t.id, t.from, t.to, t.amount, t.memo, t.timestamp]
+                                'INSERT OR IGNORE INTO transactions (id, from_pubkey, to_pubkey, amount, tax_fee, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                                [t.id, t.from_pubkey || t.from, t.to_pubkey || t.to, t.amount, t.taxFee || t.tax_fee || 0, t.memo, t.timestamp]
                             );
                             if (result.changes > 0) newInserted = true;
                         } catch(e) {}
@@ -740,6 +742,7 @@ export async function getTransactions(pubkey: string) {
         id: row.id,
         type: row.type,
         amount: row.amount,
+        taxFee: row.tax_fee || 0,
         peer: row.peer_pubkey.slice(0, 8).toUpperCase(),
         timestamp: new Date(row.timestamp).toLocaleDateString(),
         memo: row.memo
@@ -769,9 +772,10 @@ export async function sendTransfer(from: string, to: string, amount: number, mem
             const t = res.transaction;
             const fromKey = t.from_pubkey || t.from || null;
             const toKey = t.to_pubkey || t.to || null;
+            const taxFee = t.taxFee ?? t.tax_fee ?? 0;
             await database.runAsync(
-                'INSERT OR REPLACE INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
-                [t.id || null, fromKey, toKey, t.amount || 0, t.memo || null, t.timestamp || null]
+                'INSERT OR REPLACE INTO transactions (id, from_pubkey, to_pubkey, amount, tax_fee, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [t.id || null, fromKey, toKey, t.amount || 0, taxFee, t.memo || null, t.timestamp || null]
             );
         }
 
@@ -1318,9 +1322,10 @@ export async function applyDelta(delta: any) {
             for (const t of delta.transactions) {
                 const fromKey = t.from_pubkey || t.from || null;
                 const toKey = t.to_pubkey || t.to || null;
+                const taxFee = t.taxFee ?? t.tax_fee ?? 0;
                 await txn.runAsync(
-                    'INSERT OR REPLACE INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
-                    [t.id ?? null, fromKey, toKey, t.amount ?? 0, t.memo ?? null, t.timestamp ?? null]
+                    'INSERT OR REPLACE INTO transactions (id, from_pubkey, to_pubkey, amount, tax_fee, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    [t.id ?? null, fromKey, toKey, t.amount ?? 0, taxFee, t.memo ?? null, t.timestamp ?? null]
                 );
             }
         }

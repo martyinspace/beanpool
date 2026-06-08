@@ -16,7 +16,7 @@
 5. [Dynamic Credit Floor (Borrowing Limit)](#5-dynamic-credit-floor-borrowing-limit)
 
 7. [Identity Tiers](#7-identity-tiers)
-8. [Community Circulation (Value Decay)](#8-community-circulation-value-decay)
+8. [Community Circulation & Transaction Tax](#8-community-circulation--transaction-tax)
 9. [Invitations](#9-invitations)
 10. [Anti-Sybil Defences](#10-anti-sybil-defences)
 11. [Marketplace & Escrow](#11-marketplace--escrow)
@@ -163,7 +163,7 @@ These restrictions lift automatically when the member's organic trade history gr
 
 ---
 
-## 8. Community Circulation (Value Decay)
+## 8. Community Circulation & Transaction Tax
 
 Community Circulation is a small periodic reduction applied to **positive balances**. It prevents hoarding and returns idle beans to the community Commons Pool — keeping the local economy flowing like healthy blood circulation.
 
@@ -199,6 +199,15 @@ A member holds a balance of +800 Ʀ:
 - Next 300 (from 200 to 500) at 1.0% → −3.00 Ʀ
 - Next 300 (from 500 to 800) at 1.5% → −4.50 Ʀ
 - **Total monthly circulation:** −7.50 Ʀ → Commons Pool
+
+### Transaction Tax
+
+To ensure the solvency of the network when pruning inactive members (which involves writing off bad debts using the Commons Pool), a flat **1.5% Transactional Tax** is levied on all successful direct P2P transfers and completed marketplace trade releases.
+
+- **Calculation**: Bob receives `amount − 1.5%`, and the remaining `1.5%` is deposited into the Commons Pool.
+- **Exemptions**: Escrow holds (deposits) and cancellations (refunds) are completely tax-exempt.
+
+For details on the zero-sum ledger equilibrium, pruning write-offs, reclaims, and how the surplus flows back via community projects, see the [Commons Pool & Solvency Protocol](commons-pool-transparency.md) documentation.
 
 ---
 
@@ -421,6 +430,9 @@ All values are defined in `beanpool-core/src/protocol.ts` and are identical acro
 │    Base rate:              0.5% / month              │
 │    Max rate:               2.5% / month (2000+ Ʀ)    │
 │    Epoch:                  30 days                    │
+│                                                      │
+│  Transaction Tax:                                    │
+│    Tax rate:               1.5%                       │
 │                                                      │
 │  Anti-Sybil:                                         │
 │    Ghost threshold:        floor > −200 Ʀ            │

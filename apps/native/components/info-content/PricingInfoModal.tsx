@@ -5,9 +5,10 @@ import { InfoModal, InfoModalTab } from '../InfoModal';
 interface Props {
     isOpen: boolean;
     onClose: () => void;
+    initialTab?: 'guide' | 'tax';
 }
 
-export function PricingInfoModal({ isOpen, onClose }: Props) {
+export function PricingInfoModal({ isOpen, onClose, initialTab }: Props) {
     const tabs: InfoModalTab[] = [
         {
             id: 'guide',
@@ -80,6 +81,49 @@ export function PricingInfoModal({ isOpen, onClose }: Props) {
                     </View>
                 </View>
             )
+        },
+        {
+            id: 'tax',
+            label: '🔒 Transaction Tax',
+            content: (
+                <View style={styles.tabContent}>
+                    <Text style={styles.descriptionText}>
+                        To protect the integrity of the community ledger, BeanPool applies a flat 1.5% Transaction Tax on all completed trades and direct transfers.
+                    </Text>
+
+                    <View style={styles.processContainer}>
+                        <Text style={styles.processLabel}>WHY DO WE TAX TRANSACTIONS?</Text>
+                        
+                        <View style={{ marginBottom: 12 }}>
+                            <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 14, marginBottom: 4 }}>Solvency & Balance</Text>
+                            <Text style={{ color: '#d1d5db', fontSize: 13, lineHeight: 18 }}>
+                                As a zero-sum mutual credit network, deleting inactive accounts requires balancing the ledger. The tax funds the Commons Pool to cover write-offs of unpaid debts.
+                            </Text>
+                        </View>
+
+                        <View style={{ marginBottom: 12 }}>
+                            <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 14, marginBottom: 4 }}>Demurrage Decay Gap</Text>
+                            <Text style={{ color: '#d1d5db', fontSize: 13, lineHeight: 18 }}>
+                                In active economies, members spend earned credits quickly (staying in the tax-free green zone under 200B). Demurrage decay alone is insufficient to cover defaults.
+                            </Text>
+                        </View>
+
+                        <View>
+                            <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 14, marginBottom: 4 }}>Community Projects</Text>
+                            <Text style={{ color: '#d1d5db', fontSize: 13, lineHeight: 18 }}>
+                                Any surplus in the Commons Pool beyond maintaining solvency is recycled back into community projects proposed and voted on by members.
+                            </Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.infoBox}>
+                        <Text style={styles.infoBoxIcon}>🛡️</Text>
+                        <Text style={styles.infoBoxText}>
+                            The 1.5% tax is only applied when credits are successfully released to the recipient. Escrow deposits and cancellations (refunds) are completely tax-exempt.
+                        </Text>
+                    </View>
+                </View>
+            )
         }
     ];
 
@@ -87,9 +131,10 @@ export function PricingInfoModal({ isOpen, onClose }: Props) {
         <InfoModal
             isOpen={isOpen}
             onClose={onClose}
-            title="Pricing Guide"
+            title="Pricing & Tax"
             icon={<Text style={{ fontSize: 24 }}>💡</Text>}
             tabs={tabs}
+            defaultTab={initialTab}
         />
     );
 }

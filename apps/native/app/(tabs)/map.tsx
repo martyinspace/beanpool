@@ -256,6 +256,7 @@ export default function MapScreen() {
     const [validationToast, setValidationToast] = useState('');
     const [showCategoryModal, setShowCategoryModal] = useState(false);
     const [showPricingModal, setShowPricingModal] = useState(false);
+    const [pricingModalTab, setPricingModalTab] = useState<'guide' | 'tax'>('guide');
     const scrollViewRef = useRef<ScrollView>(null);
     const pickerRef = useRef<any>(null);
 
@@ -443,7 +444,15 @@ export default function MapScreen() {
         ]);
     };
 
-    const showPricingGuide = () => setShowPricingModal(true);
+    const showPricingGuide = () => {
+        setPricingModalTab('guide');
+        setShowPricingModal(true);
+    };
+
+    const showTaxGuide = () => {
+        setPricingModalTab('tax');
+        setShowPricingModal(true);
+    };
 
     const handleSubmit = async () => {
         Keyboard.dismiss();
@@ -933,6 +942,22 @@ export default function MapScreen() {
                                 </Pressable>
                             </View>
 
+                            <Pressable 
+                                onPress={showTaxGuide} 
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, marginTop: -4, paddingRight: 10 }}
+                            >
+                                <Text style={{ color: '#9ca3af', fontSize: 11, lineHeight: 16 }}>
+                                    A 1.5% transaction tax applies to trades to fund community projects and cover defaults. {(() => {
+                                        const parsed = parseFloat(postCredits);
+                                        if (!isNaN(parsed) && parsed > 0) {
+                                            const net = Math.round(parsed * 0.985 * 100) / 100;
+                                            return `${postType === 'offer' ? 'You will receive' : 'Fulfiller receives'} ${net.toFixed(2)} B. `;
+                                        }
+                                        return '';
+                                    })()}<Text style={{ color: '#f59e0b', fontWeight: 'bold' }}>Learn more ⓘ</Text>
+                                </Text>
+                            </Pressable>
+
                             {/* Repeatable Toggle */}
                             <Pressable style={styles.repeatableRow} onPress={() => setPostRepeatable(!postRepeatable)}>
                                 <View style={[styles.checkbox, postRepeatable && styles.checkboxActive]}>
@@ -954,7 +979,7 @@ export default function MapScreen() {
                 </KeyboardAvoidingView>
             )}
 
-            <PricingInfoModal isOpen={showPricingModal} onClose={() => setShowPricingModal(false)} />
+            <PricingInfoModal isOpen={showPricingModal} onClose={() => setShowPricingModal(false)} initialTab={pricingModalTab} />
         </View>
     );
 }
@@ -1015,9 +1040,9 @@ const styles = StyleSheet.create({
 
     // Full-Screen Sheet — LIGHT theme
     sheetWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: SCREEN_HEIGHT * 0.95, zIndex: 500 },
-    sheet: { backgroundColor: '#ffffff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, maxHeight: SCREEN_HEIGHT * 0.95, flex: 1 },
-    sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-    sheetTitle: { color: '#111827', fontSize: 20, fontWeight: '800', letterSpacing: 0.5 },
+    sheet: { backgroundColor: '#ffffff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 14, paddingBottom: 16, maxHeight: SCREEN_HEIGHT * 0.95, flex: 1 },
+    sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+    sheetTitle: { color: '#111827', fontSize: 18, fontWeight: '800', letterSpacing: 0.5 },
     sheetClose: { color: '#9ca3af', fontSize: 24, fontWeight: '300', width: 32, height: 32, textAlign: 'center', lineHeight: 32 },
 
     // Toast
@@ -1025,21 +1050,21 @@ const styles = StyleSheet.create({
     toastText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
     // Section labels
-    sectionLabel: { color: '#6b7280', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4, marginTop: 2 },
+    sectionLabel: { color: '#6b7280', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 2, marginTop: 2 },
     requiredStar: { color: '#ef4444', fontSize: 12 },
     sectionLabelHint: { color: '#9ca3af', fontSize: 11, fontWeight: '500', textTransform: 'none', letterSpacing: 0 },
 
     // Type toggle — colours match map pins (green offer / orange need)
-    typeRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-    typeBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 2, borderColor: '#e5e7eb', backgroundColor: '#f9fafb', alignItems: 'center' },
+    typeRow: { flexDirection: 'row', gap: 10, marginBottom: 8 },
+    typeBtn: { flex: 1, paddingVertical: 8, borderRadius: 12, borderWidth: 2, borderColor: '#e5e7eb', backgroundColor: '#f9fafb', alignItems: 'center' },
     typeBtnOffer: { backgroundColor: '#10b981', borderColor: '#10b981' },
     typeBtnNeed: { backgroundColor: '#ea580c', borderColor: '#ea580c' },
     typeBtnText: { fontSize: 15, fontWeight: '800', color: '#6b7280' },
     typeBtnTextActive: { color: '#fff' },
 
     // Category picker
-    pickerWrap: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 50, backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 8, overflow: 'hidden' },
-    pickerText: { flex: 1, color: '#9ca3af', fontSize: 15 },
+    pickerWrap: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, height: 40, backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 6, overflow: 'hidden' },
+    pickerText: { flex: 1, color: '#9ca3af', fontSize: 14 },
     pickerTextActive: { color: '#111827', fontWeight: '600' },
     pickerArrow: { color: '#6b7280', fontSize: 12 },
     picker: { color: '#111827', height: 50 },
@@ -1056,7 +1081,7 @@ const styles = StyleSheet.create({
     categoryRowCheck: { marginLeft: 'auto', color: '#10b981', fontWeight: '800' },
 
     // Title (full-width)
-    titleInputFull: { backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 14, paddingVertical: 12, color: '#111827', fontSize: 15, marginBottom: 8 },
+    titleInputFull: { backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 12, paddingVertical: 8, color: '#111827', fontSize: 14, marginBottom: 6 },
 
     // Price label row + tip pill
     priceLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, marginTop: 2 },
@@ -1065,17 +1090,17 @@ const styles = StyleSheet.create({
     tipPillText: { fontSize: 11, fontWeight: '800', color: '#92400e', letterSpacing: 0.3 },
 
     // Price input row
-    priceInputRow: { flexDirection: 'row', gap: 8, marginBottom: 12, alignItems: 'center' },
-    creditsInputCompact: { width: 80, backgroundColor: '#f9fafb', borderRadius: 10, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 10, paddingVertical: 12, color: '#111827', fontSize: 16, fontWeight: '800', textAlign: 'center' },
+    priceInputRow: { flexDirection: 'row', gap: 8, marginBottom: 6, alignItems: 'center' },
+    creditsInputCompact: { width: 80, backgroundColor: '#f9fafb', borderRadius: 10, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 8, paddingVertical: 8, color: '#111827', fontSize: 15, fontWeight: '800', textAlign: 'center' },
 
     // Legacy (unused but kept for safety)
     priceRowCompact: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingVertical: 2 },
     priceRow: { flexDirection: 'row', gap: 8, marginBottom: 4, alignItems: 'center' },
     creditsInputWide: { flex: 1, backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 14, paddingVertical: 12, color: '#111827', fontSize: 16, fontWeight: '800' },
 
-    priceTypeBtn: { width: 72, backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 14, paddingVertical: 14, justifyContent: 'center', alignItems: 'center' },
+    priceTypeBtn: { width: 72, backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 10, paddingVertical: 8, justifyContent: 'center', alignItems: 'center' },
     priceTypeBtnText: { color: '#4b5563', fontSize: 13, fontWeight: '700' },
-    freeChip: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 2, borderColor: 'rgba(16,185,129,0.4)', backgroundColor: 'rgba(16,185,129,0.08)' },
+    freeChip: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 2, borderColor: 'rgba(16,185,129,0.4)', backgroundColor: 'rgba(16,185,129,0.08)' },
     freeChipActive: { backgroundColor: '#10b981', borderColor: '#10b981' },
     freeChipText: { color: '#059669', fontSize: 13, fontWeight: '800' },
     freeChipTextActive: { color: '#fff' },
@@ -1083,35 +1108,35 @@ const styles = StyleSheet.create({
     pricingGuideLinkText: { color: '#9ca3af', fontSize: 12, fontWeight: '600' },
 
     // Location (compact chips)
-    locationRow: { flexDirection: 'row', gap: 8, marginBottom: 12, alignItems: 'center' },
-    locationChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#f9fafb' },
+    locationRow: { flexDirection: 'row', gap: 8, marginBottom: 6, alignItems: 'center' },
+    locationChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#f9fafb' },
     locationChipActive: { borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)' },
-    locationChipIcon: { fontSize: 16 },
+    locationChipIcon: { fontSize: 15 },
     locationChipLabel: { fontSize: 13, fontWeight: '700', color: '#4b5563' },
     locationConfirmInline: { color: '#10b981', fontSize: 13, fontWeight: '800' },
 
     // Repeatable
-    repeatableRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, marginBottom: 6 },
+    repeatableRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 2, marginBottom: 4 },
     checkbox: { width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: '#d1d5db', backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center' },
     checkboxActive: { backgroundColor: '#10b981', borderColor: '#10b981' },
     checkboxTick: { color: '#fff', fontSize: 14, fontWeight: '800' },
     repeatableText: { flex: 1, color: '#4b5563', fontSize: 13, fontWeight: '500' },
 
     // Description
-    descriptionInput: { backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 14, paddingVertical: 10, color: '#111827', fontSize: 15, minHeight: 90, marginBottom: 12 },
+    descriptionInput: { backgroundColor: '#f9fafb', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 10, paddingVertical: 6, color: '#111827', fontSize: 14, minHeight: 60, marginBottom: 8 },
 
     // Photos
     photosRow: { flexDirection: 'row', gap: 10, marginBottom: 4, flexWrap: 'wrap', padding: 4, borderRadius: 14 },
-    photoThumb: { width: 60, height: 60, borderRadius: 12, overflow: 'hidden', position: 'relative' },
-    photoImg: { width: 60, height: 60, borderRadius: 12 },
-    photoRemove: { position: 'absolute', top: -2, right: -2, width: 22, height: 22, borderRadius: 11, backgroundColor: '#ef4444', justifyContent: 'center', alignItems: 'center' },
-    photoRemoveText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-    photoAdd: { width: 60, height: 60, borderRadius: 12, borderWidth: 2, borderStyle: 'dashed', borderColor: '#d1d5db', justifyContent: 'center', alignItems: 'center', backgroundColor: '#f9fafb' },
-    photoAddIcon: { fontSize: 26 },
-    photoCount: { color: '#9ca3af', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
+    photoThumb: { width: 44, height: 44, borderRadius: 12, overflow: 'hidden', position: 'relative' },
+    photoImg: { width: 44, height: 44, borderRadius: 12 },
+    photoRemove: { position: 'absolute', top: -2, right: -2, width: 18, height: 18, borderRadius: 9, backgroundColor: '#ef4444', justifyContent: 'center', alignItems: 'center' },
+    photoRemoveText: { color: '#fff', fontSize: 9, fontWeight: '800' },
+    photoAdd: { width: 44, height: 44, borderRadius: 12, borderWidth: 2, borderStyle: 'dashed', borderColor: '#d1d5db', justifyContent: 'center', alignItems: 'center', backgroundColor: '#f9fafb' },
+    photoAddIcon: { fontSize: 20 },
+    photoCount: { color: '#9ca3af', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
 
     // Submit
-    submitBtn: { paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginBottom: 8, marginTop: 4 },
+    submitBtn: { paddingVertical: 12, borderRadius: 14, alignItems: 'center', marginBottom: 8, marginTop: 4 },
     submitBtnOffer: { backgroundColor: '#10b981' },
     submitBtnNeed: { backgroundColor: '#ea580c' },
     submitBtnDisabled: { backgroundColor: '#e5e7eb' },

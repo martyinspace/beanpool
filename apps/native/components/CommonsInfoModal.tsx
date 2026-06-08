@@ -13,9 +13,10 @@ const BRACKETS = [
 ];
 
 const FLOW_STEPS = [
-    { icon: <MaterialCommunityIcons name="handshake" size={24} color="#10b981" />, label: 'My Trade', desc: 'Credits earned through community exchange' },
+    { icon: <MaterialCommunityIcons name="handshake" size={24} color="#10b981" />, label: 'My Trade', desc: 'Credits transacted through community exchange' },
+    { icon: <MaterialCommunityIcons name="percent" size={24} color="#10b981" />, label: 'Transaction Tax', desc: 'Flat 1.5% tax on direct transfers and completed trades' },
     { icon: <MaterialCommunityIcons name="leaf" size={24} color="#10b981" />, label: 'Demurrage', desc: 'Progressive monthly contribution from positive balances' },
-    { icon: <MaterialCommunityIcons name="bank" size={24} color="#fcd34d" />, label: 'Commons Pool', desc: 'Community fund growing from all members\' contributions' },
+    { icon: <MaterialCommunityIcons name="bank" size={24} color="#fcd34d" />, label: 'Commons Pool', desc: 'Community fund growing from all tax and demurrage contributions' },
     { icon: <MaterialCommunityIcons name="vote" size={24} color="#3b82f6" />, label: 'My Vote', desc: 'Quadratic Voting: N votes costs N² credits' },
     { icon: <MaterialCommunityIcons name="rocket-launch" size={24} color="#8b5cf6" />, label: 'Community Project', desc: 'Winning projects funded from the Commons Pool' },
 ];
@@ -62,6 +63,25 @@ export function CommonsInfoModal({ isOpen, onClose, commonsBalance, initialTab }
                                 )}
                             </View>
                         ))}
+                    </View>
+
+                    <View style={styles.solvencyContainer}>
+                        <Text style={styles.solvencyTitle}>SOLVENCY & ACCOUNT PRUNING</Text>
+                        <Text style={[styles.descriptionText, { marginBottom: 16 }]}>
+                            As a zero-sum mutual credit network, pruning inactive accounts requires balancing the ledger:
+                        </Text>
+                        <View style={styles.solvencyRow}>
+                            <MaterialCommunityIcons name="shield-alert" size={20} color="#ef4444" style={styles.solvencyIcon} />
+                            <Text style={styles.solvencyText}>
+                                <Text style={styles.boldWhiteText}>Bad Debt Payouts:</Text> If an inactive account is pruned with a negative balance, the Commons Pool pays off their outstanding debt to maintain zero-sum equilibrium.
+                            </Text>
+                        </View>
+                        <View style={[styles.solvencyRow, { marginBottom: 0 }]}>
+                            <MaterialCommunityIcons name="shield-check" size={20} color="#10b981" style={styles.solvencyIcon} />
+                            <Text style={styles.solvencyText}>
+                                <Text style={styles.boldWhiteText}>Surplus Reclaims:</Text> If an inactive account is pruned with a positive balance, the community reclaims the surplus, transferring it into the Commons Pool to recycle the dormant value.
+                            </Text>
+                        </View>
                     </View>
                 </View>
             )
@@ -358,5 +378,35 @@ const styles = StyleSheet.create({
         color: '#d1d5db',
         fontSize: 14,
         lineHeight: 24,
+    },
+    solvencyContainer: {
+        marginTop: 28,
+        backgroundColor: '#1f2937',
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#374151',
+    },
+    solvencyTitle: {
+        color: '#9ca3af',
+        fontSize: 11,
+        fontWeight: 'bold',
+        letterSpacing: 1,
+        marginBottom: 12,
+    },
+    solvencyRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginBottom: 12,
+        gap: 8,
+    },
+    solvencyIcon: {
+        marginTop: 2,
+    },
+    solvencyText: {
+        flex: 1,
+        color: '#d1d5db',
+        fontSize: 13,
+        lineHeight: 18,
     },
 });

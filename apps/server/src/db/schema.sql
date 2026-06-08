@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     from_pubkey TEXT NOT NULL,
     to_pubkey TEXT NOT NULL,
     amount REAL NOT NULL CHECK (amount > 0),
+    tax_fee REAL DEFAULT 0.0,
     memo TEXT,
     timestamp DATETIME DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );

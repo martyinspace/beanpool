@@ -576,7 +576,7 @@ export default function PostDetailModal() {
                                 </Text>
                                 <View style={{ paddingHorizontal: 16, marginBottom: 16, gap: 8 }}>
                                     <Text style={{ color: '#1f2937', fontSize: 14, textAlign: 'center', fontWeight: '600', lineHeight: 20 }}>
-                                        You are the Payee. Fulfill the terms exactly as agreed, then ask the Payer to release your credits.
+                                        You are the Payee. Fulfill the terms exactly as agreed, then ask the Payer to release your credits. You will receive the net amount minus 1.5% transaction tax (retained to balance the pool).
                                     </Text>
                                     <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.2)' }}>
                                         <Text style={{ color: '#b91c1c', fontSize: 13, textAlign: 'center', fontWeight: '700' }}>
@@ -760,7 +760,7 @@ export default function PostDetailModal() {
                                 <Text style={{ color: '#4b5563', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>
                                     {isOffer 
                                         ? `You have committed ${myRequest.credits} credits ${myRequest.hours ? `(${myRequest.hours} hours)` : ''} to Escrow for this offer.`
-                                        : `You have requested to earn ${myRequest.credits} credits ${myRequest.hours ? `(${myRequest.hours} hours)` : ''} for fulfilling this need.`
+                                        : `You have requested to earn ${myRequest.credits} credits ${myRequest.hours ? `(${myRequest.hours} hours)` : ''} (${(myRequest.credits * 0.985).toFixed(2)} net after 1.5% transaction tax) for fulfilling this need.`
                                     }
                                 </Text>
                                 <Pressable style={[styles.cancelActionBtn, { width: '100%' }]} onPress={handleWithdraw} disabled={accepting}>
@@ -775,8 +775,8 @@ export default function PostDetailModal() {
                                     <Text style={{ color: '#c2410c', fontSize: 12, fontWeight: 'bold', marginBottom: 4 }}>🔒 Escrow Protocol</Text>
                                     <Text style={{ color: '#4b5563', fontSize: 12, lineHeight: 18 }}>
                                         {isOffer 
-                                            ? `By proceeding, you commit ${post.price_type === 'fixed' ? post.credits : `your authorized`} credits to an Escrow smart contract. The credits will only be transferred to the seller once you mark the transaction as complete.`
-                                            : `This transaction is protected by Escrow. The payer has already committed the credits to a secure contract. Once you complete the task, they will release the funds to your wallet.`}
+                                            ? `By proceeding, you commit ${post.price_type === 'fixed' ? post.credits : `your authorized`} credits to an Escrow smart contract. Upon completion, the provider receives the credits net of 1.5% transaction tax to fund the Commons Pool.`
+                                            : `This transaction is protected by Escrow. The payer has already committed the credits. Upon completion, you will receive the credits net of 1.5% transaction tax to fund the Commons Pool.`}
                                     </Text>
                                 </View>
                                 {post.price_type !== 'fixed' && (

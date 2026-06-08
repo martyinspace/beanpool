@@ -662,7 +662,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                      ⏳ Pending Release by {targetPeerCallsign}
                                  </p>
                                  <p className="text-xs text-nature-500 text-center mb-2 px-4 shadow-sm">
-                                     You are the Payee. Fulfill the terms exactly as agreed, and the Payer will release your credits.
+                                     You are the Payee. Fulfill the terms exactly as agreed, and the Payer will release your credits (you will receive net amount minus 1.5% transaction tax).
                                  </p>
                              </>
                          )}
@@ -836,9 +836,11 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                         const duration = selectedPost.priceType !== 'fixed' ? ` (${hrs} ${ { hourly: 'hr', daily: 'd', weekly: 'w', monthly: 'm' }[selectedPost.priceType] })` : '';
                                         
                                         if (selectedPost.type === 'offer') {
-                                            return `By proceeding, you commit ${tot} B${duration} to Escrow, which will be released to the provider when finalized.`;
+                                            const net = Math.round(tot * 0.985 * 100) / 100;
+                                            return `By proceeding, you commit ${tot} B${duration} to Escrow. When finalized, the provider will receive ${net.toFixed(2)} B (net of 1.5% transaction tax to fund the Commons Pool).`;
                                         } else {
-                                            return `You will receive ${tot} B${duration} when the job is completed.`;
+                                            const net = Math.round(tot * 0.985 * 100) / 100;
+                                            return `You will receive ${net.toFixed(2)} B (after 1.5% transaction tax is deducted to fund the Commons Pool) when the job is completed.`;
                                         }
                                     })()}
                                 </div>

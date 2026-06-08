@@ -703,6 +703,26 @@ export default function LedgerScreen() {
                         )}
                         <TextInput style={styles.sendInput} placeholder="Amount" placeholderTextColor="#9ca3af" keyboardType="numeric" value={sendAmount} onChangeText={setSendAmount} />
                         <TextInput style={styles.sendInput} placeholder="Memo (optional)" placeholderTextColor="#9ca3af" value={sendMemo} onChangeText={setSendMemo} />
+                        {(() => {
+                            const parsedAmount = parseFloat(sendAmount);
+                            if (!isNaN(parsedAmount) && parsedAmount > 0) {
+                                const tax = Math.round(parsedAmount * 0.015 * 100) / 100;
+                                const recipientReceives = Math.round((parsedAmount - tax) * 100) / 100;
+                                return (
+                                    <View style={styles.taxBreakdown}>
+                                        <View style={styles.breakdownRow}>
+                                            <Text style={styles.breakdownLabel}>Recipient receives:</Text>
+                                            <CurrencyDisplay amount={recipientReceives.toFixed(2)} style={styles.breakdownValue} asView />
+                                        </View>
+                                        <View style={styles.breakdownRow}>
+                                            <Text style={styles.breakdownLabel}>Community tax (1.5%):</Text>
+                                            <CurrencyDisplay amount={tax.toFixed(2)} style={styles.breakdownValue} asView />
+                                        </View>
+                                    </View>
+                                );
+                            }
+                            return null;
+                        })()}
                         {sendError && <View style={styles.errBox}><Text style={styles.errText}>{sendError}</Text></View>}
                         {sendSuccess && <View style={styles.okBox}><Text style={styles.okText}>✓ Sent!</Text></View>}
                         <Pressable style={[styles.confirmBtn, (sending || !sendTo || !sendAmount) && styles.confirmBtnOff]} onPress={handleSend} disabled={sending || !sendTo || !sendAmount}>
@@ -938,6 +958,10 @@ const styles = StyleSheet.create({
     pickerName: { fontSize: 14, fontWeight: '700', color: '#111827' },
     pickerPk: { fontSize: 11, color: '#9ca3af', fontFamily: 'Courier', marginTop: 2 },
     sendInput: { backgroundColor: '#fff', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', marginBottom: 10, fontSize: 15, color: '#111827' },
+    taxBreakdown: { backgroundColor: '#f9fafb', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#e5e7eb' },
+    breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
+    breakdownLabel: { fontSize: 13, color: '#4b5563', fontWeight: '500' },
+    breakdownValue: { fontSize: 13, color: '#111827', fontWeight: '700' },
     errBox: { backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fecaca', borderRadius: 10, padding: 10, marginBottom: 10 },
     errText: { color: '#dc2626', fontSize: 13, fontWeight: '700', textAlign: 'center' },
     okBox: { backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0', borderRadius: 10, padding: 10, marginBottom: 10 },

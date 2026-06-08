@@ -15,6 +15,8 @@ export function setCommonsBalance(value: number): void {
     COMMONS_BALANCE = value;
 }
 
+export const TRANSACTION_TAX_RATE = 0.015;
+
 export class LedgerManager {
     private accounts: Map<string, LedgerAccount>;
     private readonly DEFAULT_CREDIT_LIMIT = -100; // Legacy fallback — callers should pass dynamic floor
@@ -148,8 +150,9 @@ export class LedgerManager {
      * Transfers funds between nodes using Mutual Credit logic.
      * Participants can go into debt down to the dynamic credit floor.
      * @param floorOverride - The sender's dynamic credit floor (e.g. -420). If omitted, uses legacy default (-100).
+     * @param isTaxExempt - If true, bypasses the transaction tax (e.g., escrow holds, refunds, admin settlements).
      */
-    transfer(fromId: string, toId: string, amount: number, floorOverride?: number): boolean {
+    transfer(fromId: string, toId: string, amount: number, floorOverride?: number, isTaxExempt = false): boolean {
         if (amount < 0) return false;
         if (amount === 0) return true; // 0-credit transfer is always a no-op success
         if (fromId === toId) return false;
@@ -168,9 +171,16 @@ export class LedgerManager {
             return false;
         }
 
+        // Calculate transaction tax
+        const tax = isTaxExempt ? 0 : amount * TRANSACTION_TAX_RATE;
+        const netAmount = amount - tax;
+
         // Execute transfer
         fromAccount.balance -= amount;
-        toAccount.balance += amount;
+        toAccount.balance += netAmount;
+        if (tax > 0) {
+            COMMONS_BALANCE += tax;
+        }
 
         // Update timestamps
         fromAccount.lastDemurrageEpoch = currentEpoch;

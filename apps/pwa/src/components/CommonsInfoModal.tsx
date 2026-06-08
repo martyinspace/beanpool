@@ -14,9 +14,10 @@ const BRACKETS = [
 ];
 
 const FLOW_STEPS = [
-    { icon: '🤝', label: 'My Trade', desc: 'Credits earned through community exchange' },
+    { icon: '🤝', label: 'My Trade', desc: 'Credits transacted through community exchange' },
+    { icon: '٪', label: 'Transaction Tax', desc: 'Flat 1.5% tax on direct transfers and completed trades' },
     { icon: '🌿', label: 'Demurrage', desc: 'Progressive monthly contribution from positive balances' },
-    { icon: '🏛️', label: 'Commons Pool', desc: 'Community fund growing from all members\' contributions' },
+    { icon: '🏛️', label: 'Commons Pool', desc: 'Community fund growing from all tax and demurrage contributions' },
     { icon: '🗳️', label: 'My Vote', desc: 'Quadratic Voting: N votes costs N² credits' },
     { icon: '🚀', label: 'Community Project', desc: 'Winning projects funded from the Commons Pool' },
 ];
@@ -121,6 +122,31 @@ export function CommonsInfoModal({ isOpen, onClose, commonsBalance }: Props) {
                                         )}
                                     </div>
                                 ))}
+                            </div>
+
+                            <div style={{
+                                marginTop: 24,
+                                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                                padding: 16,
+                                borderRadius: 12,
+                                border: '1px solid rgba(255, 255, 255, 0.05)',
+                            }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Solvency & Account Pruning</div>
+                                <p style={{ fontSize: 13, color: '#9ca3af', marginBottom: 12, lineHeight: 1.5 }}>
+                                    As a zero-sum mutual credit network, pruning inactive accounts requires balancing the ledger:
+                                </p>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+                                    <span style={{ fontSize: 18, marginTop: 1 }}>🛡️</span>
+                                    <div style={{ fontSize: 12, color: '#d1d5db', lineHeight: 1.4 }}>
+                                        <strong style={{ color: '#fff' }}>Bad Debt Payouts:</strong> If an inactive account is pruned with a negative balance, the Commons Pool pays off their outstanding debt to maintain zero-sum equilibrium.
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                                    <span style={{ fontSize: 18, marginTop: 1 }}>✅</span>
+                                    <div style={{ fontSize: 12, color: '#d1d5db', lineHeight: 1.4 }}>
+                                        <strong style={{ color: '#fff' }}>Surplus Reclaims:</strong> If an inactive account is pruned with a positive balance, the community reclaims the surplus, transferring it into the Commons Pool to recycle the dormant value.
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { LedgerManager, COMMONS_BALANCE, setCommonsBalance, calculateDynamicFloor, getTier, getGenesisEarnedCredit, PROTOCOL_CONSTANTS } from '@beanpool/core';
+import { LedgerManager, COMMONS_BALANCE, setCommonsBalance, calculateDynamicFloor, getTier, getGenesisEarnedCredit, PROTOCOL_CONSTANTS, TRANSACTION_TAX_RATE } from '@beanpool/core';
 import type { TrustStats, TierInfo, GenesisInviteType } from '@beanpool/core';
 import { getThresholds, getLocalConfig } from './local-config.js';
 import { db, initSchema, migrateLegacyState, writeTombstone } from './db/db.js';
@@ -147,6 +147,7 @@ export interface Transaction {
     from: string;
     to: string;
     amount: number;
+    taxFee?: number;
     memo: string;
     timestamp: string;
 }
@@ -447,7 +448,7 @@ function migrateEscrowWalletKeys(): void {
         db.prepare(`INSERT OR IGNORE INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, 0, 0)`).run(newKey);
 
         // Move funds: old wallet -> new wallet
-        const result = transfer(oldKey, newKey, amountToMove, `Escrow wallet key migration: ${oldKey} -> ${newKey}`, 'escrow');
+        const result = transfer(oldKey, newKey, amountToMove, `Escrow wallet key migration: ${oldKey} -> ${newKey}`, 'escrow', true);
         if (result) {
             migrated++;
             console.log(`[Migration] ✅ Migrated ${amountToMove} beans from ${oldKey} to ${newKey} (original: ${tx.credits})`);
@@ -541,7 +542,7 @@ function broadcast(event: any): void {
 // ===================== DB HELPERS =====================
 
 export function assertMemberActive(publicKey: string): void {
-    if (publicKey.startsWith('escrow_') || publicKey.startsWith('project_')) return;
+    if (publicKey.startsWith('escrow_') || publicKey.startsWith('project_') || publicKey === 'COMMONS_POOL' || publicKey === 'SYSTEM' || publicKey === 'genesis') return;
     const member = db.prepare("SELECT status FROM members WHERE public_key = ?").get(publicKey) as any;
     if (!member) throw new Error('Member not found');
     if (member.status === 'disabled') throw new Error('Account is disabled');
@@ -1155,16 +1156,16 @@ export function getBalance(publicKey: string): { balance: number; floor: number;
 }
 
 
-export function transfer(from: string, to: string, amount: number, memo: string, method?: 'direct' | 'escrow'): Transaction | null {
-    if (from !== 'genesis') assertMemberActive(from);
+export function transfer(from: string, to: string, amount: number, memo: string, method?: 'direct' | 'escrow', isTaxExempt = false): Transaction | null {
+    if (from !== 'genesis' && from !== 'COMMONS_POOL') assertMemberActive(from);
     if (amount < 0) return null;
-    // Only register real members — skip synthetic wallets (escrow_*, project_*, etc.)
-    if (!from.startsWith('escrow_') && !from.startsWith('project_') && !getMember(from)) registerVisitor(from);
-    if (!to.startsWith('escrow_') && !to.startsWith('project_') && !getMember(to)) registerVisitor(to);
+    // Only register real members — skip synthetic wallets (escrow_*, project_*, etc.) and COMMONS_POOL
+    if (!from.startsWith('escrow_') && !from.startsWith('project_') && from !== 'COMMONS_POOL' && !getMember(from)) registerVisitor(from);
+    if (!to.startsWith('escrow_') && !to.startsWith('project_') && to !== 'COMMONS_POOL' && !getMember(to)) registerVisitor(to);
 
     // Ghost gift restriction: Ghosts can only transact via marketplace escrow
     const isEscrow = method === 'escrow' || from.startsWith('escrow_') || to.startsWith('escrow_');
-    if (!isEscrow) {
+    if (!isEscrow && from !== 'COMMONS_POOL' && from !== 'genesis') {
         const { tier } = getMemberTrustProfile(from);
         if (!tier.canGift) {
             console.log(`🚫 Ghost gift blocked: ${from.substring(0, 12)} attempted direct transfer`);
@@ -1173,7 +1174,7 @@ export function transfer(from: string, to: string, amount: number, memo: string,
     }
 
     // Ghost Velocity Gate: rate-limit new Ghost accounts to prevent Sybil funneling
-    if (!from.startsWith('escrow_') && !from.startsWith('project_') && from !== 'commons' && from !== 'genesis') {
+    if (!from.startsWith('escrow_') && !from.startsWith('project_') && from !== 'commons' && from !== 'COMMONS_POOL' && from !== 'genesis') {
         const sender = getMember(from);
         if (sender) {
             const senderTier = getMemberTrustProfile(from).tier;
@@ -1212,20 +1213,25 @@ export function transfer(from: string, to: string, amount: number, memo: string,
     // Use getMemberTrustProfile so the SAME floor definition applies to direct
     // transfers as to marketplace spends — including the first-trade gate and the
     // genesis-vouched exemption.
-    const senderFloor = from.startsWith('escrow_') ? -Infinity : getMemberTrustProfile(from).floor;
-    const success = ledger.transfer(from, to, amount, senderFloor);
+    const senderFloor = (from.startsWith('escrow_') || from === 'COMMONS_POOL' || from === 'genesis') ? -Infinity : getMemberTrustProfile(from).floor;
+    const success = ledger.transfer(from, to, amount, senderFloor, isTaxExempt);
     if (!success) return null;
 
-    recordActivity(from);
+    if (!from.startsWith('escrow_') && !from.startsWith('project_') && from !== 'COMMONS_POOL' && from !== 'genesis') {
+        recordActivity(from);
+    }
+
+    const taxFee = isTaxExempt ? 0 : amount * TRANSACTION_TAX_RATE;
 
     const txn: Transaction = {
         id: crypto.randomUUID(),
         from, to, amount,
+        taxFee,
         memo: memo || '',
         timestamp: new Date().toISOString(),
     };
     if (amount > 0) {
-        db.prepare(`INSERT INTO transactions (id, from_pubkey, to_pubkey, amount, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?)`).run(txn.id, txn.from, txn.to, txn.amount, txn.memo, txn.timestamp);
+        db.prepare(`INSERT INTO transactions (id, from_pubkey, to_pubkey, amount, tax_fee, memo, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(txn.id, txn.from, txn.to, txn.amount, txn.taxFee, txn.memo, txn.timestamp);
     }
 
     // Sync ledger account balances to DB
@@ -1253,7 +1259,7 @@ export function getTransactions(publicKey?: string, limit = 50, offset = 0): Tra
     } else {
         rows = db.prepare(`SELECT * FROM transactions ORDER BY timestamp DESC LIMIT ? OFFSET ?`).all(limit, offset) as any[];
     }
-    return rows.map(r => ({ id: r.id, from: r.from_pubkey, to: r.to_pubkey, amount: r.amount, memo: r.memo, timestamp: r.timestamp }));
+    return rows.map(r => ({ id: r.id, from: r.from_pubkey, to: r.to_pubkey, amount: r.amount, taxFee: r.tax_fee || 0, memo: r.memo, timestamp: r.timestamp }));
 }
 // ===================== MARKETPLACE =====================
 
@@ -1544,7 +1550,7 @@ export function approvePostRequest(transactionId: string, authorPublicKey: strin
 
         // 1. Lock the funds in Escrow — abort if transfer fails
         // Wallet keyed by transaction ID to isolate concurrent recurring-post transactions
-        const escrowResult = transfer(row.buyer_pubkey, `escrow_${transactionId}`, row.credits, `Escrow hold for post ${row.post_id}`, 'escrow');
+        const escrowResult = transfer(row.buyer_pubkey, `escrow_${transactionId}`, row.credits, `Escrow hold for post ${row.post_id}`, 'escrow', true);
         if (!escrowResult) throw new Error('Failed to lock funds in escrow — insufficient balance or ledger error');
         
         // 2. Mark this transaction as pending
@@ -1671,7 +1677,7 @@ export function acceptPost(postId: string, buyerPublicKey: string, hours?: numbe
 
         // 1. Lock funds — abort if transfer fails
         // Wallet keyed by transaction ID to isolate concurrent recurring-post transactions
-        const escrowResult = transfer(buyerPublicKey, `escrow_${tx.id}`, finalCredits, `Escrow hold for offer ${post.id}`, 'escrow');
+        const escrowResult = transfer(buyerPublicKey, `escrow_${tx.id}`, finalCredits, `Escrow hold for offer ${post.id}`, 'escrow', true);
         if (!escrowResult) throw new Error('Failed to lock funds in escrow — insufficient balance or ledger error');
 
         // 2. Insert pending tx
@@ -1766,7 +1772,7 @@ export function cancelPostTransaction(transactionId: string, cancellerPublicKey:
         const escrowKey = `escrow_${transactionId}`;
         const escrowAcc = ledger.getAccount(escrowKey);
         const refundAmount = escrowAcc ? Math.min(escrowAcc.balance, row.credits) : row.credits;
-        transfer(escrowKey, row.buyer_pubkey, refundAmount, `Escrow refund for cancelled post ${row.post_id}`, 'escrow');
+        transfer(escrowKey, row.buyer_pubkey, refundAmount, `Escrow refund for cancelled post ${row.post_id}`, 'escrow', true);
 
         db.prepare(`UPDATE marketplace_transactions SET status='cancelled', completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`).run(transactionId);
         const post = db.prepare(`SELECT * FROM posts WHERE id=?`).get(row.post_id) as any;
@@ -4108,7 +4114,7 @@ export function adminDeletePost(postId: string) {
         // Find existing pending transactions to refund escrow
         const pending = db.prepare("SELECT * FROM marketplace_transactions WHERE post_id=? AND status='pending'").all(postId) as any[];
         for (const tx of pending) {
-            transfer(`escrow_${tx.id}`, tx.buyer_pubkey, tx.credits, `Escrow refund for removed post`, 'escrow');
+            transfer(`escrow_${tx.id}`, tx.buyer_pubkey, tx.credits, `Escrow refund for removed post`, 'escrow', true);
             db.prepare("UPDATE marketplace_transactions SET status='cancelled', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?").run(tx.id);
         }
         db.prepare("UPDATE marketplace_transactions SET status='cancelled', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE post_id=? AND status='requested'").run(postId);
@@ -4118,8 +4124,18 @@ export function adminDeletePost(postId: string) {
 }
 
 export function adminPruneUser(publicKey: string) {
-    adminSetUserStatus(publicKey, 'pruned');
     db.transaction(() => {
+        const account = ledger.getAccount(publicKey);
+        const balance = account.balance;
+
+        if (balance < 0) {
+            const D = Math.abs(balance);
+            transfer('COMMONS_POOL', publicKey, D, `Settle bad debt for pruned user: ${publicKey}`, 'direct', true);
+        } else if (balance > 0) {
+            transfer(publicKey, 'COMMONS_POOL', balance, `Confiscate credit for pruned user: ${publicKey}`, 'direct', true);
+        }
+
+        adminSetUserStatus(publicKey, 'pruned');
         db.prepare("UPDATE posts SET status='cancelled', active=0 WHERE author_pubkey=? AND status IN ('active', 'pending')").run(publicKey);
     })();
     broadcast({ type: 'user_pruned', publicKey });

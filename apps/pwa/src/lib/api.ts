@@ -308,6 +308,7 @@ export interface Transaction {
     from: string;
     to: string;
     amount: number;
+    taxFee?: number;
     memo: string;
     timestamp: string;
 }

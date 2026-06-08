@@ -12,6 +12,7 @@ import {
     type BalanceInfo, type TierInfo, type Transaction, type Member
 } from '../lib/api';
 import { resolveAvatarUrl } from '../lib/avatar';
+import { CommonsInfoModal } from '../components/CommonsInfoModal';
 
 interface Props {
     identity: BeanPoolIdentity;
@@ -46,6 +47,7 @@ export function LedgerPage({ identity }: Props) {
     // Search filter for recipient select dropdown
     const [memberSearch, setMemberSearch] = useState('');
     const [showMemberPicker, setShowMemberPicker] = useState(false);
+    const [showCommonsInfo, setShowCommonsInfo] = useState(false);
 
     const refresh = useCallback(async () => {
         try {
@@ -474,16 +476,21 @@ export function LedgerPage({ identity }: Props) {
                             </p>
                         </div>
 
-                        <div className="flex-1 bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-2xl p-5 text-center shadow-sm">
-                            <p className="text-nature-500 dark:text-nature-400 text-sm font-semibold mb-2">Commons Pool</p>
+                        <button
+                            onClick={() => setShowCommonsInfo(true)}
+                            className="flex-1 bg-white dark:bg-nature-900 border border-nature-200 dark:border-nature-800 rounded-2xl p-5 text-center shadow-sm hover:bg-nature-50 dark:hover:bg-nature-850 hover:border-nature-300 dark:hover:border-nature-700 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                        >
+                            <p className="text-nature-500 dark:text-nature-400 text-sm font-semibold mb-2 flex items-center justify-center gap-1">
+                                Commons Pool <span className="text-xs text-nature-400">ⓘ</span>
+                            </p>
                             <p className="text-2xl font-black font-mono text-amber-500 flex items-center justify-center gap-1">
                                 {(balanceInfo?.commonsBalance ?? 0).toFixed(1)}
                                 <img src="/assets/bean.png" className="w-[18px] h-[18px]" alt="B" />
                             </p>
-                            <p className="text-nature-400 text-[10px] mt-1 font-semibold">
-                                🌱 Community Pool
+                            <p className="text-nature-450 dark:text-nature-450 text-[10px] mt-1 font-semibold">
+                                🌱 View Solvency & Tax
                             </p>
-                        </div>
+                        </button>
                     </div>
 
                     {/* Send credits */}
@@ -561,6 +568,26 @@ export function LedgerPage({ identity }: Props) {
                                     onChange={(e) => setSendMemo(e.target.value)}
                                     className="w-full p-3.5 rounded-xl border border-nature-200 dark:border-nature-800 bg-white dark:bg-nature-950 text-nature-900 dark:text-white text-[15px] font-medium mb-4 focus:ring-2 focus:ring-[#d97757] outline-none shadow-sm transition-all"
                                 />
+                                {(() => {
+                                    const parsedAmount = parseFloat(sendAmount);
+                                    if (!isNaN(parsedAmount) && parsedAmount > 0) {
+                                        const tax = Math.round(parsedAmount * 0.015 * 100) / 100;
+                                        const recipientReceives = Math.round((parsedAmount - tax) * 100) / 100;
+                                        return (
+                                            <div className="bg-nature-100 dark:bg-nature-850 rounded-xl p-3 mb-4 text-xs space-y-1.5 border border-nature-200 dark:border-nature-800">
+                                                <div className="flex justify-between items-center text-nature-750 dark:text-nature-300">
+                                                    <span>Recipient receives:</span>
+                                                    <span className="font-mono font-bold text-nature-950 dark:text-white">{recipientReceives.toFixed(2)} B</span>
+                                                </div>
+                                                <div className="flex justify-between items-center text-nature-500 dark:text-nature-450">
+                                                    <span>Community tax (1.5%):</span>
+                                                    <span className="font-mono font-bold text-nature-950 dark:text-white">{tax.toFixed(2)} B</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
                                 <button
                                     onClick={handleSend}
                                     disabled={sending || !sendTo || !sendAmount}
@@ -690,6 +717,12 @@ export function LedgerPage({ identity }: Props) {
                     {error}
                 </div>
             )}
+
+            <CommonsInfoModal 
+                isOpen={showCommonsInfo} 
+                onClose={() => setShowCommonsInfo(false)} 
+                commonsBalance={balanceInfo?.commonsBalance ?? 0} 
+            />
         </div>
     );
 }
