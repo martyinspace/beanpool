@@ -749,7 +749,7 @@ const styles = StyleSheet.create({
     messageTimeOther: { color: '#9ca3af' },
     inputContainer: { flexDirection: 'row', alignItems: 'flex-end', padding: 12, borderTopWidth: 1, borderTopColor: '#f3f4f6', backgroundColor: '#ffffff' },
     attachBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
-    input: { flex: 1, backgroundColor: '#f9fafb', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 20, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontSize: 16, maxHeight: 100, minHeight: 44, color: '#1f2937' },
+    input: { flex: 1, backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 20, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontSize: 16, maxHeight: 100, minHeight: 44, color: '#1f2937' },
     sendBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginLeft: 8, marginBottom: 4 },
     sendBtnActive: { backgroundColor: '#8b5cf6' },
     sendBtnInactive: { backgroundColor: '#f3f4f6' },
