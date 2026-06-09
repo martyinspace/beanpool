@@ -125,6 +125,7 @@ export function WelcomePage({ onComplete }: Props) {
     const [pendingIdentity, setPendingIdentity] = useState<BeanPoolIdentity | null>(null);
     const [seedConfirmed, setSeedConfirmed] = useState(false);
     const [pendingInviteCode, setPendingInviteCode] = useState('');
+    const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
     const [showNewUser, setShowNewUser] = useState(() => {
         return false;
     });
@@ -298,7 +299,120 @@ export function WelcomePage({ onComplete }: Props) {
                     padding: '2rem',
                 }}>
                     {/* ===== SEED PHRASE DISPLAY (after create, before confirm) ===== */}
-                    {pendingIdentity?.mnemonic ? (
+                    {pendingIdentity?.mnemonic && showOnboardingGuide ? (
+                        /* ===== ONBOARDING GUIDE (Step 4) ===== */
+                        <>
+                            <h3 className="text-xl font-bold mb-2 text-nature-950 dark:text-oat-50">🫘 Welcome to BeanPool</h3>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+                                Let's look at how this community economy works.
+                            </p>
+
+                            <div className="text-left space-y-4 mb-6" style={{ maxHeight: '350px', overflowY: 'auto', paddingRight: '0.5rem', textAlign: 'left' }}>
+                                {/* Card 1: Energy Exchange */}
+                                <div className="p-4 rounded-xl border border-nature-200 dark:border-nature-800 bg-nature-50/50 dark:bg-nature-950/50">
+                                    <h4 className="font-bold text-sm mb-1 text-nature-950 dark:text-oat-50">⚡ Energy Exchange Marketplace</h4>
+                                    <p className="text-xs text-nature-600 dark:text-nature-400 leading-relaxed">
+                                        BeanPool runs on cooperation, not accumulation. The goal is to keep energy flowing.
+                                    </p>
+                                    <div className="mt-3 p-3 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 text-xs leading-normal">
+                                        🟢 <strong>The best place to be is zero (0 Ʀ).</strong> This means you have given as much value to your community as you have received from it.
+                                    </div>
+                                </div>
+
+                                {/* Card 2: The Ledger Rules */}
+                                <div className="p-4 rounded-xl border border-nature-200 dark:border-nature-800 bg-nature-50/50 dark:bg-nature-950/50 space-y-4">
+                                    <h4 className="font-bold text-sm text-nature-950 dark:text-oat-50">🪙 The Mutual Credit Ledger</h4>
+                                    
+                                    <div className="flex gap-3 items-start">
+                                        <span className="text-lg leading-none">🤝</span>
+                                        <div>
+                                            <h5 className="font-bold text-xs text-nature-850 dark:text-nature-300">Trust-Backed Credit</h5>
+                                            <p className="text-[11px] text-nature-500 dark:text-nature-400 leading-relaxed">
+                                                Every member starts at 0 Ʀ. You can go negative down to -80 Ʀ to request help, backed by community trust. No interest, no bank fees.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3 items-start border-t border-nature-100 dark:border-nature-900 pt-3">
+                                        <span className="text-lg leading-none">🌾</span>
+                                        <div>
+                                            <h5 className="font-bold text-xs text-nature-850 dark:text-nature-300">Community Commons Pool</h5>
+                                            <p className="text-[11px] text-nature-500 dark:text-nature-400 leading-relaxed">
+                                                Positive balances above 200 Ʀ decay by 1.5% monthly (progressive circulation). This prevents hoarding and funds local community projects.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3 items-start border-t border-nature-100 dark:border-nature-900 pt-3">
+                                        <span className="text-lg leading-none">⏱️</span>
+                                        <div>
+                                            <h5 className="font-bold text-xs text-nature-850 dark:text-nature-300">Reference Rate</h5>
+                                            <p className="text-[11px] text-nature-500 dark:text-nature-400 leading-relaxed">
+                                                40 Ʀ represents roughly 1 hour of community service or time, helping you easily value what you offer or need.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Card 3: Safe Handshake Escrow */}
+                                <div className="p-4 rounded-xl border border-nature-200 dark:border-nature-800 bg-nature-50/50 dark:bg-nature-950/50">
+                                    <h4 className="font-bold text-sm mb-1 text-nature-950 dark:text-oat-50">🔒 Locked & Safe Trades</h4>
+                                    <p className="text-xs text-nature-600 dark:text-nature-400 leading-relaxed">
+                                        To ensure fairness, when you accept an offer or request a job, your credits are safely held in a temporary escrow wallet. They are only released to the provider once you confirm delivery.
+                                    </p>
+                                </div>
+
+                                {/* Card 4: Where to Start */}
+                                <div className="p-4 rounded-xl border border-nature-200 dark:border-nature-800 bg-nature-50/50 dark:bg-nature-950/50 space-y-2">
+                                    <h4 className="font-bold text-sm text-nature-950 dark:text-oat-50">🚀 Where to Start?</h4>
+                                    <p className="text-xs text-nature-600 dark:text-nature-400 leading-relaxed">
+                                        📍 Explore the <strong>Map</strong> to find offers (blue) and needs (orange) near you.
+                                    </p>
+                                    <p className="text-xs text-nature-600 dark:text-nature-400 leading-relaxed">
+                                        💬 Tap <strong>Message</strong> on any post to chat securely (E2E encrypted) with neighbors.
+                                    </p>
+                                    <p className="text-xs text-nature-600 dark:text-nature-400 leading-relaxed">
+                                        ➕ Click <strong>Post</strong> to list what you need or what you can offer to the community.
+                                    </p>
+                                    <p className="text-xs text-nature-600 dark:text-nature-400 leading-relaxed">
+                                        💳 Use the <strong>Ledger</strong> tab to send credits to neighbors instantly.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {error && (
+                                <p style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                                    {error}
+                                </p>
+                            )}
+
+                            <button
+                                onClick={handleSeedConfirmed}
+                                disabled={loading}
+                                style={{
+                                    width: '100%', padding: '0.85rem', borderRadius: '10px',
+                                    border: 'none',
+                                    background: loading ? '#555' : '#2563eb',
+                                    color: 'var(--text-primary)', fontSize: '1rem',
+                                    fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
+                                    fontFamily: 'inherit', transition: 'background 0.2s',
+                                }}
+                            >
+                                {loading ? 'Entering...' : "Let's Begin! 🚀"}
+                            </button>
+
+                            <button
+                                onClick={() => { setShowOnboardingGuide(false); setError(null); }}
+                                style={{
+                                    background: 'none', border: 'none',
+                                    color: 'var(--text-muted)', fontSize: '0.85rem',
+                                    cursor: 'pointer', marginTop: '1rem', fontFamily: 'inherit',
+                                }}
+                            >
+                                ← Back to Backup
+                            </button>
+                        </>
+                    ) : pendingIdentity?.mnemonic ? (
                         <>
                             <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>🔑 Your Recovery Phrase</h3>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '1rem', lineHeight: 1.5 }}>
@@ -345,7 +459,7 @@ export function WelcomePage({ onComplete }: Props) {
                             )}
 
                             <button
-                                onClick={handleSeedConfirmed}
+                                onClick={() => setShowOnboardingGuide(true)}
                                 disabled={!seedConfirmed || loading}
                                 style={{
                                     width: '100%', padding: '0.85rem', borderRadius: '10px',
@@ -356,7 +470,7 @@ export function WelcomePage({ onComplete }: Props) {
                                     fontFamily: 'inherit', transition: 'background 0.2s',
                                 }}
                             >
-                                {loading ? 'Continuing...' : 'Continue →'}
+                                Continue →
                             </button>
                         </>
                     ) : showRecovery ? (

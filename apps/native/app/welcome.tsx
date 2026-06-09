@@ -22,7 +22,7 @@ export default function WelcomeScreen() {
     const params = useGlobalSearchParams();
     const incomingUrl = Linking.useURL();
     const { setIdentity } = useIdentity();
-    const [mode, setMode] = useState<'home' | 'member' | 'create' | 'recover' | 'import' | 'profileSetup' | 'seedBackup'>('home');
+    const [mode, setMode] = useState<'home' | 'member' | 'create' | 'recover' | 'import' | 'profileSetup' | 'seedBackup' | 'onboardingGuide'>('home');
     const [callsign, setCallsign] = useState('');
     const [recoveryWords, setRecoveryWords] = useState<string[]>(Array(12).fill(''));
     const [recoveryCallsign, setRecoveryCallsign] = useState('');
@@ -249,8 +249,8 @@ export default function WelcomeScreen() {
     }
 
     // --- Onboarding Progress Stepper ---
-    function OnboardingStepper({ step }: { step: 1 | 2 | 3 }) {
-        const steps = ['Your Name', 'Your Photo', 'Safety Backup'];
+    function OnboardingStepper({ step }: { step: 1 | 2 | 3 | 4 }) {
+        const steps = ['Your Name', 'Your Photo', 'Safety Backup', 'How it Works'];
         return (
             <View style={stepperStyles.container}>
                 {steps.map((label, i) => {
@@ -493,9 +493,9 @@ export default function WelcomeScreen() {
                         <Pressable
                             style={[styles.primaryBtn, !seedConfirmed && styles.disabledBtn]}
                             disabled={!seedConfirmed || loading}
-                            onPress={handleConfirmSeed}
+                            onPress={() => setMode('onboardingGuide')}
                         >
-                            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Enter BeanPool →</Text>}
+                            <Text style={styles.primaryBtnText}>Next →</Text>
                         </Pressable>
 
                         <Pressable
@@ -504,6 +504,111 @@ export default function WelcomeScreen() {
                             disabled={loading}
                         >
                             <Text style={styles.backBtnText}>← Back</Text>
+                        </Pressable>
+                    </View>
+                </ScrollView>
+            </SafeAreaView>
+        );
+    }
+
+    // --- STEP 4: ONBOARDING GUIDE (What is BeanPool & ledger rules) ---
+    if (mode === 'onboardingGuide' && pendingIdentity) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <StatusBar style="dark" />
+                <ScrollView contentContainerStyle={styles.scroll}>
+                    <OnboardingStepper step={4} />
+                    <View style={styles.card}>
+                        <Text style={styles.title}>🫘 Welcome to BeanPool</Text>
+                        <Text style={styles.subtitle}>
+                            Let's look at how this community economy works.
+                        </Text>
+
+                        {/* Card 1: Energy Exchange */}
+                        <View style={guideStyles.card}>
+                            <Text style={guideStyles.cardTitle}>⚡ Energy Exchange Marketplace</Text>
+                            <Text style={guideStyles.cardText}>
+                                BeanPool runs on cooperation, not accumulation. The goal is to keep energy flowing.
+                            </Text>
+                            <View style={guideStyles.highlightBox}>
+                                <Text style={guideStyles.highlightText}>
+                                    🟢 <Text style={{ fontWeight: 'bold' }}>The best place to be is zero (0 Ʀ).</Text> This means you have given as much value to your community as you have received from it.
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Card 2: The Ledger Rules */}
+                        <View style={guideStyles.card}>
+                            <Text style={guideStyles.cardTitle}>🪙 The Mutual Credit Ledger</Text>
+                            
+                            <View style={guideStyles.bulletRow}>
+                                <Text style={guideStyles.bulletEmoji}>🤝</Text>
+                                <View style={guideStyles.bulletContent}>
+                                    <Text style={guideStyles.bulletTitle}>Trust-Backed Credit</Text>
+                                    <Text style={guideStyles.bulletText}>
+                                        Every member starts at 0 Ʀ. You can go negative down to -80 Ʀ to request help, backed by community trust. No interest, no bank fees.
+                                    </Text>
+                                </View>
+                            </View>
+
+                            <View style={guideStyles.bulletRow}>
+                                <Text style={guideStyles.bulletEmoji}>🌾</Text>
+                                <View style={guideStyles.bulletContent}>
+                                    <Text style={guideStyles.bulletTitle}>Community Commons Pool</Text>
+                                    <Text style={guideStyles.bulletText}>
+                                        Positive balances above 200 Ʀ decay by 1.5% monthly (progressive circulation). This prevents hoarding and funds local community projects.
+                                    </Text>
+                                </View>
+                            </View>
+
+                            <View style={guideStyles.bulletRow}>
+                                <Text style={guideStyles.bulletEmoji}>⏱️</Text>
+                                <View style={guideStyles.bulletContent}>
+                                    <Text style={guideStyles.bulletTitle}>Reference Rate</Text>
+                                    <Text style={guideStyles.bulletText}>
+                                        40 Ʀ represents roughly 1 hour of community service or time, helping you easily value what you offer or need.
+                                    </Text>
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* Card 3: Safe Handshake Escrow */}
+                        <View style={guideStyles.card}>
+                            <Text style={guideStyles.cardTitle}>🔒 Locked & Safe Trades</Text>
+                            <Text style={guideStyles.cardText}>
+                                To ensure fairness, when you accept an offer or request a job, your credits are safely held in a temporary escrow wallet. They are only released to the provider once you confirm delivery.
+                            </Text>
+                        </View>
+
+                        {/* Card 4: Where to Start */}
+                        <View style={guideStyles.card}>
+                            <Text style={guideStyles.cardTitle}>🚀 Where to Start?</Text>
+                            <Text style={guideStyles.bulletItem}>📍 Explore the <Text style={{ fontWeight: 'bold' }}>Map</Text> to find offers (blue) and needs (orange) near you.</Text>
+                            <Text style={guideStyles.bulletItem}>💬 Tap <Text style={{ fontWeight: 'bold' }}>Message</Text> on any post to chat securely (E2E encrypted) with neighbors.</Text>
+                            <Text style={guideStyles.bulletItem}>➕ Click <Text style={{ fontWeight: 'bold' }}>Post</Text> to list what you need or what you can offer to the community.</Text>
+                            <Text style={guideStyles.bulletItem}>💳 Use the <Text style={{ fontWeight: 'bold' }}>Ledger</Text> tab to send credits to neighbors instantly.</Text>
+                        </View>
+
+                        {error && <Text style={styles.error}>{error}</Text>}
+
+                        <Pressable
+                            style={[styles.primaryBtn, loading && styles.disabledBtn]}
+                            disabled={loading}
+                            onPress={handleConfirmSeed}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="#fff" />
+                            ) : (
+                                <Text style={styles.primaryBtnText}>Let's Begin! 🚀</Text>
+                            )}
+                        </Pressable>
+
+                        <Pressable
+                            style={styles.backBtn}
+                            onPress={() => { setMode('seedBackup'); setError(null); }}
+                            disabled={loading}
+                        >
+                            <Text style={styles.backBtnText}>← Back to Backup</Text>
                         </Pressable>
                     </View>
                 </ScrollView>
@@ -955,13 +1060,78 @@ const stepperStyles = StyleSheet.create({
         fontWeight: '700',
     },
     line: {
-        width: 32,
+        width: 20,
         height: 2,
         backgroundColor: '#d1d5db',
         marginBottom: 18,
-        marginHorizontal: 4,
+        marginHorizontal: 2,
     },
     lineActive: {
         backgroundColor: '#22c55e',
     },
+});
+
+const guideStyles = StyleSheet.create({
+    card: {
+        backgroundColor: '#f9fafb',
+        borderWidth: 1,
+        borderColor: '#e5e7eb',
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 16,
+    },
+    cardTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#1f2937',
+        marginBottom: 8,
+    },
+    cardText: {
+        fontSize: 14,
+        color: '#4b5563',
+        lineHeight: 20,
+    },
+    highlightBox: {
+        backgroundColor: 'rgba(34, 197, 94, 0.08)',
+        borderWidth: 1,
+        borderColor: 'rgba(34, 197, 94, 0.2)',
+        borderRadius: 8,
+        padding: 12,
+        marginTop: 10,
+    },
+    highlightText: {
+        fontSize: 13,
+        color: '#166534',
+        lineHeight: 18,
+    },
+    bulletRow: {
+        flexDirection: 'row',
+        marginTop: 12,
+        alignItems: 'flex-start',
+    },
+    bulletEmoji: {
+        fontSize: 18,
+        marginRight: 10,
+        marginTop: 2,
+    },
+    bulletContent: {
+        flex: 1,
+    },
+    bulletTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#374151',
+        marginBottom: 2,
+    },
+    bulletText: {
+        fontSize: 13,
+        color: '#6b7280',
+        lineHeight: 18,
+    },
+    bulletItem: {
+        fontSize: 13,
+        color: '#4b5563',
+        lineHeight: 18,
+        marginBottom: 8,
+    }
 });
