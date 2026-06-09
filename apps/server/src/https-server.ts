@@ -1254,13 +1254,13 @@ export async function startHttpsServer(port: number): Promise<void> {
     });
 
     router.post('/api/messages/send', async (ctx) => {
-        const { conversationId, authorPubkey, ciphertext, nonce, type, attachment } = (ctx as any).requestBody || {};
+        const { conversationId, authorPubkey, ciphertext, nonce, type, attachment, metadata } = (ctx as any).requestBody || {};
         if (!conversationId || !authorPubkey || !ciphertext || !nonce) {
             ctx.status = 400;
             ctx.body = { error: 'conversationId, authorPubkey, ciphertext, and nonce are required' };
             return;
         }
-        const msg = sendMessage(conversationId, authorPubkey, ciphertext, nonce, type === 'image' ? 'image' : 'text', attachment);
+        const msg = sendMessage(conversationId, authorPubkey, ciphertext, nonce, type === 'image' ? 'image' : 'text', attachment, metadata);
         if (!msg) {
             ctx.status = 400;
             ctx.body = { error: 'Failed to send — conversation not found or not a participant' };
@@ -1295,7 +1295,8 @@ export async function startHttpsServer(port: number): Promise<void> {
                                     senderNodeUrl: localUrl,
                                     recipientPublicKey: otherPubkey,
                                     ciphertext,
-                                    nonce
+                                    nonce,
+                                    metadata
                                 }).catch(e => console.warn('[Federation] Failed to relay message to remote peer:', e.message));
                             }
                         }

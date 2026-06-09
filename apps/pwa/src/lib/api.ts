@@ -250,8 +250,9 @@ export async function sendMessageApi(
     nonce: string,
     type?: 'text' | 'image',
     attachment?: MessageAttachment,
+    metadata?: string,
 ): Promise<{ success: boolean; message: ApiMessage }> {
-    return request('POST', '/api/messages/send', { conversationId, authorPubkey, ciphertext, nonce, type, attachment });
+    return request('POST', '/api/messages/send', { conversationId, authorPubkey, ciphertext, nonce, type, attachment, metadata });
 }
 
 export async function getConversations(publicKey: string): Promise<{ conversations: Conversation[]; totalUnread: number }> {

@@ -1900,13 +1900,13 @@ export function createConversation(type: 'dm' | 'group', participants: string[],
     return conv;
 }
 
-export function sendMessage(conversationId: string, authorPubkey: string, ciphertext: string, nonce: string, type: 'text' | 'image' = 'text', attachment?: { data: string; nonce: string; mime?: string }): Message | null {
+export function sendMessage(conversationId: string, authorPubkey: string, ciphertext: string, nonce: string, type: 'text' | 'image' = 'text', attachment?: { data: string; nonce: string; mime?: string }, metadata?: string): Message | null {
     assertMemberActive(authorPubkey);
     const participants = db.prepare("SELECT public_key FROM conversation_participants WHERE conversation_id=?").all(conversationId) as any[];
     if (!participants.length || !participants.find(p => p.public_key === authorPubkey)) return null;
 
-    const msg: Message = { id: crypto.randomUUID(), conversationId, authorPubkey, ciphertext, nonce, type, timestamp: new Date().toISOString() };
-    db.prepare(`INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(msg.id, msg.conversationId, msg.authorPubkey, msg.ciphertext, msg.nonce, msg.type, msg.timestamp);
+    const msg: Message = { id: crypto.randomUUID(), conversationId, authorPubkey, ciphertext, nonce, type, metadata, timestamp: new Date().toISOString() };
+    db.prepare(`INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, metadata, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(msg.id, msg.conversationId, msg.authorPubkey, msg.ciphertext, msg.nonce, msg.type, msg.metadata, msg.timestamp);
     // Store the encrypted image blob separately so it lazy-loads (kept out of the message feed).
     if (attachment?.data && attachment?.nonce) {
         db.prepare(`INSERT INTO message_attachments (message_id, data, nonce, mime) VALUES (?, ?, ?, ?)`).run(msg.id, attachment.data, attachment.nonce, attachment.mime || 'image/jpeg');

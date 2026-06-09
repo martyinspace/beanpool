@@ -81,6 +81,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
     const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const pollRef = useRef<number | null>(null);
+    const [replyToMessage, setReplyToMessage] = useState<ApiMessage | null>(null);
 
     useEffect(() => {
         loadConversations();
@@ -90,6 +91,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
 
     useEffect(() => {
         if (activeConv) {
+            setReplyToMessage(null);
             loadMessages(activeConv.id);
             // Mark conversation as read when opened
             markConversationReadApi(identity.publicKey, activeConv.id).catch(() => {});
@@ -189,10 +191,15 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
         try {
             const ctx = dmCtxFor(activeConv);
             const { ciphertext, nonce } = ctx ? encryptDM(draft.trim(), ctx) : encodePlaintext(draft.trim());
+            let metadata: string | undefined = undefined;
+            if (replyToMessage) {
+                metadata = JSON.stringify({ replyToId: replyToMessage.id });
+            }
             // 1. Store locally (Server will handle Libp2p federation relay automatically)
-            await sendMessageApi(activeConv.id, identity.publicKey, ciphertext, nonce);
+            await sendMessageApi(activeConv.id, identity.publicKey, ciphertext, nonce, undefined, undefined, metadata);
 
             setDraft('');
+            setReplyToMessage(null);
             await loadMessages(activeConv.id);
         } catch (err: any) {
             alert(err.message || 'Failed to send message');
@@ -210,8 +217,13 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
             const dataUri = await resizeImageToDataUri(file, 1000, 0.7);
             const encImg = encryptDM(dataUri, ctx);   // big blob -> lazy attachment
             const encCap = encryptDM('', ctx);          // empty caption -> message body
+            let metadata: string | undefined = undefined;
+            if (replyToMessage) {
+                metadata = JSON.stringify({ replyToId: replyToMessage.id });
+            }
             await sendMessageApi(activeConv.id, identity.publicKey, encCap.ciphertext, encCap.nonce, 'image',
-                { data: encImg.ciphertext, nonce: encImg.nonce, mime: 'image/jpeg' });
+                { data: encImg.ciphertext, nonce: encImg.nonce, mime: 'image/jpeg' }, metadata);
+            setReplyToMessage(null);
             await loadMessages(activeConv.id);
         } catch (err: any) {
             alert(err.message || 'Failed to send image');
@@ -519,6 +531,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                         return (
                             <div
                                 key={msg.id}
+                                id={`msg-${msg.id}`}
                                 style={{
                                     alignSelf: isMe ? 'flex-end' : 'flex-start',
                                     maxWidth: '80%',
@@ -542,6 +555,53 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                     border: isMe ? 'none' : '1px solid var(--border-primary)',
                                     wordBreak: 'break-word',
                                 }}>
+                                    {(() => {
+                                        let metaObj: any = null;
+                                        try {
+                                            if (msg.metadata) metaObj = JSON.parse(msg.metadata);
+                                        } catch {}
+                                        
+                                        if (metaObj && metaObj.replyToId) {
+                                            const parentMsg = messages.find(m => m.id === metaObj.replyToId);
+                                            const parentText = parentMsg ? (parentMsg.type === 'image' ? '🔒 Photo' : decryptMessage(parentMsg)) : 'Message not found';
+                                            const parentAuthor = parentMsg 
+                                                ? (members.find(m => m.publicKey === parentMsg.authorPubkey)?.callsign 
+                                                   || (parentMsg.authorPubkey === identity.publicKey ? 'You' : parentMsg.authorPubkey.substring(0, 8))) 
+                                                : 'Someone';
+                                            return (
+                                                <div 
+                                                    style={{
+                                                        background: isMe ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0.04)',
+                                                        borderLeft: `3px solid ${isMe ? '#fff' : 'var(--accent)'}`,
+                                                        padding: '4px 8px',
+                                                        borderRadius: '4px',
+                                                        marginBottom: '6px',
+                                                        fontSize: '0.8rem',
+                                                        opacity: 0.85,
+                                                        cursor: 'pointer',
+                                                    }} 
+                                                    onClick={() => {
+                                                        const el = document.getElementById(`msg-${metaObj.replyToId}`);
+                                                        if (el) {
+                                                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                            el.style.transition = 'background-color 0.5s';
+                                                            const origBg = el.style.backgroundColor;
+                                                            el.style.backgroundColor = 'var(--bg-hover)';
+                                                            setTimeout(() => { el.style.backgroundColor = origBg; }, 1500);
+                                                        }
+                                                    }}
+                                                >
+                                                    <div style={{ fontWeight: 700, fontSize: '0.75rem', color: isMe ? '#fff' : 'var(--accent)', marginBottom: '2px' }}>
+                                                        {parentAuthor}
+                                                    </div>
+                                                    <div style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '280px' }}>
+                                                        {parentText}
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                     {msg.type === 'image' ? (() => {
                                         const ctx = dmCtxFor(activeConv);
                                         if (!ctx) return <span style={{ fontStyle: 'italic', opacity: 0.7 }}>🔒 Image</span>;
@@ -563,12 +623,43 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                             </span>
                                         );
                                     })()}
+                                    <span
+                                        onClick={() => setReplyToMessage(msg)}
+                                        style={{ marginLeft: '8px', cursor: 'pointer', color: 'var(--accent)', fontWeight: 600 }}
+                                    >
+                                        Reply
+                                    </span>
                                 </div>
                             </div>
                         );
                     })}
                     <div ref={messagesEndRef} />
                 </div>
+
+                {/* Reply Preview */}
+                {replyToMessage && (
+                    <div style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '0.5rem 1rem', background: 'var(--bg-secondary)',
+                        borderTop: '1px solid var(--border-primary)',
+                        fontSize: '0.85rem', color: 'var(--text-secondary)'
+                    }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderLeft: '3px solid var(--accent)', paddingLeft: '8px' }}>
+                            <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--accent)' }}>
+                                Replying to {replyToMessage.authorPubkey === identity.publicKey ? 'You' : (members.find(m => m.publicKey === replyToMessage.authorPubkey)?.callsign || 'Someone')}
+                            </div>
+                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>
+                                {replyToMessage.type === 'image' ? '🔒 Photo' : decryptMessage(replyToMessage)}
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setReplyToMessage(null)}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1rem', padding: '4px' }}
+                        >
+                            ✕
+                        </button>
+                    </div>
+                )}
 
                 {/* Send bar */}
                 <div style={{

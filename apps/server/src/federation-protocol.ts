@@ -120,7 +120,7 @@ export function registerFederationHandler(node: Libp2p): void {
                 }
             } 
             else if (request.action === 'relay_message') {
-                const { senderPublicKey, senderCallsign, senderNodeUrl, recipientPublicKey, ciphertext, nonce } = request;
+                const { senderPublicKey, senderCallsign, senderNodeUrl, recipientPublicKey, ciphertext, nonce, metadata } = request;
 
                 if (!senderPublicKey || !recipientPublicKey || !ciphertext || !nonce) {
                     response = { error: 'Missing required payload fields' };
@@ -136,7 +136,7 @@ export function registerFederationHandler(node: Libp2p): void {
                         
                         const conversation = createConversation('dm', [senderPublicKey, recipientPublicKey], senderPublicKey);
                         if (conversation) {
-                            const message = sendMessage(conversation.id, senderPublicKey, ciphertext, nonce);
+                            const message = sendMessage(conversation.id, senderPublicKey, ciphertext, nonce, 'text', undefined, metadata);
                             if (message) {
                                 console.log(`📨 Federation libp2p relay: ${senderCallsign || senderPublicKey.substring(0, 8)} → ${recipient.callsign}`);
                                 response = { success: true, conversationId: conversation.id, messageId: message.id };
@@ -191,7 +191,7 @@ export async function federatedVerifyMember(node: Libp2p, targetPeerId: any, pub
 export async function federatedRelayMessage(
     node: Libp2p, 
     targetPeerId: any, 
-    payload: { senderPublicKey: string; senderCallsign?: string; senderNodeUrl?: string; recipientPublicKey: string; ciphertext: string; nonce: string; }
+    payload: { senderPublicKey: string; senderCallsign?: string; senderNodeUrl?: string; recipientPublicKey: string; ciphertext: string; nonce: string; metadata?: string; }
 ): Promise<any> {
     let stream: any = null;
     try {

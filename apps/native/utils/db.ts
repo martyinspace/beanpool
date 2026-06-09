@@ -1843,7 +1843,7 @@ export async function getMessages(conversationId: string) {
     });
 }
 
-export async function insertMessage(conversationId: string, authorPubkey: string, text: string) {
+export async function insertMessage(conversationId: string, authorPubkey: string, text: string, metadata?: string) {
     const database = await getDb();
 
     // E2E-encrypt direct messages (NAT-1). Falls back to legacy plaintext-v1 for
@@ -1877,7 +1877,8 @@ export async function insertMessage(conversationId: string, authorPubkey: string
         conversationId,
         authorPubkey,
         ciphertext,
-        nonce
+        nonce,
+        metadata
     };
     const bodyString = JSON.stringify(body);
     const headers = await buildSignedHeaders('POST', '/api/messages/send', bodyString, identity.privateKey, identity.publicKey);
@@ -1910,8 +1911,8 @@ export async function insertMessage(conversationId: string, authorPubkey: string
         
         // Safely write to physical storage since the node accepted it using the Server-vetted UUID
         await database.runAsync(
-            'INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
-            [serverMsg.id, conversationId, authorPubkey, ciphertext, nonce, serverMsg.timestamp]
+            'INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, metadata, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [serverMsg.id, conversationId, authorPubkey, ciphertext, nonce, metadata || null, serverMsg.timestamp]
         );
         
     } catch (e: any) {
@@ -1924,7 +1925,7 @@ export async function insertMessage(conversationId: string, authorPubkey: string
  * DM key and uploaded as a separate blob (lazy-loaded), so the node only ever holds
  * ciphertext and the message feed stays light. DM-only — encryption requires a peer key.
  */
-export async function sendImageMessage(conversationId: string, dataUri: string, caption: string = '') {
+export async function sendImageMessage(conversationId: string, dataUri: string, caption: string = '', metadata?: string) {
     const database = await getDb();
     const dmCtx = await getDmKeyContext(conversationId);
     if (!dmCtx) throw new Error('Photos can only be sent in direct messages.');
@@ -1944,6 +1945,7 @@ export async function sendImageMessage(conversationId: string, dataUri: string, 
         nonce: encCap.nonce,
         type: 'image',
         attachment: { data: encImg.ciphertext, nonce: encImg.nonce, mime: 'image/jpeg' },
+        metadata
     };
     const bodyString = JSON.stringify(body);
     const headers = await buildSignedHeaders('POST', '/api/messages/send', bodyString, identity.privateKey, identity.publicKey);
@@ -1955,8 +1957,8 @@ export async function sendImageMessage(conversationId: string, dataUri: string, 
     }
     const serverMsg = (await res.json()).message;
     await database.runAsync(
-        'INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [serverMsg.id, conversationId, identity.publicKey, encCap.ciphertext, encCap.nonce, 'image', serverMsg.timestamp]
+        'INSERT INTO messages (id, conversation_id, author_pubkey, ciphertext, nonce, type, metadata, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [serverMsg.id, conversationId, identity.publicKey, encCap.ciphertext, encCap.nonce, 'image', metadata || null, serverMsg.timestamp]
     );
 }
 

@@ -46,6 +46,7 @@ export default function ChatScreen() {
     const [actionLoading, setActionLoading] = useState(false);
     const [promptReviewForTx, setPromptReviewForTx] = useState<{ txId: string; targetPubkey: string; targetCallsign: string } | null>(null);
     const [ratedPostIds, setRatedPostIds] = useState<Set<string>>(new Set());
+    const [replyToMessage, setReplyToMessage] = useState<any | null>(null);
     const flatListRef = useRef<FlatList>(null);
     const insets = useSafeAreaInsets();
     const sendingRef = useRef(false);
@@ -122,6 +123,7 @@ export default function ChatScreen() {
 
     useFocusEffect(
         useCallback(() => {
+            setReplyToMessage(null);
             let interval: ReturnType<typeof setInterval>;
             promptedRef.current = false;
             
@@ -184,7 +186,12 @@ export default function ChatScreen() {
         try {
             const currentDraft = draft.trim();
             setDraft('');
-            await insertMessage(id as string, identity.publicKey, currentDraft);
+            let metadata: string | undefined = undefined;
+            if (replyToMessage) {
+                metadata = JSON.stringify({ replyToId: replyToMessage.id });
+            }
+            await insertMessage(id as string, identity.publicKey, currentDraft, metadata);
+            setReplyToMessage(null);
             loadMessages();
         } catch (err: any) {
             Alert.alert("Message Failed", err.message || "Could not execute send.");
@@ -204,7 +211,12 @@ export default function ChatScreen() {
                     { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
                 );
                 if (!manip.base64) throw new Error('Could not process image.');
-                await sendImageMessage(id as string, `data:image/jpeg;base64,${manip.base64}`);
+                let metadata: string | undefined = undefined;
+                if (replyToMessage) {
+                    metadata = JSON.stringify({ replyToId: replyToMessage.id });
+                }
+                await sendImageMessage(id as string, `data:image/jpeg;base64,${manip.base64}`, '', metadata);
+                setReplyToMessage(null);
                 hapticSuccess();
                 loadMessages();
             } catch (err: any) {
@@ -447,7 +459,7 @@ export default function ChatScreen() {
         };
 
         const handleReplyPress = () => {
-            Alert.alert("Reply", "Reply feature is under development.");
+            setReplyToMessage(item);
             setActiveMessageActionsId(null);
         };
 
@@ -504,6 +516,36 @@ export default function ChatScreen() {
                             { position: 'relative', zIndex: 1 }
                         ]}
                     >
+                        {item.metadata?.replyToId && (() => {
+                            const parentMsg = messages.find(m => m.id === item.metadata.replyToId);
+                            const parentText = parentMsg ? (parentMsg.type === 'image' ? '🔒 Photo' : parentMsg.text) : 'Message not found';
+                            const parentAuthor = parentMsg ? (parentMsg.senderId === identity?.publicKey ? 'You' : (peerName || 'Someone')) : 'Someone';
+                            return (
+                                <Pressable
+                                    onPress={() => {
+                                        const index = messages.findIndex(m => m.id === item.metadata.replyToId);
+                                        if (index > -1) {
+                                            try {
+                                                flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+                                            } catch (e) {
+                                                console.warn(e);
+                                            }
+                                        }
+                                    }}
+                                    style={[
+                                        styles.quoteContainer,
+                                        isMe ? styles.quoteMe : styles.quoteOther
+                                    ]}
+                                >
+                                    <Text style={[styles.quoteAuthor, isMe ? styles.quoteAuthorMe : styles.quoteAuthorOther]}>
+                                        {parentAuthor}
+                                    </Text>
+                                    <Text style={[styles.quoteText, isMe ? styles.quoteTextMe : styles.quoteTextOther]} numberOfLines={1}>
+                                        {parentText}
+                                    </Text>
+                                </Pressable>
+                            );
+                        })()}
                         {item.type === 'image' ? (
                             <>
                                 <ChatImage conversationId={id as string} messageId={item.id} />
@@ -664,6 +706,25 @@ export default function ChatScreen() {
                         setActiveEmojiPickerId(null);
                     }}
                 />
+
+                {/* Reply Preview */}
+                {replyToMessage && (
+                    <View style={styles.replyPreviewContainer}>
+                        <View style={styles.replyPreviewBar}>
+                            <View style={{ flex: 1, borderLeftWidth: 3, borderLeftColor: '#8b5cf6', paddingLeft: 8 }}>
+                                <Text style={styles.replyPreviewAuthor}>
+                                    Replying to {replyToMessage.senderId === identity?.publicKey ? 'You' : (peerName || 'Someone')}
+                                </Text>
+                                <Text style={styles.replyPreviewText} numberOfLines={1}>
+                                    {replyToMessage.type === 'image' ? '🔒 Photo' : replyToMessage.text}
+                                </Text>
+                            </View>
+                            <Pressable onPress={() => setReplyToMessage(null)} style={styles.replyPreviewClose}>
+                                <MaterialCommunityIcons name="close" size={20} color="#6b7280" />
+                            </Pressable>
+                        </View>
+                    </View>
+                )}
 
                 {/* Input Area */}
                 <View style={[styles.inputContainer, { paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 12) : 12 }]}>
@@ -855,5 +916,66 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '600',
         color: '#374151',
+    },
+    // Reply & Quotes styling
+    replyPreviewContainer: {
+        backgroundColor: '#f9fafb',
+        borderTopWidth: 1,
+        borderTopColor: '#e5e7eb',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+    },
+    replyPreviewBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    replyPreviewAuthor: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#8b5cf6',
+        marginBottom: 2,
+    },
+    replyPreviewText: {
+        fontSize: 14,
+        color: '#4b5563',
+    },
+    replyPreviewClose: {
+        padding: 4,
+    },
+    quoteContainer: {
+        padding: 8,
+        borderRadius: 8,
+        marginBottom: 6,
+        borderLeftWidth: 3,
+        maxWidth: '100%',
+    },
+    quoteMe: {
+        backgroundColor: 'rgba(0, 0, 0, 0.15)',
+        borderLeftColor: '#ffffff',
+    },
+    quoteOther: {
+        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+        borderLeftColor: '#8b5cf6',
+    },
+    quoteAuthor: {
+        fontSize: 11,
+        fontWeight: '700',
+        marginBottom: 2,
+    },
+    quoteAuthorMe: {
+        color: '#ffffff',
+    },
+    quoteAuthorOther: {
+        color: '#8b5cf6',
+    },
+    quoteText: {
+        fontSize: 13,
+    },
+    quoteTextMe: {
+        color: 'rgba(255, 255, 255, 0.9)',
+    },
+    quoteTextOther: {
+        color: '#4b5563',
     },
 });
