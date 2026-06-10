@@ -15,9 +15,9 @@ Each participant generates an **Ed25519 keypair** locally on their device. There
 
 ### 1.2 Economics (Mutual Credit + Circulation Fee)
 A peer-to-peer economic layer designed to encourage circulation rather than accumulation.
-*   **Mutual Credit**: Participants begin with 0.00 credits and a guaranteed credit floor of `−100Ʀ`. This enables immediate participation — you can contribute value before receiving it.
+*   **Mutual Credit**: Participants begin with 0.00 credits and a guaranteed credit floor of `-100 Beans`. This enables immediate participation — you can contribute value before receiving it.
 *   **Community Circulation Fee (Decay)**: Positive balances decay progressively based on abundance (0.5% - 2.5% per month). The circulated value is swept into a shared `COMMONS_BALANCE`, funding community projects via governance proposals.
-*   **Tax-Free Green Zone**: Balances between 0 and 200 Ʀ are exempt (0% fee) from circulation fee decay to encourage early economic participation.
+*   **Tax-Free Green Zone**: Balances between 0 and 200 Beans are exempt (0% fee) from circulation fee decay to encourage early economic participation.
 *   **Escrow Settlement**: Marketplace deals utilize atomic `escrow_{id}` synthetic wallets to lock funds prior to service delivery, guaranteeing robust refunds on cancellation without double-charging base ledgers.
 *   **Escrow Demurrage Exemption**: Funds currently locked inside active synthetic escrow wallets are entirely exempt from circulation decay.
 

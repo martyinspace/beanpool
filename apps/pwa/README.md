@@ -10,7 +10,7 @@
 - **Marketplace:** 13-category Deals Hub with "My Market" segment controls, radius filters, MyDeals modal, category picker, trust badges, unread inbound request counters, Given review editing, **synonym-expanded search** (417-entry map), and **blocked user filtering**.
 - **Messaging (Chat):** Direct messages and group chats representing Transactional CRM (smart mapping to parent marketplace posts) with real E2E-encrypted messaging (Noise/X25519/AES-GCM), sent/read receipts, and encrypted photo attachments.
 - **People:** Community browser with **search filter**, avatar circles, relative date formatting, 💬 message button on friends, Invites (hierarchical code management), and Guardians.
-- **Ledger:** Mutual credit balances, transaction fee warnings, solvency transparency, 0% fee Green Zone (0–200 Ʀ), and CSV export.
+- **Ledger:** Mutual credit balances, transaction fee warnings, solvency transparency, 0% fee Green Zone (0–200 Beans), and CSV export.
 - **Profile:** Editable profiles with camera/gallery avatar uploads, callsigns, bios, and 3-tier visibility settings.
 - **Identity:** Deterministic Ed25519 identity generation and 12-word seed phrase recovery locally stored in IndexedDB.
 - **Security:** Private key viewer (reveal/hide + copy), identity wipe with double-confirm, and backup reminder.

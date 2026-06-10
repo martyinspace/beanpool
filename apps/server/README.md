@@ -215,7 +215,7 @@ Navigate to `https://your-node/settings.html` and log in with the password you s
 
 #### 2. Create the Genesis Block
 1. Go to Settings → choose a **community name**
-2. Set the **initial credit limit** (how many Ʀ credits each member can go into debt)
+2. Set the **initial credit limit** (how many Beans each member can go into debt)
 3. Click **Initialize** — this creates the immutable genesis block
 
 #### 3. Configure Community Info

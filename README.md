@@ -33,7 +33,7 @@ Full-screen Leaflet/OSM map as the landing page:
 
 ### 🤝 Marketplace
 13-category peer-to-peer bazaar:
-- Create posts (offer/need, category, title, description, Ʀ pricing, location pin, up to 3 photos)
+- Create posts (offer/need, category, title, description, Beans pricing, location pin, up to 3 photos)
 - **Branching Escrow Handshake** — Atomic smart-contract style settlement:
   - **Needs (3-step):** Requesters bid on jobs → Author approves → Escrow locks → Author releases funds on completion.
   - **Offers (1-step):** Requesters accept → Escrow immediately locks → Requester releases funds on completion.
@@ -129,7 +129,7 @@ Mutual credit balance and transaction history:
 - **Commons Pool** display (funds from progressive circulation)
 - **Transaction history** with sent/received indicators
 - **Solvency Transparency**: Interactive modals showing community-wide ledger solvency statistics.
-- **Tax/Fee Notices & Green Zone**: Detailed 1.5% circulation fee notices and a 0% circulation fee "Green Zone" on balances between 0 and 200 Ʀ.
+- **Tax/Fee Notices & Green Zone**: Detailed 1.5% circulation fee notices and a 0% circulation fee "Green Zone" on balances between 0 and 200 Beans.
 - **Transaction Fee Renames**: Renaming of "transaction tax" references to "transaction fee" across ledger components.
 
 ### 💚 Community Health Dashboard
@@ -357,9 +357,9 @@ All endpoints are served on port 8443 (HTTPS):
 > 📖 Full specification: **[Protocol Rules](docs/protocol-rules.md)** — the complete rule book for the BeanPool Social Capital Ledger.
 
 - **Mutual Credit** — participants can go negative, backed by community trust. No money supply — the network sum is always zero.
-- **Dynamic Credit Floor** — borrowing limit grows with trade history: `floor = -80 - min(1920, trades×8 + partners×40 + age×2)`. New members start at −80 Ʀ, veterans cap at −2000 Ʀ.
+- **Dynamic Credit Floor** — borrowing limit grows with trade history: `floor = -80 - min(1920, trades×8 + partners×40 + age×2)`. New members start at −80 Beans, veterans cap at −2000 Beans.
 
-- **Reference Rate** — 40 Ʀ = 1 hour of community time. Hour equivalents shown throughout the app for value intuition.
+- **Reference Rate** — 40 Beans = 1 hour of community time. Hour equivalents shown throughout the app for value intuition.
 - **Identity Tiers** — Ghost 👻 → Resident 🏠 → Citizen 🏛️ → Elder 👑. Ghosts can only trade via marketplace escrow; no direct transfers, no invitations.
 - **Anti-Sybil (KYH)** — Know Your History, not KYC. Three layers: Ghosts can't gift (friction), Ghosts can't invite (chain-break), diverse partner requirement (no wash-trading).
 - **Community Circulation (Progressive Brackets)** — positive balances decay progressively based on abundance (0.5% up to 2.5% per month), returning to the Commons Pool
@@ -490,7 +490,7 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 - ✅ Release v1.0.77 SQLite Database Restoration — Restored SQLite database state on the `test.beanpool.org` node using simulator datasets to recover 28 members, 21 posts, and 24 messages.
 - ✅ Release v1.0.77 "Never" Sync Schedule — Added a "Never (Disabled)" option to Directory settings, allowing admins to completely bypass periodic directory pushes.
 - ✅ Production EAS Native Builds (v1.0.76-b97) — Successfully generated production iOS ipa bundle and Android aab bundle, distributing them to local and desktop build stores.
-- ✅ Global Mesh Node Deployment — Automated and verified the global mesh deployment of version `v1.0.77` using `deploy.sh` across all 4 mesh nodes (`mullum1.beanpool.org`, `mullum2.beanpool.org`, `review.beanpool.org`, and `test.beanpool.org`) with valid Let's Encrypt TLS certificates.
+- ✅ Global Mesh Node Deployment — Automated and verified the global mesh deployment of version `v1.1.29` using `deploy.sh` across all 4 mesh nodes (`mullum1.beanpool.org`, `mullum2.beanpool.org`, `review.beanpool.org`, and `test.beanpool.org`) with valid Let's Encrypt TLS certificates.
 
 **Coming next:**
 - Native App Polish & App Store Submission (federation parity)
@@ -501,4 +501,4 @@ BeanPool is in active development. The PWA is **fully functional** and a **React
 
 [MIT](LICENSE)
 
-_Last updated: 2026-05-23_
+_Last updated: 2026-06-11_

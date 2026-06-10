@@ -8,9 +8,9 @@ This document provides transparent documentation on the design, economics, and n
 
 Unlike traditional economies, BeanPool has no central bank or token supply. It is a **mutual credit network** where credits (Beans) are created on-demand at the moment of exchange.
 
-When Alice pays Bob $40\text{ Ʀ}$ for general labour:
-* Alice's balance decreases by $40\text{ Ʀ}$ (she goes into debt).
-* Bob's balance increases by $40\text{ Ʀ}$ (he gains credit).
+When Alice pays Bob $40\text{ Beans}$ for general labour:
+* Alice's balance decreases by $40\text{ Beans}$ (she goes into debt).
+* Bob's balance increases by $40\text{ Beans}$ (he gains credit).
 * The network sum remains exactly zero: $(−40) + (+40) = 0$.
 
 For the protocol to remain structurally sound, **the sum of all balances in the network must always equal exactly zero**:
@@ -23,12 +23,12 @@ $$\sum_{i} B_i = 0$$
 When members leave the community or become inactive, their accounts must eventually be pruned (closed) by node admins to keep the directory clean. This presents a severe protocol-economics challenge:
 
 ### The Default Payout (Negative Balances)
-If an inactive member has a negative balance (e.g., $−120\text{ Ʀ}$) and their account is pruned, deleting them would leave the network unbalanced ($\sum B_i > 0$). This is "dead debt"—the member received value from the community but left without giving back.
-* **The Solvency Rule**: To delete the account and maintain the zero-sum invariant, the community must pay off the debt. The **Commons Pool** executes an automated, offsetting transfer of $+120\text{ Ʀ}$ to the member's account to bring their balance to exactly `0` before they are marked pruned.
+If an inactive member has a negative balance (e.g., $−120\text{ Beans}$) and their account is pruned, deleting them would leave the network unbalanced ($\sum B_i > 0$). This is "dead debt"—the member received value from the community but left without giving back.
+* **The Solvency Rule**: To delete the account and maintain the zero-sum invariant, the community must pay off the debt. The **Commons Pool** executes an automated, offsetting transfer of $+120\text{ Beans}$ to the member's account to bring their balance to exactly `0` before they are marked pruned.
 
 ### The Surplus Reclaim (Positive Balances)
-Conversely, if an inactive member has a positive balance (e.g., $+200\text{ Ʀ}$) and is pruned, deleting them would destroy credits, unbalancing the network in the other direction ($\sum B_i < 0$).
-* **The Solvency Rule**: The community reclaims the surplus. An automated transfer of $-200\text{ Ʀ}$ moves the positive balance from the pruned account into the **Commons Pool**, returning the dormant value back to the community ledger.
+Conversely, if an inactive member has a positive balance (e.g., $+200\text{ Beans}$) and is pruned, deleting them would destroy credits, unbalancing the network in the other direction ($\sum B_i < 0$).
+* **The Solvency Rule**: The community reclaims the surplus. An automated transfer of $-200\text{ Beans}$ moves the positive balance from the pruned account into the **Commons Pool**, returning the dormant value back to the community ledger.
 
 ---
 
@@ -37,7 +37,7 @@ Conversely, if an inactive member has a positive balance (e.g., $+200\text{ Ʀ}$
 Previously, the Commons Pool was funded solely via **Community Circulation (demurrage)**—the gradual decay of positive holdings. However, demurrage suffers from a design paradox in healthy local economies:
 
 1. **Velocity of Money**: A healthy economy has high trade velocity, meaning members spend their earned credits quickly rather than hoarding them.
-2. **The Green Zone**: Active members keep their balances in the lower brackets (e.g., under $200\text{ Ʀ}$, which is tax-free) to maintain reciprocity.
+2. **The Green Zone**: Active members keep their balances in the lower brackets (e.g., under $200\text{ Beans}$, which is tax-free) to maintain reciprocity.
 3. **The Revenue Gap**: If hoarding is low, demurrage tax revenue drops to nearly **zero**. Yet, defaults still happen when inactive users are pruned. This leaves the Commons Pool empty and unable to absorb bad debt write-offs, threatening the ledger's balance.
 
 ---

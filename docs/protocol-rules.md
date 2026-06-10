@@ -10,7 +10,7 @@
 ## Table of Contents
 
 1. [Overview](#1-overview)
-2. [The Bean (Ʀ)](#2-the-bean-ʀ)
+2. [The Bean (Beans)](#2-the-bean-ʀ)
 3. [Reference Rate](#3-reference-rate)
 4. [Mutual Credit](#4-mutual-credit)
 5. [Dynamic Credit Floor (Borrowing Limit)](#5-dynamic-credit-floor-borrowing-limit)
@@ -30,7 +30,7 @@
 
 ## 1. Overview
 
-BeanPool operates a **mutual credit** system. There is no money supply. When Alice pays Bob 40 Ʀ, Alice goes to −40 and Bob goes to +40. The network always sums to zero. Credit is not pre-created — it is issued the moment a trade happens, backed by the community's trust in the participants.
+BeanPool operates a **mutual credit** system. There is no money supply. When Alice pays Bob 40 Beans, Alice goes to −40 and Bob goes to +40. The network always sums to zero. Credit is not pre-created — it is issued the moment a trade happens, backed by the community's trust in the participants.
 
 The rules in this document exist to answer three questions:
 
@@ -39,11 +39,11 @@ The rules in this document exist to answer three questions:
 
 ---
 
-## 2. The Bean (Ʀ)
+## 2. The Bean (Beans)
 
 The Bean is the unit of account. It is not pegged to any fiat currency. It has no intrinsic value — its value comes from the community's agreement to accept it in exchange for real goods and services.
 
-- Symbol: **Ʀ** (or 🫘 in informal contexts)
+- Symbol: **Beans** (or 🫘 in informal contexts)
 - Precision: 2 decimal places
 - Supply: None. The network sum is always zero.
 
@@ -53,28 +53,28 @@ The Bean is the unit of account. It is not pegged to any fiat currency. It has n
 
 To help participants understand the value of a Bean, the protocol defines a **reference rate**:
 
-> **40 Ʀ = 1 hour of community time**
+> **40 Beans = 1 hour of community time**
 
-This is not a price floor or ceiling for labour — it is a shared reference point for intuition. A skilled tradesperson might charge 60–80 Ʀ per hour; a bag of lemons might be 3 Ʀ. The reference rate simply anchors the mental model.
+This is not a price floor or ceiling for labour — it is a shared reference point for intuition. A skilled tradesperson might charge 60–80 Beans per hour; a bag of lemons might be 3 Beans. The reference rate simply anchors the mental model.
 
 ### Pricing Guide
 
 | Item | Suggested Price | Reference |
 | :--- | :--- | :--- |
-| ☕ Coffee | 5 Ʀ | ~8 minutes of community time |
-| 🍋 Bag of lemons | 3–5 Ʀ | Small market goods |
-| 🧹 General labour (1 hour) | 25–40 Ʀ | Basic community help |
-| 🔧 Average skilled work (1 hour) | 40 Ʀ | The reference anchor |
-| 🪚 Specialist trade (1 hour) | 60–80 Ʀ | Premium skills |
-| 📅 Full day's work | 250–320 Ʀ | Significant commitment |
-| 🏠 Major project | 500–2000 Ʀ | Requires deep community trust |
+| ☕ Coffee | 5 Beans | ~8 minutes of community time |
+| 🍋 Bag of lemons | 3–5 Beans | Small market goods |
+| 🧹 General labour (1 hour) | 25–40 Beans | Basic community help |
+| 🔧 Average skilled work (1 hour) | 40 Beans | The reference anchor |
+| 🪚 Specialist trade (1 hour) | 60–80 Beans | Premium skills |
+| 📅 Full day's work | 250–320 Beans | Significant commitment |
+| 🏠 Major project | 500–2000 Beans | Requires deep community trust |
 
 ### Hour Equivalent Display
 
 Throughout the app, all bean amounts display an approximate time equivalent:
-- `5 Ʀ (≈ 8min)`
-- `40 Ʀ (≈ 1hr)`
-- `320 Ʀ (≈ 8hr)`
+- `5 Beans (≈ 8min)`
+- `40 Beans (≈ 1hr)`
+- `320 Beans (≈ 8hr)`
 
 This helps participants intuitively grasp the value of any price, balance, or credit limit.
 
@@ -106,17 +106,17 @@ where:
   earnedCredit = (tradeCount × 8) + (uniquePartners × 40) + (accountAgeDays × 2)
 ```
 
-- **BASE_FLOOR:** −80 Ʀ (the starting credit for a new account)
-- **MAX_EARNED:** 1920 Ʀ (the maximum additional credit that can be earned)
-- **Total cap:** −2000 Ʀ (BASE_FLOOR + MAX_EARNED = 80 + 1920)
+- **BASE_FLOOR:** −80 Beans (the starting credit for a new account)
+- **MAX_EARNED:** 1920 Beans (the maximum additional credit that can be earned)
+- **Total cap:** −2000 Beans (BASE_FLOOR + MAX_EARNED = 80 + 1920)
 
 ### What counts
 
 | Factor | Weight | Why |
 | :--- | :--- | :--- |
-| Each completed trade | +8 Ʀ of credit | Proves economic activity |
-| Each unique trade partner | +40 Ʀ of credit | Proves diverse connections (not wash-trading) |
-| Each day of account age | +2 Ʀ of credit | Proves sustained presence |
+| Each completed trade | +8 Beans of credit | Proves economic activity |
+| Each unique trade partner | +40 Beans of credit | Proves diverse connections (not wash-trading) |
+| Each day of account age | +2 Beans of credit | Proves sustained presence |
 
 ### What does NOT count
 
@@ -128,12 +128,12 @@ where:
 
 | Scenario | Trades | Partners | Age (days) | Floor | ≈ Hours of credit |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| Brand new member | 0 | 0 | 0 | **−80 Ʀ** | 2 hours |
-| First week | 3 | 2 | 7 | **−198 Ʀ** | 5 hours |
-| One month active | 10 | 5 | 30 | **−420 Ʀ** | 10.5 hours |
-| Three months | 30 | 12 | 90 | **−900 Ʀ** | 22.5 hours |
-| Six months | 60 | 20 | 180 | **−1720 Ʀ** | 43 hours |
-| One year veteran | 150 | 30 | 365 | **−2000 Ʀ** | 50 hours (capped) |
+| Brand new member | 0 | 0 | 0 | **−80 Beans** | 2 hours |
+| First week | 3 | 2 | 7 | **−198 Beans** | 5 hours |
+| One month active | 10 | 5 | 30 | **−420 Beans** | 10.5 hours |
+| Three months | 30 | 12 | 90 | **−900 Beans** | 22.5 hours |
+| Six months | 60 | 20 | 180 | **−1720 Beans** | 43 hours |
+| One year veteran | 150 | 30 | 365 | **−2000 Beans** | 50 hours (capped) |
 
 ### Key Principle
 
@@ -147,10 +147,10 @@ Every member's tier is determined automatically by their dynamic credit floor. T
 
 | Tier | Condition | Colour | Capabilities |
 | :--- | :--- | :--- | :--- |
-| **Ghost** 👻 | floor > −200 Ʀ | Gray | Marketplace escrow trades only. No direct transfers. **Cannot invite new members.** |
-| **Resident** 🏠 | −200 ≥ floor > −600 Ʀ | Blue | Full access. Direct transfers unlocked. Can invite new members. |
-| **Citizen** 🏛️ | −600 ≥ floor > −1400 Ʀ | Purple | Full access. |
-| **Elder** 👑 | floor ≤ −1400 Ʀ | Amber | Full access. |
+| **Ghost** 👻 | floor > −200 Beans | Gray | Marketplace escrow trades only. No direct transfers. **Cannot invite new members.** |
+| **Resident** 🏠 | −200 ≥ floor > −600 Beans | Blue | Full access. Direct transfers unlocked. Can invite new members. |
+| **Citizen** 🏛️ | −600 ≥ floor > −1400 Beans | Purple | Full access. |
+| **Elder** 👑 | floor ≤ −1400 Beans | Amber | Full access. |
 
 ### Ghost Restrictions
 
@@ -175,11 +175,11 @@ Circulation works like progressive tax brackets. The rate is determined by the s
 
 | Bracket | Balance Range | Rate | Hours Equivalent |
 |---|---|---|---|
-| 1st | 0 – 200 Ʀ | **0.0%**/mo (Tax-Free) | 0 hrs |
-| 2nd | 200 – 500 Ʀ | **1.0%**/mo | 5–12.5 hrs |
-| 3rd | 500 – 1000 Ʀ | **1.5%**/mo | 12.5–25 hrs |
-| 4th | 1000 – 2000 Ʀ | **2.0%**/mo | 25–50 hrs |
-| 5th | 2000+ Ʀ | **2.5%**/mo | 50+ hrs |
+| 1st | 0 – 200 Beans | **0.0%**/mo (Tax-Free) | 0 hrs |
+| 2nd | 200 – 500 Beans | **1.0%**/mo | 5–12.5 hrs |
+| 3rd | 500 – 1000 Beans | **1.5%**/mo | 12.5–25 hrs |
+| 4th | 1000 – 2000 Beans | **2.0%**/mo | 25–50 hrs |
+| 5th | 2000+ Beans | **2.5%**/mo | 50+ hrs |
 
 - **Epoch:** Applied lazily upon account access (synced based on the last access timestamp).
 - **Applies to:** Positive balances only (you don't pay circulation on debt).
@@ -188,17 +188,17 @@ Circulation works like progressive tax brackets. The rate is determined by the s
 ### Why Progressive Brackets?
 
 This structure replaces the previous "accelerated ceiling" model with a more equitable system:
-- **Fair:** A Ghost holding 100 Ʀ and an Ambassador holding 100 Ʀ pay exactly the same circulation rate.
+- **Fair:** A Ghost holding 100 Beans and an Ambassador holding 100 Beans pay exactly the same circulation rate.
 - **Anti-hoarding:** The more you stockpile, the steeper the marginal rate. It gently forces high-accumulation accounts to spend or donate.
-- **Gentle at the bottom:** Active members sitting in the 0–200 Ʀ Green Zone pay **0% circulation tax** (completely tax-free to encourage everyday trades).
+- **Gentle at the bottom:** Active members sitting in the 0–200 Beans Green Zone pay **0% circulation tax** (completely tax-free to encourage everyday trades).
 
 ### Example
 
-A member holds a balance of +800 Ʀ:
-- First 200 at 0.0% → −0.00 Ʀ (Green Zone)
-- Next 300 (from 200 to 500) at 1.0% → −3.00 Ʀ
-- Next 300 (from 500 to 800) at 1.5% → −4.50 Ʀ
-- **Total monthly circulation:** −7.50 Ʀ → Commons Pool
+A member holds a balance of +800 Beans:
+- First 200 at 0.0% → −0.00 Beans (Green Zone)
+- Next 300 (from 200 to 500) at 1.0% → −3.00 Beans
+- Next 300 (from 500 to 800) at 1.5% → −4.50 Beans
+- **Total monthly circulation:** −7.50 Beans → Commons Pool
 
 ### Transaction Fee
 
@@ -235,9 +235,9 @@ The node admin has access to **tiered invite codes** from the `/settings` panel.
 
 | Invite Type | Starting Tier | Starting Floor | Use Case |
 | :--- | :--- | :--- | :--- |
-| **Standard** | Ghost 👻 | −80 Ʀ | Default for all regular invites |
-| **Trusted** | Resident 🏠 | −200 Ʀ | Known community members. Can invite + gift immediately. |
-| **Ambassador** | Citizen 🏛️ | −600 Ʀ | Market promoters, community organisers. Full capabilities from day one. |
+| **Standard** | Ghost 👻 | −80 Beans | Default for all regular invites |
+| **Trusted** | Resident 🏠 | −200 Beans | Known community members. Can invite + gift immediately. |
+| **Ambassador** | Citizen 🏛️ | −600 Beans | Market promoters, community organisers. Full capabilities from day one. |
 
 **Rules:**
 - Only the **node admin** can generate Trusted and Ambassador invites. Regular members always generate Standard (Ghost-level) invites.
@@ -287,18 +287,18 @@ BeanPool does not use KYC (Know Your Customer). Instead, it uses **KYH (Know You
 
 ### Attack Scenario Analysis
 
-**Attack:** Eve (Resident) creates 5 puppet accounts, each with −80 Ʀ floor.
+**Attack:** Eve (Resident) creates 5 puppet accounts, each with −80 Beans floor.
 
 | Step | What happens |
 | :--- | :--- |
-| Eve creates 5 puppets | Each is a Ghost with −80 Ʀ floor |
+| Eve creates 5 puppets | Each is a Ghost with −80 Beans floor |
 | Puppets try to gift beans to Eve | **Blocked** — Ghosts can't do direct transfers |
 | Eve lists fake services, puppets "buy" through marketplace | Possible, but visible: 5 escrow trades, all same seller, all same time frame |
-| Each puppet goes to −80 and disappears | Max damage: 5 × 80 = 400 Ʀ |
+| Each puppet goes to −80 and disappears | Max damage: 5 × 80 = 400 Beans |
 | Puppets try to create more puppets | **Blocked** — Ghosts can't invite |
 | Eve's invitation tree shows 5 defaulted invitees | Visible to the community — reputational cost |
 
-**Result:** The attack is capped at 400 Ʀ (10 hours of community time), requires visible marketplace activity, is self-terminating (puppets can't chain), and leaves a permanent trail on Eve's profile. Compare this to an undefended system where the same attacker could drain unlimited credit silently.
+**Result:** The attack is capped at 400 Beans (10 hours of community time), requires visible marketplace activity, is self-terminating (puppets can't chain), and leaves a permanent trail on Eve's profile. Compare this to an undefended system where the same attacker could drain unlimited credit silently.
 
 ### The Economics of Honesty
 
@@ -306,8 +306,8 @@ The system is designed so that **being a good community member is always more pr
 
 | Path | Outcome |
 | :--- | :--- |
-| Trade honestly for 3 months | −900 Ʀ credit line, Citizen status, invitation privileges, community reputation |
-| Create 5 puppets | 400 Ʀ extracted (one-time), Ghost status on puppets (can't chain), visible on invitation tree, no more puppets possible |
+| Trade honestly for 3 months | −900 Beans credit line, Citizen status, invitation privileges, community reputation |
+| Create 5 puppets | 400 Beans extracted (one-time), Ghost status on puppets (can't chain), visible on invitation tree, no more puppets possible |
 
 ---
 
@@ -338,7 +338,7 @@ When a transaction would use more than **50% of the sender's remaining credit li
 
 ```
 ⚠️ This uses 76% of your available credit.
-After this trade you'll have 100 Ʀ of credit remaining.
+After this trade you'll have 100 Beans of credit remaining.
 ```
 
 This is informational — it does not block the trade.
@@ -358,10 +358,10 @@ Progress to Resident: [▓▓▓░░░░░░░] 34%
 Every transaction confirmation shows the amount in both beans and time:
 
 ```
-Send 320 Ʀ to @CaptainBean?
+Send 320 Beans to @CaptainBean?
 ≈ 8 hours of community time
 
-Your balance after: +60 Ʀ (≈ 1.5hr)
+Your balance after: +60 Beans (≈ 1.5hr)
 ```
 
 ---
@@ -414,34 +414,34 @@ All values are defined in `beanpool-core/src/protocol.ts` and are identical acro
 ┌──────────────────────────────────────────────────────┐
 │  BEANPOOL PROTOCOL v1                                │
 ├──────────────────────────────────────────────────────┤
-│  Reference Rate:           40 Ʀ = 1 hour             │
+│  Reference Rate:           40 Beans = 1 hour             │
 │                                                      │
 │  Credit Floor:                                       │
-│    Base:                   −80 Ʀ                     │
-│    Max Earned:             1920 Ʀ                    │
-│    Total Cap:              −2000 Ʀ (≈ 50 hours)     │
+│    Base:                   −80 Beans                     │
+│    Max Earned:             1920 Beans                    │
+│    Total Cap:              −2000 Beans (≈ 50 hours)     │
 │                                                      │
 │  Growth Weights:                                     │
-│    Per trade:              +8 Ʀ                      │
-│    Per unique partner:     +40 Ʀ                     │
-│    Per day of age:         +2 Ʀ                      │
+│    Per trade:              +8 Beans                      │
+│    Per unique partner:     +40 Beans                     │
+│    Per day of age:         +2 Beans                      │
 │                                                      │
 │  Community Circulation:                              │
 │    Base rate:              0.5% / month              │
-│    Max rate:               2.5% / month (2000+ Ʀ)    │
+│    Max rate:               2.5% / month (2000+ Beans)    │
 │    Epoch:                  30 days                    │
 │                                                      │
 │  Transaction Fee:                                    │
 │    Fee rate:               1.5%                       │
 │                                                      │
 │  Anti-Sybil:                                         │
-│    Ghost threshold:        floor > −200 Ʀ            │
+│    Ghost threshold:        floor > −200 Beans            │
 │    Ghost restrictions:     No gifts, no invitations  │
 │                                                      │
 │  Admin Genesis Invites:                              │
-│    Standard:               Ghost (−80 Ʀ)             │
-│    Trusted:                Resident (−200 Ʀ)         │
-│    Ambassador:             Citizen (−600 Ʀ)          │
+│    Standard:               Ghost (−80 Beans)             │
+│    Trusted:                Resident (−200 Beans)         │
+│    Ambassador:             Citizen (−600 Beans)          │
 │                                                      │
 │  Guardrails:                                         │
 │    Spend warning:          >50% of credit line       │
@@ -455,7 +455,7 @@ All values are defined in `beanpool-core/src/protocol.ts` and are identical acro
 | Term | Definition |
 | :--- | :--- |
 | **Balance** | A member's current credit position. Positive = owed by community. Negative = owes the community. |
-| **Bean (Ʀ)** | The unit of account in BeanPool. |
+| **Bean (Beans)** | The unit of account in BeanPool. |
 
 | **Commons Pool** | A community fund filled by community circulation. Used for community projects. |
 | **Community Circulation** | Periodic decay of positive balances, preventing hoarding. Formerly called "demurrage." |
@@ -466,7 +466,7 @@ All values are defined in `beanpool-core/src/protocol.ts` and are identical acro
 | **Invitation Tree** | The hierarchical record of who invited whom. |
 | **KYH (Know Your History)** | BeanPool's approach to trust — identity is proven by trade history, not documents. |
 | **Mutual Credit** | A system where credit is created at the point of transaction. No pre-existing money supply. The network sum is always zero. |
-| **Reference Rate** | The community benchmark: 40 Ʀ = 1 hour of community time. |
+| **Reference Rate** | The community benchmark: 40 Beans = 1 hour of community time. |
 | **Sybil Attack** | Creating fake identities to extract value from the network. |
 | **Tier** | An identity label (Ghost → Resident → Citizen → Elder) determined by the dynamic credit floor. |
 | **Wash-Trading** | Trading repeatedly with the same partner (or yourself) to inflate trust metrics. Countered by the unique-partner requirement. |

@@ -1,14 +1,15 @@
 # 🗺️ BeanPool Roadmap
 
-> Planned features and future work. Updated: 2026-05-30
+> Planned features and future work. Updated: 2026-06-11
 
 ---
 
 ## ✅ Recently Completed
 
+- ✅ **Release v1.1.29: Inbox Real-Time Sync & Alignment** — Resolved chat delays in PWA and Native apps by tying synchronizations directly to WebSocket activity and local SQLite write events. Aligned avatar and name columns on chat list rows. Suppressed intrusive Expo LogBox dev-client crash screens on transient network failures by using `console.warn` instead of `console.error`. Bumped Android versionCode to 143 (v1.1.29) and iOS buildNumber to 131.
 - ✅ **Release v1.1.18: Post Context Metadata Caching** — Implemented local caching of marketplace post titles, status, photos, and credits inside local SQLite `conversations` and `marketplace_transactions` tables. This resolves empty/blank post details in inbox and deals history lists upon phone change restoration, since completed posts are not distributed in regular sync loops. Bumped Native client to v1.1.18 (Android versionCode 131).
 - ✅ **Release v1.1.17: Given Review Editing & UX** — Added support to edit ratings and reviews directly from the profile's Given tab or active Deals cards. Reviews pre-populate stars and comments inside `ReviewModal` for immediate updates. Bumped Native client to v1.1.17 (Android versionCode 130, iOS build 125) with dynamic settings footer.
-- ✅ **Release v1.1.16: Circulation Fee Rename, Green Zone & Solvency Dashboard** — Renamed "transaction tax" to "transaction fee" across native, PWA, and server ledgers. Added solvency transparency modals and 1.5% circulation fee warnings, alongside a 0% circulation fee "Green Zone" on balances between 0 and 200 Ʀ. Combined ledger tiers and marketplace trust counts. Resolved Android Out-of-Memory (OOM) crashes by enabling `largeHeap: true`.
+- ✅ **Release v1.1.16: Circulation Fee Rename, Green Zone & Solvency Dashboard** — Renamed "transaction tax" to "transaction fee" across native, PWA, and server ledgers. Added solvency transparency modals and 1.5% circulation fee warnings, alongside a 0% circulation fee "Green Zone" on balances between 0 and 200 Beans. Combined ledger tiers and marketplace trust counts. Resolved Android Out-of-Memory (OOM) crashes by enabling `largeHeap: true`.
 - ✅ **Release v1.1.14: E2E Direct Message Encryption** — Shipped real end-to-end encryption for direct messages (Noise/X25519/AES-GCM), protecting chats from node administrator visibility (NAT-1). Added sent/read delivery receipt checkmarks in chats, lazy-loaded encrypted photo/camera attachments, and a visible E2E indicator on DMs. Bumped version to v1.1.14 (build 123/124).
 - ✅ **Release v1.1.5: Native Tab Navigation & Safeguards** — Removed swipe-to-navigate gesture in native tabs to prevent layout conflicts, improved credit spectrum bar layout, and cleaned version positioning. Fixed server `setGuardian` to implicitly add friends, and excluded friend updates from generic signature spoof check gates. Bumped version to v1.1.5 (build 115).
 - ✅ **Release v1.1.3: Low-Latency Escrow Settlements & Coalesced Trailing Syncs** — Shipped a massive client-side and background synchronization engine optimization, shrinking escrow settlement times to <1s, eliminating SQLite "database is locked" errors, and introducing real-time chat reactive updates.
