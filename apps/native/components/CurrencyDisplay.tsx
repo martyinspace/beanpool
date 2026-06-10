@@ -27,7 +27,7 @@ export function useCurrencyString() {
         if (cVal === 'bean') return 'Beans';
         return cVal;
     }
-    return cVal || 'Ʀ';
+    return cVal || 'Beans';
 }
 
 interface Props {
@@ -86,8 +86,8 @@ export function CurrencyDisplay({ amount, style, hideAmount = false, asView = fa
         );
     }
 
-    // Fallback or explicit text node (e.g., 'Ʀ' or 'rocks')
-    const displayVal = cType === 'text' ? (cVal || 'Ʀ') : 'Ʀ';
+    // Fallback or explicit text node (e.g., 'Beans' or 'rocks')
+    const displayVal = cType === 'text' ? (cVal || 'Beans') : 'Beans';
     if (asView) {
         return (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>

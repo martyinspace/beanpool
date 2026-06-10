@@ -679,6 +679,10 @@ export async function getConversations(myPubkey: string) {
     });
 }
 
+// Throttle server-side read-cursor pushes: chat screens call markConversationRead on
+// every poll tick; one POST per conversation per 10s is plenty for read receipts.
+const _lastReadPushAt: Record<string, number> = {};
+
 export async function markConversationRead(conversationId: string, myPubkey: string) {
     const database = await getDb();
     const now = new Date().toISOString();
@@ -686,6 +690,15 @@ export async function markConversationRead(conversationId: string, myPubkey: str
         'UPDATE conversation_participants SET last_read_at = ? WHERE conversation_id = ? AND public_key = ?',
         [now, conversationId, myPubkey]
     );
+
+    // Push the read cursor to the server so the PEER's device can render the
+    // double-tick. Without this the receipt loop never leaves this phone.
+    const lastPush = _lastReadPushAt[conversationId] || 0;
+    if (Date.now() - lastPush > 10_000) {
+        _lastReadPushAt[conversationId] = Date.now();
+        _signedRequest('/api/messages/mark-read', { pubkey: myPubkey, conversationId })
+            .catch(() => { _lastReadPushAt[conversationId] = 0; /* offline — retry on next call */ });
+    }
 }
 
 export async function getGlobalUnreadCount(myPubkey: string): Promise<number> {
@@ -1800,6 +1813,21 @@ export async function syncSingleConversation(conversationId: string) {
                     [m.id, conversationId, m.author_pubkey || m.authorPubkey || '', m.ciphertext || '', m.nonce || '', m.type || 'text', m.systemType || m.system_type || null, m.metadata || null, m.timestamp || m.created_at || new Date().toISOString()]
                 );
             }
+
+            // Read receipts: apply peers' read cursors (newer servers include them),
+            // so ticks flip to read while the chat is open. Monotonic — never regress.
+            const myIdentity = await loadIdentity();
+            const cursors = msgData.conversation?.readCursors;
+            if (Array.isArray(cursors) && myIdentity?.publicKey) {
+                for (const cur of cursors) {
+                    if (cur?.publicKey && cur.publicKey !== myIdentity.publicKey && cur.lastReadAt) {
+                        await database.runAsync(
+                            'UPDATE conversation_participants SET last_read_at = ? WHERE conversation_id = ? AND public_key = ? AND (last_read_at IS NULL OR last_read_at < ?)',
+                            [cur.lastReadAt, conversationId, cur.publicKey, cur.lastReadAt]
+                        );
+                    }
+                }
+            }
         } finally {
             releaseSyncLock();
         }
@@ -1944,6 +1972,7 @@ export async function getMessages(conversationId: string) {
             metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
             outgoing,
             readByPeer,
+            rawTimestamp: row.timestamp,
             timestamp: new Date(row.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
     });

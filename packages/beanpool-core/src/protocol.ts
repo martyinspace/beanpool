@@ -12,7 +12,7 @@ export const PROTOCOL_VERSION = 1;
 
 export const PROTOCOL_CONSTANTS = {
     // === Reference Rate ===
-    REFERENCE_RATE: 40,                // Ʀ per hour of community time
+    REFERENCE_RATE: 40,                // Beans per hour of community time
     REFERENCE_LABEL: 'hour',
 
     // === Credit Formula (Sliding Scale) ===
@@ -20,9 +20,9 @@ export const PROTOCOL_CONSTANTS = {
     CREDIT_MAX_EARNED: 1920,           // Max additional earned (total cap: -2000 ≈ 50 hours)
 
     // Growth Weights
-    CREDIT_WEIGHT_TRADES: 8,           // Each organic trade adds 8 Ʀ of credit
-    CREDIT_WEIGHT_PARTNERS: 40,        // Each unique partner adds 40 Ʀ (1 hour of credit)
-    CREDIT_WEIGHT_AGE_DAYS: 2,         // Each day of account age adds 2 Ʀ
+    CREDIT_WEIGHT_TRADES: 8,           // Each organic trade adds 8 Beans of credit
+    CREDIT_WEIGHT_PARTNERS: 40,        // Each unique partner adds 40 Beans (1 hour of credit)
+    CREDIT_WEIGHT_AGE_DAYS: 2,         // Each day of account age adds 2 Beans
 
 
     // === Community Circulation (formerly Demurrage) ===

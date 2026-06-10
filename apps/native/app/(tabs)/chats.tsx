@@ -143,7 +143,7 @@ export default function ChatsScreen() {
                 </View>
                 {item.pendingAmount && (
                     <View style={styles.actionAmountBadge}>
-                        <Text style={styles.actionAmountText}>Ʀ{item.pendingAmount}</Text>
+                        <Text style={styles.actionAmountText}>{item.pendingAmount} 🫘</Text>
                     </View>
                 )}
             </View>
@@ -330,13 +330,13 @@ export default function ChatsScreen() {
                             style={[styles.chip, sortBy === 'credits_desc' && styles.chipActive]} 
                             onPress={() => setSortBy('credits_desc')}
                         >
-                            <Text style={[styles.chipText, sortBy === 'credits_desc' && styles.chipTextActive]}>Ʀ Credits: High</Text>
+                            <Text style={[styles.chipText, sortBy === 'credits_desc' && styles.chipTextActive]}>🫘 Credits: High</Text>
                         </Pressable>
                         <Pressable 
                             style={[styles.chip, sortBy === 'credits_asc' && styles.chipActive]} 
                             onPress={() => setSortBy('credits_asc')}
                         >
-                            <Text style={[styles.chipText, sortBy === 'credits_asc' && styles.chipTextActive]}>Ʀ Credits: Low</Text>
+                            <Text style={[styles.chipText, sortBy === 'credits_asc' && styles.chipTextActive]}>🫘 Credits: Low</Text>
                         </Pressable>
                     </View>
 

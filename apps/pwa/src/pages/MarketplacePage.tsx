@@ -1234,7 +1234,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
 
                                 {/* Photos */}
                                 <div className="mb-5">
-                                    <p className="text-xs font-bold text-nature-400 uppercase tracking-widest mb-2">Photos ({editPhotos.length}/3)</p>
+                                    <p className="text-xs font-bold text-nature-400 uppercase tracking-widest mb-2">Photos ({editPhotos.length}/5)</p>
                                     <div className="flex gap-2 flex-wrap">
                                         {editPhotos.map((photo, i) => (
                                             <div key={i} className="relative">
@@ -1248,7 +1248,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                                 </button>
                                             </div>
                                         ))}
-                                        {editPhotos.length < 3 && (
+                                        {editPhotos.length < 5 && (
                                             <label className="w-16 h-16 rounded-xl border-2 border-dashed border-nature-300 flex items-center justify-center cursor-pointer text-nature-400 text-2xl hover:bg-nature-50 hover:border-nature-400 transition-colors">
                                                 +
                                                 <input

@@ -17,10 +17,26 @@ export function setCommonsBalance(value: number): void {
 
 export const TRANSACTION_FEE_RATE = 0.015;
 
+/**
+ * A demurrage decay applied to an account. Collected so the host (server) can
+ * persist each decay as a ledger transaction row — without this, decay silently
+ * mutates balances and the transaction history can never reconcile to balances.
+ */
+export interface DecayEvent {
+    accountId: string;
+    amount: number;
+    epochsPassed: number;
+    /** The epoch the account decayed up to — with epochsPassed this identifies the decay deterministically. */
+    toEpoch: number;
+    timestamp: string;
+}
+
 export class LedgerManager {
     private accounts: Map<string, LedgerAccount>;
+    private decayEvents: DecayEvent[] = [];
     private readonly DEFAULT_CREDIT_LIMIT = -100; // Legacy fallback — callers should pass dynamic floor
     private readonly EPOCH_MS = 24 * 60 * 60 * 1000; // 24 hours
+    private readonly MAX_PENDING_DECAY_EVENTS = 10_000; // backstop if the host never drains
 
     constructor(initialAccounts?: LedgerAccount[]) {
         this.accounts = new Map();
@@ -40,6 +56,20 @@ export class LedgerManager {
     loadState(accounts: LedgerAccount[]): void {
         this.accounts = new Map();
         accounts.forEach(acc => this.accounts.set(acc.id, acc));
+        // Pending decay events refer to the replaced state — they no longer match the
+        // reloaded balances. Decay is epoch-based and recomputes lazily, so dropping
+        // them is safe; persisting them against fresh state would double-count.
+        this.decayEvents = [];
+    }
+
+    /**
+     * Returns (and clears) decay events accumulated since the last drain.
+     * The host should persist each as a `account → COMMONS_POOL` ledger row.
+     */
+    drainDecayEvents(): DecayEvent[] {
+        const events = this.decayEvents;
+        this.decayEvents = [];
+        return events;
     }
 
     /**
@@ -73,11 +103,11 @@ export class LedgerManager {
 
     /**
      * Applies demurrage using progressive brackets:
-     * 1st Bracket (0–200 Ʀ): 0.0%/mo (Fee-Free Green Zone)
-     * 2nd Bracket (200–500 Ʀ): 1.0%/mo
-     * 3rd Bracket (500–1000 Ʀ): 1.5%/mo
-     * 4th Bracket (1000–2000 Ʀ): 2.0%/mo
-     * 5th Bracket (2000+ Ʀ): 2.5%/mo
+     * 1st Bracket (0–200 Beans): 0.0%/mo (Fee-Free Green Zone)
+     * 2nd Bracket (200–500 Beans): 1.0%/mo
+     * 3rd Bracket (500–1000 Beans): 1.5%/mo
+     * 4th Bracket (1000–2000 Beans): 2.0%/mo
+     * 5th Bracket (2000+ Beans): 2.5%/mo
      * The decayed amount is transferred to the global COMMONS_BALANCE.
      */
     private applyDecay(account: LedgerAccount, currentEpoch: number): LedgerAccount {
@@ -99,6 +129,16 @@ export class LedgerManager {
         COMMONS_BALANCE += decayedAmount;
         account.balance = newBalance;
         account.lastDemurrageEpoch = currentEpoch;
+
+        if (decayedAmount > 0.0001 && this.decayEvents.length < this.MAX_PENDING_DECAY_EVENTS) {
+            this.decayEvents.push({
+                accountId: account.id,
+                amount: decayedAmount,
+                epochsPassed,
+                toEpoch: currentEpoch,
+                timestamp: new Date().toISOString(),
+            });
+        }
 
         return account;
     }

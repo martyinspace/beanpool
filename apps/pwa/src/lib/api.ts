@@ -209,7 +209,7 @@ export enum SystemMessageType {
 }
 
 export interface SystemMessageMetadata {
-    amount?: number;        // The Ʀ involved
+    amount?: number;        // The Beans involved
     postId: string;         // Link back to the original post
     actorPubkey: string;    // Who triggered the event (Buyer/Seller)
     txHash?: string;        // The ledger transaction ID for verification

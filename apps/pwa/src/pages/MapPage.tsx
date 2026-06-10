@@ -275,6 +275,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
         if (newPostCredits.trim() === '' || isNaN(Number(newPostCredits)) || Number(newPostCredits) < 0) errors.add('credits');
         if (!newPostDescription.trim()) errors.add('description');
         if (postLat == null || postLng == null) errors.add('location');
+        if (newPostPhotos.length < 1) errors.add('photos');
         setValidationErrors(errors);
         if (errors.size > 0) return;
 
@@ -808,7 +809,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                                 </button>
                             </div>
                         ))}
-                        {newPostPhotos.length < 3 && (
+                        {newPostPhotos.length < 5 && (
                             <label className="w-16 h-16 rounded-xl border-2 border-dashed border-nature-300 flex items-center justify-center cursor-pointer bg-nature-50 text-2xl text-nature-400 hover:text-nature-500 hover:border-nature-400 hover:bg-oat-50 transition-all shadow-sm">
                                 📷
                                 <input
@@ -823,14 +824,14 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                                             const img = new Image();
                                             img.onload = () => {
                                                 const canvas = document.createElement('canvas');
-                                                const MAX = 400;
+                                                const MAX = 800;
                                                 let w = img.width, h = img.height;
                                                 if (w > h) { if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; } }
                                                 else { if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; } }
                                                 canvas.width = w; canvas.height = h;
                                                 canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
                                                 const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                                                setNewPostPhotos(prev => [...prev.slice(0, 2), dataUrl]);
+                                                setNewPostPhotos(prev => [...prev.slice(0, 4), dataUrl]);
                                             };
                                             img.src = reader.result as string;
                                         };
@@ -841,16 +842,16 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                             </label>
                         )}
                     </div>
-                    <p className="text-xs font-semibold text-nature-400 mt-2 uppercase tracking-wide">
-                        {newPostPhotos.length}/3 photos {newPostPhotos.length === 0 ? '(optional)' : ''}
+                    <p className={`text-xs font-semibold mt-2 uppercase tracking-wide ${validationErrors.has('photos') && newPostPhotos.length === 0 ? 'text-red-500' : 'text-nature-400'}`}>
+                        {newPostPhotos.length}/5 photos {newPostPhotos.length === 0 ? '(at least 1 required)' : ''}
                     </p>
                 </div>
 
                 <button
                     onClick={handleCreatePost}
-                    disabled={posting || !newPostTitle.trim() || !newPostDescription.trim() || newPostCredits === '' || postLat == null}
+                    disabled={posting || !newPostTitle.trim() || !newPostDescription.trim() || newPostCredits === '' || postLat == null || newPostPhotos.length === 0}
                     className={`w-full p-3 rounded-xl font-semibold transition-all ${
-                        posting || !newPostTitle.trim() || !newPostDescription.trim() || newPostCredits === '' || postLat == null
+                        posting || !newPostTitle.trim() || !newPostDescription.trim() || newPostCredits === '' || postLat == null || newPostPhotos.length === 0
                             ? 'bg-oat-200 text-oat-500 cursor-not-allowed'
                             : 'bg-nature-600 text-white hover:bg-nature-700 shadow-md'
                     }`}

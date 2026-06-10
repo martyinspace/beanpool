@@ -693,7 +693,7 @@ export function WelcomePage({ onComplete }: Props) {
                                         BeanPool runs on cooperation, not accumulation. The goal is to keep energy flowing.
                                     </p>
                                     <div className="mt-3 p-3 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 text-xs leading-normal">
-                                        🟢 <strong>The best place to be is zero (0 Ʀ).</strong> This means you have given as much value to your community as you have received from it.
+                                        🟢 <strong>The best place to be is zero (0 Beans).</strong> This means you have given as much value to your community as you have received from it.
                                     </div>
                                 </div>
 
@@ -706,7 +706,7 @@ export function WelcomePage({ onComplete }: Props) {
                                         <div>
                                             <h5 className="font-bold text-xs text-nature-850 dark:text-nature-300">Trust-Backed Credit</h5>
                                             <p className="text-[11px] text-nature-500 dark:text-nature-400 leading-relaxed">
-                                                Every member starts at 0 Ʀ. You can go negative down to -80 Ʀ to request help, backed by community trust. No interest, no bank fees.
+                                                Every member starts at 0 Beans. You can go negative down to -80 Beans to request help, backed by community trust. No interest, no bank fees.
                                             </p>
                                         </div>
                                     </div>
@@ -716,7 +716,7 @@ export function WelcomePage({ onComplete }: Props) {
                                         <div>
                                             <h5 className="font-bold text-xs text-nature-850 dark:text-nature-300">Community Commons Pool</h5>
                                             <p className="text-[11px] text-nature-500 dark:text-nature-400 leading-relaxed">
-                                                Positive balances above 200 Ʀ decay by 1.5% monthly (progressive circulation). This prevents hoarding and funds local community projects.
+                                                Positive balances above 200 Beans decay by 1.5% monthly (progressive circulation). This prevents hoarding and funds local community projects.
                                             </p>
                                         </div>
                                     </div>
@@ -726,7 +726,7 @@ export function WelcomePage({ onComplete }: Props) {
                                         <div>
                                             <h5 className="font-bold text-xs text-nature-850 dark:text-nature-300">Reference Rate</h5>
                                             <p className="text-[11px] text-nature-500 dark:text-nature-400 leading-relaxed">
-                                                40 Ʀ represents roughly 1 hour of community service or time, helping you easily value what you offer or need.
+                                                40 Beans represents roughly 1 hour of community service or time, helping you easily value what you offer or need.
                                             </p>
                                         </div>
                                     </div>

@@ -137,7 +137,7 @@ export interface MarketplaceTransaction {
     sellerCallsign: string;
     credits: number;
     hours?: number;
-    status: 'pending' | 'completed' | 'cancelled';
+    status: 'requested' | 'pending' | 'completed' | 'cancelled' | 'rejected';
     createdAt: string;
     completedAt?: string;
 }
@@ -205,7 +205,7 @@ export enum SystemMessageType {
 }
 
 export interface SystemMessageMetadata {
-    amount?: number;        // The Ʀ involved
+    amount?: number;        // The Beans involved
     postId: string;         // Link back to the original post
     actorPubkey: string;    // Who triggered the event (Buyer/Seller)
     txHash?: string;        // The ledger transaction ID for verification
@@ -330,10 +330,19 @@ export function initStateEngine(): void {
         console.log(`🏛️ Commons Pool account seeded (starting from 0)`);
     }
 
-    // Start periodic persistence of commons balance (every 5 minutes)
+    // Start periodic persistence of commons balance + demurrage ledger rows (every 5 minutes)
     setInterval(() => {
+        try { persistDecayEvents(); } catch (e) { console.warn('[Ledger] Failed to persist decay events:', e); }
         persistCommonsBalance();
     }, 5 * 60 * 1000);
+
+    // Daily ledger conservation audit (also once shortly after boot)
+    setTimeout(() => {
+        try { runLedgerAudit(); } catch (e) { console.warn('[LedgerAudit] failed:', e); }
+    }, 2 * 60 * 1000);
+    setInterval(() => {
+        try { runLedgerAudit(); } catch (e) { console.warn('[LedgerAudit] failed:', e); }
+    }, 24 * 60 * 60 * 1000);
 
     // One-time migration: move escrow funds from old post-keyed wallets to transaction-keyed wallets
     migrateEscrowWalletKeys();
@@ -346,6 +355,14 @@ export function initStateEngine(): void {
 
     // Sweep zero-balance escrow accounts from settled/cancelled transactions
     sweepSettledEscrowAccounts();
+
+    // Marketplace hygiene: expire stale requests, nudge lingering escrows (hourly + once at boot)
+    setTimeout(() => {
+        try { runMarketplaceHygiene(); } catch (e) { console.warn('[Marketplace] Hygiene sweep failed:', e); }
+    }, 60 * 1000);
+    setInterval(() => {
+        try { runMarketplaceHygiene(); } catch (e) { console.warn('[Marketplace] Hygiene sweep failed:', e); }
+    }, 60 * 60 * 1000);
 
     const memberCount = db.prepare("SELECT COUNT(*) as c FROM members").get() as any;
     const postCount = db.prepare("SELECT COUNT(*) as c FROM posts").get() as any;
@@ -485,6 +502,54 @@ function purgeSyntheticMembers(): void {
  *   3. No pending marketplace_transaction references that escrow wallet
  * Safe to re-run and to call periodically.
  */
+// How long a 'requested' transaction may sit unanswered before it auto-expires,
+// and how often a buyer is nudged about a deal lingering in escrow.
+const REQUEST_TTL_DAYS = 7;
+const ESCROW_NUDGE_DAYS = 7;
+
+export function runMarketplaceHygiene(): void {
+    // 1. Expire 'requested' transactions that nobody answered. No funds are locked
+    // at the 'requested' stage, so expiry is purely a bookkeeping cleanup.
+    const stale = db.prepare(`SELECT * FROM marketplace_transactions WHERE status='requested' AND created_at < datetime('now', ?)`)
+        .all(`-${REQUEST_TTL_DAYS} days`) as any[];
+    for (const row of stale) {
+        db.prepare(`UPDATE marketplace_transactions SET status='cancelled', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=? AND status='requested'`).run(row.id);
+        const post = db.prepare(`SELECT title, type, author_pubkey FROM posts WHERE id=?`).get(row.post_id) as any;
+        const requesterPubkey = post && post.type !== 'offer' ? row.seller_pubkey : row.buyer_pubkey;
+        dispatchPushNotification(
+            [requesterPubkey, post?.author_pubkey].filter(Boolean),
+            'SYSTEM',
+            '⌛ Request Expired',
+            `The request for "${post?.title || 'a post'}" expired after ${REQUEST_TTL_DAYS} days without a response.`,
+            { screen: 'post', postId: row.post_id },
+            'marketplace'
+        );
+    }
+    if (stale.length > 0) console.log(`🧹 Expired ${stale.length} stale marketplace request(s)`);
+
+    // 2. Nudge buyers whose deals have been sitting in escrow — beans in limbo
+    // help nobody. Re-nudges every ESCROW_NUDGE_DAYS via last_reminded_at.
+    const lingering = db.prepare(`
+        SELECT t.*, p.title AS post_title FROM marketplace_transactions t
+        LEFT JOIN posts p ON p.id = t.post_id
+        WHERE t.status='pending'
+          AND t.created_at < datetime('now', ?)
+          AND (t.last_reminded_at IS NULL OR t.last_reminded_at < datetime('now', ?))
+    `).all(`-${ESCROW_NUDGE_DAYS} days`, `-${ESCROW_NUDGE_DAYS} days`) as any[];
+    for (const row of lingering) {
+        dispatchPushNotification(
+            [row.buyer_pubkey],
+            'SYSTEM',
+            '⏳ Deal Awaiting Completion',
+            `"${row.post_title || 'A deal'}" has been in escrow for over ${ESCROW_NUDGE_DAYS} days — release the Beans to the seller or cancel the deal.`,
+            { screen: 'post', postId: row.post_id },
+            'marketplace'
+        );
+        db.prepare(`UPDATE marketplace_transactions SET last_reminded_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`).run(row.id);
+    }
+    if (lingering.length > 0) console.log(`⏳ Nudged ${lingering.length} lingering escrow deal(s)`);
+}
+
 function sweepSettledEscrowAccounts(): void {
     const result = db.prepare(`
         DELETE FROM accounts 
@@ -1242,7 +1307,8 @@ export function transfer(from: string, to: string, amount: number, memo: string,
     db.prepare(`UPDATE accounts SET balance=?, last_demurrage_epoch=?, last_updated_at=? WHERE public_key=?`).run(fromAcc.balance, fromAcc.lastDemurrageEpoch, new Date().toISOString(), from);
     db.prepare(`UPDATE accounts SET balance=?, last_demurrage_epoch=?, last_updated_at=? WHERE public_key=?`).run(toAcc.balance, toAcc.lastDemurrageEpoch, new Date().toISOString(), to);
 
-    // Persist commons balance (transfers trigger decay which accumulates demurrage)
+    // Persist demurrage decay rows + commons balance (transfers trigger decay on both accounts)
+    persistDecayEvents();
     persistCommonsBalance();
 
     const fromMember = getMember(from);
@@ -1305,6 +1371,26 @@ function rowToPost(row: any, photosByPost: Map<string, any[]>): MarketplacePost 
     };
 }
 
+// Server-side photo limits. Clients resize to ≤800px JPEG at 0.7 quality, which lands
+// well under this cap — anything bigger is a misbehaving or hostile client. Photos are
+// stored as base64 in SQLite and replicate to every mirror, so the cap matters.
+const MAX_POST_PHOTOS = 5;
+const MAX_PHOTO_BASE64_CHARS = 600_000; // ≈ 440 KB of binary image data
+
+function validatePostPhotos(photos: string[] | undefined): void {
+    if (photos === undefined) return;
+    if (!Array.isArray(photos)) throw new Error('photos must be an array');
+    if (photos.length > MAX_POST_PHOTOS) throw new Error(`A post can have at most ${MAX_POST_PHOTOS} photos`);
+    for (const p of photos) {
+        if (typeof p !== 'string' || !/^data:image\/(jpeg|jpg|png|webp);base64,/.test(p)) {
+            throw new Error('Each photo must be a base64 data URL (JPEG, PNG, or WebP)');
+        }
+        if (p.length > MAX_PHOTO_BASE64_CHARS) {
+            throw new Error('Photo too large — resize to 800px JPEG before uploading');
+        }
+    }
+}
+
 export function createPost(
     type: 'offer' | 'need', category: string, title: string, description: string, credits: number,
     priceType: 'fixed' | 'hourly' | 'daily' | 'weekly' | 'monthly' | string, authorPublicKey: string, lat?: number, lng?: number, photos?: string[], repeatable?: boolean, id?: string
@@ -1314,6 +1400,7 @@ export function createPost(
         return null;
     }
     assertProfileComplete(authorPublicKey);
+    validatePostPhotos(photos);
 
     const finalId = id || crypto.randomUUID();
     const createdAt = new Date().toISOString();
@@ -1419,13 +1506,43 @@ export function getPosts(filter?: { id?: string; type?: string; category?: strin
 }
 
 export function removePost(id: string, authorPublicKey: string): boolean {
-    const result = db.prepare(`UPDATE posts SET active = 0, status = 'cancelled', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND author_pubkey = ?`).run(id, authorPublicKey);
-    if (result.changes === 0) return false;
+    // A post with a funded escrow must not be deletable — that would strand the
+    // buyer's Beans with no release path. (Admin deletes handle this by refunding.)
+    const pendingTx = db.prepare(`SELECT COUNT(*) as c FROM marketplace_transactions WHERE post_id = ? AND status = 'pending'`).get(id) as any;
+    if (pendingTx.c > 0) throw new Error('This post has a deal in escrow — complete or cancel the deal before deleting it');
+
+    let removed = false;
+    db.transaction(() => {
+        const result = db.prepare(`UPDATE posts SET active = 0, status = 'cancelled', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND author_pubkey = ?`).run(id, authorPublicKey);
+        if (result.changes === 0) return;
+        removed = true;
+        // Reject open requests so they don't linger against a deleted post (no funds locked yet)
+        db.prepare(`UPDATE marketplace_transactions SET status='rejected', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE post_id=? AND status='requested'`).run(id);
+    })();
+    if (!removed) return false;
     broadcast({ type: 'post_removed', id });
     return true;
 }
 
 export function updatePost(id: string, authorPublicKey: string, updates: Partial<MarketplacePost>): MarketplacePost | null {
+    if (updates.photos !== undefined && Array.isArray(updates.photos)) {
+        // Clients send back /api/marketplace/posts/{id}/photos/{n} URLs for photos they
+        // kept during an edit (rowToPost serves URLs, never bytes). Re-hydrate those from
+        // the stored data — storing the URL string itself would destroy the photo.
+        const existingByOrder = new Map<number, string>(
+            (db.prepare(`SELECT order_num, photo_data FROM post_photos WHERE post_id=?`).all(id) as any[])
+                .map(r => [r.order_num, r.photo_data])
+        );
+        updates.photos = updates.photos.map(p => {
+            const m = typeof p === 'string' ? p.match(/\/api\/marketplace\/posts\/([^/]+)\/photos\/(\d+)$/) : null;
+            if (m && m[1] === id) {
+                const data = existingByOrder.get(Number(m[2]));
+                if (data) return data;
+            }
+            return p;
+        });
+        validatePostPhotos(updates.photos);
+    }
     const setClauses: string[] = [];
     const params: any[] = [];
     
@@ -1493,6 +1610,11 @@ export function requestPost(postId: string, requesterPublicKey: string, hours?: 
     if (post.status !== 'active') throw new Error('Post is not active');
     if (post.author_pubkey === requesterPublicKey) throw new Error('You cannot request your own post');
 
+    // One open request per member per post — prevents accidental double-taps and request spam
+    const existingRequest = db.prepare(`SELECT id FROM marketplace_transactions WHERE post_id=? AND status='requested' AND (buyer_pubkey=? OR seller_pubkey=?)`)
+        .get(postId, requesterPublicKey, requesterPublicKey);
+    if (existingRequest) throw new Error('You already have an open request for this post');
+
     // For Needs, the Author pays. For Offers, the Requester pays.
     const isOffer = post.type === 'offer';
     const payerPubkey = isOffer ? requesterPublicKey : post.author_pubkey;
@@ -1542,9 +1664,18 @@ export function approvePostRequest(transactionId: string, authorPublicKey: strin
     const expectedAuthorRole = isOffer ? row.seller_pubkey : row.buyer_pubkey;
     if (expectedAuthorRole !== authorPublicKey) throw new Error('Unauthorized');
 
+    // A non-repeatable post already committed to another deal (e.g. via 1-step accept)
+    // must not be approved into a second escrow — that would double-sell the item.
+    if (!post.repeatable && post.status !== 'active') throw new Error('Post is no longer available — it is already committed to another deal');
+
     // Verify payer STILL has enough money at the exact moment of approval
     const { balance, floor } = getBalance(row.buyer_pubkey);
     if (balance - row.credits < floor) throw new Error('Payer has insufficient funds in their wallet');
+
+    // Create the deal conversation BEFORE locking funds — if conversation creation
+    // fails we abort with nothing committed, instead of locking escrow with no
+    // chat thread. (Idempotent if it already exists.)
+    ensureTransactionConversation(row.post_id, row.buyer_pubkey, row.seller_pubkey);
 
     db.transaction(() => {
         // Ensure synthetic escrow account exists natively
@@ -1558,11 +1689,13 @@ export function approvePostRequest(transactionId: string, authorPublicKey: strin
         // 2. Mark this transaction as pending
         db.prepare(`UPDATE marketplace_transactions SET status='pending' WHERE id=?`).run(transactionId);
         
-        // 3. Mark the Post as pending
+        // 3. Mark the Post as pending — the status='active' guard makes the commit
+        // conditional, so a post that slipped into another deal aborts the whole escrow
         if (!post.repeatable) {
-            db.prepare(`UPDATE posts SET status='pending', accepted_by=?, accepted_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), pending_transaction_id=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`)
+            const updated = db.prepare(`UPDATE posts SET status='pending', accepted_by=?, accepted_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), pending_transaction_id=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=? AND status='active'`)
               .run(row.seller_pubkey === authorPublicKey ? row.buyer_pubkey : row.seller_pubkey, transactionId, row.post_id);
-              
+            if (updated.changes === 0) throw new Error('Post is no longer available — it is already committed to another deal');
+
             // 4. Reject all other competing requests for this Non-Repeatable post
             db.prepare(`UPDATE marketplace_transactions SET status='rejected', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE post_id=? AND id!=? AND status='requested'`)
               .run(row.post_id, transactionId);
@@ -1573,17 +1706,18 @@ export function approvePostRequest(transactionId: string, authorPublicKey: strin
     broadcast({ type: 'transaction_approved', transaction: tx });
     broadcast({ type: 'post_updated', post: getPosts({ id: row.post_id })[0] });
 
-    // Atomicity: Ensure conversation exists BEFORE injecting the system message.
-    // Both participants are guaranteed registered members at this point.
-    ensureTransactionConversation(row.post_id, row.buyer_pubkey, row.seller_pubkey);
-
-    injectSystemMessage(row.post_id, SystemMessageType.ESCROW_FUNDED, {
-        amount: row.credits,
-        postId: row.post_id,
-        actorPubkey: authorPublicKey,
-        buyerPubkey: row.buyer_pubkey,
-        sellerPubkey: row.seller_pubkey
-    }, row.buyer_pubkey, row.seller_pubkey);
+    // Post-commit side effects must never fail the API call — escrow is already funded.
+    try {
+        injectSystemMessage(row.post_id, SystemMessageType.ESCROW_FUNDED, {
+            amount: row.credits,
+            postId: row.post_id,
+            actorPubkey: authorPublicKey,
+            buyerPubkey: row.buyer_pubkey,
+            sellerPubkey: row.seller_pubkey
+        }, row.buyer_pubkey, row.seller_pubkey);
+    } catch (e) {
+        console.warn('[Marketplace] ESCROW_FUNDED system message failed (deal committed):', e);
+    }
 
     // Push notification: notify the requester that their request was approved
     const requesterPubkey = isOffer ? row.buyer_pubkey : row.seller_pubkey;
@@ -1675,6 +1809,11 @@ export function acceptPost(postId: string, buyerPublicKey: string, hours?: numbe
         status: 'pending', createdAt: new Date().toISOString(),
     };
 
+    // Create the deal conversation BEFORE locking funds — if conversation creation
+    // fails we abort with nothing committed, instead of locking escrow with no
+    // chat thread and no way to notify either party. (Idempotent if it exists.)
+    ensureTransactionConversation(post.id, buyerPublicKey, post.authorPublicKey);
+
     db.transaction(() => {
         // Ensure synthetic escrow account exists natively
         db.prepare(`INSERT OR IGNORE INTO accounts (public_key, balance, last_demurrage_epoch) VALUES (?, 0, 0)`).run(`escrow_${tx.id}`);
@@ -1687,24 +1826,44 @@ export function acceptPost(postId: string, buyerPublicKey: string, hours?: numbe
         // 2. Insert pending tx
         db.prepare(`INSERT INTO marketplace_transactions (id, post_id, buyer_pubkey, seller_pubkey, credits, hours, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`).run(tx.id, tx.postId, tx.buyerPublicKey, tx.sellerPublicKey, tx.credits, tx.hours ?? null, tx.createdAt);
         
-        // 3. Update post
+        // 3. Update post — the status='active' guard prevents a second buyer from
+        // funding escrow on an already-committed item (aborts the whole transaction)
         if (!post.repeatable) {
-            db.prepare(`UPDATE posts SET status='pending', accepted_by=?, accepted_at=?, pending_transaction_id=?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`).run(buyerPublicKey, tx.createdAt, tx.id, post.id);
+            const updated = db.prepare(`UPDATE posts SET status='pending', accepted_by=?, accepted_at=?, pending_transaction_id=?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=? AND status='active'`).run(buyerPublicKey, tx.createdAt, tx.id, post.id);
+            if (updated.changes === 0) throw new Error('Post is no longer available — it is already committed to another deal');
+
+            // 4. Reject competing open requests — the item is now committed to this buyer.
+            // Without this, the author could later approve a stale request and double-sell.
+            db.prepare(`UPDATE marketplace_transactions SET status='rejected', completed_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE post_id=? AND id!=? AND status='requested'`)
+              .run(post.id, tx.id);
         }
     })();
     broadcast({ type: 'post_accepted', postId: post.id, transaction: tx });
-    
-    // Atomicity: Ensure a conversation thread exists BEFORE injecting the system message.
-    // Both buyer and seller are guaranteed registered members at this point.
-    ensureTransactionConversation(post.id, buyerPublicKey, post.authorPublicKey);
 
-    injectSystemMessage(post.id, SystemMessageType.ESCROW_FUNDED, {
-        amount: finalCredits,
-        postId: post.id,
-        actorPubkey: buyerPublicKey,
-        buyerPubkey: buyerPublicKey,
-        sellerPubkey: post.authorPublicKey
-    }, buyerPublicKey, post.authorPublicKey);
+    // Post-commit side effects must never fail the API call — the escrow is
+    // already funded, and a thrown error here would report failure for a deal
+    // that actually succeeded.
+    try {
+        injectSystemMessage(post.id, SystemMessageType.ESCROW_FUNDED, {
+            amount: finalCredits,
+            postId: post.id,
+            actorPubkey: buyerPublicKey,
+            buyerPubkey: buyerPublicKey,
+            sellerPubkey: post.authorPublicKey
+        }, buyerPublicKey, post.authorPublicKey);
+    } catch (e) {
+        console.warn('[Marketplace] ESCROW_FUNDED system message failed (deal committed):', e);
+    }
+
+    // Push notification: the seller should learn immediately that their offer was taken
+    dispatchPushNotification(
+        [post.authorPublicKey],
+        buyerPublicKey,
+        '🛒 Offer Accepted',
+        `${buyer?.callsign || 'A member'} accepted "${post.title}" — ${finalCredits} Beans are now in escrow.`,
+        { screen: 'post', postId: post.id },
+        'marketplace'
+    );
     return tx;
 }
 
@@ -1746,6 +1905,14 @@ export function completePostTransaction(transactionId: string, confirmerPublicKe
             if (!releaseResult) {
                 throw new Error(`Failed to release ${releaseAmount} beans from ${escrowKey} to ${row.seller_pubkey}`);
             }
+
+            // Sweep any remainder back to the buyer — e.g. an hourly deal settled with
+            // fewer finalHours than were escrowed. Without this the difference would be
+            // stranded in the escrow wallet forever (it is demurrage-exempt).
+            const remainder = ledger.getAccount(escrowKey)?.balance ?? 0;
+            if (remainder > 0.0001) {
+                transfer(escrowKey, row.buyer_pubkey, remainder, `Escrow overpayment refund: ${post.title}`, 'escrow', true);
+            }
         }
 
         db.prepare(`UPDATE marketplace_transactions SET status='completed', completed_at=? WHERE id=?`).run(completedAt, transactionId);
@@ -1760,13 +1927,17 @@ export function completePostTransaction(transactionId: string, confirmerPublicKe
     const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
     broadcast({ type: 'transaction_completed', transaction: tx });
     
-    injectSystemMessage(row.post_id, SystemMessageType.ESCROW_RELEASED, {
-        amount: row.credits,
-        postId: row.post_id,
-        actorPubkey: confirmerPublicKey,
-        buyerPubkey: row.buyer_pubkey,
-        sellerPubkey: row.seller_pubkey
-    }, row.buyer_pubkey, row.seller_pubkey);
+    try {
+        injectSystemMessage(row.post_id, SystemMessageType.ESCROW_RELEASED, {
+            amount: row.credits,
+            postId: row.post_id,
+            actorPubkey: confirmerPublicKey,
+            buyerPubkey: row.buyer_pubkey,
+            sellerPubkey: row.seller_pubkey
+        }, row.buyer_pubkey, row.seller_pubkey);
+    } catch (e) {
+        console.warn('[Marketplace] ESCROW_RELEASED system message failed (settlement committed):', e);
+    }
     return tx;
 }
 
@@ -1779,8 +1950,11 @@ export function cancelPostTransaction(transactionId: string, cancellerPublicKey:
         // Transfer whatever the escrow wallet actually holds (may be slightly less due to demurrage)
         const escrowKey = `escrow_${transactionId}`;
         const escrowAcc = ledger.getAccount(escrowKey);
-        const refundAmount = escrowAcc ? Math.min(escrowAcc.balance, row.credits) : row.credits;
-        transfer(escrowKey, row.buyer_pubkey, refundAmount, `Escrow refund for cancelled post ${row.post_id}`, 'escrow', true);
+        // Refund the full escrow balance, not min(balance, credits) — leaves nothing stranded
+        const refundAmount = escrowAcc ? escrowAcc.balance : row.credits;
+        if (refundAmount > 0.0001) {
+            transfer(escrowKey, row.buyer_pubkey, refundAmount, `Escrow refund for cancelled post ${row.post_id}`, 'escrow', true);
+        }
 
         db.prepare(`UPDATE marketplace_transactions SET status='cancelled', completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id=?`).run(transactionId);
         const post = db.prepare(`SELECT * FROM posts WHERE id=?`).get(row.post_id) as any;
@@ -1791,13 +1965,17 @@ export function cancelPostTransaction(transactionId: string, cancellerPublicKey:
     const tx = getMarketplaceTransactions(row.buyer_pubkey).find(t => t.id === transactionId)!;
     broadcast({ type: 'transaction_cancelled', transaction: tx });
     
-    injectSystemMessage(row.post_id, SystemMessageType.ESCROW_CANCELLED, {
-        amount: row.credits,
-        postId: row.post_id,
-        actorPubkey: cancellerPublicKey,
-        buyerPubkey: row.buyer_pubkey,
-        sellerPubkey: row.seller_pubkey
-    }, row.buyer_pubkey, row.seller_pubkey);
+    try {
+        injectSystemMessage(row.post_id, SystemMessageType.ESCROW_CANCELLED, {
+            amount: row.credits,
+            postId: row.post_id,
+            actorPubkey: cancellerPublicKey,
+            buyerPubkey: row.buyer_pubkey,
+            sellerPubkey: row.seller_pubkey
+        }, row.buyer_pubkey, row.seller_pubkey);
+    } catch (e) {
+        console.warn('[Marketplace] ESCROW_CANCELLED system message failed (refund committed):', e);
+    }
     return tx;
 }
 
@@ -2068,7 +2246,8 @@ export function injectSystemMessage(postId: string, type: SystemMessageType, met
 
 export function getConversationsByMember(pubkey: string): Conversation[] {
     const rows = db.prepare(`
-        SELECT c.*, p.title as post_title,
+        SELECT c.*,
+        CASE WHEN c.post_id IS NOT NULL AND p.id IS NULL THEN '(deleted post)' ELSE p.title END as post_title,
         COALESCE(
             (SELECT mt2.status FROM marketplace_transactions mt2
              WHERE mt2.post_id = c.post_id
@@ -2076,18 +2255,21 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
                AND mt2.seller_pubkey IN (SELECT public_key FROM conversation_participants WHERE conversation_id = c.id)
              ORDER BY mt2.created_at DESC LIMIT 1),
             p.status,
-            'active'
+            CASE WHEN c.post_id IS NOT NULL THEN 'cancelled' ELSE 'active' END
         ) as post_status,
         m.type as last_msg_type, m.system_type as last_sys_type, m.timestamp as last_msg_time
         FROM conversations c
         JOIN conversation_participants cp ON c.id = cp.conversation_id
         LEFT JOIN posts p ON c.post_id = p.id
-        LEFT JOIN messages m ON m.id = (
-            SELECT id FROM messages WHERE conversation_id = c.id ORDER BY timestamp DESC LIMIT 1
+        LEFT JOIN messages m ON m.rowid = (
+            SELECT MAX(rowid) FROM messages WHERE conversation_id = c.id
         )
         WHERE cp.public_key = ?
-        ORDER BY COALESCE(last_msg_time, c.created_at) DESC
+        ORDER BY (m.rowid IS NULL) ASC, m.rowid DESC, c.created_at DESC
     `).all(pubkey) as any[];
+    // Ordering uses message rowid (server insertion order) rather than client-supplied
+    // timestamps — a device with a skewed clock can no longer sink or float a thread.
+    // Message-less conversations sort below messaged ones, newest first.
 
     // ⚡ Bolt: Batch fetch participants to avoid N+1 queries
     const conversationIds = rows.map(r => r.id);
@@ -2185,7 +2367,8 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
 }
 
 export function getConversationMessages(conversationId: string, limit = 50, offset = 0): Message[] {
-    const rows = db.prepare(`SELECT * FROM messages WHERE conversation_id=? ORDER BY timestamp DESC LIMIT ? OFFSET ?`).all(conversationId, limit, offset) as any[];
+    // rowid (insertion order) instead of client timestamps — stable pagination under clock skew
+    const rows = db.prepare(`SELECT * FROM messages WHERE conversation_id=? ORDER BY rowid DESC LIMIT ? OFFSET ?`).all(conversationId, limit, offset) as any[];
     return rows.reverse().map(r => ({ id: r.id, conversationId: r.conversation_id, authorPubkey: r.author_pubkey, ciphertext: r.ciphertext, nonce: r.nonce, type: r.type, systemType: r.system_type, metadata: r.metadata, timestamp: r.timestamp }));
 }
 
@@ -2206,18 +2389,21 @@ export function getConversation(id: string): Conversation | undefined {
         WHERE c.id=?
     `).get(id) as any;
     if (!c) return undefined;
-    const parts = db.prepare("SELECT public_key FROM conversation_participants WHERE conversation_id=?").all(id) as any[];
-    return { 
-        id: c.id, 
-        type: c.type, 
-        postId: c.post_id, 
+    const parts = db.prepare("SELECT public_key, last_read_at FROM conversation_participants WHERE conversation_id=?").all(id) as any[];
+    return {
+        id: c.id,
+        type: c.type,
+        postId: c.post_id,
         postTitle: c.post_title,
         postStatus: c.post_status,
-        name: c.name, 
-        createdBy: c.created_by, 
-        createdAt: c.created_at, 
-        participants: parts.map(p => p.public_key) 
-    };
+        name: c.name,
+        createdBy: c.created_by,
+        createdAt: c.created_at,
+        participants: parts.map(p => p.public_key),
+        // Read receipts: per-participant read cursors so an open chat polling this
+        // endpoint can flip sent ticks to read without waiting for a full sync.
+        readCursors: parts.map(p => ({ publicKey: p.public_key, lastReadAt: p.last_read_at || null }))
+    } as any;
 }
 
 // ===================== UNREAD TRACKING =====================
@@ -4543,6 +4729,68 @@ export function getCommonsBalance(): number {
 export function persistCommonsBalance(): void {
     const rounded = Math.round(COMMONS_BALANCE * 100) / 100;
     db.prepare("INSERT OR REPLACE INTO accounts (public_key, balance, last_demurrage_epoch) VALUES ('COMMONS_POOL', ?, 0)").run(rounded);
+}
+
+/**
+ * Persist demurrage decay events as ledger transaction rows (account → COMMONS_POOL).
+ * Decay is applied lazily in-memory by LedgerManager; without these rows the
+ * transaction history can never reconcile to account balances, making demurrage
+ * invisible to audits. Also syncs the decayed balances/epochs back to the accounts table.
+ */
+export function persistDecayEvents(): void {
+    const events = ledger.drainDecayEvents();
+    if (events.length === 0) return;
+    // Deterministic id (account + epoch range): if two mesh nodes lazily apply the
+    // same logical decay, both generate the same row id and INSERT OR IGNORE dedupes
+    // it during replication instead of double-counting the decay in history.
+    const insertTxn = db.prepare(`INSERT OR IGNORE INTO transactions (id, from_pubkey, to_pubkey, amount, tax_fee, memo, timestamp) VALUES (?, ?, 'COMMONS_POOL', ?, 0, ?, ?)`);
+    const updateAcc = db.prepare(`UPDATE accounts SET balance=?, last_demurrage_epoch=?, last_updated_at=? WHERE public_key=?`);
+    db.transaction(() => {
+        for (const ev of events) {
+            const id = `demurrage_${ev.accountId.slice(0, 16)}_${ev.toEpoch - ev.epochsPassed}_${ev.toEpoch}`;
+            insertTxn.run(id, ev.accountId, Math.round(ev.amount * 10000) / 10000, `Circulation fee (demurrage, ${ev.epochsPassed}d)`, ev.timestamp);
+            const acc = ledger.getAccount(ev.accountId);
+            updateAcc.run(acc.balance, acc.lastDemurrageEpoch, new Date().toISOString(), ev.accountId);
+        }
+    })();
+}
+
+/**
+ * Ledger conservation audit. Every internal operation (transfer, fee, demurrage,
+ * escrow) moves value between rows of the accounts table, so the system-wide sum
+ * of balances must stay CONSTANT over time. Historical data (deleted members,
+ * pre-audit demurrage) means the constant isn't necessarily zero — so the first
+ * run stores a baseline in node_config and later runs alert on drift. Also flags
+ * escrow wallets holding funds for settled transactions (always a bug).
+ */
+export function runLedgerAudit(): { sumBalances: number; baseline: number; drift: number; strandedEscrows: number; ok: boolean } {
+    persistDecayEvents();
+    persistCommonsBalance();
+
+    const sumBalances = (db.prepare(`SELECT COALESCE(SUM(balance), 0) as s FROM accounts`).get() as any).s as number;
+
+    const baselineRow = db.prepare(`SELECT value FROM node_config WHERE key='ledger_audit_baseline'`).get() as any;
+    let baseline = baselineRow ? Number(baselineRow.value) : NaN;
+    if (!Number.isFinite(baseline)) {
+        baseline = sumBalances;
+        db.prepare(`INSERT OR REPLACE INTO node_config (key, value) VALUES ('ledger_audit_baseline', ?)`).run(String(sumBalances));
+        console.log(`📐 [LedgerAudit] Baseline established: sum(balances) = ${sumBalances.toFixed(4)}`);
+    }
+    const drift = sumBalances - baseline;
+
+    const strandedEscrows = (db.prepare(`
+        SELECT COUNT(*) as c FROM accounts
+        WHERE public_key LIKE 'escrow_%' AND ABS(balance) > 0.01
+          AND SUBSTR(public_key, 8) NOT IN (SELECT id FROM marketplace_transactions WHERE status IN ('pending', 'requested'))
+    `).get() as any).c as number;
+
+    const ok = Math.abs(drift) < 0.01 && strandedEscrows === 0;
+    if (!ok) {
+        console.warn(`⚠️ [LedgerAudit] FAILED — sum=${sumBalances.toFixed(4)}, drift=${drift.toFixed(4)} from baseline, stranded escrows=${strandedEscrows}`);
+    } else {
+        console.log(`✅ [LedgerAudit] OK — sum(balances)=${sumBalances.toFixed(4)}, drift=${drift.toFixed(4)}`);
+    }
+    return { sumBalances, baseline, drift, strandedEscrows, ok };
 }
 
 // ===================== PUSH NOTIFICATIONS =====================

@@ -1474,7 +1474,7 @@ export async function startHttpsServer(port: number): Promise<void> {
         try {
             const post = createPost(
                 type, category || 'other', title, description || '',
-                Number(credits) || 0, priceType === 'hourly' ? 'hourly' : 'fixed', authorPublicKey,
+                Number(credits) || 0, priceType === 'hourly' ? 'hourly' : 'fixed', (ctx.state.actor as string) || authorPublicKey,
                 lat != null ? Number(lat) : undefined,
                 lng != null ? Number(lng) : undefined,
                 photos,
@@ -1501,7 +1501,7 @@ export async function startHttpsServer(port: number): Promise<void> {
                 ctx.body = { error: 'id and authorPublicKey are required' };
                 return;
             }
-            const removed = removePost(id, authorPublicKey);
+            const removed = removePost(id, (ctx.state.actor as string) || authorPublicKey);
             ctx.body = { success: removed };
         } catch (e: any) {
             ctx.status = 400;
@@ -1517,7 +1517,7 @@ export async function startHttpsServer(port: number): Promise<void> {
                 ctx.body = { error: 'id and authorPublicKey are required' };
                 return;
             }
-            const post = updatePost(id, authorPublicKey, updates);
+            const post = updatePost(id, (ctx.state.actor as string) || authorPublicKey, updates);
             if (!post) {
                 ctx.status = 404;
                 ctx.body = { error: 'Post not found or not owned by you' };
@@ -1541,7 +1541,7 @@ export async function startHttpsServer(port: number): Promise<void> {
                 return;
             }
             const parsedHours = hours != null ? Number(hours) : undefined;
-            const tx = acceptPost(postId, buyerPublicKey, parsedHours);
+            const tx = acceptPost(postId, (ctx.state.actor as string) || buyerPublicKey, parsedHours);
             ctx.body = { success: true, transaction: tx };
         } catch (err: any) {
             ctx.status = 400;
@@ -1558,7 +1558,7 @@ export async function startHttpsServer(port: number): Promise<void> {
                 return;
             }
             const parsedHours = hours != null ? Number(hours) : undefined;
-            const tx = requestPost(postId, buyerPublicKey, parsedHours);
+            const tx = requestPost(postId, (ctx.state.actor as string) || buyerPublicKey, parsedHours);
             if (!tx) throw new Error('Cannot request — post not found or unauthorized');
             ctx.body = { success: true, transaction: tx };
         } catch (err: any) {
@@ -1575,7 +1575,7 @@ export async function startHttpsServer(port: number): Promise<void> {
                 ctx.body = { error: 'transactionId and authorPublicKey are required' };
                 return;
             }
-            const tx = approvePostRequest(transactionId, authorPublicKey);
+            const tx = approvePostRequest(transactionId, (ctx.state.actor as string) || authorPublicKey);
             ctx.body = { success: true, transaction: tx };
         } catch (err: any) {
             ctx.status = 400;
@@ -1590,7 +1590,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             ctx.body = { error: 'transactionId and authorPublicKey are required' };
             return;
         }
-        const tx = rejectPostRequest(transactionId, authorPublicKey);
+        const tx = rejectPostRequest(transactionId, (ctx.state.actor as string) || authorPublicKey);
         if (!tx) {
             ctx.status = 400;
             ctx.body = { error: 'Cannot reject — request not found or unauthorized' };
@@ -1606,7 +1606,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             ctx.body = { error: 'transactionId and buyerPublicKey are required' };
             return;
         }
-        const tx = cancelPostRequest(transactionId, buyerPublicKey);
+        const tx = cancelPostRequest(transactionId, (ctx.state.actor as string) || buyerPublicKey);
         if (!tx) {
             ctx.status = 400;
             ctx.body = { error: 'Cannot cancel — request not found or unauthorized' };
@@ -1624,7 +1624,7 @@ export async function startHttpsServer(port: number): Promise<void> {
         }
         const parsedFinalHours = finalHours != null ? Number(finalHours) : undefined;
         try {
-            const tx = completePostTransaction(transactionId, confirmerPublicKey, parsedFinalHours);
+            const tx = completePostTransaction(transactionId, (ctx.state.actor as string) || confirmerPublicKey, parsedFinalHours);
             if (!tx) {
                 ctx.status = 400;
                 ctx.body = { error: 'Cannot complete — transaction not found or not authorized' };
@@ -1644,7 +1644,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             ctx.body = { error: 'transactionId and cancellerPublicKey are required' };
             return;
         }
-        const tx = cancelPostTransaction(transactionId, cancellerPublicKey);
+        const tx = cancelPostTransaction(transactionId, (ctx.state.actor as string) || cancellerPublicKey);
         if (!tx) {
             ctx.status = 400;
             ctx.body = { error: 'Cannot cancel — transaction not found or not authorized' };
@@ -1661,7 +1661,7 @@ export async function startHttpsServer(port: number): Promise<void> {
                 ctx.body = { error: 'postId and authorPublicKey are required' };
                 return;
             }
-            const success = pausePost(postId, authorPublicKey);
+            const success = pausePost(postId, (ctx.state.actor as string) || authorPublicKey);
             ctx.body = { success };
         } catch (e: any) {
             ctx.status = 400;
@@ -1677,7 +1677,7 @@ export async function startHttpsServer(port: number): Promise<void> {
                 ctx.body = { error: 'postId and authorPublicKey are required' };
                 return;
             }
-            const success = resumePost(postId, authorPublicKey);
+            const success = resumePost(postId, (ctx.state.actor as string) || authorPublicKey);
             ctx.body = { success };
         } catch (e: any) {
             ctx.status = 400;

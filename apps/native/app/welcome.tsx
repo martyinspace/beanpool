@@ -532,7 +532,7 @@ export default function WelcomeScreen() {
                             </Text>
                             <View style={guideStyles.highlightBox}>
                                 <Text style={guideStyles.highlightText}>
-                                    🟢 <Text style={{ fontWeight: 'bold' }}>The best place to be is zero (0 Ʀ).</Text> This means you have given as much value to your community as you have received from it.
+                                    🟢 <Text style={{ fontWeight: 'bold' }}>The best place to be is zero (0 Beans).</Text> This means you have given as much value to your community as you have received from it.
                                 </Text>
                             </View>
                         </View>
@@ -546,7 +546,7 @@ export default function WelcomeScreen() {
                                 <View style={guideStyles.bulletContent}>
                                     <Text style={guideStyles.bulletTitle}>Trust-Backed Credit</Text>
                                     <Text style={guideStyles.bulletText}>
-                                        Every member starts at 0 Ʀ. You can go negative down to -80 Ʀ to request help, backed by community trust. No interest, no bank fees.
+                                        Every member starts at 0 Beans. You can go negative down to -80 Beans to request help, backed by community trust. No interest, no bank fees.
                                     </Text>
                                 </View>
                             </View>
@@ -556,7 +556,7 @@ export default function WelcomeScreen() {
                                 <View style={guideStyles.bulletContent}>
                                     <Text style={guideStyles.bulletTitle}>Community Commons Pool</Text>
                                     <Text style={guideStyles.bulletText}>
-                                        Positive balances above 200 Ʀ decay by 1.5% monthly (progressive circulation). This prevents hoarding and funds local community projects.
+                                        Positive balances above 200 Beans decay by 1.5% monthly (progressive circulation). This prevents hoarding and funds local community projects.
                                     </Text>
                                 </View>
                             </View>
@@ -566,7 +566,7 @@ export default function WelcomeScreen() {
                                 <View style={guideStyles.bulletContent}>
                                     <Text style={guideStyles.bulletTitle}>Reference Rate</Text>
                                     <Text style={guideStyles.bulletText}>
-                                        40 Ʀ represents roughly 1 hour of community service or time, helping you easily value what you offer or need.
+                                        40 Beans represents roughly 1 hour of community service or time, helping you easily value what you offer or need.
                                     </Text>
                                 </View>
                             </View>

@@ -12,6 +12,15 @@ import { hapticSuccess, hapticWarning } from '../../utils/haptics';
 import { ReviewModal } from '../../components/ReviewModal';
 import { MemberAvatar } from '../../components/MemberAvatar';
 
+/** WhatsApp-style day label: Today / Yesterday / "Mon, 12 May". */
+function formatDayLabel(d: Date): string {
+    const today = new Date();
+    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+    if (d.toDateString() === today.toDateString()) return 'Today';
+    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
 /** Image bubble that lazily fetches + decrypts an encrypted attachment for display. */
 function ChatImage({ conversationId, messageId }: { conversationId: string; messageId: string }) {
     const [uri, setUri] = useState<string | null>(null);
@@ -245,7 +254,7 @@ export default function ChatScreen() {
         if (!pendingTx || !identity?.publicKey) return;
         Alert.alert(
             'Release Credits',
-            `Release Ʀ${pendingTx.amount} to the provider? This action cannot be undone.`,
+            `Release ${pendingTx.amount} Beans to the provider? This action cannot be undone.`,
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -317,7 +326,35 @@ export default function ChatScreen() {
         );
     };
 
+    // Interleave day-separator pills between messages from different calendar days
+    const listItems = React.useMemo(() => {
+        const items: any[] = [];
+        let lastDay: string | null = null;
+        for (const m of messages) {
+            const d = m.rawTimestamp ? new Date(m.rawTimestamp) : null;
+            if (d && !isNaN(d.getTime())) {
+                const dayKey = d.toDateString();
+                if (dayKey !== lastDay) {
+                    items.push({ id: `day-${dayKey}`, type: 'day-separator', label: formatDayLabel(d) });
+                    lastDay = dayKey;
+                }
+            }
+            items.push(m);
+        }
+        return items;
+    }, [messages]);
+
     const renderMessage = ({ item }: { item: any }) => {
+        if (item.type === 'day-separator') {
+            return (
+                <View style={styles.daySeparatorRow}>
+                    <View style={styles.daySeparatorPill}>
+                        <Text style={styles.daySeparatorText}>{item.label}</Text>
+                    </View>
+                </View>
+            );
+        }
+
         const isSystem = item.type === 'system' || item.senderId === 'SYSTEM';
         
         if (isSystem) {
@@ -353,9 +390,9 @@ export default function ChatScreen() {
                     </View>
                     <Text style={styles.systemTimestamp}>{item.timestamp}</Text>
                     
-                    {/* Inline Hard Links based on Object Metadata */}
-                    {item.metadata?.postId && (
-                        <Pressable 
+                    {/* Inline post link — only when it points somewhere the sticky header doesn't already cover */}
+                    {item.metadata?.postId && item.metadata.postId !== postContext?.id && (
+                        <Pressable
                             style={styles.systemActionBtn}
                             onPress={() => router.push(`/post/${item.metadata.postId}`)}
                         >
@@ -524,7 +561,7 @@ export default function ChatScreen() {
                             return (
                                 <Pressable
                                     onPress={() => {
-                                        const index = messages.findIndex(m => m.id === item.metadata.replyToId);
+                                        const index = listItems.findIndex(m => m.id === item.metadata.replyToId);
                                         if (index > -1) {
                                             try {
                                                 flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
@@ -618,7 +655,7 @@ export default function ChatScreen() {
                         size={38} 
                     />
                     <View style={styles.headerTextContainer}>
-                        <Text style={styles.headerTitle} numberOfLines={1}>{peerName.toUpperCase()}</Text>
+                        <Text style={styles.headerTitle} numberOfLines={1}>{peerName}</Text>
                         <Text style={styles.headerSubtitle} numberOfLines={1}>
                             {isEncrypted ? '🔒 End-to-end encrypted' : 'Connected via Mullum Node'}
                         </Text>
@@ -637,7 +674,7 @@ export default function ChatScreen() {
                         <MaterialCommunityIcons name="shopping-outline" size={24} color="#059669" />
                         <View style={{ marginLeft: 12 }}>
                             <Text style={styles.stickyPostTitle} numberOfLines={1}>{postContext.title}</Text>
-                            <Text style={styles.stickyPostCredits}>{postContext.credits} BP {postContext.priceType === 'hourly' ? '/ hr' : ''}</Text>
+                            <Text style={styles.stickyPostCredits}>{postContext.credits} Beans{postContext.priceType === 'hourly' ? ' / hr' : ''}</Text>
                         </View>
                     </View>
                     <View style={[styles.statusBadge, 
@@ -673,7 +710,7 @@ export default function ChatScreen() {
                         >
                             <MaterialCommunityIcons name="check-circle-outline" size={18} color="#fff" style={{ marginRight: 6 }} />
                             <Text style={styles.inlineActionReleaseText}>
-                                {actionLoading ? 'Processing...' : `Release Ʀ${pendingTx.amount}`}
+                                {actionLoading ? 'Processing...' : `Release ${pendingTx.amount} 🫘`}
                             </Text>
                         </Pressable>
                         <Pressable 
@@ -696,7 +733,7 @@ export default function ChatScreen() {
                 {/* Messages List */}
                 <FlatList
                     ref={flatListRef}
-                    data={messages}
+                    data={listItems}
                     keyExtractor={item => item.id}
                     renderItem={renderMessage}
                     contentContainerStyle={styles.listContent}
@@ -816,6 +853,9 @@ const styles = StyleSheet.create({
     sendBtnActive: { backgroundColor: '#8b5cf6' },
     sendBtnInactive: { backgroundColor: '#f3f4f6' },
     systemTimestamp: { fontSize: 10, color: '#9ca3af', marginTop: 4 },
+    daySeparatorRow: { alignItems: 'center', marginVertical: 4 },
+    daySeparatorPill: { backgroundColor: 'rgba(229, 231, 235, 0.85)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
+    daySeparatorText: { fontSize: 11, fontWeight: '600', color: '#6b7280' },
     // Inline Action Bar
     inlineActionBar: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10, gap: 8, backgroundColor: '#fefce8', borderBottomWidth: 1, borderBottomColor: '#fef08a' },
     inlineActionBtn: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 10, borderRadius: 10 },
