@@ -45,6 +45,53 @@ function resizeImageToDataUri(file: File, maxW: number, quality: number): Promis
     });
 }
 
+function formatSystemMessage(msg: any, myPubkey: string, userTransactions: any[]) {
+    let metaObj: any = null;
+    try {
+        if (msg.metadata) metaObj = JSON.parse(msg.metadata);
+    } catch {}
+
+    const amount = metaObj?.amount ?? '';
+    const beansStr = amount ? `${amount} Beans` : 'Beans';
+
+    if (msg.systemType === 'ESCROW_FUNDED') {
+        return `${beansStr} placed in escrow.`;
+    }
+
+    if (msg.systemType === 'ESCROW_RELEASED') {
+        // Find transaction to see who is the seller (provider)
+        const sellerPubkey = metaObj?.sellerPubkey || 
+            userTransactions.find(t => t.postId === metaObj?.postId)?.sellerPublicKey;
+        
+        const isSeller = sellerPubkey === myPubkey;
+        if (isSeller) {
+            return `Payment of ${beansStr} released to you.`;
+        } else {
+            return `Payment of ${beansStr} released to the provider.`;
+        }
+    }
+
+    if (msg.systemType === 'ESCROW_CANCELLED') {
+        return `Escrow cancelled and funds refunded.`;
+    }
+
+    // Fallback: clean up Ʀ or R in the ciphertext
+    let txt = msg.ciphertext || '';
+    if (txt.includes('Ʀ')) {
+        txt = txt.replace(/Ʀ(\d+)/g, '$1 Beans').replace(/Ʀ/g, 'Beans');
+    }
+    if (txt.includes('Payment of R')) {
+        txt = txt.replace(/Payment of R(\d+) released to the provider\./g, (_: string, amt: string) => {
+            const sellerPubkey = metaObj?.sellerPubkey || 
+                userTransactions.find(t => t.postId === metaObj?.postId)?.sellerPublicKey;
+            const isSeller = sellerPubkey === myPubkey;
+            return `Payment of ${amt} Beans released to ${isSeller ? 'you' : 'the provider'}.`;
+        });
+        txt = txt.replace(/R(\d+) has been placed in escrow\./g, '$1 Beans placed in escrow.');
+    }
+    return txt;
+}
+
 /** Lazily fetch + decrypt an encrypted image attachment, then render it. */
 function ChatImageBubble({ messageId, conversationId, peerPubHex, myPrivHex }:
     { messageId: string; conversationId: string; peerPubHex: string; myPrivHex: string }) {
@@ -489,7 +536,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                         borderRadius: '16px', padding: '0.4rem 0.8rem',
                                         fontSize: '0.8rem', fontWeight: 600
                                     }}>
-                                        {icon} {msg.ciphertext}
+                                        {icon} {formatSystemMessage(msg, identity.publicKey, userTransactions)}
                                     </div>
                                     
                                     {msg.systemType === 'ESCROW_FUNDED' && metaObj?.postId && (

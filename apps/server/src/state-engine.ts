@@ -209,6 +209,8 @@ export interface SystemMessageMetadata {
     postId: string;         // Link back to the original post
     actorPubkey: string;    // Who triggered the event (Buyer/Seller)
     txHash?: string;        // The ledger transaction ID for verification
+    buyerPubkey?: string;
+    sellerPubkey?: string;
 }
 
 export interface Rating {
@@ -1578,7 +1580,9 @@ export function approvePostRequest(transactionId: string, authorPublicKey: strin
     injectSystemMessage(row.post_id, SystemMessageType.ESCROW_FUNDED, {
         amount: row.credits,
         postId: row.post_id,
-        actorPubkey: authorPublicKey
+        actorPubkey: authorPublicKey,
+        buyerPubkey: row.buyer_pubkey,
+        sellerPubkey: row.seller_pubkey
     }, row.buyer_pubkey, row.seller_pubkey);
 
     // Push notification: notify the requester that their request was approved
@@ -1697,7 +1701,9 @@ export function acceptPost(postId: string, buyerPublicKey: string, hours?: numbe
     injectSystemMessage(post.id, SystemMessageType.ESCROW_FUNDED, {
         amount: finalCredits,
         postId: post.id,
-        actorPubkey: buyerPublicKey
+        actorPubkey: buyerPublicKey,
+        buyerPubkey: buyerPublicKey,
+        sellerPubkey: post.authorPublicKey
     }, buyerPublicKey, post.authorPublicKey);
     return tx;
 }
@@ -1757,7 +1763,9 @@ export function completePostTransaction(transactionId: string, confirmerPublicKe
     injectSystemMessage(row.post_id, SystemMessageType.ESCROW_RELEASED, {
         amount: row.credits,
         postId: row.post_id,
-        actorPubkey: confirmerPublicKey
+        actorPubkey: confirmerPublicKey,
+        buyerPubkey: row.buyer_pubkey,
+        sellerPubkey: row.seller_pubkey
     }, row.buyer_pubkey, row.seller_pubkey);
     return tx;
 }
@@ -1786,7 +1794,9 @@ export function cancelPostTransaction(transactionId: string, cancellerPublicKey:
     injectSystemMessage(row.post_id, SystemMessageType.ESCROW_CANCELLED, {
         amount: row.credits,
         postId: row.post_id,
-        actorPubkey: cancellerPublicKey
+        actorPubkey: cancellerPublicKey,
+        buyerPubkey: row.buyer_pubkey,
+        sellerPubkey: row.seller_pubkey
     }, row.buyer_pubkey, row.seller_pubkey);
     return tx;
 }
@@ -2024,8 +2034,8 @@ export function injectSystemMessage(postId: string, type: SystemMessageType, met
 
     const contentMap: Record<SystemMessageType, string> = {
         [SystemMessageType.ESCROW_CREATED]: `Escrow initialized.`,
-        [SystemMessageType.ESCROW_FUNDED]: `Ʀ${meta.amount} has been placed in escrow.`,
-        [SystemMessageType.ESCROW_RELEASED]: `Payment of Ʀ${meta.amount} released to the provider.`,
+        [SystemMessageType.ESCROW_FUNDED]: `${meta.amount} Beans placed in escrow.`,
+        [SystemMessageType.ESCROW_RELEASED]: `Payment of ${meta.amount} Beans released to the provider.`,
         [SystemMessageType.ESCROW_CANCELLED]: `Escrow cancelled and funds refunded.`,
         [SystemMessageType.DISPUTE_OPENED]: `A dispute has been opened.`,
         [SystemMessageType.REVIEW_LEFT]: `A review has been left.`
@@ -2058,7 +2068,16 @@ export function injectSystemMessage(postId: string, type: SystemMessageType, met
 
 export function getConversationsByMember(pubkey: string): Conversation[] {
     const rows = db.prepare(`
-        SELECT c.*, p.title as post_title, p.status as post_status,
+        SELECT c.*, p.title as post_title,
+        COALESCE(
+            (SELECT mt2.status FROM marketplace_transactions mt2
+             WHERE mt2.post_id = c.post_id
+               AND mt2.buyer_pubkey IN (SELECT public_key FROM conversation_participants WHERE conversation_id = c.id)
+               AND mt2.seller_pubkey IN (SELECT public_key FROM conversation_participants WHERE conversation_id = c.id)
+             ORDER BY mt2.created_at DESC LIMIT 1),
+            p.status,
+            'active'
+        ) as post_status,
         m.type as last_msg_type, m.system_type as last_sys_type, m.timestamp as last_msg_time
         FROM conversations c
         JOIN conversation_participants cp ON c.id = cp.conversation_id
@@ -2172,7 +2191,16 @@ export function getConversationMessages(conversationId: string, limit = 50, offs
 
 export function getConversation(id: string): Conversation | undefined {
     const c = db.prepare(`
-        SELECT c.*, p.title as post_title, p.status as post_status 
+        SELECT c.*, p.title as post_title,
+        COALESCE(
+            (SELECT mt2.status FROM marketplace_transactions mt2
+             WHERE mt2.post_id = c.post_id
+               AND mt2.buyer_pubkey IN (SELECT public_key FROM conversation_participants WHERE conversation_id = c.id)
+               AND mt2.seller_pubkey IN (SELECT public_key FROM conversation_participants WHERE conversation_id = c.id)
+             ORDER BY mt2.created_at DESC LIMIT 1),
+            p.status,
+            'active'
+        ) as post_status
         FROM conversations c 
         LEFT JOIN posts p ON c.post_id = p.id 
         WHERE c.id=?
@@ -4703,12 +4731,12 @@ export function sendPushNotification(postId: string, type: SystemMessageType, me
         },
         [SystemMessageType.ESCROW_FUNDED]: {
             title: '🔒 Credits Locked in Escrow',
-            body: `Ʀ${meta.amount} placed in escrow for "${postTitle}"`,
+            body: `${meta.amount} Beans placed in escrow for "${postTitle}"`,
             data: { screen: 'post', postId }
         },
         [SystemMessageType.ESCROW_RELEASED]: {
             title: '✅ Credits Released!',
-            body: `Payment of Ʀ${meta.amount} released for "${postTitle}"`,
+            body: `Payment of ${meta.amount} Beans released for "${postTitle}"`,
             data: { screen: 'post', postId }
         },
         [SystemMessageType.ESCROW_CANCELLED]: {

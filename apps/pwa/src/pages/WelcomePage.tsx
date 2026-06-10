@@ -6,11 +6,13 @@
  * Recovery:   Enter 12-word phrase to recover identity
  */
 
-import { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { createIdentity, createIdentityFromMnemonic, importIdentity, type BeanPoolIdentity } from '../lib/identity';
 import { validateMnemonic } from '../lib/mnemonic';
 import { decryptIdentity } from '../lib/identity-transfer';
-import { redeemInvite, redeemOfflineTicket, registerMember } from '../lib/api';
+import { redeemInvite, redeemOfflineTicket, registerMember, updateMemberProfile } from '../lib/api';
+import { resolveAvatarUrl } from '../lib/avatar';
+
 
 interface Props {
     onComplete: (identity: BeanPoolIdentity) => void;
@@ -100,6 +102,87 @@ const FAQ_ITEMS = [
     },
 ];
 
+// ===================== BUNDLED AVATARS & STEPPER =====================
+
+const BUNDLED_AVATARS = [
+    { id: 'bean-green',   label: 'Green Bean' },
+    { id: 'bean-purple',  label: 'Purple Bean' },
+    { id: 'leaf',         label: 'Leaf' },
+    { id: 'sprout',       label: 'Sprout' },
+    { id: 'sun',          label: 'Sun' },
+    { id: 'moon',         label: 'Moon' },
+    { id: 'wave',         label: 'Wave' },
+    { id: 'mountain',     label: 'Mountain' },
+    { id: 'fire',         label: 'Fire' },
+    { id: 'crystal',      label: 'Crystal' },
+];
+
+function OnboardingStepper({ step }: { step: 1 | 2 | 3 | 4 }) {
+    const steps = ['Your Name', 'Your Photo', 'Safety Backup', 'How it Works'];
+    return (
+        <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '1.5rem',
+            width: '100%',
+        }}>
+            {steps.map((label, i) => {
+                const stepNum = i + 1;
+                const isActive = stepNum === step;
+                const isCompleted = stepNum < step;
+                return (
+                    <React.Fragment key={i}>
+                        {i > 0 && (
+                            <div style={{
+                                flex: 1,
+                                height: '2px',
+                                backgroundColor: isCompleted || isActive ? '#22c55e' : '#e5e7eb',
+                                marginLeft: '4px',
+                                marginRight: '4px',
+                                marginTop: '-14px',
+                            }} />
+                        )}
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            position: 'relative',
+                            width: '4.5rem',
+                        }}>
+                            <div style={{
+                                width: '12px',
+                                height: '12px',
+                                borderRadius: '6px',
+                                backgroundColor: isCompleted ? '#22c55e' : isActive ? '#2563eb' : '#d1d5db',
+                                marginBottom: '6px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.3s',
+                            }}>
+                                {isCompleted && (
+                                    <span style={{ color: '#fff', fontSize: '8px', fontWeight: '800' }}>✓</span>
+                                )}
+                            </div>
+                            <span style={{
+                                fontSize: '10px',
+                                color: isActive ? 'var(--text-primary)' : '#6b7280',
+                                fontWeight: isActive ? '700' : '500',
+                                transition: 'color 0.3s',
+                                whiteSpace: 'nowrap',
+                                textAlign: 'center',
+                            }}>
+                                {label}
+                            </span>
+                        </div>
+                    </React.Fragment>
+                );
+            })}
+        </div>
+    );
+}
+
 export function WelcomePage({ onComplete }: Props) {
     const [callsign, setCallsign] = useState('');
     const [inviteCode, setInviteCode] = useState(() => {
@@ -136,6 +219,13 @@ export function WelcomePage({ onComplete }: Props) {
     const [showMemberOptions, setShowMemberOptions] = useState(false);
     const [openFaq, setOpenFaq] = useState<number | null>(null);
 
+    const [showAvatarSetup, setShowAvatarSetup] = useState(false);
+    const [pendingAvatar, setPendingAvatar] = useState<string | null>(null);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
+
+
     async function handleCreate() {
         const trimmedCallsign = callsign.trim();
         const trimmedCode = normaliseInviteCode(inviteCode);
@@ -157,6 +247,7 @@ export function WelcomePage({ onComplete }: Props) {
             const identity = await createIdentity(trimmedCallsign);
             setPendingIdentity(identity);
             setPendingInviteCode(trimmedCode);
+            setShowAvatarSetup(true);
             setLoading(false);
         } catch (err) {
             setError('Failed to generate identity. Please try again.');
@@ -164,6 +255,46 @@ export function WelcomePage({ onComplete }: Props) {
             setLoading(false);
         }
     }
+
+    const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setLoading(true);
+        setError(null);
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 128;
+                canvas.height = 128;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    // Crop to center square
+                    const minDim = Math.min(img.width, img.height);
+                    const sx = (img.width - minDim) / 2;
+                    const sy = (img.height - minDim) / 2;
+                    ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, 128, 128);
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                    setPendingAvatar(dataUrl);
+                }
+                setLoading(false);
+            };
+            img.onerror = () => {
+                setError('Failed to load image.');
+                setLoading(false);
+            };
+            img.src = event.target?.result as string;
+        };
+        reader.onerror = () => {
+            setError('Failed to read file.');
+            setLoading(false);
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    };
 
     async function handleSeedConfirmed() {
         if (!pendingIdentity) return;
@@ -191,6 +322,17 @@ export function WelcomePage({ onComplete }: Props) {
                     setError(err.message || 'Registration failed.');
                     setLoading(false);
                     return;
+                }
+            }
+
+            // Sync the chosen profile avatar to the node database
+            if (pendingAvatar) {
+                try {
+                    await updateMemberProfile(pendingIdentity.publicKey, {
+                        avatar: pendingAvatar,
+                    });
+                } catch (avatarErr) {
+                    console.warn('[Welcome] Failed to update member profile avatar:', avatarErr);
                 }
             }
             
@@ -299,9 +441,245 @@ export function WelcomePage({ onComplete }: Props) {
                     padding: '2rem',
                 }}>
                     {/* ===== SEED PHRASE DISPLAY (after create, before confirm) ===== */}
-                    {pendingIdentity?.mnemonic && showOnboardingGuide ? (
+                    {pendingIdentity?.mnemonic && showAvatarSetup ? (
+                        /* ===== STEP 2: CHOOSE YOUR LOOK ===== */
+                        <>
+                            <OnboardingStepper step={2} />
+                            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.5rem' }}>
+                                📸 Choose your look
+                            </h3>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+                                Pick a profile picture so your community knows you.
+                            </p>
+
+                            {/* Circular Preview */}
+                            <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                marginBottom: '1.5rem',
+                            }}>
+                                {pendingAvatar ? (
+                                    <img
+                                        src={resolveAvatarUrl(pendingAvatar) || ''}
+                                        alt="Avatar Preview"
+                                        style={{
+                                            width: '96px',
+                                            height: '96px',
+                                            borderRadius: '48px',
+                                            border: '3px solid #2563eb',
+                                            objectFit: 'cover',
+                                        }}
+                                    />
+                                ) : (
+                                    <div style={{
+                                        width: '96px',
+                                        height: '96px',
+                                        borderRadius: '48px',
+                                        backgroundColor: 'var(--bg-secondary, #1e293b)',
+                                        border: '2px dashed var(--border-primary, #334155)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                    }}>
+                                        <span style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-muted)' }}>
+                                            {pendingIdentity.callsign.charAt(0).toUpperCase()}
+                                        </span>
+                                    </div>
+                                )}
+                                <span style={{ fontSize: '1rem', fontWeight: 700, marginTop: '0.5rem' }}>
+                                    {pendingIdentity.callsign}
+                                </span>
+                            </div>
+
+                            {/* Camera and Gallery Buttons */}
+                            <div style={{
+                                display: 'flex',
+                                gap: '0.75rem',
+                                marginBottom: '1.5rem',
+                            }}>
+                                <button
+                                    onClick={() => cameraInputRef.current?.click()}
+                                    disabled={loading}
+                                    style={{
+                                        flex: 1,
+                                        padding: '0.75rem',
+                                        borderRadius: '12px',
+                                        border: '1px solid var(--border-primary, #334155)',
+                                        background: 'var(--bg-secondary, #1e293b)',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '0.9rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        gap: '0.25rem',
+                                    }}
+                                >
+                                    <span style={{ fontSize: '1.5rem' }}>📸</span>
+                                    Camera
+                                </button>
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={loading}
+                                    style={{
+                                        flex: 1,
+                                        padding: '0.75rem',
+                                        borderRadius: '12px',
+                                        border: '1px solid var(--border-primary, #334155)',
+                                        background: 'var(--bg-secondary, #1e293b)',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '0.9rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        gap: '0.25rem',
+                                    }}
+                                >
+                                    <span style={{ fontSize: '1.5rem' }}>🖼️</span>
+                                    Gallery
+                                </button>
+                            </div>
+
+                            {/* Hidden inputs */}
+                            <input
+                                type="file"
+                                accept="image/*"
+                                capture="user"
+                                ref={cameraInputRef}
+                                style={{ display: 'none' }}
+                                onChange={handleAvatarFileChange}
+                            />
+                            <input
+                                type="file"
+                                accept="image/*"
+                                ref={fileInputRef}
+                                style={{ display: 'none' }}
+                                onChange={handleAvatarFileChange}
+                            />
+
+                            <h4 style={{
+                                fontSize: '0.85rem',
+                                fontWeight: 600,
+                                color: 'var(--text-secondary)',
+                                textAlign: 'left',
+                                marginBottom: '0.75rem',
+                            }}>
+                                Or choose an avatar:
+                            </h4>
+
+                            {/* Horizontal scroll grid of BUNDLED_AVATARS */}
+                            <div style={{
+                                display: 'flex',
+                                gap: '0.75rem',
+                                overflowX: 'auto',
+                                padding: '0.5rem 0.25rem',
+                                marginBottom: '1.5rem',
+                                backgroundColor: 'var(--bg-secondary, #1e293b)',
+                                borderRadius: '12px',
+                                border: '1px solid var(--border-primary, #334155)',
+                            }} className="custom-scrollbar">
+                                {BUNDLED_AVATARS.map((avatar) => {
+                                    const isSelected = pendingAvatar === `bundled://${avatar.id}`;
+                                    const resolvedUrl = resolveAvatarUrl(`bundled://${avatar.id}`) || '';
+                                    return (
+                                        <button
+                                            key={avatar.id}
+                                            onClick={() => setPendingAvatar(`bundled://${avatar.id}`)}
+                                            style={{
+                                                flexShrink: 0,
+                                                width: '56px',
+                                                height: '56px',
+                                                borderRadius: '28px',
+                                                border: isSelected ? '3px solid #2563eb' : '2px solid transparent',
+                                                padding: 0,
+                                                overflow: 'hidden',
+                                                cursor: 'pointer',
+                                                background: 'none',
+                                                transition: 'all 0.2s',
+                                                transform: isSelected ? 'scale(1.05)' : 'none',
+                                            }}
+                                            title={avatar.label}
+                                        >
+                                            <img
+                                                src={resolvedUrl}
+                                                alt={avatar.label}
+                                                style={{
+                                                    width: '100%',
+                                                    height: '100%',
+                                                    objectFit: 'cover',
+                                                }}
+                                            />
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {loading && (
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '1rem' }}>
+                                    Processing photo...
+                                </p>
+                            )}
+
+                            {error && (
+                                <p style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                                    {error}
+                                </p>
+                            )}
+
+                            <button
+                                onClick={() => {
+                                    if (pendingAvatar) {
+                                        setShowAvatarSetup(false);
+                                        setError(null);
+                                    }
+                                }}
+                                disabled={!pendingAvatar || loading}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.85rem',
+                                    borderRadius: '10px',
+                                    border: 'none',
+                                    background: !pendingAvatar ? 'var(--border-primary, #334155)' : loading ? '#555' : '#2563eb',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '1rem',
+                                    fontWeight: 600,
+                                    cursor: !pendingAvatar || loading ? 'not-allowed' : 'pointer',
+                                    fontFamily: 'inherit',
+                                    transition: 'background 0.2s',
+                                }}
+                            >
+                                Next →
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    setPendingIdentity(null);
+                                    setPendingAvatar(null);
+                                    setShowAvatarSetup(false);
+                                    setError(null);
+                                }}
+                                disabled={loading}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--text-muted)',
+                                    fontSize: '0.85rem',
+                                    cursor: 'pointer',
+                                    marginTop: '1rem',
+                                    fontFamily: 'inherit',
+                                }}
+                            >
+                                ← Back
+                            </button>
+                        </>
+                    ) : pendingIdentity?.mnemonic && showOnboardingGuide ? (
                         /* ===== ONBOARDING GUIDE (Step 4) ===== */
                         <>
+                            <OnboardingStepper step={4} />
                             <h3 className="text-xl font-bold mb-2 text-nature-950 dark:text-oat-50">🫘 Welcome to BeanPool</h3>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
                                 Let's look at how this community economy works.
@@ -413,8 +791,10 @@ export function WelcomePage({ onComplete }: Props) {
                             </button>
                         </>
                     ) : pendingIdentity?.mnemonic ? (
+                        /* ===== SAFETY BACKUP (Step 3) ===== */
                         <>
-                            <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>🔑 Your Recovery Phrase</h3>
+                            <OnboardingStepper step={3} />
+                            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.5rem' }}>🔑 Your Safety Backup</h3>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '1rem', lineHeight: 1.5 }}>
                                 Write these 12 words down on paper and keep them safe.
                                 This is the <strong>only</strong> way to recover your identity if you lose this device.
@@ -459,7 +839,10 @@ export function WelcomePage({ onComplete }: Props) {
                             )}
 
                             <button
-                                onClick={() => setShowOnboardingGuide(true)}
+                                onClick={() => {
+                                    setShowOnboardingGuide(true);
+                                    setError(null);
+                                }}
                                 disabled={!seedConfirmed || loading}
                                 style={{
                                     width: '100%', padding: '0.85rem', borderRadius: '10px',
@@ -471,6 +854,21 @@ export function WelcomePage({ onComplete }: Props) {
                                 }}
                             >
                                 Continue →
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    setShowAvatarSetup(true);
+                                    setError(null);
+                                }}
+                                disabled={loading}
+                                style={{
+                                    background: 'none', border: 'none',
+                                    color: 'var(--text-muted)', fontSize: '0.85rem',
+                                    cursor: 'pointer', marginTop: '1rem', fontFamily: 'inherit',
+                                }}
+                            >
+                                ← Back to Photo
                             </button>
                         </>
                     ) : showRecovery ? (
@@ -652,6 +1050,7 @@ export function WelcomePage({ onComplete }: Props) {
                     ) : showNewUser ? (
                         /* ===== NEW USER SIGNUP + FAQs ===== */
                         <>
+                            <OnboardingStepper step={1} />
                             <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.35rem' }}>
                                 🎟️ Join with Invite Code
                             </h3>

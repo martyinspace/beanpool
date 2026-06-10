@@ -513,7 +513,8 @@ export default function ChatScreen() {
                         style={[
                             styles.messageBubble, 
                             isMe ? styles.messageMe : styles.messageOther,
-                            { position: 'relative', zIndex: 1 }
+                            { position: 'relative', zIndex: 1 },
+                            totalReactionsCount > 0 ? { paddingBottom: 24 } : null
                         ]}
                     >
                         {item.metadata?.replyToId && (() => {
@@ -689,7 +690,7 @@ export default function ChatScreen() {
 
             <KeyboardAvoidingView
                 style={styles.keyboardView}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 95 : 0}
             >
                 {/* Messages List */}
@@ -727,7 +728,7 @@ export default function ChatScreen() {
                 )}
 
                 {/* Input Area */}
-                <View style={[styles.inputContainer, { paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 12) : 12 }]}>
+                <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 48 : 12) }]}>
                     <Pressable style={styles.attachBtn} onPress={pickAndSendImage}>
                         <MaterialCommunityIcons name="plus-circle-outline" size={26} color="#9ca3af" />
                     </Pressable>
@@ -893,18 +894,22 @@ const styles = StyleSheet.create({
     reactionBadgeContainer: {
         position: 'absolute',
         bottom: -12,
+        height: 28,
+        minWidth: 28,
         backgroundColor: '#f3f4f6',
         borderWidth: 1.5,
         borderColor: '#ffffff',
-        borderRadius: 16,
+        borderRadius: 14,
         paddingHorizontal: 8,
-        paddingVertical: 3,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.15,
         shadowRadius: 1.5,
         elevation: 3,
         zIndex: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     reactionBadgeMe: {
         right: 12,
@@ -913,7 +918,8 @@ const styles = StyleSheet.create({
         left: 12,
     },
     reactionBadgeText: {
-        fontSize: 18,
+        fontSize: 15,
+        lineHeight: 18,
         fontWeight: '600',
         color: '#374151',
     },

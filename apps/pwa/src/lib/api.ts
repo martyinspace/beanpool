@@ -213,6 +213,8 @@ export interface SystemMessageMetadata {
     postId: string;         // Link back to the original post
     actorPubkey: string;    // Who triggered the event (Buyer/Seller)
     txHash?: string;        // The ledger transaction ID for verification
+    buyerPubkey?: string;
+    sellerPubkey?: string;
 }
 
 export interface ApiMessage {

@@ -492,15 +492,77 @@ export async function getPost(id: string) {
     return row;
 }
 
+function formatSystemMessage(
+    systemType: string | null,
+    metadataStr: string | null,
+    myPubkey: string | null,
+    fallbackInfo: {
+        postAuthor?: string | null;
+        postType?: string | null;
+        latestTxBuyer?: string | null;
+        latestTxSeller?: string | null;
+        defaultText?: string | null;
+    }
+): string {
+    let meta: any = null;
+    if (metadataStr) {
+        try { meta = JSON.parse(metadataStr); } catch {}
+    }
+    const amount = meta?.amount ?? '';
+    const beansStr = amount ? `${amount} Beans` : 'Beans';
+
+    if (systemType === 'ESCROW_FUNDED') {
+        return `${beansStr} placed in escrow.`;
+    }
+    if (systemType === 'ESCROW_RELEASED') {
+        const sellerPubkey = meta?.sellerPubkey || fallbackInfo.latestTxSeller || (fallbackInfo.postType === 'offer' ? fallbackInfo.postAuthor : null);
+        const isSeller = myPubkey && sellerPubkey && myPubkey === sellerPubkey;
+        if (isSeller) {
+            return `Payment of ${beansStr} released to you.`;
+        } else {
+            return `Payment of ${beansStr} released to the provider.`;
+        }
+    }
+    if (systemType === 'ESCROW_CANCELLED') {
+        return `Escrow cancelled and funds refunded.`;
+    }
+    
+    // Fallback: clean up Ʀ or R in the ciphertext
+    let txt = fallbackInfo.defaultText || '';
+    if (txt.includes('Ʀ')) {
+        txt = txt.replace(/Ʀ(\d+)/g, '$1 Beans').replace(/Ʀ/g, 'Beans');
+    }
+    if (txt.includes('Payment of R')) {
+        txt = txt.replace(/Payment of R(\d+) released to the provider\./g, (_: string, amt: string) => {
+            const sellerPubkey = meta?.sellerPubkey || fallbackInfo.latestTxSeller || (fallbackInfo.postType === 'offer' ? fallbackInfo.postAuthor : null);
+            const isSeller = myPubkey && sellerPubkey && myPubkey === sellerPubkey;
+            return `Payment of ${amt} Beans released to ${isSeller ? 'you' : 'the provider'}.`;
+        });
+        txt = txt.replace(/R(\d+) has been placed in escrow\./g, '$1 Beans placed in escrow.');
+    }
+    return txt;
+}
+
 export async function getConversations(myPubkey: string) {
     const database = await getDb();
     const rows = await database.getAllAsync<any>(`
         SELECT c.id, c.name, c.post_id,
                COALESCE(p.title, c.post_title) as postTitle,
-               COALESCE(p.status, c.post_status) as postStatus,
+               COALESCE(
+                   (SELECT mt2.status FROM marketplace_transactions mt2
+                    WHERE mt2.post_id = c.post_id
+                      AND mt2.buyer_pubkey IN (SELECT public_key FROM conversation_participants WHERE conversation_id = c.id)
+                      AND mt2.seller_pubkey IN (SELECT public_key FROM conversation_participants WHERE conversation_id = c.id)
+                    ORDER BY mt2.created_at DESC LIMIT 1),
+                   p.status,
+                   c.post_status
+               ) as postStatus,
                COALESCE(p.credits, c.post_credits) as postCredits,
                COALESCE(p.photos, c.post_photo) as postPhotos,
-               m.ciphertext as lastMessage, m.nonce as lastNonce, m.type as lastMsgType, m.system_type as lastSysType, MAX(m.timestamp) as timestamp,
+               m.ciphertext as lastMessage, m.nonce as lastNonce, m.type as lastMsgType, m.system_type as lastSysType, m.metadata as lastMetadata, MAX(m.timestamp) as timestamp,
+               p.author_pubkey as postAuthor, p.type as postType,
+               (SELECT mt3.buyer_pubkey FROM marketplace_transactions mt3 WHERE mt3.post_id = c.post_id ORDER BY mt3.created_at DESC LIMIT 1) as latestTxBuyer,
+               (SELECT mt3.seller_pubkey FROM marketplace_transactions mt3 WHERE mt3.post_id = c.post_id ORDER BY mt3.created_at DESC LIMIT 1) as latestTxSeller,
         (SELECT memb.callsign FROM conversation_participants cp 
          LEFT JOIN members memb ON memb.public_key = cp.public_key
          WHERE cp.conversation_id = c.id AND cp.public_key != ? LIMIT 1) as otherCallsign,
@@ -566,7 +628,13 @@ export async function getConversations(myPubkey: string) {
                 displayMsg = '🔒 Encrypted message';
             }
         } else if (row.lastNonce === '00000') {
-            displayMsg = row.lastMessage;
+            displayMsg = formatSystemMessage(row.lastSysType, row.lastMetadata, myPubkey, {
+                postAuthor: row.postAuthor,
+                postType: row.postType,
+                latestTxBuyer: row.latestTxBuyer,
+                latestTxSeller: row.latestTxSeller,
+                defaultText: row.lastMessage
+            });
         }
 
         const isPayer = row.txBuyerPubkey === myPubkey;
@@ -1744,7 +1812,17 @@ export async function getConversation(id: string, myPubkey?: string) {
     const database = await getDb();
     if (myPubkey) {
         return await database.getFirstAsync<any>(`
-            SELECT c.name, c.type as type, c.post_id as postId, p.title as postTitle, p.status as postStatus, p.price_type, p.credits,
+            SELECT c.name, c.type as type, c.post_id as postId, p.title as postTitle,
+            COALESCE(
+                (SELECT mt2.status FROM marketplace_transactions mt2
+                 WHERE mt2.post_id = c.post_id
+                   AND mt2.buyer_pubkey IN (SELECT public_key FROM conversation_participants WHERE conversation_id = c.id)
+                   AND mt2.seller_pubkey IN (SELECT public_key FROM conversation_participants WHERE conversation_id = c.id)
+                 ORDER BY mt2.created_at DESC LIMIT 1),
+                p.status,
+                c.post_status
+            ) as postStatus,
+            p.price_type, p.credits,
             (SELECT memb.callsign FROM conversation_participants cp 
              LEFT JOIN members memb ON memb.public_key = cp.public_key
              WHERE cp.conversation_id = c.id AND cp.public_key != ? LIMIT 1) as otherCallsign,
@@ -1807,9 +1885,37 @@ export async function getMessages(conversationId: string) {
             peerLastReadAt = peerRow?.last_read_at ?? null;
         }
     } catch {}
+
+    // Resolve fallback post details for formatting system messages
+    let fallbackInfo: any = {};
+    try {
+        const infoRow = await database.getFirstAsync<any>(
+            `SELECT c.post_id, p.author_pubkey as postAuthor, p.type as postType,
+                    (SELECT mt3.buyer_pubkey FROM marketplace_transactions mt3 WHERE mt3.post_id = c.post_id ORDER BY mt3.created_at DESC LIMIT 1) as latestTxBuyer,
+                    (SELECT mt3.seller_pubkey FROM marketplace_transactions mt3 WHERE mt3.post_id = c.post_id ORDER BY mt3.created_at DESC LIMIT 1) as latestTxSeller
+             FROM conversations c
+             LEFT JOIN posts p ON c.post_id = p.id
+             WHERE c.id = ? LIMIT 1`,
+            [conversationId]
+        );
+        if (infoRow) {
+            fallbackInfo = {
+                postAuthor: infoRow.postAuthor,
+                postType: infoRow.postType,
+                latestTxBuyer: infoRow.latestTxBuyer,
+                latestTxSeller: infoRow.latestTxSeller
+            };
+        }
+    } catch {}
+
     return rows.map(row => {
         let displayTxt = row.ciphertext;
-        if (row.nonce && row.nonce.startsWith('plaintext')) {
+        if (row.nonce === '00000') {
+            displayTxt = formatSystemMessage(row.system_type, row.metadata, myPubkey, {
+                ...fallbackInfo,
+                defaultText: row.ciphertext
+            });
+        } else if (row.nonce && row.nonce.startsWith('plaintext')) {
             try {
                 displayTxt = decodeUtf8(decodeBase64(row.ciphertext));
             } catch {
