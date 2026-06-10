@@ -358,7 +358,7 @@ export async function performSync(): Promise<SyncResult> {
                         delta.marketplaceTransactions = mkptxData;
                     }
                 } else if (mkptxRes && !mkptxRes.ok) {
-                    console.error(`[Pillar Sync] market transactions fetch failed: status ${mkptxRes.status}`);
+                    console.warn(`[Pillar Sync] market transactions fetch failed: status ${mkptxRes.status}`);
                 }
             } catch (e) {
                 console.warn('[Pillar Sync] Marketplace transactions fetch failed:', e);

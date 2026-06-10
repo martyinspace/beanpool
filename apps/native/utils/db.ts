@@ -1638,7 +1638,7 @@ export async function syncMessages(publicKey: string) {
         try {
             convRes = await fetch(`${anchorUrl}/api/messages/conversations/${publicKey}`, { headers: { 'Accept': 'application/json' }, signal: controller1.signal });
         } catch (e) {
-            console.error('[DB] conversations fetch failed:', e);
+            console.warn('[DB] conversations fetch failed:', e);
             clearTimeout(timeout1);
             return;
         }
@@ -1648,7 +1648,7 @@ export async function syncMessages(publicKey: string) {
             try {
                 dirRes = await fetch(`${anchorUrl}/api/members`, { headers: { 'Accept': 'application/json' }, signal: controller1.signal });
             } catch (e) {
-                console.error('[DB] members fetch failed:', e);
+                console.warn('[DB] members fetch failed:', e);
             }
         }
         clearTimeout(timeout1);
