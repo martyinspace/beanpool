@@ -38,7 +38,7 @@ import { federatedRelayMessage, federatedVerifyMember } from './federation-proto
 import { getP2PNode } from './p2p.js';
 import { WebSocketServer } from 'ws';
 import os from 'node:os';
-import { logger, addLogClient, removeLogClient } from './logger.js';
+import { logger, addLogClient, removeLogClient, logClients } from './logger.js';
 import {
     registerMember, getMembers, getAllMembers, getMember,
     getBalance, transfer, getTransactions,
@@ -115,6 +115,181 @@ function consumeNonce(nonce: string, now: number): boolean {
     if (exp !== undefined && exp > now) return false;  // already used → replay
     seenNonces.set(nonce, now + SIGNATURE_FRESHNESS_MS);
     return true;
+}
+
+interface ActiveConnectionInfo {
+    id: string;
+    type: 'sync' | 'admin';
+    ip: string;
+    userAgent: string;
+    connectedAt: number;
+    msgSentCount: number;
+    msgRecvCount: number;
+    lastActivityAt: number;
+}
+
+const activeConnections = new Map<string, ActiveConnectionInfo>();
+
+function getIpAddress(req: import('node:http').IncomingMessage): string {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) {
+        return Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0].trim();
+    }
+    return req.socket.remoteAddress || 'unknown';
+}
+
+function calculateAnalytics() {
+    const now = Date.now();
+    let totalConnected = 0;
+    let syncCount = 0;
+    let adminCount = 0;
+    let totalDurationMs = 0;
+    let totalMsgSent = 0;
+    let totalMsgRecv = 0;
+
+    for (const conn of activeConnections.values()) {
+        totalConnected++;
+        if (conn.type === 'sync') syncCount++;
+        else adminCount++;
+        totalDurationMs += (now - conn.connectedAt);
+        totalMsgSent += conn.msgSentCount;
+        totalMsgRecv += conn.msgRecvCount;
+    }
+
+    const avgDurationSec = totalConnected > 0 ? Math.round((totalDurationMs / totalConnected) / 1000) : 0;
+
+    return {
+        totalConnected,
+        syncCount,
+        adminCount,
+        avgDurationSec,
+        totalMsgSent,
+        totalMsgRecv
+    };
+}
+
+function broadcastWsAnalytics() {
+    const analytics = calculateAnalytics();
+    const payload = JSON.stringify({ type: 'ws_analytics', data: analytics });
+    for (const client of logClients) {
+        if (client.readyState === 1) { // OPEN
+            try { client.send(payload); } catch {}
+        }
+    }
+}
+
+function trackConnection(ws: any, type: 'sync' | 'admin', req: import('node:http').IncomingMessage) {
+    const id = 'ws_' + crypto.randomBytes(8).toString('hex');
+    const ip = getIpAddress(req);
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    const connectedAt = Date.now();
+
+    const connInfo: ActiveConnectionInfo = {
+        id,
+        type,
+        ip,
+        userAgent,
+        connectedAt,
+        msgSentCount: 0,
+        msgRecvCount: 0,
+        lastActivityAt: connectedAt
+    };
+
+    activeConnections.set(id, connInfo);
+
+    // Decorate ws object
+    ws.id = id;
+    ws.type = type;
+
+    // Decorate send function
+    const originalSend = ws.send.bind(ws);
+    ws.send = (data: any, options: any, callback: any) => {
+        const conn = activeConnections.get(id);
+        if (conn) {
+            conn.msgSentCount++;
+            conn.lastActivityAt = Date.now();
+            
+            const dataStr = typeof data === 'string' ? data : data.toString();
+            let preview = dataStr.slice(0, 150);
+            if (dataStr.length > 150) preview += '...';
+            
+            const trafficPayload = JSON.stringify({
+                type: 'ws_traffic',
+                data: {
+                    id,
+                    direction: 'out',
+                    size: dataStr.length,
+                    preview
+                }
+            });
+
+            for (const client of logClients) {
+                if (client.readyState === 1 && client !== ws) { // OPEN
+                    try { client.send(trafficPayload); } catch {}
+                }
+            }
+        }
+        
+        if (typeof options === 'function') {
+            return originalSend(data, options);
+        }
+        return originalSend(data, options, callback);
+    };
+
+    // Attach message listener
+    ws.on('message', (data: any) => {
+        const conn = activeConnections.get(id);
+        if (conn) {
+            conn.msgRecvCount++;
+            conn.lastActivityAt = Date.now();
+
+            const dataStr = typeof data === 'string' ? data : data.toString();
+            let preview = dataStr.slice(0, 150);
+            if (dataStr.length > 150) preview += '...';
+
+            const trafficPayload = JSON.stringify({
+                type: 'ws_traffic',
+                data: {
+                    id,
+                    direction: 'in',
+                    size: dataStr.length,
+                    preview
+                }
+            });
+
+            for (const client of logClients) {
+                if (client.readyState === 1 && client !== ws) { // OPEN
+                    try { client.send(trafficPayload); } catch {}
+                }
+            }
+        }
+    });
+
+    // Broadcast connect event
+    const connectPayload = JSON.stringify({ type: 'ws_connect', data: connInfo });
+    for (const client of logClients) {
+        if (client.readyState === 1 && client !== ws) { // OPEN
+            try { client.send(connectPayload); } catch {}
+        }
+    }
+
+    broadcastWsAnalytics();
+}
+
+function untrackConnection(ws: any) {
+    const id = ws.id;
+    if (id && activeConnections.has(id)) {
+        activeConnections.delete(id);
+
+        const disconnectPayload = JSON.stringify({ type: 'ws_disconnect', data: { id } });
+        for (const client of logClients) {
+            if (client.readyState === 1) { // OPEN
+                try { client.send(disconnectPayload); } catch {}
+            }
+        }
+
+        broadcastWsAnalytics();
+    }
 }
 
 export async function startHttpsServer(port: number): Promise<void> {
@@ -549,6 +724,14 @@ export async function startHttpsServer(port: number): Promise<void> {
             reports: getReports(),
             reportCount: getReportCount(),
             memberStats: getMemberStats(),
+        };
+    });
+
+    router.post('/api/local/admin/ws-connections', async (ctx) => {
+        if (!checkAdminAuth(ctx as any)) return;
+        ctx.body = {
+            connections: Array.from(activeConnections.values()),
+            analytics: calculateAnalytics()
         };
     });
 
@@ -2543,8 +2726,15 @@ export async function startHttpsServer(port: number): Promise<void> {
             if (pathname === '/ws') {
                 wss.handleUpgrade(req, socket, head, (ws) => {
                     addWsClient(ws);
-                    ws.on('close', () => removeWsClient(ws));
-                    ws.on('error', () => removeWsClient(ws));
+                    trackConnection(ws, 'sync', req);
+                    ws.on('close', () => {
+                        removeWsClient(ws);
+                        untrackConnection(ws);
+                    });
+                    ws.on('error', () => {
+                        removeWsClient(ws);
+                        untrackConnection(ws);
+                    });
                 });
             } else if (pathname === '/ws/logs') {
                 const auth = parsedUrl.searchParams.get('auth');
@@ -2556,8 +2746,15 @@ export async function startHttpsServer(port: number): Promise<void> {
                 }
                 logsWss.handleUpgrade(req, socket, head, (ws) => {
                     addLogClient(ws);
-                    ws.on('close', () => removeLogClient(ws));
-                    ws.on('error', () => removeLogClient(ws));
+                    trackConnection(ws, 'admin', req);
+                    ws.on('close', () => {
+                        removeLogClient(ws);
+                        untrackConnection(ws);
+                    });
+                    ws.on('error', () => {
+                        removeLogClient(ws);
+                        untrackConnection(ws);
+                    });
                 });
             } else {
                 socket.destroy();

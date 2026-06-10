@@ -81,6 +81,17 @@
                     diagnosticsInterval = null;
                 }
             }
+            if (tabName === 'connections') {
+                loadInitialConnections();
+                initTrafficControls();
+                if (connTimerInterval) clearInterval(connTimerInterval);
+                connTimerInterval = setInterval(updateConnectionTimers, 1000);
+            } else {
+                if (connTimerInterval) {
+                    clearInterval(connTimerInterval);
+                    connTimerInterval = null;
+                }
+            }
         }
 
         document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -1995,6 +2006,234 @@
         }
         window.uploadBackup = uploadBackup;
 
+        // ======================== CONNECTION MONITOR ========================
+        let activeConnectionsMap = new Map();
+        let connTrafficPaused = false;
+        let totalTrafficPackets = 0;
+        let connTimerInterval = null;
+
+        function updateConnectionTimers() {
+            const now = Date.now();
+            for (const [id, conn] of activeConnectionsMap.entries()) {
+                const el = document.getElementById(`duration-${id}`);
+                if (el) {
+                    const elapsedMs = now - conn.connectedAt;
+                    el.textContent = formatDuration(elapsedMs);
+                }
+            }
+        }
+
+        function formatDuration(ms) {
+            const sec = Math.floor(ms / 1000);
+            if (sec < 60) return `${sec}s`;
+            const min = Math.floor(sec / 60);
+            const remainingSec = sec % 60;
+            if (min < 60) return `${min}m ${remainingSec}s`;
+            const hrs = Math.floor(min / 60);
+            const remainingMin = min % 60;
+            return `${hrs}h ${remainingMin}m`;
+        }
+
+        async function loadInitialConnections() {
+            if (!authToken) return;
+            try {
+                const res = await fetch(`${API}/admin/ws-connections`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: authToken })
+                });
+                if (!res.ok) return;
+                const { connections, analytics } = await res.json();
+                
+                activeConnectionsMap.clear();
+                for (const c of connections) {
+                    activeConnectionsMap.set(c.id, c);
+                }
+                
+                renderActiveConnections();
+                updateConnectionAnalytics(analytics);
+            } catch (err) {
+                console.error('Failed to load initial connections:', err);
+            }
+        }
+
+        function updateConnectionAnalytics(a) {
+            if (!a) return;
+            const totalEl = document.getElementById('conn-stat-total');
+            const syncEl = document.getElementById('conn-stat-sync');
+            const adminEl = document.getElementById('conn-stat-admin');
+            const avgTimeEl = document.getElementById('conn-stat-avg-time');
+            const messagesEl = document.getElementById('conn-stat-messages');
+
+            if (totalEl) totalEl.textContent = a.totalConnected || 0;
+            if (syncEl) syncEl.textContent = a.syncCount || 0;
+            if (adminEl) adminEl.textContent = a.adminCount || 0;
+            if (avgTimeEl) avgTimeEl.textContent = `${a.avgDurationSec || 0}s`;
+            if (messagesEl) messagesEl.textContent = (a.totalMsgSent || 0) + (a.totalMsgRecv || 0);
+        }
+
+        function renderActiveConnections() {
+            const container = document.getElementById('conn-list-container');
+            const countEl = document.getElementById('conn-list-count');
+            if (!container) return;
+
+            const connections = Array.from(activeConnectionsMap.values());
+            if (countEl) {
+                countEl.textContent = `${connections.length} active`;
+            }
+
+            if (connections.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; color: #64748b; padding: 2rem; font-size: 0.85rem; border: 1px dashed #1e293b; border-radius: 12px; background: rgba(15, 23, 42, 0.2);">
+                        No active connections
+                    </div>
+                `;
+                return;
+            }
+
+            connections.sort((a, b) => b.connectedAt - a.connectedAt);
+
+            container.innerHTML = connections.map(c => {
+                const typeColor = c.type === 'sync' ? '#10b981' : '#a855f7';
+                const typeLabel = c.type === 'sync' ? 'Sync Feed' : 'Admin Stream';
+                const elapsedMs = Date.now() - c.connectedAt;
+                
+                return `
+                    <div class="metric-card glass" id="conn-card-${c.id}" style="background: rgba(15, 23, 42, 0.4); border: 1px solid #1e293b; border-radius: 12px; padding: 0.85rem; display: flex; flex-direction: column; gap: 0.4rem; position: relative;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div>
+                                <span style="font-family: monospace; font-size: 0.75rem; color: #cbd5e1; font-weight: bold;">${esc(c.ip)}</span>
+                                <span style="font-size: 0.65rem; color: #64748b; font-family: monospace; margin-left: 0.4rem;">(${esc(c.id)})</span>
+                            </div>
+                            <span class="badge" style="background: ${typeColor}15; color: ${typeColor}; border: 1px solid ${typeColor}30; font-size: 0.6rem; padding: 1px 6px; border-radius: 6px;">
+                                ${typeLabel}
+                            </span>
+                        </div>
+                        <div style="font-size: 0.7rem; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${esc(c.userAgent)}">
+                            ${esc(c.userAgent)}
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: #64748b; border-top: 1px solid #1e293b; padding-top: 0.4rem; margin-top: 0.2rem;">
+                            <span>Duration: <span id="duration-${c.id}" style="font-family: monospace; color: #cbd5e1;">${formatDuration(elapsedMs)}</span></span>
+                            <span>TX: <span id="tx-${c.id}" style="font-family: monospace; color: #cbd5e1;">${c.msgSentCount}</span> | RX: <span id="rx-${c.id}" style="font-family: monospace; color: #cbd5e1;">${c.msgRecvCount}</span></span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function handleWsConnect(conn) {
+            activeConnectionsMap.set(conn.id, conn);
+            renderActiveConnections();
+            
+            const timeStr = new Date().toLocaleTimeString();
+            appendTrafficLine(`[${timeStr}] 🟢 CONNECTED: ${conn.ip} (${conn.type}) UA: ${conn.userAgent}`, 'gold');
+        }
+
+        function handleWsDisconnect({ id }) {
+            const conn = activeConnectionsMap.get(id);
+            if (conn) {
+                const timeStr = new Date().toLocaleTimeString();
+                appendTrafficLine(`[${timeStr}] 🔴 DISCONNECTED: ${conn.ip} (${conn.type})`, 'rose');
+                activeConnectionsMap.delete(id);
+                renderActiveConnections();
+            }
+        }
+
+        function handleWsTraffic(traffic) {
+            totalTrafficPackets++;
+            const countEl = document.getElementById('conn-traffic-count');
+            if (countEl) countEl.textContent = `${totalTrafficPackets} packets`;
+
+            const conn = activeConnectionsMap.get(traffic.id);
+            if (conn) {
+                if (traffic.direction === 'in') {
+                    conn.msgRecvCount++;
+                } else {
+                    conn.msgSentCount++;
+                }
+                
+                const txEl = document.getElementById(`tx-${traffic.id}`);
+                const rxEl = document.getElementById(`rx-${traffic.id}`);
+                if (txEl) txEl.textContent = conn.msgSentCount;
+                if (rxEl) rxEl.textContent = conn.msgRecvCount;
+
+                if (!connTrafficPaused) {
+                    const timeStr = new Date().toLocaleTimeString();
+                    const dirSymbol = traffic.direction === 'in' ? '⬇️' : '⬆️';
+                    const dirText = traffic.direction === 'in' ? 'RX' : 'TX';
+                    const color = traffic.direction === 'in' ? 'cyan' : 'emerald';
+                    appendTrafficLine(`[${timeStr}] ${dirSymbol} [${conn.ip}] ${dirText} (${traffic.size} B): ${traffic.preview}`, color);
+                }
+            }
+        }
+
+        function handleWsAnalytics(analytics) {
+            updateConnectionAnalytics(analytics);
+        }
+
+        function appendTrafficLine(text, color) {
+            const feed = document.getElementById('conn-traffic-feed');
+            if (!feed) return;
+
+            if (feed.firstElementChild && feed.firstElementChild.style.fontStyle === 'italic') {
+                feed.innerHTML = '';
+            }
+
+            const div = document.createElement('div');
+            div.style.marginBottom = '0.25rem';
+            div.style.whiteSpace = 'pre-wrap';
+            div.style.wordBreak = 'break-all';
+
+            const colors = {
+                gold: '#fbbf24',
+                rose: '#f43f5e',
+                cyan: '#06b6d4',
+                emerald: '#10b981',
+                gray: '#64748b'
+            };
+            div.style.color = colors[color] || '#cbd5e1';
+            div.textContent = text;
+
+            feed.appendChild(div);
+
+            while (feed.children.length > 150) {
+                feed.removeChild(feed.firstChild);
+            }
+
+            if (!connTrafficPaused) {
+                feed.scrollTop = feed.scrollHeight;
+            }
+        }
+
+        function initTrafficControls() {
+            const btnPause = document.getElementById('btn-conn-pause');
+            const btnClear = document.getElementById('btn-conn-clear');
+            const feed = document.getElementById('conn-traffic-feed');
+
+            if (btnPause) {
+                const newBtnPause = btnPause.cloneNode(true);
+                btnPause.parentNode.replaceChild(newBtnPause, btnPause);
+                newBtnPause.addEventListener('click', () => {
+                    connTrafficPaused = !connTrafficPaused;
+                    newBtnPause.textContent = connTrafficPaused ? '▶️ Resume' : '⏸️ Pause';
+                    newBtnPause.classList.toggle('active', connTrafficPaused);
+                });
+            }
+
+            if (btnClear) {
+                const newBtnClear = btnClear.cloneNode(true);
+                btnClear.parentNode.replaceChild(newBtnClear, btnClear);
+                newBtnClear.addEventListener('click', () => {
+                    if (feed) {
+                        feed.innerHTML = '<div style="color: #64748b; font-style: italic;">Listening for incoming network packets...</div>';
+                    }
+                    totalTrafficPackets = 0;
+                    const countEl = document.getElementById('conn-traffic-count');
+                    if (countEl) countEl.textContent = '0 packets';
+                });
+            }
+        }
+
         // ======================== DIAGNOSTICS & LOGS ========================
         let logsWs = null;
         let isLogsPaused = false;
@@ -2223,6 +2462,13 @@
                     statusBanner.style.background = 'rgba(16, 185, 129, 0.1)';
                     statusBanner.style.borderTop = '1px solid rgba(16, 185, 129, 0.2)';
                 }
+                const connStatusBanner = document.getElementById('conn-ws-status');
+                if (connStatusBanner) {
+                    connStatusBanner.innerHTML = '<span>● Connected to Connection Monitor</span><span id="conn-traffic-count" style="font-family: monospace; margin-left: auto;">' + totalTrafficPackets + ' packets</span>';
+                    connStatusBanner.style.color = '#34d399';
+                    connStatusBanner.style.background = 'rgba(16, 185, 129, 0.1)';
+                    connStatusBanner.style.borderTop = '1px solid rgba(16, 185, 129, 0.2)';
+                }
             };
 
             logsWs.onmessage = (event) => {
@@ -2247,6 +2493,14 @@
                         if (matchesFilter(log)) {
                             appendLogToTerminal(log);
                         }
+                    } else if (msg.type === 'ws_connect') {
+                        handleWsConnect(msg.data);
+                    } else if (msg.type === 'ws_disconnect') {
+                        handleWsDisconnect(msg.data);
+                    } else if (msg.type === 'ws_traffic') {
+                        handleWsTraffic(msg.data);
+                    } else if (msg.type === 'ws_analytics') {
+                        handleWsAnalytics(msg.data);
                     }
                 } catch (err) {
                     console.error('Error handling ws log message:', err);
@@ -2260,6 +2514,13 @@
                     statusBanner.style.color = '#f87171';
                     statusBanner.style.background = 'rgba(239, 68, 68, 0.1)';
                     statusBanner.style.borderTop = '1px solid rgba(239, 68, 68, 0.2)';
+                }
+                const connStatusBanner = document.getElementById('conn-ws-status');
+                if (connStatusBanner) {
+                    connStatusBanner.innerHTML = '<span>○ Disconnected. Attempting reconnection...</span>';
+                    connStatusBanner.style.color = '#f87171';
+                    connStatusBanner.style.background = 'rgba(239, 68, 68, 0.1)';
+                    connStatusBanner.style.borderTop = '1px solid rgba(239, 68, 68, 0.2)';
                 }
                 if (authToken) {
                     setTimeout(initLogsWs, 3000);
