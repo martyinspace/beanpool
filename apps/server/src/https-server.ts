@@ -735,13 +735,6 @@ export async function startHttpsServer(port: number): Promise<void> {
         };
     });
 
-    router.get('/api/local/admin/ws-connections-debug', async (ctx) => {
-        ctx.body = {
-            connections: Array.from(activeConnections.values()),
-            analytics: calculateAnalytics()
-        };
-    });
-
     router.post('/api/local/admin/logs', async (ctx) => {
         if (!checkAdminAuth(ctx as any)) return;
         const { level, category, searchQuery, limit = 100, offset = 0 } = (ctx as any).requestBody || {};
