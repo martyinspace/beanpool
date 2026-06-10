@@ -738,8 +738,8 @@ export default function ChatScreen() {
 
             <KeyboardAvoidingView
                 style={styles.keyboardView}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.select({ ios: 95, android: 80 })}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 95 : 0}
             >
                 {/* Messages List */}
                 <FlatList
@@ -777,7 +777,14 @@ export default function ChatScreen() {
                 )}
 
                 {/* Input Area */}
-                <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+                <View style={[
+                    styles.inputContainer,
+                    {
+                        paddingBottom: Platform.OS === 'ios'
+                            ? Math.max(insets.bottom, 12)
+                            : (insets.bottom > 0 ? insets.bottom - 6 : 12)
+                    }
+                ]}>
                     <Pressable style={styles.attachBtn} onPress={pickAndSendImage}>
                         <MaterialCommunityIcons name="plus-circle-outline" size={26} color="#9ca3af" />
                     </Pressable>
