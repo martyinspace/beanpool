@@ -2733,7 +2733,10 @@ export async function startHttpsServer(port: number): Promise<void> {
             const pathname = parsedUrl.pathname;
 
             if (pathname === '/ws') {
-                wss.handleUpgrade(req, socket, head, (ws) => {
+                wss.handleUpgrade(req, socket, head, (ws: any) => {
+                    ws.isAlive = true;
+                    ws.on('pong', () => { ws.isAlive = true; });
+
                     addWsClient(ws);
                     trackConnection(ws, 'sync', req);
                     ws.on('close', () => {
@@ -2753,7 +2756,10 @@ export async function startHttpsServer(port: number): Promise<void> {
                     socket.destroy();
                     return;
                 }
-                logsWss.handleUpgrade(req, socket, head, (ws) => {
+                logsWss.handleUpgrade(req, socket, head, (ws: any) => {
+                    ws.isAlive = true;
+                    ws.on('pong', () => { ws.isAlive = true; });
+
                     addLogClient(ws);
                     trackConnection(ws, 'admin', req);
                     ws.on('close', () => {
@@ -2770,6 +2776,23 @@ export async function startHttpsServer(port: number): Promise<void> {
             }
         });
 
+        // Setup 60-second ping/pong heartbeat to clean up dead/ghost connections
+        const heartbeatInterval = setInterval(() => {
+            wss.clients.forEach((ws: any) => {
+                if (ws.isAlive === false) return ws.terminate();
+                ws.isAlive = false;
+                ws.ping();
+            });
+            logsWss.clients.forEach((ws: any) => {
+                if (ws.isAlive === false) return ws.terminate();
+                ws.isAlive = false;
+                ws.ping();
+            });
+        }, 60000);
+
+        server.on('close', () => {
+            clearInterval(heartbeatInterval);
+        });
 
         server.listen(port, () => {
             console.log(`🔒 PWA + Settings + API (HTTPS) listening on https://0.0.0.0:${port}`);
