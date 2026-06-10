@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, Alert, Image, FlatList, BackHandler, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, Alert, Image, FlatList, BackHandler } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { hapticTick } from '../utils/haptics';
 import { createIdentity, createIdentityFromMnemonic, BeanPoolIdentity } from '../utils/identity';
 import { nativeDecryptIdentity } from '../utils/native-crypto';
@@ -621,8 +622,8 @@ export default function WelcomeScreen() {
         return (
             <SafeAreaView style={styles.container}>
                 <StatusBar style="dark" />
-                <KeyboardAvoidingView 
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                <KeyboardAvoidingView
+                    behavior="padding"
                     style={{ flex: 1 }}
                 >
                     <ScrollView contentContainerStyle={styles.scroll}>
@@ -728,8 +729,8 @@ export default function WelcomeScreen() {
         return (
             <SafeAreaView style={styles.container}>
                 <StatusBar style="dark" />
-                <KeyboardAvoidingView 
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                <KeyboardAvoidingView
+                    behavior="padding"
                     style={{ flex: 1 }}
                 >
                     <ScrollView contentContainerStyle={styles.scroll}>
@@ -777,8 +778,8 @@ export default function WelcomeScreen() {
         return (
             <SafeAreaView style={styles.container}>
                 <StatusBar style="dark" />
-                <KeyboardAvoidingView 
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                <KeyboardAvoidingView
+                    behavior="padding"
                     style={{ flex: 1 }}
                 >
                     <ScrollView contentContainerStyle={styles.scroll}>

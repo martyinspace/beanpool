@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Alert, Image, Share, Linking, Platform, KeyboardAvoidingView, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Alert, Image, Share, Linking, Platform, Keyboard } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import * as Clipboard from 'expo-clipboard';
 import { useIdentity } from '../IdentityContext';
 import * as SecureStore from 'expo-secure-store';
@@ -685,8 +686,8 @@ export default function SettingsScreen() {
     return (
         <KeyboardAvoidingView 
             style={{ flex: 1 }} 
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+            behavior="padding"
+            keyboardVerticalOffset={88}
         >
             <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 48 : 48 }]}>
             {/* ─── Identity Dashboard Card ─── */}

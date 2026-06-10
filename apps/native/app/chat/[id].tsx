@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, FlatList, KeyboardAvoidingView, Platform, Alert, Image, ActivityIndicator, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, FlatList, Alert, Image, ActivityIndicator, Keyboard } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useFocusEffect, Stack } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -56,6 +57,7 @@ export default function ChatScreen() {
     const [promptReviewForTx, setPromptReviewForTx] = useState<{ txId: string; targetPubkey: string; targetCallsign: string } | null>(null);
     const [ratedPostIds, setRatedPostIds] = useState<Set<string>>(new Set());
     const [replyToMessage, setReplyToMessage] = useState<any | null>(null);
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
     const flatListRef = useRef<FlatList>(null);
     const insets = useSafeAreaInsets();
     const sendingRef = useRef(false);
@@ -63,12 +65,17 @@ export default function ChatScreen() {
 
     useEffect(() => {
         const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+            setKeyboardVisible(true);
             setTimeout(() => {
                 flatListRef.current?.scrollToEnd({ animated: true });
             }, 100);
         });
+        const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+            setKeyboardVisible(false);
+        });
         return () => {
             showSubscription.remove();
+            hideSubscription.remove();
         };
     }, []);
 
@@ -738,8 +745,7 @@ export default function ChatScreen() {
 
             <KeyboardAvoidingView
                 style={styles.keyboardView}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 95 : 0}
+                behavior="padding"
             >
                 {/* Messages List */}
                 <FlatList
@@ -780,9 +786,10 @@ export default function ChatScreen() {
                 <View style={[
                     styles.inputContainer,
                     {
-                        paddingBottom: Platform.OS === 'ios'
-                            ? Math.max(insets.bottom, 12)
-                            : (insets.bottom > 0 ? insets.bottom - 6 : 12)
+                        // When the keyboard is open it sits over the system
+                        // navigation bar, so we only need the safe-area inset
+                        // (which clears that nav bar) while it's closed.
+                        paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom, 12)
                     }
                 ]}>
                     <Pressable style={styles.attachBtn} onPress={pickAndSendImage}>

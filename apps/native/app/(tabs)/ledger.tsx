@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, TextInput, Image,
-    DeviceEventEmitter, Alert, ScrollView, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
+    DeviceEventEmitter, Alert, ScrollView, Keyboard } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useFocusEffect, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -764,9 +765,9 @@ export default function LedgerScreen() {
 
     return (
         <SafeAreaView style={styles.root}>
-            <KeyboardAvoidingView 
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+            <KeyboardAvoidingView
+                behavior="padding"
+                keyboardVerticalOffset={88}
                 style={{ flex: 1 }}
             >
 

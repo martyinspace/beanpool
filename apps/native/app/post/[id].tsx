@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Image, Pressable, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, Image, Pressable, ScrollView, TextInput, Alert, Keyboard } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -451,7 +452,7 @@ export default function PostDetailModal() {
                 <View style={{ width: 68 }} />
             </View>
 
-            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
+            <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={64}>
             <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 60 : 60 }]} keyboardShouldPersistTaps="handled">
                 {/* Type + Category Badge */}
                 <View style={styles.typeBadgeRow}>
@@ -1072,7 +1073,7 @@ export default function PostDetailModal() {
             {rejectModalTxId && (
                 <View style={StyleSheet.absoluteFill}>
                     <Pressable style={styles.modalOverlay} onPress={() => setRejectModalTxId(null)}>
-                        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0} style={{ width: '100%' }}>
+                        <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={64} style={{ width: '100%' }}>
                             <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()}>
                                 <Text style={styles.modalTitle}>Decline Offer</Text>
                                 <Text style={styles.modalSubtext}>Are you sure you want to decline this offer?</Text>

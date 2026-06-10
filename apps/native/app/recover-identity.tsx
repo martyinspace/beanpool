@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, SafeAreaView, ScrollView, Image, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, SafeAreaView, ScrollView, Image } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { MemberAvatar } from '../components/MemberAvatar';
@@ -88,7 +89,7 @@ export default function RecoverIdentityScreen() {
         <SafeAreaView style={styles.container}>
             <StatusBar style="light" />
             <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                behavior="padding"
                 style={{ flex: 1 }}
             >
                 <ScrollView contentContainerStyle={styles.scroll}>

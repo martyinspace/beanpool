@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, Modal, ActivityIndicator, Alert, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Keyboard } from 'react-native';
+import { View, Text, TextInput, Pressable, Modal, ActivityIndicator, Alert, StyleSheet, ScrollView, Keyboard } from 'react-native';
+import { KeyboardAvoidingView, KeyboardProvider } from 'react-native-keyboard-controller';
 import { submitRating, getDb } from '../utils/db';
 import { useIdentity } from '../app/IdentityContext';
 
@@ -66,9 +67,10 @@ export function ReviewModal({ visible, txId, targetPubkey, targetCallsign, onClo
 
     return (
         <Modal visible={visible} transparent animationType="slide">
+            <KeyboardProvider>
             <KeyboardAvoidingView
                 style={styles.overlay}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                behavior="padding"
             >
                 <ScrollView
                     contentContainerStyle={[styles.scrollContent, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 20 }]}
@@ -115,6 +117,7 @@ export function ReviewModal({ visible, txId, targetPubkey, targetCallsign, onClo
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
+            </KeyboardProvider>
         </Modal>
     );
 }

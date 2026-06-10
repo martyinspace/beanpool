@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { StyleSheet, View, Text, Platform, Alert, TouchableOpacity, ScrollView, TextInput, Pressable, Switch, KeyboardAvoidingView, Dimensions, Image as RNImage, Keyboard, Linking, DeviceEventEmitter, Animated, Modal, FlatList } from 'react-native';
+import { StyleSheet, View, Text, Platform, Alert, TouchableOpacity, ScrollView, TextInput, Pressable, Switch, Dimensions, Image as RNImage, Keyboard, Linking, DeviceEventEmitter, Animated, Modal, FlatList } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -782,8 +783,7 @@ export default function MapScreen() {
             {showNewPost && !pinDropMode && (
                 <KeyboardAvoidingView
                     style={[StyleSheet.absoluteFill, { zIndex: 500, justifyContent: 'flex-end' }]}
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+                    behavior="padding"
                 >
                     <View style={[styles.sheet, { paddingTop: Math.max(insets.top + 10, 20) }]}>
                         {/* Validation Toast */}

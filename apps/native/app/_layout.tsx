@@ -17,6 +17,7 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import appConfig from '../app.json';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 LogBox.ignoreLogs(['ProgressBarAndroid', 'Clipboard', 'PushNotificationIOS', 'has been extracted']);
 
@@ -344,10 +345,12 @@ export default function RootLayout() {
 
     return (
         <SafeAreaProvider>
-            <IdentityProvider>
-                <StatusBar style="light" />
-                <RootLayoutNav />
-            </IdentityProvider>
+            <KeyboardProvider>
+                <IdentityProvider>
+                    <StatusBar style="light" />
+                    <RootLayoutNav />
+                </IdentityProvider>
+            </KeyboardProvider>
         </SafeAreaProvider>
     );
 }
