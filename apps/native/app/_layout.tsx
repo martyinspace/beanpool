@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import appConfig from '../app.json';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 LogBox.ignoreLogs(['ProgressBarAndroid', 'Clipboard', 'PushNotificationIOS', 'has been extracted']);
 
@@ -342,9 +343,11 @@ export default function RootLayout() {
     }, []);
 
     return (
-        <IdentityProvider>
-            <StatusBar style="light" />
-            <RootLayoutNav />
-        </IdentityProvider>
+        <SafeAreaProvider>
+            <IdentityProvider>
+                <StatusBar style="light" />
+                <RootLayoutNav />
+            </IdentityProvider>
+        </SafeAreaProvider>
     );
 }

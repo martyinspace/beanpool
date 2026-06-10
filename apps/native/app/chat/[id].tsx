@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, FlatList, KeyboardAvoidingView, Platform, Alert, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, Pressable, FlatList, KeyboardAvoidingView, Platform, Alert, Image, ActivityIndicator, Keyboard } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useFocusEffect, Stack } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -60,6 +60,17 @@ export default function ChatScreen() {
     const insets = useSafeAreaInsets();
     const sendingRef = useRef(false);
     const promptedRef = useRef(false);
+
+    useEffect(() => {
+        const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+            setTimeout(() => {
+                flatListRef.current?.scrollToEnd({ animated: true });
+            }, 100);
+        });
+        return () => {
+            showSubscription.remove();
+        };
+    }, []);
 
     const loadRatedTransactions = useCallback(async () => {
         if (!identity?.publicKey) return;
@@ -738,6 +749,7 @@ export default function ChatScreen() {
                     renderItem={renderMessage}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
                     onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
                     onScrollBeginDrag={() => {
                         setActiveMessageActionsId(null);
@@ -765,7 +777,7 @@ export default function ChatScreen() {
                 )}
 
                 {/* Input Area */}
-                <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 48 : 12) }]}>
+                <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
                     <Pressable style={styles.attachBtn} onPress={pickAndSendImage}>
                         <MaterialCommunityIcons name="plus-circle-outline" size={26} color="#9ca3af" />
                     </Pressable>
