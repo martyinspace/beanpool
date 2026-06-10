@@ -18,7 +18,11 @@ const ub64 = (s) => new Uint8Array(Buffer.from(s, 'base64'));
 const dec = new TextDecoder();
 
 function deriveKey(myEdPrivHex, peerEdPubHex, conversationId) {
-  const myXPriv = ed25519.utils.toMontgomerySecret(hexToBytes(myEdPrivHex));
+  let myPrivBytes = hexToBytes(myEdPrivHex);
+  if (myPrivBytes.length === 48) {
+    myPrivBytes = myPrivBytes.slice(16);
+  }
+  const myXPriv = ed25519.utils.toMontgomerySecret(myPrivBytes);
   const peerXPub = ed25519.utils.toMontgomery(hexToBytes(peerEdPubHex));
   const shared = x25519.getSharedSecret(myXPriv, peerXPub);
   return hkdf(sha256, shared, utf8ToBytes(conversationId), INFO, 32);
@@ -80,6 +84,14 @@ ok('wrong conversation (AAD/key mismatch) rejected', threw2);
 // 7. Legacy plaintext passthrough
 const legacyCt = Buffer.from('legacy hi').toString('base64');
 ok('legacy plaintext-v1 still readable', decryptDM(legacyCt, 'plaintext-v1', bob, alice.pub, conv) === 'legacy hi');
+
+// 8. 48-byte PKCS8 key compatibility
+const pkcs8Header = hexToBytes('302e020100300506032b657004220420');
+const alicePriv48Hex = bytesToHex(Buffer.concat([pkcs8Header, hexToBytes(alice.priv)]));
+const alice48 = { priv: alicePriv48Hex, pub: alice.pub };
+ok('Bob decrypts Alice ciphertext encrypted with 48-byte PKCS8 key', decryptDM(enc.ciphertext, enc.nonce, bob, alice48.pub, conv) === msg);
+const enc48 = encryptDM(msg, alice48, bob.pub, conv);
+ok('Alice (48-byte key) decrypts Bob ciphertext', decryptDM(enc48.ciphertext, enc48.nonce, bob, alice48.pub, conv) === msg);
 
 console.log(`\n${fail === 0 ? '✅ ALL PASS' : '❌ FAILURES'}: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

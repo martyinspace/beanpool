@@ -43,7 +43,11 @@ export function isEncryptedNonce(nonce: string | null | undefined): boolean {
 }
 
 function deriveKey(ctx: DMKeyContext): Uint8Array {
-  const myXPriv = ed25519.utils.toMontgomerySecret(hexToBytes(ctx.myEdPrivHex));
+  let myPrivBytes = hexToBytes(ctx.myEdPrivHex);
+  if (myPrivBytes.length === 48) {
+    myPrivBytes = myPrivBytes.slice(16);
+  }
+  const myXPriv = ed25519.utils.toMontgomerySecret(myPrivBytes);
   const peerXPub = ed25519.utils.toMontgomery(hexToBytes(ctx.peerEdPubHex));
   const shared = x25519.getSharedSecret(myXPriv, peerXPub);
   return hkdf(sha256, shared, utf8ToBytes(ctx.conversationId), HKDF_INFO, 32);
