@@ -2098,6 +2098,28 @@
                 const typeLabel = c.type === 'sync' ? 'Sync Feed' : 'Admin Stream';
                 const elapsedMs = Date.now() - c.connectedAt;
                 
+                // Determine platform info from User-Agent
+                let platformName = 'Unknown Client';
+                let platformEmoji = '🔌';
+                if (c.type === 'admin') {
+                    platformName = 'Admin Console';
+                    platformEmoji = '💻';
+                } else {
+                    const ua = c.userAgent || '';
+                    const l = ua.toLowerCase();
+                    if (l.includes('okhttp')) {
+                        platformName = 'Android Native';
+                        platformEmoji = '🤖';
+                    } else if (l.includes('cfnetwork') || l.includes('darwin')) {
+                        platformName = 'iOS Native';
+                        platformEmoji = '🍎';
+                    } else if (l.includes('mozilla') || l.includes('safari') || l.includes('chrome') || l.includes('webkit')) {
+                        const isMobile = /iphone|ipad|ipod|android|mobile/i.test(ua);
+                        platformName = isMobile ? 'PWA (Mobile)' : 'PWA (Desktop)';
+                        platformEmoji = isMobile ? '📱' : '🌐';
+                    }
+                }
+                
                 return `
                     <div class="metric-card glass" id="conn-card-${c.id}" style="background: rgba(15, 23, 42, 0.4); border: 1px solid #1e293b; border-radius: 12px; padding: 0.85rem; display: flex; flex-direction: column; gap: 0.4rem; position: relative;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -2109,8 +2131,12 @@
                                 ${typeLabel}
                             </span>
                         </div>
-                        <div style="font-size: 0.7rem; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${esc(c.userAgent)}">
-                            ${esc(c.userAgent)}
+                        <div style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.72rem; color: #cbd5e1; font-weight: 500;">
+                            <span style="font-size: 0.85rem; line-height: 1;">${platformEmoji}</span>
+                            <span style="color: #cbd5e1;">${platformName}</span>
+                            <span style="font-size: 0.62rem; color: #64748b; font-weight: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; margin-left: auto;" title="${esc(c.userAgent)}">
+                                ${esc(c.userAgent)}
+                            </span>
                         </div>
                         <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: #64748b; border-top: 1px solid #1e293b; padding-top: 0.4rem; margin-top: 0.2rem;">
                             <span>Duration: <span id="duration-${c.id}" style="font-family: monospace; color: #cbd5e1;">${formatDuration(elapsedMs)}</span></span>
@@ -2126,7 +2152,20 @@
             renderActiveConnections();
             
             const timeStr = new Date().toLocaleTimeString();
-            appendTrafficLine(`[${timeStr}] 🟢 CONNECTED: ${conn.ip} (${conn.type}) UA: ${conn.userAgent}`, 'gold');
+            let platformLabel = conn.type === 'sync' ? 'Client' : 'Admin';
+            if (conn.type === 'sync') {
+                const ua = conn.userAgent || '';
+                const l = ua.toLowerCase();
+                if (l.includes('okhttp')) platformLabel = 'Android Native';
+                else if (l.includes('cfnetwork') || l.includes('darwin')) platformLabel = 'iOS Native';
+                else if (l.includes('mozilla') || l.includes('safari') || l.includes('chrome') || l.includes('webkit')) {
+                    const isMobile = /iphone|ipad|ipod|android|mobile/i.test(ua);
+                    platformLabel = isMobile ? 'PWA (Mobile)' : 'PWA (Desktop)';
+                }
+            } else if (conn.type === 'admin') {
+                platformLabel = 'Admin Console';
+            }
+            appendTrafficLine(`[${timeStr}] 🟢 CONNECTED: ${conn.ip} (${platformLabel})`, 'gold');
         }
 
         function handleWsDisconnect({ id }) {
