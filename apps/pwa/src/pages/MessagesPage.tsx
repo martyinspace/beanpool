@@ -16,6 +16,7 @@ import {
 import { encodePlaintext, decodePlaintext, encryptDM, decryptDM, isEncryptedNonce, type DMKeyContext } from '../lib/e2e-crypto';
 import { type BeanPoolIdentity } from '../lib/identity';
 import { resolveAvatarUrl } from '../lib/avatar';
+import { onSyncActivity } from '../lib/sync';
 
 interface Props {
     identity: BeanPoolIdentity;
@@ -142,8 +143,15 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
             loadMessages(activeConv.id);
             // Mark conversation as read when opened
             markConversationReadApi(identity.publicKey, activeConv.id).catch(() => {});
-            // Poll for new messages every 3 seconds
+            // Poll for new messages every 3 seconds (backstop)
             pollRef.current = window.setInterval(() => loadMessages(activeConv.id), 3000);
+            // Fast path: the WebSocket doorbell refreshes this conversation
+            // immediately, instead of waiting for the next poll tick.
+            const unsubscribe = onSyncActivity(() => loadMessages(activeConv.id));
+            return () => {
+                if (pollRef.current) clearInterval(pollRef.current);
+                unsubscribe();
+            };
         }
         return () => { if (pollRef.current) clearInterval(pollRef.current); };
     }, [activeConv?.id]);

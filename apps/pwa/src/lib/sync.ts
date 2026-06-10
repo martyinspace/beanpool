@@ -22,6 +22,7 @@ const RECONNECT_INTERVAL = 5000;
 let ws: WebSocket | null = null;
 let listeners: SyncCallback[] = [];
 let announcementListeners: ((a: any) => void)[] = [];
+let activityListeners: (() => void)[] = [];
 let currentState: SyncState = loadCachedState();
 
 function loadCachedState(): SyncState {
@@ -72,6 +73,13 @@ function establishConnection(wsUrl: string, originalUrl: string): void {
             };
             cacheState(currentState);
             notify();
+
+            // Doorbell: any non-snapshot broadcast means something changed.
+            // Let open screens (e.g. the active chat) refresh immediately
+            // instead of waiting for their polling interval.
+            if (data.type !== 'state_snapshot') {
+                activityListeners.forEach(cb => cb());
+            }
         } catch { /* ignore malformed messages */ }
     };
 
@@ -126,6 +134,17 @@ export function onSyncChange(cb: SyncCallback): () => void {
  */
 export function getSyncState(): SyncState {
     return currentState;
+}
+
+/**
+ * Subscribe to WebSocket "activity" — fires on every non-snapshot broadcast,
+ * signalling that data changed and an open view should refresh now.
+ */
+export function onSyncActivity(cb: () => void): () => void {
+    activityListeners.push(cb);
+    return () => {
+        activityListeners = activityListeners.filter(l => l !== cb);
+    };
 }
 
 /**
