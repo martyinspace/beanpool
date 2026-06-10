@@ -442,7 +442,7 @@ let debounceTimeoutId: NodeJS.Timeout | null = null;
 
 /**
  * Coordinated request wrapper. Ensures that only one performSync executes at a time,
- * and debounces rapid consecutive calls (e.g. WebSocket updates) with a 500ms window.
+ * and debounces rapid consecutive calls (e.g. WebSocket updates) with a 150ms window.
  * If another sync is requested while one is already running, it queues a single trailing
  * sync to execute after the current sync finishes, ensuring no events are missed.
  */
@@ -483,7 +483,7 @@ export async function requestSync(): Promise<void> {
             });
 
             syncPromise.then(() => resolve());
-        }, 500);
+        }, 150);
     });
 }
 

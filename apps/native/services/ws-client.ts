@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, DeviceEventEmitter } from 'react-native';
 import { requestSync } from './pillar-sync';
 import { loadIdentity } from '../utils/identity';
 
@@ -118,6 +118,10 @@ class WebSocketSyncClient {
                     console.log(`[WS Sync] 📥 Received broadcast message type: ${data.type}`);
                     
                     if (data.type !== 'state_snapshot') {
+                        // Fast path: let any open screen (e.g. the active chat)
+                        // do an immediate targeted refresh. The full reconciliation
+                        // below still runs as the correctness backstop.
+                        DeviceEventEmitter.emit('ws_activity', data);
                         requestSync();
                     }
                 } catch (err) {

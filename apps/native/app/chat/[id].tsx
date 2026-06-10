@@ -171,6 +171,7 @@ export default function ChatScreen() {
             promptedRef.current = false;
             
             let sub: any = null;
+            let wsSub: any = null;
             if (id && identity?.publicKey) {
                 // Initial Load
                 loadConversationData();
@@ -197,10 +198,22 @@ export default function ChatScreen() {
                     loadMessages(true);
                     loadRatedTransactions();
                 });
+
+                // Fast path: the WebSocket doorbell nudges us to refresh THIS
+                // conversation immediately with a single targeted fetch, rather
+                // than waiting for the heavier full reconciliation (requestSync)
+                // to finish and emit 'sync_data_updated'.
+                wsSub = DeviceEventEmitter.addListener('ws_activity', () => {
+                    syncSingleConversation(id as string).then(() => {
+                        loadConversationData();
+                        loadMessages(true);
+                    });
+                });
             }
             return () => {
                 if (interval) clearInterval(interval);
                 if (sub) sub.remove();
+                if (wsSub) wsSub.remove();
             };
         }, [id, identity, loadConversationData])
     );
