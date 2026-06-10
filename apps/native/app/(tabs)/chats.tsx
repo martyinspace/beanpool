@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Platform, Image, TextInput } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Platform, Image, TextInput, DeviceEventEmitter } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIdentity } from '../IdentityContext';
@@ -102,14 +102,33 @@ export default function ChatsScreen() {
 
     useFocusEffect(
         React.useCallback(() => {
+            let active = true;
+
+            const loadData = () => {
+                if (identity?.publicKey && active) {
+                    getConversations(identity.publicKey)
+                        .then(res => {
+                            if (active) setConversations(res);
+                        })
+                        .catch(console.error);
+                }
+            };
+
+            loadData();
+
+            // Background sync messages
             if (identity?.publicKey) {
-                getConversations(identity.publicKey).then(setConversations).catch(console.error);
-                
-                // Background sync messages
                 syncMessages(identity.publicKey).then(() => {
-                    getConversations(identity.publicKey).then(setConversations).catch(console.error);
+                    loadData();
                 });
             }
+
+            const sub = DeviceEventEmitter.addListener('sync_data_updated', loadData);
+
+            return () => {
+                active = false;
+                sub.remove();
+            };
         }, [identity])
     );
 

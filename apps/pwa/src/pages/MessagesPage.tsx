@@ -134,7 +134,13 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
     useEffect(() => {
         loadConversations();
         loadMembers();
-        return () => { if (pollRef.current) clearInterval(pollRef.current); };
+        const unsubscribe = onSyncActivity(() => {
+            loadConversations();
+        });
+        return () => {
+            if (pollRef.current) clearInterval(pollRef.current);
+            unsubscribe();
+        };
     }, []);
 
     useEffect(() => {
