@@ -218,7 +218,9 @@ export default function ChatsScreen() {
                         </View>
                     </View>
                 ) : (
-                    <MemberAvatar avatarUrl={item.peerAvatar} pubkey={item.peerPubkey || ''} callsign={item.peer} size={44} />
+                    <View style={styles.avatarWrapper}>
+                        <MemberAvatar avatarUrl={item.peerAvatar} pubkey={item.peerPubkey || ''} callsign={item.peer} size={44} />
+                    </View>
                 )}
                 
                 <View style={styles.chatDetails}>
@@ -489,6 +491,7 @@ const styles = StyleSheet.create({
     chatRowActionNeeded: { backgroundColor: '#fffbeb', borderLeftWidth: 4, borderLeftColor: '#f59e0b', paddingLeft: 12 },
     avatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
     avatarText: { fontSize: 20, fontWeight: 'bold', color: '#6b7280' },
+    avatarWrapper: { width: 50, height: 50, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
     overlayAvatar: { position: 'absolute', bottom: -2, right: -2, backgroundColor: '#4b5563', width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff' },
     overlayAvatarText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
     chatDetails: { flex: 1 },
