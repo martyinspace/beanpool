@@ -2125,6 +2125,7 @@
                         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                             <div>
                                 <span style="font-family: monospace; font-size: 0.75rem; color: #cbd5e1; font-weight: bold;">${esc(c.ip)}</span>
+                                ${c.callsign ? `<span class="badge" style="background: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2); font-size: 0.65rem; padding: 1px 6px; border-radius: 6px; margin-left: 0.4rem; font-family: monospace;">@${esc(c.callsign)}</span>` : ''}
                                 <span style="font-size: 0.65rem; color: #64748b; font-family: monospace; margin-left: 0.4rem;">(${esc(c.id)})</span>
                             </div>
                             <span class="badge" style="background: ${typeColor}15; color: ${typeColor}; border: 1px solid ${typeColor}30; font-size: 0.6rem; padding: 1px 6px; border-radius: 6px;">
@@ -2165,14 +2166,29 @@
             } else if (conn.type === 'admin') {
                 platformLabel = 'Admin Console';
             }
-            appendTrafficLine(`[${timeStr}] 🟢 CONNECTED: ${conn.ip} (${platformLabel})`, 'gold');
+            const callsignStr = conn.callsign ? ` (@${conn.callsign})` : '';
+            appendTrafficLine(`[${timeStr}] 🟢 CONNECTED: ${conn.ip} (${platformLabel})${callsignStr}`, 'gold');
         }
 
         function handleWsDisconnect({ id }) {
             const conn = activeConnectionsMap.get(id);
             if (conn) {
                 const timeStr = new Date().toLocaleTimeString();
-                appendTrafficLine(`[${timeStr}] 🔴 DISCONNECTED: ${conn.ip} (${conn.type})`, 'rose');
+                let platformLabel = conn.type === 'sync' ? 'Client' : 'Admin';
+                if (conn.type === 'sync') {
+                    const ua = conn.userAgent || '';
+                    const l = ua.toLowerCase();
+                    if (l.includes('okhttp')) platformLabel = 'Android Native';
+                    else if (l.includes('cfnetwork') || l.includes('darwin')) platformLabel = 'iOS Native';
+                    else if (l.includes('mozilla') || l.includes('safari') || l.includes('chrome') || l.includes('webkit')) {
+                        const isMobile = /iphone|ipad|ipod|android|mobile/i.test(ua);
+                        platformLabel = isMobile ? 'PWA (Mobile)' : 'PWA (Desktop)';
+                    }
+                } else if (conn.type === 'admin') {
+                    platformLabel = 'Admin Console';
+                }
+                const callsignStr = conn.callsign ? ` (@${conn.callsign})` : '';
+                appendTrafficLine(`[${timeStr}] 🔴 DISCONNECTED: ${conn.ip} (${platformLabel})${callsignStr}`, 'rose');
                 activeConnectionsMap.delete(id);
                 renderActiveConnections();
             }

@@ -126,6 +126,7 @@ interface ActiveConnectionInfo {
     msgSentCount: number;
     msgRecvCount: number;
     lastActivityAt: number;
+    callsign?: string;
 }
 
 const activeConnections = new Map<string, ActiveConnectionInfo>();
@@ -184,6 +185,13 @@ function trackConnection(ws: any, type: 'sync' | 'admin', req: import('node:http
     const userAgent = req.headers['user-agent'] || 'unknown';
     const connectedAt = Date.now();
 
+    // Parse callsign from request URL query parameters
+    let callsign: string | undefined = undefined;
+    try {
+        const parsedUrl = new URL(req.url || '', 'https://localhost');
+        callsign = parsedUrl.searchParams.get('callsign') || undefined;
+    } catch { /* ignore */ }
+
     const connInfo: ActiveConnectionInfo = {
         id,
         type,
@@ -192,7 +200,8 @@ function trackConnection(ws: any, type: 'sync' | 'admin', req: import('node:http
         connectedAt,
         msgSentCount: 0,
         msgRecvCount: 0,
-        lastActivityAt: connectedAt
+        lastActivityAt: connectedAt,
+        callsign
     };
 
     activeConnections.set(id, connInfo);

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, AppStateStatus } from 'react-native';
 import { requestSync } from './pillar-sync';
+import { loadIdentity } from '../utils/identity';
 
 class WebSocketSyncClient {
     private ws: WebSocket | null = null;
@@ -69,10 +70,20 @@ class WebSocketSyncClient {
                 return;
             }
 
+            let identity = null;
+            try {
+                identity = await loadIdentity();
+            } catch (err) {
+                console.warn('[WS Sync] Failed to load identity', err);
+            }
+
             this.currentUrl = anchorUrl;
             let wsUrl = anchorUrl.replace(/^http/, 'ws');
             if (!wsUrl.endsWith('/ws')) {
                 wsUrl = wsUrl.replace(/\/$/, '') + '/ws';
+            }
+            if (identity && identity.callsign) {
+                wsUrl += `?callsign=${encodeURIComponent(identity.callsign)}`;
             }
 
             console.log(`[WS Sync] Connecting to: ${wsUrl}`);

@@ -5,6 +5,8 @@
  * Stores latest state in localStorage for offline read-only access.
  */
 
+import { loadIdentity } from './identity';
+
 export interface SyncState {
     connected: boolean;
     lastSyncTime: number | null;   // Unix timestamp
@@ -38,19 +40,13 @@ function notify(): void {
     listeners.forEach((cb) => cb(currentState));
 }
 
-/**
- * Connect to the BeanPool node's WebSocket state feed.
- */
-export function connectToAnchor(url?: string): void {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = url ?? `${protocol}//${window.location.host}/ws`;
-
+function establishConnection(wsUrl: string, originalUrl: string): void {
     try {
         ws = new WebSocket(wsUrl);
     } catch {
         currentState = { ...currentState, connected: false };
         notify();
-        scheduleReconnect(wsUrl);
+        scheduleReconnect(originalUrl);
         return;
     }
 
@@ -82,12 +78,32 @@ export function connectToAnchor(url?: string): void {
     ws.onclose = () => {
         currentState = { ...currentState, connected: false };
         notify();
-        scheduleReconnect(wsUrl);
+        scheduleReconnect(originalUrl);
     };
 
     ws.onerror = () => {
         ws?.close();
     };
+}
+
+/**
+ * Connect to the BeanPool node's WebSocket state feed.
+ */
+export function connectToAnchor(url?: string): void {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const baseWsUrl = url ?? `${protocol}//${window.location.host}/ws`;
+
+    loadIdentity()
+        .then((ident) => {
+            let wsUrl = baseWsUrl;
+            if (ident && ident.callsign) {
+                wsUrl += `?callsign=${encodeURIComponent(ident.callsign)}`;
+            }
+            establishConnection(wsUrl, baseWsUrl);
+        })
+        .catch(() => {
+            establishConnection(baseWsUrl, baseWsUrl);
+        });
 }
 
 function scheduleReconnect(url: string): void {
