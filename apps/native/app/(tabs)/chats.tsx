@@ -125,9 +125,18 @@ export default function ChatsScreen() {
 
             const sub = DeviceEventEmitter.addListener('sync_data_updated', loadData);
 
+            const wsSub = DeviceEventEmitter.addListener('ws_activity', () => {
+                if (identity?.publicKey && active) {
+                    syncMessages(identity.publicKey).then(() => {
+                        loadData();
+                    });
+                }
+            });
+
             return () => {
                 active = false;
                 sub.remove();
+                wsSub.remove();
             };
         }, [identity])
     );

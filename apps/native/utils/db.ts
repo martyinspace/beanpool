@@ -1781,6 +1781,8 @@ export async function syncMessages(publicKey: string) {
                 releaseSyncLock();
             }
         }
+        const { DeviceEventEmitter } = require('react-native');
+        DeviceEventEmitter.emit('sync_data_updated');
     } catch (err) {
         console.log('[Sync] Failed to pull messages natively', err);
     }
@@ -1831,6 +1833,8 @@ export async function syncSingleConversation(conversationId: string) {
         } finally {
             releaseSyncLock();
         }
+        const { DeviceEventEmitter } = require('react-native');
+        DeviceEventEmitter.emit('sync_data_updated');
     } catch (err) {
         // Silent catch for background polling
     }
