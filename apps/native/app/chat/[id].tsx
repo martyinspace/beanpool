@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, Pressable, FlatList, Alert, Image, ActivityIndicator, Keyboard } from 'react-native';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { KeyboardAvoidingView, useKeyboardHandler } from 'react-native-keyboard-controller';
+import { scheduleOnRN } from 'react-native-worklets';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useFocusEffect, Stack } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -63,12 +64,13 @@ export default function ChatScreen() {
     const sendingRef = useRef(false);
     const promptedRef = useRef(false);
 
+    const scrollToBottom = useCallback((animated: boolean) => {
+        flatListRef.current?.scrollToEnd({ animated });
+    }, []);
+
     useEffect(() => {
         const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
             setKeyboardVisible(true);
-            setTimeout(() => {
-                flatListRef.current?.scrollToEnd({ animated: true });
-            }, 100);
         });
         const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
             setKeyboardVisible(false);
@@ -78,6 +80,20 @@ export default function ChatScreen() {
             hideSubscription.remove();
         };
     }, []);
+
+    // Keep the latest messages pinned to the bottom as the keyboard slides in,
+    // following it frame-by-frame (WhatsApp-style) instead of a single delayed
+    // jump that lands before the avoid-view padding has settled.
+    useKeyboardHandler({
+        onMove: () => {
+            'worklet';
+            scheduleOnRN(scrollToBottom, false);
+        },
+        onEnd: () => {
+            'worklet';
+            scheduleOnRN(scrollToBottom, false);
+        },
+    }, [scrollToBottom]);
 
     const loadRatedTransactions = useCallback(async () => {
         if (!identity?.publicKey) return;
