@@ -13,3 +13,6 @@
 **Learning:** In `createRecoveryRequest()`, validating guardian guess callsigns was previously done by mapping the guardian public keys to member profiles, filtering out empty profiles, and then executing `.some()` against the resulting array. This led to unnecessary allocations (`.map()` and `.filter()`) and executed database lookups for all guardians even if a match was found in the first element.
 **Action:** Refactored the lookups using `guardians.some(...)` with hoisted, pre-normalized callsign comparison. This enables short-circuiting database reads and completely avoids intermediate array allocations.
 
+## 2024-05-18 - [Optimize Member Lookups and Counting]
+**Learning:** In the `apps/server` backend, the entire members table was sometimes fetched into memory as an array using `getMembers()` to then find a single member (`.find()`) or get the total member count (`.length`). This causes an O(N) memory allocation and processing bottleneck as the database grows.
+**Action:** Replace `getMembers().find(m => m.publicKey === ...)` with the existing `getMember(publicKey)` which performs an O(1) indexed database query. Replace `getMembers().length` with an explicit `SELECT COUNT(*)` query via `db.prepare`. Always prefer O(1) SQL operations and counts over fetching whole collections into memory for filtering.
