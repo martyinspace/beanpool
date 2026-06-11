@@ -22,10 +22,50 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 LogBox.ignoreLogs(['ProgressBarAndroid', 'Clipboard', 'PushNotificationIOS', 'has been extracted']);
 
 // Cap OS font scaling app-wide so enlarged system fonts (common on low-end
-// devices in our target markets) can't shatter row layouts. Components in
-// fixed-size containers may still override with a tighter local value.
-(Text as any).defaultProps = { ...(Text as any).defaultProps, maxFontSizeMultiplier: MAX_FONT_SCALE };
-(TextInput as any).defaultProps = { ...(TextInput as any).defaultProps, maxFontSizeMultiplier: MAX_FONT_SCALE };
+// devices in our target markets) can't shatter row layouts.
+//
+// NOTE: React 19 removed `defaultProps` on functional components, and modern
+// React Native Text/TextInput are plain functional components without a `.render`
+// method, so legacy overrides are silent no-ops. We intercept the exports on
+// the mutable `react-native` module object, wrapping them with `React.forwardRef`
+// to automatically inject the `maxFontSizeMultiplier` prop unless overridden.
+const RN = require('react-native');
+const React = require('react');
+
+const OriginalText = RN.Text;
+const OriginalTextInput = RN.TextInput;
+
+const PatchedText = React.forwardRef((props: any, ref: any) => {
+    const maxFontSizeMultiplier = props.maxFontSizeMultiplier !== undefined
+        ? props.maxFontSizeMultiplier
+        : MAX_FONT_SCALE;
+    return React.createElement(OriginalText, { ...props, ref, maxFontSizeMultiplier });
+});
+Object.assign(PatchedText, OriginalText);
+
+const PatchedTextInput = React.forwardRef((props: any, ref: any) => {
+    const maxFontSizeMultiplier = props.maxFontSizeMultiplier !== undefined
+        ? props.maxFontSizeMultiplier
+        : MAX_FONT_SCALE;
+    return React.createElement(OriginalTextInput, { ...props, ref, maxFontSizeMultiplier });
+});
+Object.assign(PatchedTextInput, OriginalTextInput);
+
+Object.defineProperty(RN, 'Text', {
+    configurable: true,
+    enumerable: true,
+    get() {
+        return PatchedText;
+    }
+});
+
+Object.defineProperty(RN, 'TextInput', {
+    configurable: true,
+    enumerable: true,
+    get() {
+        return PatchedTextInput;
+    }
+});
 
 function RootLayoutNav() {
     const { identity, isLoading } = useIdentity();
