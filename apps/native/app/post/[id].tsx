@@ -341,7 +341,7 @@ export default function PostDetailModal() {
             const updated = await getPost(post.id);
             setPost(updated);
             hapticSuccess();
-            Alert.alert('Approved', 'Escrow locked successfully.');
+            Alert.alert('Approved', 'Funds locked in trust successfully.');
             
             // Route to chat with requester
             const req = requests.find(r => r.id === transactionId);
@@ -548,7 +548,7 @@ export default function PostDetailModal() {
                                     ✅ Action Required: Release Credits
                                 </Text>
                                 <Text style={{ color: '#6b7280', fontSize: 11, textAlign: 'center', marginBottom: 12, paddingHorizontal: 16 }}>
-                                    You are the Payer. Once {targetPeerCallsign} has fulfilled the terms, release the escrow to complete the transaction.
+                                    You are the Payer. Once {targetPeerCallsign} has fulfilled the terms, release the funds to complete the transaction.
                                 </Text>
                                 
                                 {showCompleteConfirm ? (
@@ -572,7 +572,7 @@ export default function PostDetailModal() {
                                             <Pressable style={[styles.confirmActionBtn, styles.confirmActionBtnGreen]} disabled={accepting || (post.price_type !== 'fixed' && !completeHours)} onPress={async () => {
                                                 const txToComplete = activeTx?.id || post.pending_transaction_id;
                                                 if (!txToComplete) {
-                                                    Alert.alert("Loading", "Escrow transaction details are still loading. Please wait a moment and try again.");
+                                                    Alert.alert("Loading", "Trust transaction details are still loading. Please wait a moment and try again.");
                                                     return;
                                                 }
                                                 if (!identity) return;
@@ -644,7 +644,7 @@ export default function PostDetailModal() {
                             <Pressable style={styles.cancelTxBtn} disabled={accepting} onPress={() => {
                                 const txToCancel = activeTx?.id || post.pending_transaction_id;
                                 if (!txToCancel) {
-                                    Alert.alert("Loading", "Escrow transaction details are still loading. Please wait a moment and try again.");
+                                    Alert.alert("Loading", "Trust transaction details are still loading. Please wait a moment and try again.");
                                     return;
                                 }
                                 Alert.alert('Cancel Transaction', 'Return post to the market?', [
@@ -668,7 +668,7 @@ export default function PostDetailModal() {
                                     }}
                                 ]);
                             }}>
-                                <Text style={styles.cancelTxBtnText}>❌ Cancel Escrow</Text>
+                                <Text style={styles.cancelTxBtnText}>❌ Cancel Trust Hold</Text>
                             </Pressable>
                         </View>
                     </View>
@@ -790,7 +790,7 @@ export default function PostDetailModal() {
                                 <Text style={[styles.confirmBoxTitle, { color: '#10b981' }]}>Deal Established</Text>
                                 <Text style={{ color: '#4b5563', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>
                                     {isOffer ? (
-                                        `You have committed ${myRequest.credits} credits ${myRequest.hours ? `(${myRequest.hours} hours)` : ''} to Escrow for this offer.`
+                                        `You have committed ${myRequest.credits} credits ${myRequest.hours ? `(${myRequest.hours} hours)` : ''} to a Trust Wallet for this offer.`
                                     ) : (
                                         <>
                                             {`You have requested to earn ${myRequest.credits} credits ${myRequest.hours ? `(${myRequest.hours} hours)` : ''} (${(myRequest.credits * 0.985).toFixed(2)} net after 1.5% transaction fee)`}
@@ -808,17 +808,17 @@ export default function PostDetailModal() {
                                 <Text style={styles.confirmBoxTitle}>{isOffer ? 'Accept this Offer?' : 'Offer to Fulfill?'}</Text>
                                 
                                 <View style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: 12, borderRadius: 8, borderColor: 'rgba(245, 158, 11, 0.3)', borderWidth: 1, marginBottom: 16 }}>
-                                    <Text style={{ color: '#c2410c', fontSize: 12, fontWeight: 'bold', marginBottom: 4 }}>🔒 Escrow Protocol</Text>
+                                    <Text style={{ color: '#c2410c', fontSize: 12, fontWeight: 'bold', marginBottom: 4 }}>🔒 Trust Wallet Protocol</Text>
                                     <Text style={{ color: '#4b5563', fontSize: 12, lineHeight: 18 }}>
                                         {isOffer ? (
                                             <>
-                                                {`By proceeding, you commit ${post.price_type === 'fixed' ? post.credits : `your authorized`} credits to an Escrow smart contract. Upon completion, the provider receives the credits net of 1.5% transaction fee`}
+                                                {`By proceeding, you commit ${post.price_type === 'fixed' ? post.credits : `your authorized`} credits to a temporary Trust Wallet. Upon completion, the provider receives the credits net of 1.5% transaction fee`}
                                                 <Text style={{ color: '#10b981', fontWeight: 'bold' }}> (100% community owned)</Text>
                                                 {` to fund the Commons Pool.`}
                                             </>
                                         ) : (
                                             <>
-                                                {`This transaction is protected by Escrow. The payer has already committed the credits. Upon completion, you will receive the credits net of 1.5% transaction fee`}
+                                                {`This transaction is protected and held in trust. The payer has already committed the credits. Upon completion, you will receive the credits net of 1.5% transaction fee`}
                                                 <Text style={{ color: '#10b981', fontWeight: 'bold' }}> (100% community owned)</Text>
                                                 {` to fund the Commons Pool.`}
                                             </>
@@ -827,7 +827,7 @@ export default function PostDetailModal() {
                                 </View>
                                 {post.price_type !== 'fixed' && (
                                     <View style={{ marginBottom: 12 }}>
-                                        <Text style={styles.confirmBoxLabel}>ESCROW AMOUNT (HOURS)</Text>
+                                        <Text style={styles.confirmBoxLabel}>TRUST COMMITMENT (HOURS)</Text>
                                         <TextInput style={styles.confirmBoxInput} value={acceptHours} onChangeText={setAcceptHours} placeholder="Hours" placeholderTextColor="#9ca3af" keyboardType="numeric" editable={post.price_type !== 'fixed'} />
                                         <Text style={{ color: '#9ca3af', fontSize: 10, textAlign: 'center', marginTop: 4 }}>Credits will be required upon approval.</Text>
                                     </View>
@@ -950,7 +950,7 @@ export default function PostDetailModal() {
                                             <Text style={styles.rejectBtnText} numberOfLines={1}>Deny</Text>
                                         </Pressable>
                                         <Pressable style={[styles.approveBtn, accepting && {opacity: 0.5}, { flex: 2, alignItems: 'center' }]} disabled={accepting} onPress={() => handleApprove(req.id)}>
-                                            <Text style={styles.approveBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Approve & Escrow</Text>
+                                            <Text style={styles.approveBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Approve & Commit</Text>
                                         </Pressable>
                                     </View>
                                 </View>

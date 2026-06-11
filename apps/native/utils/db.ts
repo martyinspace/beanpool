@@ -512,7 +512,7 @@ function formatSystemMessage(
     const beansStr = amount ? `${amount} Beans` : 'Beans';
 
     if (systemType === 'ESCROW_FUNDED') {
-        return `${beansStr} placed in escrow.`;
+        return `${beansStr} held in trust.`;
     }
     if (systemType === 'ESCROW_RELEASED') {
         const sellerPubkey = meta?.sellerPubkey || fallbackInfo.latestTxSeller || (fallbackInfo.postType === 'offer' ? fallbackInfo.postAuthor : null);
@@ -524,7 +524,7 @@ function formatSystemMessage(
         }
     }
     if (systemType === 'ESCROW_CANCELLED') {
-        return `Escrow cancelled and funds refunded.`;
+        return `Trust hold cancelled and funds refunded.`;
     }
     
     // Fallback: clean up Ʀ or R in the ciphertext
@@ -538,7 +538,7 @@ function formatSystemMessage(
             const isSeller = myPubkey && sellerPubkey && myPubkey === sellerPubkey;
             return `Payment of ${amt} Beans released to ${isSeller ? 'you' : 'the provider'}.`;
         });
-        txt = txt.replace(/R(\d+) has been placed in escrow\./g, '$1 Beans placed in escrow.');
+        txt = txt.replace(/R(\d+) has been placed in escrow\./g, '$1 Beans held in trust.');
     }
     return txt;
 }
