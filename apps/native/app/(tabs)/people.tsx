@@ -15,7 +15,7 @@ import { extractNodeOrigin, normaliseInviteCode } from '../../utils/invite-parse
 
 type SubView = 'friends' | 'community' | 'invites' | 'guardians';
 
-const MEMBER_ROW_HEIGHT = 76;
+const MEMBER_ROW_HEIGHT = 66;
 
 /** Cache-busting avatar URI keyed to profile timestamp */
 function avatarUri(url: string | null | undefined, pubkey: string, updatedAt?: string | null): string | null {
@@ -479,10 +479,16 @@ export default function PeopleScreen() {
                         data={friends}
                         keyExtractor={(item, index) => `${item.publicKey}_${index}`}
                         contentContainerStyle={[styles.list, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 16 }]}
-                        renderItem={({ item }) => {
-                            const uri = avatarUri(item.avatar_url, item.publicKey);
+                        renderItem={({ item, index }) => {
+                            const isFirst = index === 0;
+                            const isLast = index === friends.length - 1;
                             return (
-                            <View style={styles.card}>
+                            <View style={[
+                                styles.peopleRow,
+                                isFirst && { borderTopLeftRadius: 12, borderTopRightRadius: 12 },
+                                isLast && { borderBottomLeftRadius: 12, borderBottomRightRadius: 12, borderBottomWidth: 0 },
+                                { overflow: 'hidden' }
+                            ]}>
                                 <Pressable 
                                     style={styles.cardHeader}
                                     onPress={() => router.push({ pathname: '/public-profile', params: { publicKey: item.publicKey, callsign: item.callsign || 'Unknown' } })}
@@ -585,13 +591,20 @@ export default function PeopleScreen() {
                                 </View>
                             ) : null
                         }
-                        renderItem={({ item }) => {
+                        renderItem={({ item, index }) => {
                         const isFriend = friendPubkeys.has(item.public_key);
                         const isSelf = item.public_key === identity?.publicKey;
                         const joinDateText = formatJoinDate(item.joined_at);
                         const uri = avatarUri(item.avatar_url, item.public_key);
+                        const isFirst = index === 0;
+                        const isLast = index === members.length - 1;
                         return (
-                        <View style={styles.communityRow}>
+                        <View style={[
+                            styles.communityRow,
+                            isFirst && { borderTopLeftRadius: 12, borderTopRightRadius: 12 },
+                            isLast && { borderBottomLeftRadius: 12, borderBottomRightRadius: 12, borderBottomWidth: 0 },
+                            { overflow: 'hidden' }
+                        ]}>
                             <Pressable 
                                 style={styles.cardHeader}
                                 onPress={() => router.push({ pathname: '/public-profile', params: { publicKey: item.public_key, callsign: item.callsign || 'Unknown' } })}
@@ -823,8 +836,16 @@ export default function PeopleScreen() {
                                 </Text>
                             </View>
 
-                            {friends.map((friend) => (
-                                <View key={friend.publicKey} style={styles.card}>
+                            {friends.map((friend, index) => {
+                                const isFirst = index === 0;
+                                const isLast = index === friends.length - 1;
+                                return (
+                                <View key={friend.publicKey} style={[
+                                    styles.peopleRow,
+                                    isFirst && { borderTopLeftRadius: 12, borderTopRightRadius: 12 },
+                                    isLast && { borderBottomLeftRadius: 12, borderBottomRightRadius: 12, borderBottomWidth: 0 },
+                                    { overflow: 'hidden' }
+                                ]}>
                                     <Pressable 
                                         style={styles.cardHeader}
                                         onPress={() => router.push({ pathname: '/public-profile', params: { publicKey: friend.publicKey, callsign: friend.callsign || 'Unknown' } })}
@@ -862,7 +883,7 @@ export default function PeopleScreen() {
                                         )}
                                     </Pressable>
                                 </View>
-                            ))}
+                            );})}
                         </>
                     )}
                 </ScrollView>
@@ -937,6 +958,13 @@ const styles = StyleSheet.create({
     communityRow: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         height: MEMBER_ROW_HEIGHT,
+        paddingHorizontal: 16,
+        borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f3f4f6',
+        backgroundColor: '#ffffff',
+    },
+    peopleRow: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingVertical: 10,
         paddingHorizontal: 16,
         borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f3f4f6',
         backgroundColor: '#ffffff',

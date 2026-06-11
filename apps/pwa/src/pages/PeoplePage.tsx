@@ -186,9 +186,9 @@ export function PeoplePage({ identity, initialView = 'friends', onNavigate, onOp
                             </p>
                         </div>
                     ) : (
-                        <div className="flex flex-col gap-3">
+                        <div className="bg-white dark:bg-nature-900 rounded-2xl border border-nature-200 dark:border-nature-800 shadow-sm divide-y divide-nature-100 dark:divide-nature-800 overflow-hidden">
                             {friends.map(f => (
-                                <div key={f.publicKey} className="bg-white dark:bg-nature-900 rounded-2xl p-4 flex items-center justify-between border border-nature-200 dark:border-nature-800 shadow-sm transition-transform hover:-translate-y-0.5">
+                                <div key={f.publicKey} className="p-3 px-4 flex items-center justify-between transition-colors hover:bg-oat-50/50 dark:hover:bg-nature-800/30">
                                     <div className="flex items-center gap-3">
                                         <button 
                                             className="bg-transparent border-none p-0 cursor-pointer text-left hover:opacity-80 transition-opacity" 
@@ -198,17 +198,18 @@ export function PeoplePage({ identity, initialView = 'friends', onNavigate, onOp
                                                 callsign={f.callsign} 
                                                 avatarUrl={memberAvatarMap[f.publicKey]} 
                                                 isGuardian={f.isGuardian} 
+                                                size={36}
                                             />
                                         </button>
                                         <div>
                                             <button 
-                                                className="font-bold text-[15px] text-nature-900 dark:text-white flex items-center gap-1.5 bg-transparent border-none p-0 cursor-pointer hover:underline text-left"
+                                                className="font-bold text-[14px] text-nature-900 dark:text-white flex items-center gap-1.5 bg-transparent border-none p-0 cursor-pointer hover:underline text-left"
                                                 onClick={() => onOpenProfile && onOpenProfile(f.publicKey)}
                                             >
                                                 {f.callsign}
-                                                {f.isGuardian && <span className="text-xs text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/40 border border-amber-100 dark:border-amber-800 px-1.5 py-0.5 rounded-md no-underline">Guardian</span>}
+                                                {f.isGuardian && <span className="text-[10px] text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/40 border border-amber-100 dark:border-amber-800 px-1.5 py-0.5 rounded-md no-underline">Guardian</span>}
                                             </button>
-                                            <div className="text-xs text-nature-400 dark:text-nature-500 font-medium mt-0.5">
+                                            <div className="text-[11px] text-nature-400 dark:text-nature-500 font-medium mt-0.5">
                                                 Added {relativeDate(f.addedAt)}
                                             </div>
                                         </div>
@@ -217,7 +218,7 @@ export function PeoplePage({ identity, initialView = 'friends', onNavigate, onOp
                                         {onNavigate && (
                                             <button
                                                 onClick={() => handleMessage(f.publicKey)}
-                                                className="bg-emerald-600 border-none text-white rounded-lg px-3 py-1.5 text-xs font-bold cursor-pointer hover:bg-emerald-700 shadow-sm transition-all"
+                                                className="bg-emerald-600 border-none text-white rounded-lg px-2.5 py-1 text-xs font-bold cursor-pointer hover:bg-emerald-700 shadow-sm transition-all"
                                                 title="Message"
                                             >
                                                 💬
@@ -225,7 +226,7 @@ export function PeoplePage({ identity, initialView = 'friends', onNavigate, onOp
                                         )}
                                         <button
                                             onClick={() => handleRemoveFriend(f.publicKey)}
-                                            className="bg-transparent border-none text-red-500 text-xs font-semibold cursor-pointer px-3 py-2 rounded-lg hover:bg-red-50 transition-colors"
+                                            className="bg-transparent border-none text-red-500 text-xs font-semibold cursor-pointer px-2.5 py-1 rounded-lg hover:bg-red-50 transition-colors"
                                         >
                                             Remove
                                         </button>
@@ -263,9 +264,9 @@ export function PeoplePage({ identity, initialView = 'friends', onNavigate, onOp
                     {loading ? (
                         <p className="text-center text-nature-500 p-8 font-medium animate-pulse">Loading community...</p>
                     ) : (
-                        <div className="flex flex-col gap-3">
+                        <div className="bg-white dark:bg-nature-900 rounded-2xl border border-nature-200 dark:border-nature-800 shadow-sm divide-y divide-nature-100 dark:divide-nature-800 overflow-hidden">
                             {filteredMembers.map(m => (
-                                    <div key={m.publicKey} className="bg-white dark:bg-nature-900 rounded-2xl p-4 flex items-center justify-between border border-nature-200 dark:border-nature-800 shadow-sm transition-transform hover:-translate-y-0.5">
+                                    <div key={m.publicKey} className="p-3 px-4 flex items-center justify-between transition-colors hover:bg-oat-50/50 dark:hover:bg-nature-800/30">
                                         <div className="flex items-center gap-3">
                                             <button 
                                                 className="bg-transparent border-none p-0 cursor-pointer text-left hover:opacity-80 transition-opacity"
@@ -275,24 +276,24 @@ export function PeoplePage({ identity, initialView = 'friends', onNavigate, onOp
                                             </button>
                                             <div>
                                                 <button 
-                                                    className="font-bold text-[15px] text-nature-900 dark:text-white flex items-center gap-1.5 bg-transparent border-none p-0 cursor-pointer hover:underline text-left"
+                                                    className="font-bold text-[14px] text-nature-900 dark:text-white flex items-center gap-1.5 bg-transparent border-none p-0 cursor-pointer hover:underline text-left"
                                                     onClick={() => onOpenProfile && onOpenProfile(m.publicKey)}
                                                 >
                                                     {m.callsign}
                                                 </button>
-                                                <div className="text-xs text-nature-400 dark:text-nature-500 font-medium mt-0.5">
+                                                <div className="text-[11px] text-nature-400 dark:text-nature-500 font-medium mt-0.5">
                                                     Joined {relativeDate(m.joinedAt)}
                                                 </div>
                                             </div>
                                         </div>
                                         {friendPubkeys.has(m.publicKey) ? (
-                                            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/40 px-3 py-1.5 rounded-xl border border-emerald-100 dark:border-emerald-800 shadow-sm">
+                                            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/40 px-2.5 py-1 rounded-lg border border-emerald-100 dark:border-emerald-800 shadow-sm">
                                                 ✓ Friend
                                             </span>
                                         ) : (
                                             <button
                                                 onClick={() => handleAddFriend(m.publicKey)}
-                                                className="bg-emerald-600 border-none text-white rounded-xl px-4 py-2 text-xs font-bold cursor-pointer hover:bg-emerald-700 shadow-sm transition-all hover:shadow-md"
+                                                className="bg-emerald-600 border-none text-white rounded-lg px-3.5 py-1.5 text-xs font-bold cursor-pointer hover:bg-emerald-700 shadow-sm transition-all hover:shadow-md"
                                             >
                                                 + Add
                                             </button>
@@ -327,35 +328,36 @@ export function PeoplePage({ identity, initialView = 'friends', onNavigate, onOp
                             </p>
                         </div>
                     ) : (
-                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-nature-200">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="font-bold text-nature-950 text-[15px] m-0">Your Guardians</h3>
+                        <div>
+                            <div className="flex justify-between items-center mb-4 px-1">
+                                <h3 className="font-bold text-nature-950 dark:text-white text-[15px] m-0">Your Guardians</h3>
                                 <div className={`text-xs font-bold px-3 py-1 rounded-full ${guardians.length >= 5 ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-amber-100 text-amber-700 border border-amber-200'}`}>
                                     {guardians.length}/5 selected
                                 </div>
                             </div>
                             
-                            <div className="flex flex-col gap-3">
+                            <div className="bg-white dark:bg-nature-900 rounded-2xl border border-nature-200 dark:border-nature-800 shadow-sm divide-y divide-nature-100 dark:divide-nature-800 overflow-hidden">
                                 {friends.map(f => (
-                                    <div key={f.publicKey} className={`rounded-xl p-3.5 flex items-center justify-between border transition-all ${
+                                    <div key={f.publicKey} className={`p-3 px-4 flex items-center justify-between transition-colors hover:bg-oat-50/50 dark:hover:bg-nature-800/30 ${
                                         f.isGuardian
-                                            ? 'bg-amber-50 border-amber-200 shadow-sm'
-                                            : 'bg-oat-50 border-nature-200'
+                                            ? 'bg-amber-50/40 dark:bg-amber-950/10'
+                                            : ''
                                     }`}>
                                         <div className="flex items-center gap-3">
                                             <Avatar 
                                                 callsign={f.callsign} 
                                                 avatarUrl={memberAvatarMap[f.publicKey]} 
                                                 isGuardian={f.isGuardian} 
+                                                size={36}
                                             />
-                                            <div className={`font-bold text-[15px] ${f.isGuardian ? 'text-amber-900' : 'text-nature-900'}`}>
+                                            <div className={`font-bold text-[14px] ${f.isGuardian ? 'text-amber-900 dark:text-amber-400' : 'text-nature-900 dark:text-white'}`}>
                                                 {f.callsign}
                                             </div>
                                         </div>
                                         <button
                                             onClick={() => handleToggleGuardian(f.publicKey, !f.isGuardian)}
                                             disabled={!f.isGuardian && guardians.length >= 5}
-                                            className={`border-none rounded-xl px-4 py-2 text-xs font-bold cursor-pointer transition-all shadow-sm ${
+                                            className={`border-none rounded-lg px-3 py-1.5 text-xs font-bold cursor-pointer transition-all shadow-sm ${
                                                 f.isGuardian 
                                                     ? 'bg-amber-600 text-white hover:bg-amber-700' 
                                                     : 'bg-nature-800 text-white hover:bg-nature-900'

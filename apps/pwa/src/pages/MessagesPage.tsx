@@ -365,7 +365,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
 
     const inputStyle: React.CSSProperties = {
         flex: 1,
-        padding: '0.75rem 1rem',
+        padding: '0.5rem 1rem',
         borderRadius: '20px',
         border: '1px solid var(--border-input)',
         background: 'var(--bg-secondary)',
@@ -373,6 +373,8 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
         fontSize: '0.95rem',
         fontFamily: 'inherit',
         outline: 'none',
+        height: '40px',
+        boxSizing: 'border-box',
     };
 
     // New DM / Group overlays
@@ -498,7 +500,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                 {/* Messages */}
                 <div style={{
                     flex: 1, overflowY: 'auto', padding: '1rem',
-                    display: 'flex', flexDirection: 'column', gap: '0.5rem',
+                    display: 'flex', flexDirection: 'column', gap: '0.3rem',
                 }}>
                     {messages.length === 0 && (
                         <p style={{ textAlign: 'center', color: 'var(--text-faint)', marginTop: '2rem' }}>
@@ -589,6 +591,8 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                         }
 
                         const isMe = msg.authorPubkey === identity.publicKey;
+                        const readByPeer = isMe && !!activeConv?.peerLastReadAt &&
+                            new Date(msg.timestamp).getTime() <= new Date(activeConv.peerLastReadAt).getTime();
                         return (
                             <div
                                 key={msg.id}
@@ -608,11 +612,11 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                     background: isMe ? 'var(--accent)' : 'var(--bg-card)',
                                     color: isMe ? '#fff' : 'var(--text-primary)',
                                     borderRadius: isMe
-                                        ? '16px 16px 4px 16px'
-                                        : '16px 16px 16px 4px',
-                                    padding: '0.6rem 0.9rem',
+                                        ? '12px 12px 4px 12px'
+                                        : '12px 12px 12px 4px',
+                                    padding: '0.35rem 0.6rem',
                                     fontSize: '0.95rem',
-                                    lineHeight: 1.4,
+                                    lineHeight: 1.3,
                                     border: isMe ? 'none' : '1px solid var(--border-primary)',
                                     wordBreak: 'break-word',
                                 }}>
@@ -663,32 +667,42 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                         }
                                         return null;
                                     })()}
-                                    {msg.type === 'image' ? (() => {
-                                        const ctx = dmCtxFor(activeConv);
-                                        if (!ctx) return <span style={{ fontStyle: 'italic', opacity: 0.7 }}>🔒 Image</span>;
-                                        return <ChatImageBubble messageId={msg.id} conversationId={ctx.conversationId} peerPubHex={ctx.peerEdPubHex} myPrivHex={ctx.myEdPrivHex} />;
-                                    })() : decryptMessage(msg)}
-                                </div>
-                                <div style={{
-                                    fontSize: '0.65rem', color: 'var(--text-faint)',
-                                    marginTop: '0.15rem',
-                                    textAlign: isMe ? 'right' : 'left',
-                                }}>
-                                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    {isMe && (() => {
-                                        const readByPeer = !!activeConv?.peerLastReadAt &&
-                                            new Date(msg.timestamp).getTime() <= new Date(activeConv.peerLastReadAt).getTime();
-                                        return (
-                                            <span style={{ marginLeft: '4px', color: readByPeer ? '#38bdf8' : 'var(--text-faint)' }}>
+                                    <div style={{ display: 'inline' }}>
+                                        {msg.type === 'image' ? (() => {
+                                            const ctx = dmCtxFor(activeConv);
+                                            if (!ctx) return <span style={{ fontStyle: 'italic', opacity: 0.7 }}>🔒 Image</span>;
+                                            return <ChatImageBubble messageId={msg.id} conversationId={ctx.conversationId} peerPubHex={ctx.peerEdPubHex} myPrivHex={ctx.myEdPrivHex} />;
+                                        })() : decryptMessage(msg)}
+                                    </div>
+                                    <span style={{
+                                        float: 'right',
+                                        fontSize: '0.65rem',
+                                        color: isMe ? 'rgba(255, 255, 255, 0.7)' : 'var(--text-faint)',
+                                        marginLeft: '8px',
+                                        marginTop: '4px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '2px',
+                                        userSelect: 'none',
+                                        verticalAlign: 'bottom',
+                                    }}>
+                                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        {isMe && (
+                                            <span style={{ marginLeft: '2px', color: readByPeer ? '#38bdf8' : 'rgba(255, 255, 255, 0.5)' }}>
                                                 {readByPeer ? '✓✓' : '✓'}
                                             </span>
-                                        );
-                                    })()}
-                                    <span
-                                        onClick={() => setReplyToMessage(msg)}
-                                        style={{ marginLeft: '8px', cursor: 'pointer', color: 'var(--accent)', fontWeight: 600 }}
-                                    >
-                                        Reply
+                                        )}
+                                        <span
+                                            onClick={(e) => { e.stopPropagation(); setReplyToMessage(msg); }}
+                                            style={{
+                                                marginLeft: '6px',
+                                                cursor: 'pointer',
+                                                color: isMe ? '#a5f3fc' : 'var(--accent)',
+                                                fontWeight: 600
+                                            }}
+                                        >
+                                            Reply
+                                        </span>
                                     </span>
                                 </div>
                             </div>
@@ -725,15 +739,19 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                 {/* Send bar */}
                 <div style={{
                     display: 'flex', gap: '0.5rem',
-                    padding: '0.75rem 1rem',
+                    padding: '0.5rem 1rem',
+                    alignItems: 'center',
                     borderTop: '1px solid var(--border-primary)',
                     background: 'var(--bg-secondary)',
                 }}>
                     {activeConv.type === 'dm' && (
                         <label title="Send photo" style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            padding: '0 0.4rem', fontSize: '1.2rem',
+                            width: '40px', height: '40px', borderRadius: '50%',
+                            fontSize: '1.2rem',
                             cursor: sending ? 'default' : 'pointer', opacity: sending ? 0.5 : 1,
+                            flexShrink: 0,
+                            background: 'transparent',
                         }}>
                             📎
                             <input
@@ -758,14 +776,20 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                         onClick={handleSend}
                         disabled={sending || !draft.trim()}
                         style={{
-                            padding: '0.6rem 1rem',
-                            borderRadius: '20px',
+                            height: '40px',
+                            width: '40px',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                             border: 'none',
                             background: draft.trim() ? 'var(--accent)' : 'var(--bg-hover)',
                             color: draft.trim() ? '#fff' : 'var(--text-muted)',
-                            fontSize: '1rem',
+                            fontSize: '1.2rem',
                             cursor: draft.trim() ? 'pointer' : 'default',
                             fontFamily: 'inherit',
+                            flexShrink: 0,
+                            padding: 0,
                         }}
                     >
                         {sending ? '…' : '↑'}
@@ -828,136 +852,135 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                     <p style={{ fontSize: '0.85rem' }}>Start by sending a DM or creating a group.</p>
                 </div>
             ) : (
-                conversations
-                    .filter(c => (c.unreadCount || 0) > 0 || c.createdAt) // show all (filtering empty convs happens server-side)
-                    .filter(c => {
-                        if (activeTab === 'transactions') return !!c.postId;
-                        if (activeTab === 'direct') return !c.postId;
-                        return true;
-                    })
-                    .sort((a, b) => {
-                        // Transactions Tab sorting priority
-                        if (activeTab === 'transactions') {
-                            const isAActive = ['active', 'pending'].includes(a.postStatus || '');
-                            const isBActive = ['active', 'pending'].includes(b.postStatus || '');
-                            if (isAActive && !isBActive) return -1;
-                            if (!isAActive && isBActive) return 1;
-                        }
-                        
-                        // Default Unread & Date sorting priority
-                        const aUnread = a.unreadCount || 0;
-                        const bUnread = b.unreadCount || 0;
-                        if (aUnread > 0 && bUnread === 0) return -1;
-                        if (bUnread > 0 && aUnread === 0) return 1;
-                        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-                    })
-                    .map(conv => {
-                        const relatedTx = userTransactions.find(t => t.postId === conv.postId && t.status === 'completed');
-                        const isBuyer = relatedTx ? relatedTx.buyerPublicKey === identity.publicKey : false;
-                        const hasRated = relatedTx ? (isBuyer ? relatedTx.ratedByBuyer : relatedTx.ratedBySeller) : false;
-                        const needsReview = conv.lastMsgType === 'system' && conv.lastSysType === 'ESCROW_RELEASED' && !hasRated;
-                        
-                        return (
-                        <div
-                            key={conv.id}
-                            onClick={() => { setActiveConv(conv); loadMembers(); }}
-                            style={{
-                                ...cardStyle,
-                                ...(needsReview ? { background: '#fffbeb', borderLeft: '4px solid #f59e0b', paddingLeft: '0.75rem' } : {})
-                            }}
-                        >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            {conv.postId ? (
-                                <div style={{
-                                    width: '44px', height: '44px', borderRadius: '12px',
-                                    overflow: 'hidden', flexShrink: 0, position: 'relative',
-                                    background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                }}>
-                                    {conv.postPhoto ? (
-                                        <img src={conv.postPhoto} alt="" style={{
-                                            width: '44px', height: '44px', objectFit: 'cover', borderRadius: '12px',
-                                        }} />
-                                    ) : (
-                                        <span style={{ fontSize: '1.3rem' }}>🛍️</span>
-                                    )}
-                                    {/* Peer profile overlay */}
+                <div className="bg-white dark:bg-nature-900 rounded-2xl border border-nature-200 dark:border-nature-800 shadow-sm divide-y divide-nature-100 dark:divide-nature-800 overflow-hidden">
+                    {conversations
+                        .filter(c => (c.unreadCount || 0) > 0 || c.createdAt) // show all (filtering empty convs happens server-side)
+                        .filter(c => {
+                            if (activeTab === 'transactions') return !!c.postId;
+                            if (activeTab === 'direct') return !c.postId;
+                            return true;
+                        })
+                        .sort((a, b) => {
+                            // Transactions Tab sorting priority
+                            if (activeTab === 'transactions') {
+                                const isAActive = ['active', 'pending'].includes(a.postStatus || '');
+                                const isBActive = ['active', 'pending'].includes(b.postStatus || '');
+                                if (isAActive && !isBActive) return -1;
+                                if (!isAActive && isBActive) return 1;
+                            }
+                            
+                            // Default Unread & Date sorting priority
+                            const aUnread = a.unreadCount || 0;
+                            const bUnread = b.unreadCount || 0;
+                            if (aUnread > 0 && bUnread === 0) return -1;
+                            if (bUnread > 0 && aUnread === 0) return 1;
+                            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                        })
+                        .map(conv => {
+                            const relatedTx = userTransactions.find(t => t.postId === conv.postId && t.status === 'completed');
+                            const isBuyer = relatedTx ? relatedTx.buyerPublicKey === identity.publicKey : false;
+                            const hasRated = relatedTx ? (isBuyer ? relatedTx.ratedByBuyer : relatedTx.ratedBySeller) : false;
+                            const needsReview = conv.lastMsgType === 'system' && conv.lastSysType === 'ESCROW_RELEASED' && !hasRated;
+                            
+                            return (
+                            <div
+                                key={conv.id}
+                                onClick={() => { setActiveConv(conv); loadMembers(); }}
+                                className={`p-3 px-4 flex items-center gap-3 cursor-pointer transition-colors hover:bg-oat-50/50 dark:hover:bg-nature-800/30 ${
+                                    needsReview ? 'bg-amber-50/40 dark:bg-amber-950/10 border-l-4 border-amber-500 pl-3' : ''
+                                }`}
+                            >
+                                {conv.postId ? (
                                     <div style={{
-                                        position: 'absolute', bottom: '-3px', right: '-3px',
-                                        width: '22px', height: '22px', borderRadius: '50%',
-                                        border: '2px solid var(--bg-primary)', overflow: 'hidden',
+                                        width: '44px', height: '44px', borderRadius: '12px',
+                                        overflow: 'hidden', flexShrink: 0, position: 'relative',
+                                        background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     }}>
-                                        {renderAvatar(conv.peerAvatar, getConversationTitle(conv), 22)}
-                                    </div>
-                                    {(conv.unreadCount || 0) > 0 && (
-                                        <span style={{
-                                            position: 'absolute', top: '-4px', left: '-4px',
-                                            background: 'var(--danger)', color: '#fff', fontSize: '0.6rem', fontWeight: 700,
-                                            minWidth: '16px', height: '16px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            padding: '0 3px', lineHeight: 1, boxShadow: '0 0 6px var(--danger)',
-                                        }}>{conv.unreadCount! > 99 ? '99+' : conv.unreadCount}</span>
-                                    )}
-                                </div>
-                            ) : (
-                                <div style={{ position: 'relative', flexShrink: 0 }}>
-                                    {conv.type === 'group' ? (
+                                        {conv.postPhoto ? (
+                                            <img src={conv.postPhoto} alt="" style={{
+                                                width: '44px', height: '44px', objectFit: 'cover', borderRadius: '12px',
+                                            }} />
+                                        ) : (
+                                            <span style={{ fontSize: '1.3rem' }}>🛍️</span>
+                                        )}
+                                        {/* Peer profile overlay */}
                                         <div style={{
-                                            width: '44px', height: '44px', borderRadius: '50%',
-                                            background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            fontSize: '1.1rem',
+                                            position: 'absolute', bottom: '-3px', right: '-3px',
+                                            width: '22px', height: '22px', borderRadius: '50%',
+                                            border: '2px solid var(--bg-primary)', overflow: 'hidden',
                                         }}>
-                                            👥
+                                            {renderAvatar(conv.peerAvatar, getConversationTitle(conv), 22)}
                                         </div>
-                                    ) : (
-                                        renderAvatar(conv.peerAvatar, getConversationTitle(conv), 44)
-                                    )}
-                                    {(conv.unreadCount || 0) > 0 && (
-                                        <span style={{
-                                            position: 'absolute', top: '-4px', right: '-4px',
-                                            background: 'var(--danger)', color: '#fff', fontSize: '0.6rem', fontWeight: 700,
-                                            minWidth: '16px', height: '16px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            padding: '0 3px', lineHeight: 1, boxShadow: '0 0 6px var(--danger)',
-                                        }}>{conv.unreadCount! > 99 ? '99+' : conv.unreadCount}</span>
-                                    )}
-                                </div>
-                            )}
-
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontWeight: (conv.unreadCount || 0) > 0 ? 700 : 600, fontSize: '0.95rem' }}>
-                                    {getConversationTitle(conv)}
-                                </div>
-                                {conv.postTitle && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.15rem' }}>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {conv.postTitle}
-                                        </div>
-                                        {conv.postStatus && (
+                                        {(conv.unreadCount || 0) > 0 && (
+                                            <span style={{
+                                                position: 'absolute', top: '-4px', left: '-4px',
+                                                background: 'var(--danger)', color: '#fff', fontSize: '0.6rem', fontWeight: 700,
+                                                minWidth: '16px', height: '16px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                padding: '0 3px', lineHeight: 1, boxShadow: '0 0 6px var(--danger)',
+                                            }}>{conv.unreadCount! > 99 ? '99+' : conv.unreadCount}</span>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                                        {conv.type === 'group' ? (
                                             <div style={{
-                                                padding: '2px 6px', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 800, letterSpacing: '0.5px',
-                                                background: conv.postStatus === 'active' ? '#dbeafe' : conv.postStatus === 'pending' ? '#d1fae5' : '#f3f4f6',
-                                                color: conv.postStatus === 'active' ? '#1d4ed8' : conv.postStatus === 'pending' ? '#047857' : '#4b5563',
+                                                width: '44px', height: '44px', borderRadius: '50%',
+                                                background: 'var(--bg-card)', border: '1px solid var(--border-primary)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontSize: '1.1rem',
                                             }}>
-                                                {conv.postStatus === 'pending' ? 'ESCROW' : conv.postStatus.toUpperCase()}
+                                                👥
                                             </div>
+                                        ) : (
+                                            renderAvatar(conv.peerAvatar, getConversationTitle(conv), 44)
+                                        )}
+                                        {(conv.unreadCount || 0) > 0 && (
+                                            <span style={{
+                                                position: 'absolute', top: '-4px', right: '-4px',
+                                                background: 'var(--danger)', color: '#fff', fontSize: '0.6rem', fontWeight: 700,
+                                                minWidth: '16px', height: '16px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                padding: '0 3px', lineHeight: 1, boxShadow: '0 0 6px var(--danger)',
+                                            }}>{conv.unreadCount! > 99 ? '99+' : conv.unreadCount}</span>
                                         )}
                                     </div>
                                 )}
-                                {!conv.postTitle && (
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {conv.type === 'group' ? `${conv.participants.length} members` : new Date(conv.createdAt).toLocaleDateString()}
+    
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontWeight: (conv.unreadCount || 0) > 0 ? 700 : 600, fontSize: '0.95rem' }}>
+                                        {getConversationTitle(conv)}
                                     </div>
-                                )}
-                                
-                                {needsReview && (
-                                    <div style={{ fontSize: '0.75rem', color: '#d97706', fontWeight: 700, marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                        <span style={{ fontSize: '0.8rem' }}>⭐</span> Action Needed: Review Partner
-                                    </div>
-                                )}
+                                    {conv.postTitle && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.15rem' }}>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {conv.postTitle}
+                                            </div>
+                                            {conv.postStatus && (
+                                                <div style={{
+                                                    padding: '2px 6px', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 800, letterSpacing: '0.5px',
+                                                    background: conv.postStatus === 'active' ? '#dbeafe' : conv.postStatus === 'pending' ? '#d1fae5' : '#f3f4f6',
+                                                    color: conv.postStatus === 'active' ? '#1d4ed8' : conv.postStatus === 'pending' ? '#047857' : '#4b5563',
+                                                }}>
+                                                    {conv.postStatus === 'pending' ? 'ESCROW' : conv.postStatus.toUpperCase()}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                    {!conv.postTitle && (
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {conv.type === 'group' ? `${conv.participants.length} members` : new Date(conv.createdAt).toLocaleDateString()}
+                                        </div>
+                                    )}
+                                    
+                                    {needsReview && (
+                                        <div style={{ fontSize: '0.75rem', color: '#d97706', fontWeight: 700, marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                            <span style={{ fontSize: '0.8rem' }}>⭐</span> Action Needed: Review Partner
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                    );
-                })
+                            );
+                        })}
+                </div>
             )}
         </div>
     );

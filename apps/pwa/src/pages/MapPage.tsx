@@ -374,7 +374,7 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
                 <div style="position: relative; width: 36px; height: 46px; display: flex; flex-direction: column; align-items: center; opacity: 0.8;">
                     <div style="
                         width: 36px; height: 36px; border-radius: 50%;
-                        background: #fff; border: 3px dashed #d97757;
+                        background: #fff; border: 2.5px dashed #d97757;
                         box-shadow: 0 4px 8px rgba(0,0,0,0.15);
                         z-index: 2; box-sizing: border-box;
                     "></div>
@@ -441,16 +441,30 @@ export function MapPage({ identity, openNewPost, onOpenNewPostHandled, onNavigat
             let html: string;
             if (useModernMarkers) {
                 html = `
-                <div style="position: relative; width: 40px; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: ${borderColor}; border-radius: 20px; box-shadow: 0 3px 4px rgba(0,0,0,0.3); ${hasElderGlow ? 'border: 2px solid #fbbf24; box-shadow: 0 0 6px rgba(251,191,36,0.8);' : ''}">
-                    <span style="font-size: 22px; line-height: 1; padding-bottom: 2px;">${emoji}</span>
-                    <div style="position: absolute; bottom: -8px; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 10px solid ${borderColor};"></div>
+                <div style="position: relative; width: 40px; height: 48px; display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.15));">
+                    <div style="
+                        width: 40px; height: 40px; border-radius: 50%;
+                        background: rgba(255,255,255,0.95); border: 2.5px solid ${borderColor};
+                        display: flex; align-items: center; justify-content: center;
+                        box-sizing: border-box; z-index: 2; position: relative;
+                        ${hasElderGlow ? 'border-color: #fbbf24; box-shadow: 0 0 6px rgba(251,191,36,0.8);' : ''}
+                    ">
+                        <span style="font-size: 22px; line-height: 1; padding-bottom: 2px;">${emoji}</span>
+                    </div>
+                    <div style="
+                        position: absolute; bottom: 0; width: 0; height: 0;
+                        border-left: 6px solid transparent;
+                        border-right: 6px solid transparent;
+                        border-top: 10px solid ${borderColor};
+                        z-index: 1;
+                    "></div>
                 </div>`;
             } else {
                 html = `
                 <div style="position: relative; width: 44px; height: 56px; display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.15));">
                     <div style="
                         width: 44px; height: 44px; border-radius: 50%;
-                        background: rgba(255,255,255,0.95); border: 3px solid ${borderColor};
+                        background: rgba(255,255,255,0.95); border: 2.5px solid ${borderColor};
                         display: flex; flex-direction: column; align-items: center; justify-content: center;
                         box-sizing: border-box; z-index: 2; position: relative;
                     ">

@@ -15,7 +15,7 @@ const CY = 23;
 const R  = 18;
 const TAIL_BASE_Y = 40;
 const TAIL_TIP_Y = 50;
-const EMOJI_BG_R = 12;
+const EMOJI_BG_R = 13.5;
 
 // Single unified SVG path: circle arc + narrow tail
 const PIN_PATH = `

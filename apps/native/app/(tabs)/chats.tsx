@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
     title: { fontSize: 32, fontWeight: '800', color: '#1f2937', letterSpacing: -0.5 },
     newChatBtn: { padding: 8, backgroundColor: 'rgba(139, 92, 246, 0.1)', borderRadius: 12 },
     list: { paddingBottom: 100 },
-    chatRow: { flexDirection: 'row', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f9fafb', alignItems: 'center' },
+    chatRow: { flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#f9fafb', alignItems: 'center' },
     chatRowActionNeeded: { backgroundColor: '#fffbeb', borderLeftWidth: 4, borderLeftColor: '#f59e0b', paddingLeft: 12 },
     avatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
     avatarText: { fontSize: 20, fontWeight: 'bold', color: '#6b7280' },
@@ -521,14 +521,14 @@ const styles = StyleSheet.create({
     tabBtnTextActive: { color: '#fff' },
     emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 100 },
     emptyText: { marginTop: 16, fontSize: 15, color: '#9ca3af', fontWeight: '500' },
-
+ 
     // Action Required Section
     actionSection: { margin: 12, padding: 16, backgroundColor: '#f0fdf4', borderRadius: 16, borderWidth: 1, borderColor: '#bbf7d0' },
     actionSectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 6 },
     actionSectionTitle: { fontSize: 15, fontWeight: '800', color: '#166534', letterSpacing: 0.3 },
     actionCountBadge: { backgroundColor: '#059669', width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
     actionCountText: { color: '#fff', fontSize: 12, fontWeight: '800' },
-    actionCard: { backgroundColor: '#ffffff', borderRadius: 12, padding: 14, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: '#e5e7eb' },
+    actionCard: { backgroundColor: '#ffffff', borderRadius: 12, padding: 11, marginBottom: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, borderWidth: 1, borderColor: '#e5e7eb' },
     actionCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
     actionIconContainer: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#059669', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
     actionCardInfo: { flex: 1 },

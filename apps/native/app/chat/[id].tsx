@@ -637,31 +637,60 @@ export default function ChatScreen() {
                                 {!!item.text && (
                                     <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther, { marginTop: 6 }]}>
                                         {item.text}
+                                        {"  "}
+                                        <Text style={[styles.messageTime, isMe ? styles.messageTimeMe : styles.messageTimeOther, { fontSize: 10 }]}>
+                                            {item.timestamp}
+                                        </Text>
+                                        {isMe && item.outgoing && (
+                                            <Text style={{ fontSize: 10, color: item.readByPeer ? '#a5f3fc' : 'rgba(255,255,255,0.65)' }}>
+                                                {item.readByPeer ? ' ✓✓' : ' ✓'}
+                                            </Text>
+                                        )}
                                     </Text>
                                 )}
                             </>
                         ) : (
                             <Text style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther]}>
                                 {item.text}
+                                {"  "}
+                                <Text style={[styles.messageTime, isMe ? styles.messageTimeMe : styles.messageTimeOther, { fontSize: 10 }]}>
+                                    {item.timestamp}
+                                </Text>
+                                {isMe && item.outgoing && (
+                                    <Text style={{ fontSize: 10, color: item.readByPeer ? '#a5f3fc' : 'rgba(255,255,255,0.65)' }}>
+                                        {item.readByPeer ? ' ✓✓' : ' ✓'}
+                                    </Text>
+                                )}
                             </Text>
                         )}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: isMe ? 'flex-end' : 'flex-start' }}>
-                            <Text style={[styles.messageTime, isMe ? styles.messageTimeMe : styles.messageTimeOther]}>
-                                {item.timestamp}
-                            </Text>
-                            {isMe && item.outgoing && (
-                                <MaterialCommunityIcons
-                                    name={item.readByPeer ? 'check-all' : 'check'}
-                                    size={14}
-                                    color={item.readByPeer ? '#a5f3fc' : 'rgba(255,255,255,0.65)'}
-                                    style={{ marginLeft: 3 }}
-                                />
-                            )}
-                        </View>
+                        {item.type === 'image' && !item.text && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: isMe ? 'flex-end' : 'flex-start', marginTop: 4 }}>
+                                <Text style={[styles.messageTime, isMe ? styles.messageTimeMe : styles.messageTimeOther]}>
+                                    {item.timestamp}
+                                </Text>
+                                {isMe && item.outgoing && (
+                                    <MaterialCommunityIcons
+                                        name={item.readByPeer ? 'check-all' : 'check'}
+                                        size={14}
+                                        color={item.readByPeer ? '#a5f3fc' : 'rgba(255,255,255,0.65)'}
+                                        style={{ marginLeft: 3 }}
+                                    />
+                                )}
+                            </View>
+                        )}
 
                         {totalReactionsCount > 0 && (
-                            <View style={[styles.reactionBadgeContainer, isMe ? styles.reactionBadgeMe : styles.reactionBadgeOther]}>
-                                <Text style={styles.reactionBadgeText}>
+                            <View style={[
+                                styles.reactionBadgeContainer, 
+                                isMe ? styles.reactionBadgeMe : styles.reactionBadgeOther,
+                                totalReactionsCount === 1 ? { width: 28, paddingHorizontal: 0, justifyContent: 'center' } : {}
+                            ]}>
+                                <Text style={[
+                                    styles.reactionBadgeText,
+                                    totalReactionsCount === 1 
+                                        ? { fontSize: 14, lineHeight: 14, marginTop: 1.5, marginLeft: 3.5 } 
+                                        : { marginTop: -1 }
+                                ]}>
                                     {uniqueEmojis.join(' ')} {totalReactionsCount > 1 ? totalReactionsCount : ''}
                                 </Text>
                             </View>
@@ -886,13 +915,13 @@ const styles = StyleSheet.create({
     statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
     statusBadgeText: { fontSize: 11, fontWeight: '800' },
     keyboardView: { flex: 1 },
-    listContent: { padding: 16, paddingBottom: 32, gap: 12 },
+    listContent: { padding: 16, paddingBottom: 32, gap: 4 },
     systemMessageContainer: { width: '100%', alignItems: 'center', marginVertical: 8 },
     systemMessageBubble: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16 },
     systemMessageText: { fontSize: 13, color: '#4b5563', fontWeight: '600' },
     systemActionBtn: { flexDirection: 'row', alignItems: 'center', marginTop: 8, backgroundColor: '#ffffff', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: '#10b981' },
     systemActionText: { color: '#10b981', fontWeight: '700', fontSize: 12 },
-    messageBubble: { maxWidth: '80%', padding: 12, borderRadius: 20 },
+    messageBubble: { maxWidth: '80%', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12 },
     messageMe: { backgroundColor: '#8b5cf6', alignSelf: 'flex-end', borderBottomRightRadius: 4 },
     messageOther: { backgroundColor: '#f3f4f6', alignSelf: 'flex-start', borderBottomLeftRadius: 4 },
     messageText: { fontSize: 16, lineHeight: 22 },
@@ -901,10 +930,10 @@ const styles = StyleSheet.create({
     messageTime: { fontSize: 10, marginTop: 4, alignSelf: 'flex-end' },
     messageTimeMe: { color: 'rgba(255, 255, 255, 0.7)' },
     messageTimeOther: { color: '#9ca3af' },
-    inputContainer: { flexDirection: 'row', alignItems: 'flex-end', padding: 12, borderTopWidth: 1, borderTopColor: '#f3f4f6', backgroundColor: '#ffffff' },
-    attachBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
-    input: { flex: 1, backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 20, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontSize: 16, maxHeight: 100, minHeight: 44, color: '#1f2937' },
-    sendBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginLeft: 8, marginBottom: 4 },
+    inputContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#f3f4f6', backgroundColor: '#ffffff' },
+    attachBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+    input: { flex: 1, backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 20, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8, fontSize: 16, maxHeight: 100, minHeight: 40, color: '#1f2937' },
+    sendBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
     sendBtnActive: { backgroundColor: '#8b5cf6' },
     sendBtnInactive: { backgroundColor: '#f3f4f6' },
     systemTimestamp: { fontSize: 10, color: '#9ca3af', marginTop: 4 },
@@ -921,7 +950,7 @@ const styles = StyleSheet.create({
     // Reactions and Custom Message Rows
     messageRowContainer: {
         width: '100%',
-        marginVertical: 4,
+        marginVertical: 2,
         position: 'relative',
     },
     messageRowMe: {
@@ -988,7 +1017,7 @@ const styles = StyleSheet.create({
     },
     reactionBadgeContainer: {
         position: 'absolute',
-        bottom: -12,
+        bottom: -5,
         height: 28,
         minWidth: 28,
         backgroundColor: '#f3f4f6',
@@ -1014,9 +1043,11 @@ const styles = StyleSheet.create({
     },
     reactionBadgeText: {
         fontSize: 15,
-        lineHeight: 18,
         fontWeight: '600',
         color: '#374151',
+        textAlign: 'center',
+        textAlignVertical: 'center',
+        includeFontPadding: false,
     },
     // Reply & Quotes styling
     replyPreviewContainer: {
