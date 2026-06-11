@@ -44,3 +44,8 @@
 4. Cryptographically secured P2P sync using Ed25519 payload signing (`exportSyncState`) and public key protobuf verification (`importRemoteState`).
 5. Added administrative sliding-window rate limiting (60 req/min per IP) and standard global modern security headers.
 
+
+## 2026-05-22 - [Sentinel] Fix Identity Import Weak Cryptography & Insecure Persistence
+**Vulnerability:** The PWA identity import flow wrote derived private keys directly into `localStorage` in plaintext rather than storing them in the secure IndexedDB persistence layer. Additionally, the identity import was previously authenticated using a weak 4-digit PIN via a repeatable XOR "encryption" cipher.
+**Learning:** Persisting private keys directly in `localStorage` subjects key material to XSS extraction risks and circumvents the designated abstraction provided for persistence (IndexedDB). A failure to invoke domain-specific wrappers (like `importIdentity`) led to this mismatch.
+**Prevention:** Ensured the PWA calls the `importIdentity` abstraction which stores the identity keypair securely inside IndexedDB, removing the plaintext `localStorage` sink.
