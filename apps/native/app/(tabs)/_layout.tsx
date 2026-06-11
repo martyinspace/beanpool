@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { GlobalHeader } from '../../components/GlobalHeader';
-import { View, Image, StyleSheet, Text } from 'react-native';
+import { View, Image, StyleSheet, Text, Platform } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useIdentity } from '../IdentityContext';
 import { getGlobalUnreadCount, syncMessages, getPosts, getMarketplaceTransactions } from '../../utils/db';
@@ -124,7 +124,7 @@ export default function TabLayout() {
                     name="projects" 
                     options={{ 
                         title: 'Projects',
-                        tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, transform: [{ scale: focused ? 1.3 : 1 }, { translateY: focused ? -4 : 0 }], opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>🌳</Text> 
+                        tabBarIcon: ({ focused }) => <Text style={{ fontSize: 24, transform: [{ scale: focused ? 1.3 : 1 }, { translateY: focused ? -4 : 0 }], opacity: 1, textShadowColor: 'rgba(0,0,0,1)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 8 }}>{Platform.OS === 'ios' ? '🌱' : '🌳'}</Text> 
                     }} 
                 />
                 <Tabs.Screen 
