@@ -559,7 +559,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
 
                  {/* Action buttons */}
                  
-                 {/* 1. Pending Escrow State (Applies to both Payer and Payee) */}
+                 {/* 1. Pending Trust Hold State (Applies to both Payer and Payee) */}
                  {selectedPost.status === 'pending' && (isPayer || isPayee) && (
                      <div className="flex flex-col gap-2 mt-4">
                          {isPayer ? (
@@ -568,7 +568,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                      ✅ Action Required: Release Credits
                                  </p>
                                  <p className="text-xs text-nature-500 text-center mb-2 px-4 shadow-sm">
-                                     You are the Payer. Once {targetPeerCallsign} has fulfilled the terms, release the escrow to complete the transaction.
+                                     You are the Payer. Once {targetPeerCallsign} has fulfilled the terms, release the funds held in trust to complete the transaction.
                                  </p>
                                  
                                  {showCompleteConfirm ? (
@@ -704,7 +704,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                  accepting ? 'border-red-200 text-red-300 cursor-not-allowed' : 'border-red-300 text-red-500 hover:bg-red-50'
                              }`}
                          >
-                             ❌ Cancel Escrow
+                             ❌ Cancel Hold
                          </button>
                      </div>
                  )}
@@ -769,7 +769,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                             disabled={accepting}
                                             className="flex-1 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-colors"
                                         >
-                                            Approve & Escrow
+                                            Approve & Hold in Trust
                                         </button>
                                     </div>
                                 </div>
@@ -854,7 +854,7 @@ export function MarketplacePage({ identity, marketClickCount = 0, openPostId, on
                                             const net = Math.round(tot * 0.985 * 100) / 100;
                                             return (
                                                 <span>
-                                                    By proceeding, you commit {tot} B{duration} to Escrow. When finalized, the provider will receive {net.toFixed(2)} B (net of 1.5% transaction fee <span className="text-emerald-600 dark:text-emerald-500 font-bold">(100% community owned)</span> to fund the Commons Pool).
+                                                    By proceeding, you commit {tot} B{duration} to a Trust Wallet. When finalized, the provider will receive {net.toFixed(2)} B (net of 1.5% transaction fee <span className="text-emerald-600 dark:text-emerald-500 font-bold">(100% community owned)</span> to fund the Commons Pool).
                                                 </span>
                                             );
                                         } else {

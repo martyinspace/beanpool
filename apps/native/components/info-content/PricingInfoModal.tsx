@@ -121,7 +121,7 @@ export function PricingInfoModal({ isOpen, onClose, initialTab }: Props) {
                     <View style={styles.infoBox}>
                         <Text style={styles.infoBoxIcon}>🛡️</Text>
                         <Text style={styles.infoBoxText}>
-                            The 1.5% fee is only applied when credits are successfully released to the recipient. Escrow deposits and cancellations (refunds) are completely fee-exempt.
+                            The 1.5% fee is only applied when credits are successfully released to the recipient. Trust wallet deposits and cancellations (refunds) are completely fee-exempt.
                         </Text>
                     </View>
                 </View>

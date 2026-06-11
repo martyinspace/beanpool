@@ -89,7 +89,7 @@ export default function EditProjectModal() {
     const handleDelete = async () => {
         Alert.alert(
             "Delete Project?",
-            "This will permanently erase the project. Pledges currently held in Escrow will be automatically refunded to backers.",
+            "This will permanently erase the project. Pledges currently held in a Trust Wallet will be automatically refunded to backers.",
             [
                 { text: "Cancel", style: "cancel" },
                 {
@@ -99,7 +99,7 @@ export default function EditProjectModal() {
                         setSubmitting(true);
                         try {
                             await deleteCrowdfundProjectApi(params.id);
-                            Alert.alert("Project Deleted", "The project has been successfully erased and any escrowed funds have been refunded.", [
+                            Alert.alert("Project Deleted", "The project has been successfully erased and any pledges held in trust have been refunded.", [
                                 { text: "OK", onPress: () => router.push('/projects') }
                             ]);
                         } catch (e: any) {

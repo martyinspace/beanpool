@@ -165,7 +165,7 @@ export function MyDealsModal({ visible, identity, onClose, posts, transactions, 
                                 {dealsTab === 'active'
                                     ? 'Post an offer or need to get started on the marketplace!'
                                     : dealsTab === 'pending'
-                                    ? 'Accepted deals will appear here while they are in escrow.'
+                                    ? 'Accepted deals will appear here while they are held in trust.'
                                     : 'Completed or cancelled deals will show up here.'}
                             </p>
                             {dealsTab === 'active' && (
@@ -305,7 +305,7 @@ export function MyDealsModal({ visible, identity, onClose, posts, transactions, 
                                                     {item.title}
                                                 </h4>
                                                 <p className="text-[11px] text-nature-500 font-bold uppercase tracking-wide">
-                                                    {item.status === 'pending' ? '🤝 In Escrow' : '🟢 Active'}
+                                                    {item.status === 'pending' ? '🤝 Held in Trust' : '🟢 Active'}
                                                 </p>
                                             </div>
                                         </div>

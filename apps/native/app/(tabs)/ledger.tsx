@@ -616,10 +616,10 @@ export default function LedgerScreen() {
                     <View style={styles.infoCard}>
                         <View style={styles.infoCardRow}>
                             <MaterialCommunityIcons name="lock-clock" size={18} color="#f59e0b" />
-                            <Text style={styles.infoCardLabel}>In Escrow</Text>
+                            <Text style={styles.infoCardLabel}>Held in Trust</Text>
                             <CurrencyDisplay style={styles.infoCardValue} amount={escrowTotal.toFixed(2)} />
                         </View>
-                        <Text style={styles.infoCardSub}>Beans locked in active marketplace deals</Text>
+                        <Text style={styles.infoCardSub}>Beans locked in active deals held in trust</Text>
                     </View>
                 )}
 

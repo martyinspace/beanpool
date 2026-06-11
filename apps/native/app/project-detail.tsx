@@ -153,8 +153,8 @@ export default function ProjectDetailScreen() {
                             </View>
                             <Text style={styles.escrowNotice}>
                                 {isFunded 
-                                    ? "🎉 This project successfully reached its goal! Escrowed funds have been securely released to the creator."
-                                    : "🔒 Pledges are held securely in a smart escrow account. Funds are only released to the creator if the goal is met. If the creator deletes this project, your Beans will be automatically refunded."}
+                                    ? "🎉 This project successfully reached its goal! Pledged funds held in trust have been securely released to the creator."
+                                    : "🔒 Pledges are held securely in a Trust Wallet. Funds are only released to the creator if the goal is met. If the creator deletes this project, your Beans will be automatically refunded."}
                             </Text>
                         </View>
 

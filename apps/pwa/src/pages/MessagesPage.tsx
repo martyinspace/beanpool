@@ -56,7 +56,7 @@ function formatSystemMessage(msg: any, myPubkey: string, userTransactions: any[]
     const beansStr = amount ? `${amount} Beans` : 'Beans';
 
     if (msg.systemType === 'ESCROW_FUNDED') {
-        return `${beansStr} placed in escrow.`;
+        return `${beansStr} held in trust.`;
     }
 
     if (msg.systemType === 'ESCROW_RELEASED') {
@@ -73,7 +73,7 @@ function formatSystemMessage(msg: any, myPubkey: string, userTransactions: any[]
     }
 
     if (msg.systemType === 'ESCROW_CANCELLED') {
-        return `Escrow cancelled and funds refunded.`;
+        return `Trust hold cancelled and funds refunded.`;
     }
 
     // Fallback: clean up Ʀ or R in the ciphertext
@@ -88,7 +88,7 @@ function formatSystemMessage(msg: any, myPubkey: string, userTransactions: any[]
             const isSeller = sellerPubkey === myPubkey;
             return `Payment of ${amt} Beans released to ${isSeller ? 'you' : 'the provider'}.`;
         });
-        txt = txt.replace(/R(\d+) has been placed in escrow\./g, '$1 Beans placed in escrow.');
+        txt = txt.replace(/R(\d+) has been placed in escrow\./g, '$1 Beans held in trust.');
     }
     return txt;
 }
@@ -960,7 +960,7 @@ export function MessagesPage({ identity, openConversationId, onConversationOpene
                                                     background: conv.postStatus === 'active' ? '#dbeafe' : conv.postStatus === 'pending' ? '#d1fae5' : '#f3f4f6',
                                                     color: conv.postStatus === 'active' ? '#1d4ed8' : conv.postStatus === 'pending' ? '#047857' : '#4b5563',
                                                 }}>
-                                                    {conv.postStatus === 'pending' ? 'ESCROW' : conv.postStatus.toUpperCase()}
+                                                    {conv.postStatus === 'pending' ? 'HELD IN TRUST' : conv.postStatus.toUpperCase()}
                                                 </div>
                                             )}
                                         </div>

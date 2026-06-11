@@ -243,7 +243,7 @@ export default function ChatsScreen() {
                                         item.postStatus === 'pending' ? { color: '#047857' } : 
                                         { color: '#4b5563' }
                                     ]}>
-                                        {item.postStatus === 'pending' ? 'ESCROW' : item.postStatus.toUpperCase()}
+                                        {item.postStatus === 'pending' ? 'HELD IN TRUST' : item.postStatus.toUpperCase()}
                                     </Text>
                                 </View>
                             )}
@@ -391,7 +391,7 @@ export default function ChatsScreen() {
                                     style={[styles.chip, statusFilter === 'pending' && styles.chipActive]} 
                                     onPress={() => setStatusFilter('pending')}
                                 >
-                                    <Text style={[styles.chipText, statusFilter === 'pending' && styles.chipTextActive]}>● Escrow</Text>
+                                    <Text style={[styles.chipText, statusFilter === 'pending' && styles.chipTextActive]}>● Held in Trust</Text>
                                 </Pressable>
                                 <Pressable 
                                     style={[styles.chip, statusFilter === 'completed' && styles.chipActive]} 

@@ -180,7 +180,7 @@ export function MyDealsSheet({ visible, identity, onClose, initialTab = 'pending
         let highlightStyle = {};
         
         if (item.status === 'pending' || relatedTx?.status === 'pending') {
-            displayStatusText = '🤝 In Escrow';
+            displayStatusText = '🤝 Held in Trust';
             highlightStyle = { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' };
         } else if (relatedTx?.status === 'requested') {
             if (item.author_pubkey === identity?.publicKey) {
@@ -299,7 +299,7 @@ export function MyDealsSheet({ visible, identity, onClose, initialTab = 'pending
                                     {dealsTab === 'active'
                                         ? 'Post an offer or need to get started!'
                                         : dealsTab === 'pending'
-                                        ? 'Accepted deals will appear here.'
+                                        ? 'Accepted deals will appear here while they are held in trust.'
                                         : 'Completed deals will show up here.'}
                                 </Text>
                                 {dealsTab === 'active' && (

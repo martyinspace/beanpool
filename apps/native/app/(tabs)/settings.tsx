@@ -1141,8 +1141,8 @@ export default function SettingsScreen() {
                             <View style={[styles.menuBtn, styles.menuBtnLast]}>
                                 <View style={styles.menuIconWrap}><Text style={styles.menuIcon}>🔒</Text></View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.menuText}>Escrow & System</Text>
-                                    <Text style={styles.menuSub}>Credits locked, released, or disputed</Text>
+                                    <Text style={styles.menuText}>Held in Trust & System</Text>
+                                    <Text style={styles.menuSub}>Credits held in trust, released, or disputed</Text>
                                 </View>
                                 <Pressable style={[styles.toggle, notifEscrow && styles.toggleOn]} onPress={async () => {
                                     const next = !notifEscrow; setNotifEscrow(next);

@@ -706,7 +706,7 @@ export function WelcomePage({ onComplete }: Props) {
                                         <div>
                                             <h5 className="font-bold text-xs text-nature-850 dark:text-nature-300">Trust-Backed Credit</h5>
                                             <p className="text-[11px] text-nature-500 dark:text-nature-400 leading-relaxed">
-                                                Every member starts at 0 Beans. You can go negative down to -80 Beans to request help, backed by community trust. No interest, no bank fees.
+                                                Every member starts with a 0 Bean limit. Perform at least one trade in a positive balance to unlock your first -80 Bean credit achievement. As you complete milestones and grow your community trust level, your negative credit limit expands further. No interest, no bank fees.
                                             </p>
                                         </div>
                                     </div>
@@ -732,11 +732,11 @@ export function WelcomePage({ onComplete }: Props) {
                                     </div>
                                 </div>
 
-                                {/* Card 3: Safe Handshake Escrow */}
+                                {/* Card 3: Safe Handshake Held in Trust */}
                                 <div className="p-4 rounded-xl border border-nature-200 dark:border-nature-800 bg-nature-50/50 dark:bg-nature-950/50">
-                                    <h4 className="font-bold text-sm mb-1 text-nature-950 dark:text-oat-50">🔒 Locked & Safe Trades</h4>
+                                    <h4 className="font-bold text-sm mb-1 text-nature-950 dark:text-oat-50">🔒 Held in Trust</h4>
                                     <p className="text-xs text-nature-600 dark:text-nature-400 leading-relaxed">
-                                        To ensure fairness, when you accept an offer or request a job, your credits are safely held in a temporary escrow wallet. They are only released to the provider once you confirm delivery.
+                                        To ensure fairness, when you accept an offer or request a job, your credits are safely held in a temporary Trust Wallet. They are only released to the provider once you confirm delivery.
                                     </p>
                                 </div>
 

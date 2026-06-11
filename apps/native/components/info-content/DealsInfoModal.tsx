@@ -12,27 +12,27 @@ export function DealsInfoModal({ isOpen, onClose }: Props) {
     const tabs: InfoModalTab[] = [
         {
             id: 'escrow',
-            label: '🤝 Escrow',
+            label: '🤝 Held in Trust',
             content: (
                 <View style={styles.tabContent}>
                     <Text style={styles.descriptionText}>
-                        BeanPool uses an <Text style={styles.boldWhiteText}>Escrow</Text> system to protect both buyers and sellers during a transaction.
+                        BeanPool uses a <Text style={styles.boldWhiteText}>Trust Wallet</Text> system to protect both buyers and sellers during a transaction.
                     </Text>
 
                     <View style={styles.cardContainer}>
                         <Text style={styles.cardLabel}>HOW DEALS WORK</Text>
                         <Text style={styles.cardText}>
                             1. Buyer accepts an offer or Seller accepts a need.{'\n'}
-                            2. The <CurrencyDisplay hideAmount={true} /> credits are locked in Escrow (they leave the buyer's account but aren't given to the seller yet).{'\n'}
+                            2. The <CurrencyDisplay hideAmount={true} /> credits are locked in a Trust Wallet (they leave the buyer's account but aren't given to the seller yet).{'\n'}
                             3. Both parties meet to exchange the goods/services.{'\n'}
-                            4. The Buyer releases the funds from Escrow to complete the deal.
+                            4. The Buyer releases the funds held in trust to complete the deal.
                         </Text>
                     </View>
 
                     <View style={styles.infoBox}>
                         <Text style={styles.infoBoxIcon}>💡</Text>
                         <Text style={styles.infoBoxText}>
-                            If there is a dispute and the goods aren't delivered, the buyer can cancel the escrow to get their credits back, or involve a Guardian for arbitration.
+                            If there is a dispute and the goods aren't delivered, the buyer can cancel the trust hold to get their credits back, or involve a Guardian for arbitration.
                         </Text>
                     </View>
                 </View>
@@ -57,7 +57,7 @@ export function DealsInfoModal({ isOpen, onClose }: Props) {
                     <View style={styles.warningBox}>
                         <Text style={styles.warningIcon}>⚠️</Text>
                         <Text style={styles.warningText}>
-                            Repeated bad reviews or failing to release escrow funds will result in an automatic review by Network Guardians, which may lead to account suspension.
+                            Repeated bad reviews or failing to release funds held in trust will result in an automatic review by Network Guardians, which may lead to account suspension.
                         </Text>
                     </View>
                 </View>
@@ -69,7 +69,7 @@ export function DealsInfoModal({ isOpen, onClose }: Props) {
         <InfoModal
             isOpen={isOpen}
             onClose={onClose}
-            title="My Deals & Escrow"
+            title="My Deals & Trust Hold"
             icon="🤝"
             tabs={tabs}
         />

@@ -90,11 +90,11 @@ export async function registerForPushNotifications(publicKey: string): Promise<s
             });
 
             await Notifications.setNotificationChannelAsync('escrow', {
-                name: 'Escrow Alerts',
+                name: 'Held in Trust Alerts',
                 importance: Notifications.AndroidImportance.HIGH,
                 vibrationPattern: [0, 500, 250, 500],
                 lightColor: '#059669',
-                description: 'Alerts for escrow events (credits locked, released, cancelled)',
+                description: 'Alerts for trust events (credits locked, released, cancelled)',
             });
 
             await Notifications.setNotificationChannelAsync('chat', {

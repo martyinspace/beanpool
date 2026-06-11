@@ -566,7 +566,7 @@ export function ProjectsPage({ identity }: Props) {
                                 <div className="mt-6 pt-6 border-t border-red-900/30">
                                     <button
                                         onClick={async () => {
-                                            if (window.confirm("CRITICAL WARNING: This will immediately delete your project and automatically refund all current backers from the smart escrow wallet. This action cannot be undone. Are you sure you want to proceed?")) {
+                                            if (window.confirm("CRITICAL WARNING: This will immediately delete your project and automatically refund all current backers from the Trust Wallet. This action cannot be undone. Are you sure you want to proceed?")) {
                                                 setDeleting(true);
                                                 try {
                                                     await request('POST', '/api/crowdfund/projects/delete', { id: selectedProject.id, creatorPubkey: identity!.publicKey });
@@ -658,7 +658,7 @@ export function ProjectsPage({ identity }: Props) {
                                 </div>
 
                                 <p className="text-[11px] text-nature-500 leading-relaxed bg-nature-900/30 p-2.5 rounded-lg border border-border-secondary">
-                                    🔒 <span className="font-bold text-nature-400">Smart Escrow:</span> Pledges are securely held here and only released when the goal is met. If deleted, Beans are automatically refunded.
+                                    🔒 <span className="font-bold text-nature-400">Held in Trust:</span> Pledges are securely held in a Trust Wallet and only released when the goal is met. If deleted, Beans are automatically refunded.
                                 </p>
                             </div>
 
