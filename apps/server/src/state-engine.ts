@@ -4301,7 +4301,7 @@ export function getCommunityHealth(): CommunityHealth {
     
     return {
         nodeName: getDirectoryInfo()?.name || 'Local Discovery',
-        version: '1.1.29',
+        version: '1.1.33',
         minAppVersion: '1.0.75',
         currency: { type: config.currencyType || 'image', value: config.currencyValue || 'bean' },
         tree: { totalMembers, maxDepth: 0, widestBranch: { callsign: 'db-optimized', children: 0 }, avgBranchSize: 0 },
