@@ -750,6 +750,12 @@ export function getMembers(): Member[] {
     return rows.map(rowToMember);
 }
 
+// ⚡ Bolt: Use direct COUNT(*) query instead of fetching all members into an array to get their length.
+// Reduces memory allocation and speeds up member counting significantly (O(1) vs O(n) array mapping)
+export function getMemberCount(): number {
+    return (db.prepare("SELECT COUNT(*) as c FROM members WHERE status != 'pruned'").get() as any).c;
+}
+
 export function getAllMembers(): Member[] {
     const rows = db.prepare("SELECT * FROM members").all() as any[];
     return rows.map(rowToMember);
@@ -4141,7 +4147,7 @@ export function getCommunityHealth(): CommunityHealth {
         `).get() as any).c;
     } catch (e) { console.error('Failed to calculate member activity stats:', e); }
 
-    const totalMembers = getMembers().length;
+    const totalMembers = getMemberCount();
     
     // ========== HEALTH FLAG DETECTION ==========
     const flags: HealthFlag[] = [];

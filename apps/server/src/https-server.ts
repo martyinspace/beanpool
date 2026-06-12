@@ -1375,8 +1375,8 @@ export async function startHttpsServer(port: number): Promise<void> {
 
         // --- FEDERATION VERIFY ---
         try {
-            const members = getMembers();
-            const fromMember = members.find(m => m.publicKey === from);
+            // ⚡ Bolt: Use getMember(pubkey) directly to find user, O(1) indexed lookup instead of O(N) array scan
+            const fromMember = getMember(from);
             if (fromMember && fromMember.homeNodeUrl) {
                 const p2pNode = getP2PNode();
                 if (p2pNode) {
@@ -1465,8 +1465,7 @@ export async function startHttpsServer(port: number): Promise<void> {
             if (conv && conv.type === 'dm') {
                 const otherPubkey = conv.participants.find(p => p !== authorPubkey);
                 if (otherPubkey) {
-                    const members = getMembers();
-                    const otherMember = members.find(m => m.publicKey === otherPubkey);
+                    const otherMember = getMember(otherPubkey);
                     
                     // If the other member has a homeNodeUrl, they are a visitor from a remote node
                     if (otherMember && otherMember.homeNodeUrl) {
@@ -1475,7 +1474,7 @@ export async function startHttpsServer(port: number): Promise<void> {
                             const connected = getConnectors();
                             const targetConnector = connected.find(c => c.publicUrl === otherMember.homeNodeUrl);
                             if (targetConnector && targetConnector.peerId) {
-                                const localMember = members.find(m => m.publicKey === authorPubkey);
+                                const localMember = getMember(authorPubkey);
                                 const localConfig = getLocalConfig();
                                 const hostname = process.env.CF_RECORD_NAME || (localConfig.communityName ? localConfig.communityName.toLowerCase().replace(/\s+/g, '') + '.beanpool.org' : undefined);
                                 const localUrl = hostname ? `https://${hostname}` : undefined;
@@ -2110,8 +2109,8 @@ export async function startHttpsServer(port: number): Promise<void> {
 
         // --- FEDERATION VERIFY ---
         try {
-            const members = getMembers();
-            const fromMember = members.find(m => m.publicKey === fromPubkey);
+            // ⚡ Bolt: Use getMember(pubkey) directly to find user, O(1) indexed lookup instead of O(N) array scan
+            const fromMember = getMember(fromPubkey);
             if (fromMember && fromMember.homeNodeUrl) {
                 const p2pNode = getP2PNode();
                 if (p2pNode) {

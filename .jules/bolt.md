@@ -13,3 +13,6 @@
 **Learning:** In `createRecoveryRequest()`, validating guardian guess callsigns was previously done by mapping the guardian public keys to member profiles, filtering out empty profiles, and then executing `.some()` against the resulting array. This led to unnecessary allocations (`.map()` and `.filter()`) and executed database lookups for all guardians even if a match was found in the first element.
 **Action:** Refactored the lookups using `guardians.some(...)` with hoisted, pre-normalized callsign comparison. This enables short-circuiting database reads and completely avoids intermediate array allocations.
 
+## 2024-05-18 - [Optimized Member Lookup and Member Counting in Server]
+**Learning:** Found an anti-pattern in the server app where checking if a member exists locally or calculating the length of members would fetch the entire `members` table to load into memory as a list to map over and find its length or call `find` over the array.
+**Action:** Replaced usage of `.find` array scan with direct lookup O(1) using `getMember` and replaced array count calculations using `.length` with O(1) SQL `COUNT` queries instead of an array fetch and mapping logic using `getMemberCount`.
