@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, FlatList, Alert, Image, ActivityIndicator, Keyboard } from 'react-native';
-import { KeyboardAvoidingView, useKeyboardHandler } from 'react-native-keyboard-controller';
+import { View, Text, StyleSheet, TextInput, Pressable, FlatList, Alert, Image, ActivityIndicator, Platform } from 'react-native';
+import { KeyboardAvoidingView, KeyboardController, AndroidSoftInputModes, useKeyboardHandler } from 'react-native-keyboard-controller';
 import { scheduleOnRN } from 'react-native-worklets';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useFocusEffect, Stack } from 'expo-router';
@@ -58,7 +58,6 @@ export default function ChatScreen() {
     const [promptReviewForTx, setPromptReviewForTx] = useState<{ txId: string; targetPubkey: string; targetCallsign: string } | null>(null);
     const [ratedPostIds, setRatedPostIds] = useState<Set<string>>(new Set());
     const [replyToMessage, setReplyToMessage] = useState<any | null>(null);
-    const [keyboardVisible, setKeyboardVisible] = useState(false);
     const flatListRef = useRef<FlatList>(null);
     const insets = useSafeAreaInsets();
     const sendingRef = useRef(false);
@@ -68,16 +67,18 @@ export default function ChatScreen() {
         flatListRef.current?.scrollToEnd({ animated });
     }, []);
 
+    // On Android, take explicit control of the soft input mode so that
+    // react-native-keyboard-controller's KeyboardAvoidingView is the sole
+    // owner of keyboard compensation (prevents double-resize races with
+    // the OS-level softwareKeyboardLayoutMode "resize" from app.json).
     useEffect(() => {
-        const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
-            setKeyboardVisible(true);
-        });
-        const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
-            setKeyboardVisible(false);
-        });
+        if (Platform.OS === 'android') {
+            KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_RESIZE);
+        }
         return () => {
-            showSubscription.remove();
-            hideSubscription.remove();
+            if (Platform.OS === 'android') {
+                KeyboardController.setDefaultMode();
+            }
         };
     }, []);
 
@@ -803,7 +804,7 @@ export default function ChatScreen() {
 
             <KeyboardAvoidingView
                 style={styles.keyboardView}
-                behavior="padding"
+                behavior="translate-with-padding"
             >
                 {/* Messages List */}
                 <FlatList
@@ -843,12 +844,7 @@ export default function ChatScreen() {
                 {/* Input Area */}
                 <View style={[
                     styles.inputContainer,
-                    {
-                        // When the keyboard is open it sits over the system
-                        // navigation bar, so we only need the safe-area inset
-                        // (which clears that nav bar) while it's closed.
-                        paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom, 12)
-                    }
+                    { paddingBottom: Math.max(insets.bottom, 12) }
                 ]}>
                     <Pressable style={styles.attachBtn} onPress={pickAndSendImage}>
                         <MaterialCommunityIcons name="plus-circle-outline" size={26} color="#9ca3af" />
