@@ -44,3 +44,8 @@
 4. Cryptographically secured P2P sync using Ed25519 payload signing (`exportSyncState`) and public key protobuf verification (`importRemoteState`).
 5. Added administrative sliding-window rate limiting (60 req/min per IP) and standard global modern security headers.
 
+
+## 2024-05-24 - [Identity Import Store Mismatch]
+**Vulnerability:** Identity import functionality wrote directly to `localStorage` while the rest of the application read from IndexedDB. Device wiping only removed the `localStorage` entry.
+**Learning:** This mismatch left the private key permanently stored in IndexedDB but logically "wiped" from the UI's perspective. It could also lead to issues where imported keys were easily exposed to XSS attacks (since `localStorage` is easily accessible).
+**Prevention:** Ensure all operations pertaining to sensitive storage use a single source of truth (in this case, wrapper functions like `saveIdentity`/`importIdentity` around IndexedDB).
