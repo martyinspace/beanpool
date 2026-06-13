@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, Modal, ActivityIndicator, Alert, StyleSheet, ScrollView, Keyboard } from 'react-native';
-import { KeyboardAvoidingView, KeyboardProvider } from 'react-native-keyboard-controller';
+import { View, Text, TextInput, Pressable, Modal, ActivityIndicator, Alert, StyleSheet, ScrollView, Platform } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native';
 import { submitRating, getDb } from '../utils/db';
 import { useIdentity } from '../app/IdentityContext';
 
@@ -18,14 +18,7 @@ export function ReviewModal({ visible, txId, targetPubkey, targetCallsign, onClo
     const [stars, setStars] = useState(5);
     const [comment, setComment] = useState('');
     const [submitting, setSubmitting] = useState(false);
-    const [keyboardHeight, setKeyboardHeight] = useState(0);
     const [isExisting, setIsExisting] = useState(false);
-
-    React.useEffect(() => {
-        const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKeyboardHeight(e.endCoordinates.height));
-        const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
-        return () => { showSub.remove(); hideSub.remove(); };
-    }, []);
 
     React.useEffect(() => {
         if (visible && txId && identity?.publicKey) {
@@ -67,13 +60,12 @@ export function ReviewModal({ visible, txId, targetPubkey, targetCallsign, onClo
 
     return (
         <Modal visible={visible} transparent animationType="slide">
-            <KeyboardProvider>
             <KeyboardAvoidingView
                 style={styles.overlay}
-                behavior="padding"
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
                 <ScrollView
-                    contentContainerStyle={[styles.scrollContent, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 20 }]}
+                    contentContainerStyle={styles.scrollContent}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
                 >
@@ -117,7 +109,6 @@ export function ReviewModal({ visible, txId, targetPubkey, targetCallsign, onClo
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
-            </KeyboardProvider>
         </Modal>
     );
 }
