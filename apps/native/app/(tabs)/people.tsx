@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { MemberAvatar } from '../../components/MemberAvatar';
 import { View, Text, StyleSheet, FlatList, Pressable, SafeAreaView, Image, ActivityIndicator, Platform, DeviceEventEmitter } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getDb, getFriendsLocal, addFriendLocal, removeFriendLocal, createConversationApi, setGuardianApi } from '../../utils/db';
 import { useIdentity } from '../IdentityContext';
 import { hexToBytes, encodeUtf8, encodeBase64, signData, buildSignedHeaders } from '../../utils/crypto';
@@ -14,6 +15,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { extractNodeOrigin, normaliseInviteCode } from '../../utils/invite-parser';
 
 type SubView = 'friends' | 'community' | 'invites' | 'guardians';
+type SortOption = 'newest' | 'name' | 'friends' | 'trusted' | 'active';
 
 const MEMBER_ROW_HEIGHT = 66;
 
@@ -68,11 +70,8 @@ export default function PeopleScreen() {
     const { identity } = useIdentity();
 
     const [searchQuery, setSearchQuery] = useState('');
-    const [page, setPage] = useState(0);
-    const [loadingMore, setLoadingMore] = useState(false);
-    const [hasMore, setHasMore] = useState(true);
+    const [sortOption, setSortOption] = useState<SortOption>('newest');
     const [guardianSyncing, setGuardianSyncing] = useState<string | null>(null);
-    const PAGE_SIZE = 20;
 
     const [friends, setFriends] = useState<any[]>([]);
     const [friendPubkeys, setFriendPubkeys] = useState<Set<string>>(new Set());
@@ -82,9 +81,7 @@ export default function PeopleScreen() {
         // Reset and reload when switching back to community view
         if (view === 'community') {
             setSearchQuery('');
-            setPage(0);
-            setHasMore(true);
-            loadMembers(0, '', true);
+            loadMembers('', sortOption);
         }
         if (view === 'invites') loadOfflineInvites();
         AsyncStorage.getItem('beanpool_anchor_url').then(async val => {
@@ -119,7 +116,7 @@ export default function PeopleScreen() {
     useEffect(() => {
         const sub = DeviceEventEmitter.addListener('sync_data_updated', () => {
             if (view === 'community') {
-                loadMembers(0, searchQuery, true);
+                loadMembers(searchQuery, sortOption);
             } else if (view === 'friends') {
                 loadFriends();
             }
@@ -385,18 +382,13 @@ export default function PeopleScreen() {
     useEffect(() => {
         if (view !== 'community') return;
         const timeout = setTimeout(() => {
-            setPage(0);
-            setHasMore(true);
-            loadMembers(0, searchQuery, true);
+            loadMembers(searchQuery, sortOption);
         }, 400);
         return () => clearTimeout(timeout);
-    }, [searchQuery]);
+    }, [searchQuery, sortOption]);
 
-    const loadMembers = async (pageIndex = 0, query = '', reset = false) => {
-        if (loadingMore || (!hasMore && !reset)) return;
-        
+    const loadMembers = async (query = '', sort: SortOption = 'newest') => {
         try {
-            setLoadingMore(true);
             const database = await getDb();
             
             let sql = 'SELECT * FROM members WHERE public_key NOT LIKE \'escrow_%\' AND public_key NOT LIKE \'project_%\'';
@@ -408,29 +400,37 @@ export default function PeopleScreen() {
                 params.push(likeTerm, likeTerm);
             }
             
-            sql += ' ORDER BY joined_at DESC LIMIT ? OFFSET ?';
-            params.push(PAGE_SIZE, pageIndex * PAGE_SIZE);
+            // Apply SQL sort (Friends First is handled client-side below)
+            switch (sort) {
+                case 'name':
+                    sql += ' ORDER BY callsign COLLATE NOCASE ASC';
+                    break;
+                case 'trusted':
+                    sql += ' ORDER BY earned_credit DESC, joined_at DESC';
+                    break;
+                case 'active':
+                    sql += ' ORDER BY last_active_at DESC NULLS LAST, joined_at DESC';
+                    break;
+                default: // 'newest' and 'friends' (friends sorted client-side)
+                    sql += ' ORDER BY joined_at DESC';
+                    break;
+            }
             
-            const rows = await database.getAllAsync<any>(sql, params);
-            
-            if (rows.length < PAGE_SIZE) setHasMore(false);
-            
-            setMembers(prev => {
-                if (reset) return rows;
-                const newRows = rows.filter(r => !prev.some(p => p.public_key === r.public_key));
-                return [...prev, ...newRows];
-            });
-            setPage(pageIndex + 1);
+            let rows = await database.getAllAsync<any>(sql, params);
+
+            // Client-side sort: friends first, then everyone else by joined date
+            if (sort === 'friends') {
+                rows.sort((a, b) => {
+                    const aFriend = friendPubkeys.has(a.public_key) ? 1 : 0;
+                    const bFriend = friendPubkeys.has(b.public_key) ? 1 : 0;
+                    if (aFriend !== bFriend) return bFriend - aFriend;
+                    return new Date(b.joined_at).getTime() - new Date(a.joined_at).getTime();
+                });
+            }
+
+            setMembers(rows);
         } catch (e) {
             console.error('Error loading members:', e);
-        } finally {
-            setLoadingMore(false);
-        }
-    };
-
-    const handleLoadMore = () => {
-        if (hasMore && !loadingMore && view === 'community') {
-            loadMembers(page, searchQuery);
         }
     };
 
@@ -553,19 +553,29 @@ export default function PeopleScreen() {
                             autoCorrect={false}
                         />
                     </View>
+                    <View style={styles.sortRow}>
+                        {([['newest', 'clock-outline', 'Newest'], ['name', 'sort-alphabetical-ascending', 'Name'], ['friends', 'account-heart-outline', 'Friends'], ['trusted', 'shield-star-outline', 'Trusted'], ['active', 'lightning-bolt', 'Active']] as [SortOption, string, string][]).map(([key, icon, label]) => (
+                            <Pressable
+                                key={key}
+                                style={[styles.sortPill, sortOption === key && styles.sortPillActive]}
+                                onPress={() => setSortOption(key)}
+                            >
+                                <MaterialCommunityIcons name={icon as any} size={14} color={sortOption === key ? '#fff' : '#6b7280'} />
+                                <Text style={[styles.sortPillText, sortOption === key && styles.sortPillTextActive]}>{label}</Text>
+                            </Pressable>
+                        ))}
+                    </View>
                     <FlatList
                         data={members}
                         keyExtractor={item => item.public_key}
                         contentContainerStyle={[styles.list, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 16 }]}
-                        onEndReached={handleLoadMore}
-                        onEndReachedThreshold={0.5}
                         getItemLayout={(_data, index) => ({
                             length: MEMBER_ROW_HEIGHT,
                             offset: MEMBER_ROW_HEIGHT * index,
                             index,
                         })}
-                        initialNumToRender={15}
-                        maxToRenderPerBatch={20}
+                        initialNumToRender={20}
+                        maxToRenderPerBatch={30}
                         windowSize={7}
                         removeClippedSubviews={Platform.OS !== 'web'}
                         keyboardShouldPersistTaps="handled"
@@ -583,13 +593,6 @@ export default function PeopleScreen() {
                                     {searchQuery ? 'No members match your search.' : 'Loading community...'}
                                 </Text>
                             </View>
-                        }
-                        ListFooterComponent={
-                            (loadingMore && members.length > 0) ? (
-                                <View style={{ padding: 20, alignItems: 'center' }}>
-                                    <ActivityIndicator size="small" color="#059669" />
-                                </View>
-                            ) : null
                         }
                         renderItem={({ item, index }) => {
                         const isFriend = friendPubkeys.has(item.public_key);
@@ -924,6 +927,11 @@ const styles = StyleSheet.create({
 
     searchWrap: { paddingHorizontal: 16, paddingTop: 16, backgroundColor: '#f9fafb' },
     searchInput: { backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, padding: 12, fontSize: 15, color: '#111827', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
+    sortRow: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4, backgroundColor: '#f9fafb', gap: 6 },
+    sortPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5e7eb' },
+    sortPillActive: { backgroundColor: '#059669', borderColor: '#059669' },
+    sortPillText: { fontSize: 11, fontWeight: '600', color: '#6b7280' },
+    sortPillTextActive: { color: '#ffffff' },
 
     sectionHeader: { fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 6 },
     sectionDesc: { fontSize: 13, color: '#6b7280', marginBottom: 20, lineHeight: 18 },
