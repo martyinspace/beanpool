@@ -67,13 +67,14 @@ export default function ChatScreen() {
         flatListRef.current?.scrollToEnd({ animated });
     }, []);
 
-    // On Android, take explicit control of the soft input mode so that
-    // react-native-keyboard-controller's KeyboardAvoidingView is the sole
-    // owner of keyboard compensation (prevents double-resize races with
-    // the OS-level softwareKeyboardLayoutMode "resize" from app.json).
+    // On Android, tell the OS not to resize/pan the window when the keyboard
+    // opens. This makes react-native-keyboard-controller's KeyboardAvoidingView
+    // the sole owner of keyboard compensation — eliminating the intermittent
+    // race where Android's OS-level resize and the library's padding would
+    // double-compensate or mis-time, hiding the input bar.
     useEffect(() => {
         if (Platform.OS === 'android') {
-            KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_RESIZE);
+            KeyboardController.setInputMode(AndroidSoftInputModes.SOFT_INPUT_ADJUST_NOTHING);
         }
         return () => {
             if (Platform.OS === 'android') {
@@ -804,7 +805,7 @@ export default function ChatScreen() {
 
             <KeyboardAvoidingView
                 style={styles.keyboardView}
-                behavior="translate-with-padding"
+                behavior="padding"
             >
                 {/* Messages List */}
                 <FlatList
