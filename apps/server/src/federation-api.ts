@@ -11,7 +11,7 @@
 import type Koa from 'koa';
 import type Router from '@koa/router';
 import { getPeerOrigins, getConnectorsByLevel } from './connector-manager.js';
-import { getMembers, getPosts, getBalance, createConversation, sendMessage, registerVisitor } from './state-engine.js';
+import { getMember, getPosts, getBalance, createConversation, sendMessage, registerVisitor, getCommunityInfo } from './state-engine.js';
 import { getLocalConfig } from './local-config.js';
 
 /**
@@ -57,7 +57,6 @@ export function mountFederationRoutes(router: Router): void {
     // Node info — public metadata for federation discovery
     router.get('/api/node/info', async (ctx) => {
         const config = getLocalConfig();
-        const members = getMembers();
         const posts = getPosts({});
         const peers = getConnectorsByLevel('peer')
             .filter(c => c.connected && c.mutualTrust)
@@ -66,9 +65,10 @@ export function mountFederationRoutes(router: Router): void {
                 publicUrl: c.publicUrl || null,
             }));
 
+        // Optimize: use O(1) SQL query for member count
         ctx.body = {
             name: config.communityName || 'BeanPool Node',
-            memberCount: members.length,
+            memberCount: getCommunityInfo().memberCount,
             postCount: posts.filter((p: any) => p.active).length,
             peerNodes: peers,
         };
@@ -87,8 +87,8 @@ export function mountFederationRoutes(router: Router): void {
             return;
         }
 
-        const members = getMembers();
-        const member = members.find(m => m.publicKey === publicKey);
+        // Optimize: use O(1) indexed database query
+        const member = getMember(publicKey);
 
         if (!member) {
             ctx.body = { isMember: false };
@@ -117,8 +117,8 @@ export function mountFederationRoutes(router: Router): void {
         }
 
         // Verify recipient exists locally
-        const members = getMembers();
-        const recipient = members.find(m => m.publicKey === recipientPublicKey);
+        // Optimize: use O(1) indexed database query
+        const recipient = getMember(recipientPublicKey);
         if (!recipient) {
             ctx.status = 404;
             ctx.body = { error: 'Recipient not found on this node' };

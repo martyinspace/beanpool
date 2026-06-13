@@ -8,7 +8,7 @@
 
 import type { Libp2p } from 'libp2p';
 import { isPeerTrusted } from './connector-manager.js';
-import { getMembers, getBalance, createConversation, sendMessage, registerVisitor } from './state-engine.js';
+import { getMember, getBalance, createConversation, sendMessage, registerVisitor } from './state-engine.js';
 
 const PROTOCOL = '/beanpool/federation/1.0.0';
 const encoder = new TextEncoder();
@@ -105,8 +105,8 @@ export function registerFederationHandler(node: Libp2p): void {
 
             if (request.action === 'verify_member') {
                 const { publicKey } = request;
-                const members = getMembers();
-                const member = members.find(m => m.publicKey === publicKey);
+                // Optimize: use O(1) indexed database query
+                const member = getMember(publicKey);
 
                 if (!member) {
                     response = { isMember: false };
@@ -126,8 +126,8 @@ export function registerFederationHandler(node: Libp2p): void {
                     response = { error: 'Missing required payload fields' };
                 } else {
                     // Verify recipient exists locally
-                    const members = getMembers();
-                    const recipient = members.find(m => m.publicKey === recipientPublicKey);
+                    // Optimize: use O(1) indexed database query
+                    const recipient = getMember(recipientPublicKey);
                     if (!recipient) {
                         response = { error: 'Recipient not found on this node' };
                     } else {
