@@ -44,3 +44,8 @@
 4. Cryptographically secured P2P sync using Ed25519 payload signing (`exportSyncState`) and public key protobuf verification (`importRemoteState`).
 5. Added administrative sliding-window rate limiting (60 req/min per IP) and standard global modern security headers.
 
+
+## 2024-05-18 - Identity Storage Mismatch and Improper Data Destruction
+**Vulnerability:** Identity import wrote sensitive keys to `localStorage` while the read layer used `IndexedDB`. When a user attempted to wipe their account, the application only cleared the legacy `localStorage` keys, leaving the actual operational `IndexedDB` keys perfectly intact.
+**Learning:** Dual-storage architecture for sensitive keys without rigorous abstraction inevitably leads to partial-destruction bugs. Cryptographic key lifecycle (create, read, update, delete) MUST be encapsulated in a single module.
+**Prevention:** Never manipulate storage directly in the UI layer. All key operations, including deletion, must go through the dedicated identity management module (e.g., `importIdentity()` and `deleteIdentity()`). Always implement and test positive key destruction methods alongside creation and reading.
