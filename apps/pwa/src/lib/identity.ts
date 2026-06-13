@@ -93,6 +93,22 @@ export async function importIdentity(identity: BeanPoolIdentity): Promise<void> 
 }
 
 /**
+ * Permanently delete the identity (private key included) from IndexedDB.
+ * Used by the "Wipe Identity" flow so the key cannot linger in the secure store
+ * after the user asks for it to be destroyed.
+ */
+export async function wipeIdentity(): Promise<void> {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.delete(KEY_ID);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+/**
  * Update the callsign on the existing identity in IndexedDB.
  * Returns the updated identity.
  */

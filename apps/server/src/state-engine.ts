@@ -25,6 +25,28 @@ const synonymMap: Record<string, string[]> = (() => {
 })();
 
 /**
+ * Run a SELECT whose only large dynamic input is a single `IN (...)` array, splitting that
+ * array into sub-batches so we never exceed SQLite's host-parameter cap (32766). Without this,
+ * an array grown by user activity (posts, conversations, wards) could blow the cap and throw,
+ * failing the request. `buildSql(placeholders)` returns the SQL for one batch; `prefixParams`
+ * are bound (in order) before the array values and are identical across batches.
+ */
+function selectInChunks<T = any>(
+    values: readonly any[],
+    buildSql: (placeholders: string) => string,
+    prefixParams: readonly any[] = [],
+): T[] {
+    const CHUNK_SIZE = 900;
+    const out: T[] = [];
+    for (let i = 0; i < values.length; i += CHUNK_SIZE) {
+        const chunk = values.slice(i, i + CHUNK_SIZE);
+        const placeholders = chunk.map(() => '?').join(',');
+        out.push(...(db.prepare(buildSql(placeholders)).all(...prefixParams, ...chunk) as T[]));
+    }
+    return out;
+}
+
+/**
  * Generate hidden search keywords by expanding post content through the synonym map.
  * e.g. title "Fresh Lemons" → keywords "fruit citrus produce food tree"
  */
@@ -1489,9 +1511,7 @@ export function getPosts(filter?: { id?: string; type?: string; category?: strin
     // (a few short strings per post) while the client can render the full set. The actual
     // image data downloads lazily per-photo when each URL is rendered (e.g. post detail
     // carousel), so the data-light feed behaviour is preserved.
-    const photosQuery = `SELECT post_id, order_num FROM post_photos WHERE post_id IN (${postIds.map(() => '?').join(',')})`;
-
-    const photos = (postIds.length > 0) ? db.prepare(photosQuery).all(...postIds) : [];
+    const photos = selectInChunks(postIds, ph => `SELECT post_id, order_num FROM post_photos WHERE post_id IN (${ph})`);
 
     // ⚡ Bolt: Group photos by post_id to avoid O(N²) nested filtering, turning it to O(N) lookup.
     const photosByPost = new Map<string, any[]>();
@@ -2011,7 +2031,7 @@ export function getMarketplaceTransactions(publicKey: string, filter?: { status?
 
     const rows = db.prepare(query).all(...params) as any[];
     const postIds = Array.from(new Set(rows.map(r => r.post_id)));
-    const photos = postIds.length > 0 ? db.prepare(`SELECT * FROM post_photos WHERE post_id IN (${postIds.map(() => '?').join(',')})`).all(...postIds) as any[] : [];
+    const photos = selectInChunks(postIds, ph => `SELECT * FROM post_photos WHERE post_id IN (${ph})`);
 
     // ⚡ Bolt: Group photos by post_id to avoid O(N²) nested searching
     const photosByPost = new Map<string, any[]>();
@@ -2278,9 +2298,7 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
     const allPeerPubkeys = new Set<string>();
 
     if (conversationIds.length > 0) {
-        const placeholders = conversationIds.map(() => '?').join(',');
-        const partsQuery = `SELECT conversation_id, public_key, last_read_at FROM conversation_participants WHERE conversation_id IN (${placeholders})`;
-        const allParts = db.prepare(partsQuery).all(...conversationIds) as any[];
+        const allParts = selectInChunks(conversationIds, ph => `SELECT conversation_id, public_key, last_read_at FROM conversation_participants WHERE conversation_id IN (${ph})`);
 
         for (const part of allParts) {
             if (!participantsByConv.has(part.conversation_id)) {
@@ -2299,9 +2317,7 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
     const membersByPubkey = new Map<string, any>();
     if (allPeerPubkeys.size > 0) {
         const pubkeysArray = Array.from(allPeerPubkeys);
-        const placeholders = pubkeysArray.map(() => '?').join(',');
-        const membersQuery = `SELECT public_key, callsign, avatar_url FROM members WHERE public_key IN (${placeholders})`;
-        const allMembers = db.prepare(membersQuery).all(...pubkeysArray) as any[];
+        const allMembers = selectInChunks(pubkeysArray, ph => `SELECT public_key, callsign, avatar_url FROM members WHERE public_key IN (${ph})`);
 
         for (const member of allMembers) {
             membersByPubkey.set(member.public_key, member);
@@ -2312,9 +2328,7 @@ export function getConversationsByMember(pubkey: string): Conversation[] {
     const postIds = Array.from(new Set(rows.map(r => r.post_id).filter(id => id != null)));
     const postPhotosById = new Map<string, string | null>();
     if (postIds.length > 0) {
-        const placeholders = postIds.map(() => '?').join(',');
-        const postsQuery = `SELECT id, photos FROM posts WHERE id IN (${placeholders})`;
-        const allPosts = db.prepare(postsQuery).all(...postIds) as any[];
+        const allPosts = selectInChunks(postIds, ph => `SELECT id, photos FROM posts WHERE id IN (${ph})`);
 
         for (const post of allPosts) {
             let postPhoto: string | null = null;
@@ -3928,15 +3942,14 @@ export function getPendingRecoveryRequests(guardianPubkey: string): any[] {
     const wards = getMyWards(guardianPubkey).map(w => w.publicKey);
     if (wards.length === 0) return [];
     
-    const placeholders = wards.map(() => '?').join(',');
-    const rows = db.prepare(`
+    const rows = selectInChunks(wards, ph => `
         SELECT r.*, m.callsign as old_callsign, m.avatar_url,
                (SELECT COUNT(*) FROM recovery_approvals WHERE request_id=r.id AND decision='approve') as approvals,
                (SELECT decision FROM recovery_approvals WHERE request_id=r.id AND guardian_pubkey=?) as my_decision
         FROM recovery_requests r
         JOIN members m ON r.old_pubkey = m.public_key
-        WHERE r.old_pubkey IN (${placeholders}) AND r.status IN ('pending', 'approved')
-    `).all(guardianPubkey, ...wards) as any[];
+        WHERE r.old_pubkey IN (${ph}) AND r.status IN ('pending', 'approved')
+    `, [guardianPubkey]);
 
     return rows.map(r => ({
         id: r.id,
